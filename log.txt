@@ -1,0 +1,250 @@
+(residual) adenmckinney@ZXP-S-works:~/Desktop/projects/equi-resrl$ python resfit/lerobot/scripts/train_bc_dexmg.py \
+>     --dataset ankile/dexmg-two-arm-coffee \
+>     --policy act \
+>     --steps 200000 \
+>     --batch_size 256 \
+>     --wandb_project dexmg-bc \
+>     --eval_env TwoArmCoffee \
+>     --rollout_freq 5000 \
+>     --eval_video_key observation.images.frontview \
+>     --eval_render_size 224 \
+>     --eval_num_envs 16 \
+>     --eval_num_episodes 100 \
+>     --wandb_enable
+2026-01-08 13:34:36,856 | INFO | Using device: cuda
+2026-01-08 13:34:36,856 | INFO | Fetching dataset metadata from the Hub…
+2026-01-08 13:34:37,038 | INFO | Cuda backend detected, using cuda.
+2026-01-08 13:34:37,038 | WARNING | Device 'None' is not available. Switching to 'cuda'.
+2026-01-08 13:34:37,038 | INFO | Building LeRobotDataset with inferred delta-timestamps…
+Resolving data files: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1014/1014 [00:00<00:00, 1000476.18it/s]
+ACTConfig(n_obs_steps=1, normalization_mapping={'VISUAL': <NormalizationMode.MEAN_STD: 'MEAN_STD'>, 'STATE': <NormalizationMode.MEAN_STD: 'MEAN_STD'>, 'ACTION': <NormalizationMode.MEAN_STD: 'MEAN_STD'>}, input_features={'observation.state': PolicyFeature(type=<FeatureType.STATE: 'STATE'>, shape=(36,)), 'observation.images.agentview': PolicyFeature(type=<FeatureType.VISUAL: 'VISUAL'>, shape=(3, 84, 84)), 'observation.images.robot0_eye_in_left_hand': PolicyFeature(type=<FeatureType.VISUAL: 'VISUAL'>, shape=(3, 84, 84)), 'observation.images.robot0_eye_in_right_hand': PolicyFeature(type=<FeatureType.VISUAL: 'VISUAL'>, shape=(3, 84, 84))}, output_features={'action': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(24,))}, device='cuda', use_amp=False, chunk_size=20, n_action_steps=20, vision_backbone='resnet18', pretrained_backbone_weights='ResNet18_Weights.IMAGENET1K_V1', replace_final_stride_with_dilation=False, pre_norm=False, dim_model=512, n_heads=8, dim_feedforward=3200, feedforward_activation='relu', n_encoder_layers=4, n_decoder_layers=1, use_vae=False, latent_dim=32, n_vae_encoder_layers=4, temporal_ensemble_coeff=None, dropout=0.1, kl_weight=10.0, optimizer_lr=0.0001, optimizer_weight_decay=0.0001, optimizer_lr_backbone=1e-05)
+wandb: Currently logged in as: aden-mckinney10 (aden-mckinney10-university-of-central-florida) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /home/adenmckinney/Desktop/projects/equi-resrl/wandb/run-20260108_133440-8sz7h4c8
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run act_dexmg-two-arm-coffee
+wandb: ⭐️ View project at https://wandb.ai/aden-mckinney10-university-of-central-florida/dexmg-bc
+wandb: 🚀 View run at https://wandb.ai/aden-mckinney10-university-of-central-florida/dexmg-bc/runs/8sz7h4c8
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+2026-01-08 13:34:41,102 | INFO | W&B logging enabled
+2026-01-08 13:34:41,103 | INFO | Creating evaluation environment: TwoArmCoffee
+2026-01-08 13:34:41,103 | INFO | Production mode: using asynchronous multiprocessing environment
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:41,106 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,572 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,696 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,823 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,878 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,947 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:46,988 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:47,016 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:47,263 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:47,418 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:47,833 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,070 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,113 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,222 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,410 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,800 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+[robosuite INFO] Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json (composite_controller_factory.py:121)
+2026-01-08 13:34:48,844 | INFO | Loading controller configuration from: /home/adenmckinney/Desktop/projects/equi-resrl/deps/robosuite/robosuite/controllers/config/robots/default_gr1_fixed_lower_body.json
+2026-01-08 13:35:05,609 | INFO | [step      0/200000] loss: 0.8535 | data: 12200.0 ms | update: 369.2 ms | iter: 12569.3 ms
+2026-01-08 13:36:13,465 | INFO | [step    100/200000] loss: 0.1677 | data: 1937.0 ms | update: 68.7 ms | iter: 2005.7 ms
+2026-01-08 13:37:21,624 | INFO | [step    200/200000] loss: 0.1305 | data: 1634.6 ms | update: 65.2 ms | iter: 1699.9 ms
+Traceback (most recent call last):
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/resfit/lerobot/scripts/train_bc_dexmg.py", line 996, in <module>
+    main(args_cli)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/resfit/lerobot/scripts/train_bc_dexmg.py", line 736, in main
+    batch: dict[str, Any] = next(dl_iter)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/utils.py", line 641, in cycle
+    yield next(iterator)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 732, in __next__
+    data = self._next_data()
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1479, in _next_data
+    return self._process_data(data, worker_id)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1541, in _process_data
+    data.reraise()
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/_utils.py", line 769, in reraise
+    raise exception
+RuntimeError: Caught RuntimeError in DataLoader worker process 2.
+Original Traceback (most recent call last):
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/lerobot_dataset.py", line 717, in __getitem__
+    video_frames = self._query_videos(query_timestamps, ep_idx)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/lerobot_dataset.py", line 689, in _query_videos
+    frames = decode_video_frames(video_path, query_ts, self.tolerance_s, self.video_backend)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/video_utils.py", line 65, in decode_video_frames
+    return decode_video_frames_torchcodec(video_path, timestamps, tolerance_s)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/video_utils.py", line 205, in decode_video_frames_torchcodec
+    frames_batch = decoder.get_frames_at(indices=frame_indices)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torchcodec/decoders/_video_decoder.py", line 262, in get_frames_at
+    data, pts_seconds, duration_seconds = core.get_frames_at_indices(
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torchcodec/_core/ops.py", line 278, in get_frames_at_indices
+    return _get_frames_at_indices_tensor_input(decoder, frame_indices=frame_indices)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/_ops.py", line 841, in __call__
+    return self._op(*args, **kwargs)
+RuntimeError: Could not push packet to decoder: Invalid data found when processing input
+
+Traceback (most recent call last):
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/resfit/lerobot/scripts/train_bc_dexmg.py", line 996, in <module>
+    main(args_cli)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/resfit/lerobot/scripts/train_bc_dexmg.py", line 736, in main
+    batch: dict[str, Any] = next(dl_iter)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/utils.py", line 641, in cycle
+    yield next(iterator)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 732, in __next__
+    data = self._next_data()
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1479, in _next_data
+    return self._process_data(data, worker_id)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1541, in _process_data
+    data.reraise()
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/_utils.py", line 769, in reraise
+    raise exception
+RuntimeError: Caught RuntimeError in DataLoader worker process 2.
+Original Traceback (most recent call last):
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/lerobot_dataset.py", line 717, in __getitem__
+    video_frames = self._query_videos(query_timestamps, ep_idx)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/lerobot_dataset.py", line 689, in _query_videos
+    frames = decode_video_frames(video_path, query_ts, self.tolerance_s, self.video_backend)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/video_utils.py", line 65, in decode_video_frames
+    return decode_video_frames_torchcodec(video_path, timestamps, tolerance_s)
+  File "/home/adenmckinney/Desktop/projects/equi-resrl/deps/lerobot/lerobot/common/datasets/video_utils.py", line 205, in decode_video_frames_torchcodec
+    frames_batch = decoder.get_frames_at(indices=frame_indices)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torchcodec/decoders/_video_decoder.py", line 262, in get_frames_at
+    data, pts_seconds, duration_seconds = core.get_frames_at_indices(
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torchcodec/_core/ops.py", line 278, in get_frames_at_indices
+    return _get_frames_at_indices_tensor_input(decoder, frame_indices=frame_indices)
+  File "/home/adenmckinney/miniforge3/envs/residual/lib/python3.10/site-packages/torch/_ops.py", line 841, in __call__
+    return self._op(*args, **kwargs)
+RuntimeError: Could not push packet to decoder: Invalid data found when processing input
+
+wandb: 
+wandb: 🚀 View run act_dexmg-two-arm-coffee at: 
+wandb: Find logs at: wandb/run-20260108_133440-8sz7h4c8/logs
+
+video path: /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4
+frame indices: [299]
+
+video path: /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4
+frame indices: [342]
+
+video path: /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4
+frame indices: [299]
+
+video path: /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4
+frame indices: [299]
+
+
+ffmpeg -i /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4 -c:v libx264 -crf 23 -preset medium /tmp/episode_000046_fixed.mp4
+
+(residual) adenmckinney@ZXP-S-works:~/Desktop/projects/equi-resrl$ ffmpeg -i /home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4 -c:v libx264 -crf 23 -preset medium /tmp/episode_000046_fixed.mp4
+ffmpeg version 4.2.7-0ubuntu0.1 Copyright (c) 2000-2022 the FFmpeg developers
+  built with gcc 9 (Ubuntu 9.4.0-1ubuntu1~20.04.1)
+  configuration: --prefix=/usr --extra-version=0ubuntu0.1 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --enable-avresample --disable-filter=resample --enable-avisynth --enable-gnutls --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libjack --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libpulse --enable-librsvg --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwavpack --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzmq --enable-libzvbi --enable-lv2 --enable-omx --enable-openal --enable-opencl --enable-opengl --enable-sdl2 --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-nvenc --enable-chromaprint --enable-frei0r --enable-libx264 --enable-shared
+  libavutil      56. 31.100 / 56. 31.100
+  libavcodec     58. 54.100 / 58. 54.100
+  libavformat    58. 29.100 / 58. 29.100
+  libavdevice    58.  8.100 / 58.  8.100
+  libavfilter     7. 57.100 /  7. 57.100
+  libavresample   4.  0.  0 /  4.  0.  0
+  libswscale      5.  5.100 /  5.  5.100
+  libswresample   3.  5.100 /  3.  5.100
+  libpostproc    55.  5.100 / 55.  5.100
+[libaom-av1 @ 0x5614e1599f40] v1.0.0
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/home/adenmckinney/.cache/huggingface/lerobot/ankile/dexmg-two-arm-coffee/videos/chunk-000/observation.images.robot0_eye_in_right_hand/episode_000046.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomav01iso2mp41
+    encoder         : Lavf61.7.100
+  Duration: 00:00:17.15, start: 0.000000, bitrate: 77 kb/s
+    Stream #0:0(und): Video: av1 (Main) (av01 / 0x31307661), yuv420p(tv), 84x84, 76 kb/s, 20 fps, 20 tbr, 10240 tbn, 10240 tbc (default)
+    Metadata:
+      handler_name    : VideoHandler
+[libaom-av1 @ 0x5614e15c8ac0] v1.0.0
+Stream mapping:
+  Stream #0:0 -> #0:0 (av1 (libaom-av1) -> h264 (libx264))
+Press [q] to stop, [?] for help
+[libx264 @ 0x5614e159e380] using cpu capabilities: MMX2 SSE2Fast SSSE3 SSE4.2 AVX FMA3 BMI2 AVX2
+[libx264 @ 0x5614e159e380] profile High, level 1.0
+[libx264 @ 0x5614e159e380] 264 - core 155 r2917 0a84d98 - H.264/MPEG-4 AVC codec - Copyleft 2003-2018 - http://www.videolan.org/x264.html - options: cabac=1 ref=3 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=7 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=3 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=2 keyint=250 keyint_min=20 scenecut=40 intra_refresh=0 rc_lookahead=40 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+Output #0, mp4, to '/tmp/episode_000046_fixed.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomav01iso2mp41
+    encoder         : Lavf58.29.100
+    Stream #0:0(und): Video: h264 (libx264) (avc1 / 0x31637661), yuv420p, 84x84, q=-1--1, 20 fps, 10240 tbn, 20 tbc (default)
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc58.54.100 libx264
+    Side data:
+      cpb: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: -1
+[libaom-av1 @ 0x5614e15c8ac0] Failed to decode frame: Corrupt frame detected
+[libaom-av1 @ 0x5614e15c8ac0]   Additional information: Failed to decode tile data
+Error while decoding stream #0:0: Invalid data found when processing input
+[libaom-av1 @ 0x5614e15c8ac0] Failed to decode frame: Corrupt frame detected
+[libaom-av1 @ 0x5614e15c8ac0]   Additional information: Failed to decode tile data
+Error while decoding stream #0:0: Invalid data found when processing input
+frame=  342 fps=0.0 q=-1.0 Lsize=      64kB time=00:00:16.95 bitrate=  31.0kbits/s dup=1 drop=0 speed= 195x    
+video:59kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 7.807211%
+[libx264 @ 0x5614e159e380] frame I:2     Avg QP:20.72  size:   844
+[libx264 @ 0x5614e159e380] frame P:118   Avg QP:23.06  size:   325
+[libx264 @ 0x5614e159e380] frame B:222   Avg QP:27.44  size:    91
+[libx264 @ 0x5614e159e380] consecutive B-frames:  7.6% 12.9% 14.0% 65.5%
+[libx264 @ 0x5614e159e380] mb I  I16..4: 12.5% 22.2% 65.3%
+[libx264 @ 0x5614e159e380] mb P  I16..4:  3.7%  8.1%  4.0%  P16..4: 34.5% 25.4% 13.3%  0.0%  0.0%    skip:11.0%
+[libx264 @ 0x5614e159e380] mb B  I16..4:  0.5%  0.8%  0.3%  B16..8: 43.9% 11.8%  2.5%  direct: 2.2%  skip:38.0%  L0:54.0% L1:37.1% BI: 8.9%
+[libx264 @ 0x5614e159e380] 8x8 transform intra:48.6% inter:37.1%
+[libx264 @ 0x5614e159e380] coded y,uvDC,uvAC intra: 25.8% 29.8% 3.2% inter: 12.2% 10.4% 0.4%
+[libx264 @ 0x5614e159e380] i16 v,h,dc,p: 20% 30% 41%  9%
+[libx264 @ 0x5614e159e380] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 16% 20% 53%  2%  3%  2%  3%  1%  2%
+[libx264 @ 0x5614e159e380] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 41% 22% 22%  1%  3%  3%  4%  2%  1%
+[libx264 @ 0x5614e159e380] i8c dc,h,v,p: 69%  9% 21%  1%
+[libx264 @ 0x5614e159e380] Weighted P-Frames: Y:4.2% UV:0.0%
+[libx264 @ 0x5614e159e380] ref P L0: 58.3% 13.5% 18.5%  9.5%  0.2%
+[libx264 @ 0x5614e159e380] ref B L0: 85.8% 10.9%  3.3%
+[libx264 @ 0x5614e159e380] ref B L1: 95.5%  4.5%
+[libx264 @ 0x5614e159e380] kb/s:28.15
+
+
+
+# First, extract all frames
+ffmpeg -i episode_000046.mp4 /tmp/frames/frame_%04d.png
+
+# Check frame count
+ls /tmp/frames/*.png | wc -l
+
+# Duplicate the last frame to reach 343
+cp /tmp/frames/frame_0342.png /tmp/frames/frame_0343.png
+
+# Regenerate video
+ffmpeg -framerate 20 -i /tmp/frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p -movflags +faststart /tmp/episode_000046_fixed.mp4

@@ -1,0 +1,40 @@
+python resfit/lerobot/scripts/train_bc_dexmg.py \
+    --dataset ankile/robomimic-mh-square-image \
+    --policy act \
+    --steps 200000 \
+    --batch_size 256 \
+    --wandb_project robomimic-square-bc \
+    --eval_env Square \
+    --rollout_freq 5000 \
+    --eval_num_envs 16 \
+    --eval_num_episodes 100 \
+    --wandb_enable
+
+python resfit/rl_finetuning/scripts/train_residual_td3.py \
+    --config-name=residual_td3_square_config \
+    algo.prefetch_batches=4 \
+    algo.n_step=5 \
+    algo.gamma=0.995 \
+    algo.learning_starts=10_000 \
+    algo.critic_warmup_steps=10_000 \
+    algo.num_updates_per_iteration=4 \
+    algo.stddev_max=0.025 \
+    algo.stddev_min=0.025 \
+    algo.buffer_size=200_000 \
+    agent.actor.action_scale=0.2 \
+    agent.actor_lr=1e-6 \
+    wandb.project=robomimic-square \
+    wandb.name=resfit \
+    wandb.group=resfit \
+    debug=false
+
+python -m resfit.rl_finetuning.scripts.train_residual_td3 \
+    --config-name=residual_td3_square_config \
+    algo.prefetch_batches=4 \
+    wandb.project=robomimic-square \
+    wandb.name=resfit \
+    wandb.group=resfit \
+    wandb.notes=paper_runs/square/1_square_residual_rl \
+    debug=false
+
+(residual) adenmckinney@ZXP-S-works:~/Desktop/projects/equi-resrl$ export PYTHONPATH="$PWD:$PYTHONPATH"

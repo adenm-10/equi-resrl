@@ -14,7 +14,7 @@ from resfit.rl_finetuning.config.rlpd import ActorConfig, QAgentConfig, RLPDAlgo
 @dataclass
 class OfflineDataConfig:
     name: str = "ankile/robomimic-mh-can-image"
-    num_episodes: int | None = 300
+    num_episodes: int | None = 100
     # Offline data action labeling options
     use_base_policy_for_base_actions: bool = True
     # Normalization safeguards
@@ -157,7 +157,8 @@ class ResidualTD3SquareConfig(ResidualTD3DexmgConfig):
 
     base_policy: BasePolicyConfig = field(
         default_factory=lambda: BasePolicyConfig(
-            wandb_id="robomimic-square-bc/dzbkdpwp",
+            # wandb_id="robomimic-square/e14vlvap",
+            wandb_id="dexmg-bc/e14vlvap",
         )
     )
 
@@ -229,7 +230,8 @@ class ResidualTD3CoffeeConfig(ResidualTD3BoxCleanConfig):
     )
     base_policy: BasePolicyConfig = field(
         default_factory=lambda: BasePolicyConfig(
-            wandb_id="TODO",
+            # wandb_id="dexmg-bc/6qgo2g5k",
+            wandb_id="dexmg-bc/tjsr8xad",
             wt_type="best",
             wt_version="latest",
         )
