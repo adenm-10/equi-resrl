@@ -37,4 +37,116 @@ python -m resfit.rl_finetuning.scripts.train_residual_td3 \
     wandb.notes=paper_runs/square/1_square_residual_rl \
     debug=false
 
+# Run when opening new terminal window
 (residual) adenmckinney@ZXP-S-works:~/Desktop/projects/equi-resrl$ export PYTHONPATH="$PWD:$PYTHONPATH"
+
+Square Env Baseline Recreation
+
+BC Script and Run Storage:
+python -m resfit.lerobot.scripts.train_bc_dexmg \
+    --dataset ankile/robomimic-mh-square-image \
+    --policy diffusion \
+    --batch_size 256 \
+    --wandb_project robomimic-square-bc \
+    --wandb_enable \
+    --eval_env Square \
+    --rollout_freq 1000 \
+    --steps 50000 \
+    --eval_video_key observation.images.agentview \
+    --eval_num_envs 16 \
+    --eval_num_episodes 100 \
+    --log_freq 100 \
+    --save_freq 1000
+
+from: resfit/lerobot/shell/launch_act_square.sh
+
+Res RL Script and Run Storage:
+python -m resfit.rl_finetuning.scripts.train_residual_td3 \
+    --config-name=residual_td3_square_config \
+    algo.prefetch_batches=4 \
+    wandb.project=robomimic-square-final \
+    wandb.name=residual-rl \
+    wandb.notes=paper_runs/square/1_square_residual_rl \
+    wandb.group=residual-rl \
+    debug=false
+
+from: resfit/rl_finetuning/shell/paper_runs/square/1_square_residual_rl.sh
+
+
+Equi Res RL Script and Run Storage:
+
+
+
+
+Can Env Baseline Recreation
+
+BC Script and Run Storage:
+python -m resfit.lerobot.scripts.train_bc_dexmg \
+    --dataset ankile/robomimic-mh-can-image \
+    --policy diffusion \
+    --batch_size 256 \
+    --wandb_project robomimic-can-bc \
+    --wandb_enable \
+    --eval_env Can \
+    --rollout_freq 1000 \
+    --steps 50000 \
+    --eval_video_key observation.images.agentview \
+    --eval_num_envs 16 \
+    --eval_num_episodes 100 \
+    --log_freq 100 \
+    --save_freq 1000
+
+from: resfit/lerobot/shell/launch_act_can.sh
+
+
+Res RL Script and Run Storage:
+python -m resfit.rl_finetuning.scripts.train_residual_td3 \
+    --config-name=residual_td3_can_config \
+    algo.prefetch_batches=4 \
+    wandb.project=robomimic-can-final \
+    wandb.name=residual-rl \
+    wandb.notes=paper_runs/square/yet_to_come \
+    wandb.group=residual-rl \
+    debug=false
+
+ADAPTED from: resfit/rl_finetuning/shell/paper_runs/square/1_square_residual_rl.sh
+
+Equi Res RL Script and Run Storage:
+
+
+
+
+
+Notes:
+
+Where to find dataset names for --dataset flag?
+ - resfit/rl_finetuning/config/residual_td3.py
+ - Look for appropriate task config
+ - offline_data flag inside config
+ - otherwise, Lars' datasets can be found: https://huggingface.co/ankile
+    - Square = "ankile/robomimic-mh-square-image"
+    - Can = "ankile/robomimic-mh-can-image"
+
+What BC policies were used in the baselines?
+ - No base policy is specifically stated, should try with ACT and Diffusion
+
+Where to get the project names from?
+ - Lars used "robomimic-square-bc"
+
+Where to find run results?
+ - https://wandb.ai/home
+    - Log into my account, look for project names
+
+What do I have to change in the code to make sure the res-rl picks up the right run?
+ - resfit/rl_finetuning/config/residual_td3.py
+    - Find config of env to run res rl run opening
+    - Change wandb_id to that of run. How to find?
+        - 
+ - From README: "After training finished, put the wandb_project_name/run_id into the corresponding task config in residual_td3.py."
+
+Added robomimic myself with:
+    # Install robomimic without egl_probe
+    pip install robomimic --no-deps
+
+    # Then install the actual dependencies manually (without egl_probe)
+    pip install h5py psutil tqdm termcolor tensorboard tensorboardX imageio imageio-ffmpeg matplotlib

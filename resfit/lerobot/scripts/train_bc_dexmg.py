@@ -342,7 +342,8 @@ def _run_rollouts(
             success_envs = torch.where(reward == 1.0)[0]
 
             # Reset policy hidden state for the terminated envs.
-            policy.reset(env_ids=terminated_envs)
+            if   policy.config.name == 'diffusion': policy.reset()
+            elif policy.config.name == 'act':       policy.reset(env_ids=terminated_envs)
 
             # Annotate and write frames for completed episodes immediately
             for env_idx in terminated_envs:

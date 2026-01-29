@@ -13,7 +13,11 @@ from torch import nn
 from resfit.rl_finetuning.config.rlpd import QAgentConfig
 from resfit.rl_finetuning.off_policy import common_utils
 from resfit.rl_finetuning.off_policy.common_utils import utils
+
+# TODO: Incorporate agent config into equi encoder
 from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
+from   resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
+
 from resfit.rl_finetuning.off_policy.rl.actor import Actor
 from resfit.rl_finetuning.off_policy.rl.critic import Critic
 
@@ -164,7 +168,7 @@ class QAgent(nn.Module):
             if self.cfg.enc_type == "vit":
                 enc = VitEncoder(obs_shape, self.cfg.vit).to(self.cfg.device)
             else:
-                raise AssertionError(f"Unknown encoder type {self.cfg.enc_type}.")
+                enc = EquivariantResEncoder76Cyclic(obs_channel, self.n_hidden, initialize).to(self.cfg.device)
 
             encoders.append(enc)
 
@@ -256,8 +260,9 @@ class QAgent(nn.Module):
         obs = copy.copy(obs)
         unsqueezed = self._maybe_unsqueeze_(obs)
 
-        assert "feat" not in obs
-        obs["feat"] = self._encode(obs, augment=False)
+        # Encode in Actor?
+        # assert "feat" not in obs
+        # obs["feat"] = self._encode(obs, augment=False)
 
         action = self._act_default(
             obs=obs,

@@ -108,6 +108,8 @@ class DiffusionConfig(PreTrainedConfig):
             to False as the original Diffusion Policy implementation does the same.
     """
 
+    name: str = 'diffusion'
+
     # Inputs / output structure.
     n_obs_steps: int = 2
     horizon: int = 16
@@ -128,8 +130,12 @@ class DiffusionConfig(PreTrainedConfig):
     # Architecture / modeling.
     # Vision backbone.
     vision_backbone: str = "resnet18"
-    crop_shape: tuple[int, int] | None = (240, 240)
-    crop_is_random: bool = True
+
+    # crop_shape: tuple[int, int] | None = (240, 240)
+    # crop_is_random: bool = True
+    crop_shape: tuple[int, int] | None = None   
+    crop_is_random: bool = False
+
     pretrained_backbone_weights: str | None = None
     use_group_norm: bool = True
     spatial_softmax_num_keypoints: int = 32

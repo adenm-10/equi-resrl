@@ -441,26 +441,49 @@ class SpatialEmbQNet(nn.Module):
         return q  # noqa: RET504
 
 
-class HeadMLP(nn.Module):
+class EquiHeadMLP(nn.Module):
     """Single MLP head for the ensemble."""
 
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_layers: int = 2, use_layer_norm: bool = True):
+    def __init__(self, 
+                 group, 
+                 in_dim: int, 
+                 hidden_dim: int, 
+                 out_dim: int, 
+                 num_layers: int = 2, 
+                 use_layer_norm: bool = True):
         super().__init__()
 
+        softmax_out = False
+        out_dim = 2 if softmax_out else 1
+
         # Build layers dynamically based on num_layers
-        layers = []
-        current_dim = in_dim
+        layers = [nn.R2Conv(
+                        nn.FieldType(group, in_dim * [self.r2_act.regular_repr]),
+                        nn.FieldType(group, hidden_dim * [self.r2_act.trivial_repr]),
+                        kernel_size=3, padding=1, initialize=initialize
+                    ),            
+                  nn.ReLU(nn.FieldType(group, hidden_dim * [self.r2_act.trivial_repr]))]
 
         # Add hidden layers
-        for _ in range(num_layers):
-            layers.append(nn.Linear(current_dim, hidden_dim))
-            if use_layer_norm:
-                layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.ReLU())  # avoid inplace with vmap
-            current_dim = hidden_dim
+        for _ in range(num_layers - 1):
+            layers.append(nn.R2Conv(
+                                nn.FieldType(group, hidden_dim * [self.r2_act.trivial_repr]),
+                                nn.FieldType(group, hidden_dim * [self.r2_act.trivial_repr]),
+                                kernel_size=3, padding=1, initialize=initialize
+                            ))
+            # if use_layer_norm:
+            #     layers.append(nn.LayerNorm(hidden_dim))
+            layers.append(nn.ReLU(nn.FieldType(group, hidden_dim * [self.r2_act.trivial_repr])))
 
         # Add output layer
-        layers.append(nn.Linear(current_dim, out_dim))
+        layers.append(nn.R2Conv(
+                            nn.FieldType(self.r2_act, hidden_dim * [self.r2_act.trivial_repr]),
+                            nn.FieldType(self.r2_act, out_dim * [self.regular_repr]),
+                            kernel_size=1, initialize=initialize
+                        ))
+
+        if softmax_out:
+            layers.append(torch.nn.Softmax(dim=1))
 
         self.net = nn.Sequential(*layers)
 
