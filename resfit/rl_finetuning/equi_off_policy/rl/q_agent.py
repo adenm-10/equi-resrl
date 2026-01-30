@@ -64,6 +64,7 @@ class QAgent(nn.Module):
         # Build the per-camera encoders *after* `self.rl_cameras` is defined so
         # that the helper function can iterate over them.
         self.encoders: nn.ModuleList = self._build_encoders(obs_shape)
+        self.enc = EquivariantResEncoder76Cyclic(obs_channel, self.n_hidden, initialize).to(self.cfg.device)
 
         # All encoders share the same architecture ⇒ repr / patch dim are identical.
         sample_encoder = self.encoders[0]
@@ -221,26 +222,37 @@ class QAgent(nn.Module):
         direct env observations during evaluation) we assume it is properly
         normalised.
         """
-        feats = []
-        for cam_idx, cam_name in enumerate(self.rl_cameras):
-            data = obs[cam_name]
+        # feats = []
+        # for cam_idx, cam_name in enumerate(self.rl_cameras):
+        #     data = obs[cam_name]
 
-            if data.dtype == torch.uint8:
-                # uint8 → float32 in [0,1]
-                data = data.float().div_(255.0)
-            else:
-                data = data.float()
+        #     if data.dtype == torch.uint8:
+        #         # uint8 → float32 in [0,1]
+        #         data = data.float().div_(255.0)
+        #     else:
+        #         data = data.float()
 
-            if augment:
-                data = self.aug(data)
+        #     if augment:
+        #         data = self.aug(data)
 
-            # Forward pass through the *corresponding* encoder
-            feat_cam = self.encoders[cam_idx].forward(data, flatten=False)
-            feats.append(feat_cam)
+        #     # Forward pass through the *corresponding* encoder
+        #     feat_cam = self.encoders[cam_idx].forward(data, flatten=False)
+        #     feats.append(feat_cam)
 
-        # Concatenate along the *patch* dimension (dim=1)
-        feat_all = torch.cat(feats, dim=1)
-        return feat_all  # noqa: RET504
+        # # Concatenate along the *patch* dimension (dim=1)
+        # feat_all = torch.cat(feats, dim=1)
+        # return feat_all  # noqa: RET504
+        img = obs["agentview_image"]
+        batch_size = img.shape[0]
+        t = img.shape[1]
+        img = rearrange(obs, "b t c h w -> (b t) c h w")
+        
+        # TODO: Handle Null Cropping values
+        if False:
+            img = self.crop_randomizer(img)
+
+        # assert "feat" not in obs
+        return self.enc(obs, augment=False).tensor.reshape(batch_size * t, -1)  # b d
 
     def _maybe_unsqueeze_(self, obs):
         should_unsqueeze = False
@@ -261,8 +273,8 @@ class QAgent(nn.Module):
         unsqueezed = self._maybe_unsqueeze_(obs)
 
         # Encode in Actor?
-        # assert "feat" not in obs
-        # obs["feat"] = self._encode(obs, augment=False)
+        assert "feat" not in obs
+        obs["feat"] = self._encode(obs, augment=False)
 
         action = self._act_default(
             obs=obs,

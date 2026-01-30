@@ -11,6 +11,8 @@ from escnn import nn
 from resfit.rl_finetuning.config.rlpd import ActorConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
+from einops import rearrange
+
 
 def build_fc(in_dim, hidden_dim, action_dim, num_layer, layer_norm, dropout, use_layer_norm=True):
     dims = [in_dim]
@@ -108,7 +110,6 @@ class Actor(nn.Module):
             # layers.extend([nn.Dropout(cfg.dropout), nn.ReLU()])
             # self.compress = nn.Sequential(*layers)
 
-        self.enc = EquivariantResEncoder76Cyclic(obs_channel, self.n_hidden, initialize).to(self.cfg.device)
         self.action_shape = 2 * [self.group.irrep(1)]               # action_xy, action_rx_ry
                           + 3 * [self.group.trivial_repr],          # action_z, action_rz, action_gripper
         self.prop_shape   = 4 * [self.group.irrep(1)]               # pos_xy + 3 rotation columns
@@ -209,19 +210,6 @@ class Actor(nn.Module):
         # data is in xyzw, but rotation transformer takes wxyz
         return self.quaternion_to_sixd.forward(quat[:, [3, 0, 1, 2]]) 
 
-    def encode(self, obs)
-        img = nobs["agentview_image"]
-        batch_size = img.shape[0]
-        t = img.shape[1]
-        img = rearrange(obs, "b t c h w -> (b t) c h w")
-        
-        # TODO: Handle Null Cropping values
-        if False:
-            img = self.crop_randomizer(img)
-
-        # assert "feat" not in obs
-        return self.enc(obs, augment=False).tensor.reshape(batch_size * t, -1)  # b d
-
     def build_equi_policy(self, in_dim, hidden_dim, action_dim, num_layer, layer_norm, dropout, use_layer_norm=True):
 
         # TODO:
@@ -244,6 +232,7 @@ class Actor(nn.Module):
         
     def forward(self, nobs):
 
+        feat = nobs["feat"]
         ee_pos = nobs["robot0_eef_pos"]
         ee_quat = nobs["robot0_eef_quat"]
         ee_q = nobs["robot0_gripper_qpos"]
@@ -276,7 +265,6 @@ class Actor(nn.Module):
         """
 
         ee_rot = self.get6DRotation(ee_quat)
-        feat = self.encode(nobs).flatten(1, -1)
         # ih = self.crop_randomizer(ih)
 
         pos_xy = ee_pos[:, 0:2]
