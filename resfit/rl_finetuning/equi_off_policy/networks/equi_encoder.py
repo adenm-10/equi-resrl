@@ -276,3 +276,223 @@ class EquivariantVoxelEncoder16Cyclic(torch.nn.Module):
         if type(x) is torch.Tensor:
             x = nn.GeometricTensor(x, nn.FieldType(self.group, self.obs_channel * [self.group.trivial_repr]))
         return self.conv(x)
+
+
+########
+# From Dian's equivairant RL paper
+########
+
+class EquivariantEncoder128(torch.nn.Module):
+    """
+    Equivariant Encoder. The input is a trivial representation with obs_channel channels.
+    The output is a regular representation with n_out channels
+    """
+    def __init__(self, obs_channel=2, n_out=128, initialize=True, N=4):
+        super().__init__()
+        self.obs_channel = obs_channel
+        self.c4_act = gspaces.Rot2dOnR2(N)
+        self.conv = torch.nn.Sequential(
+            # 128x128
+            nn.R2Conv(nn.FieldType(self.c4_act, obs_channel * [self.c4_act.trivial_repr]),
+                      nn.FieldType(self.c4_act, n_out//8 * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out//8 * [self.c4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.c4_act, n_out//8 * [self.c4_act.regular_repr]), 2),
+            # 64x64
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out//8 * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out//4 * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out//4 * [self.c4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.c4_act, n_out//4 * [self.c4_act.regular_repr]), 2),
+            # 32x32
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out//4 * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out//2 * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out//2 * [self.c4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.c4_act, n_out//2 * [self.c4_act.regular_repr]), 2),
+            # 16x16
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out//2 * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]), 2),
+            # 8x8
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out*2 * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out*2 * [self.c4_act.regular_repr]), inplace=True),
+
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out*2 * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]), 2),
+            # 3x3
+            nn.R2Conv(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]),
+                      nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.c4_act, n_out * [self.c4_act.regular_repr]), inplace=True),
+            # 1x1
+        )
+
+    def forward(self, geo):
+        return self.conv(geo)
+
+class EquivariantEncoder128Dihedral(torch.nn.Module):
+    def __init__(self, obs_channel=2, n_out=128, initialize=True, N=4):
+        super().__init__()
+        self.obs_channel = obs_channel
+        self.d4_act = gspaces.FlipRot2dOnR2(N)
+        self.conv = torch.nn.Sequential(
+            # 128x128
+            nn.R2Conv(nn.FieldType(self.d4_act, obs_channel * [self.d4_act.trivial_repr]),
+                      nn.FieldType(self.d4_act, n_out // 8 * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out // 8 * [self.d4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.d4_act, n_out // 8 * [self.d4_act.regular_repr]), 2),
+            # 64x64
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out // 8 * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out // 4 * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out // 4 * [self.d4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.d4_act, n_out // 4 * [self.d4_act.regular_repr]), 2),
+            # 32x32
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out // 4 * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out // 2 * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out // 2 * [self.d4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.d4_act, n_out // 2 * [self.d4_act.regular_repr]), 2),
+            # 16x16
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out // 2 * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]), 2),
+            # 8x8
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out * 2 * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out * 2 * [self.d4_act.regular_repr]), inplace=True),
+
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out * 2 * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]), inplace=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]), 2),
+            # 3x3
+            nn.R2Conv(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]),
+                      nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.ReLU(nn.FieldType(self.d4_act, n_out * [self.d4_act.regular_repr]), inplace=True),
+            # 1x1
+        )
+
+    def forward(self, geo):
+        return self.conv(geo)
+
+class EquivariantEncoder128SO2(torch.nn.Module):
+    def __init__(self, obs_channel=2, n_out=128, initialize=True):
+        super().__init__()
+        self.obs_channel = obs_channel
+        self.so2 = gspaces.Rot2dOnR2(N=-1, maximum_frequency=3)
+        self.repr = [self.so2.irrep(0), self.so2.irrep(1), self.so2.irrep(2), self.so2.irrep(3)]
+        self.conv = torch.nn.Sequential(
+            # 128x128
+            nn.R2Conv(nn.FieldType(self.so2, obs_channel * [self.so2.trivial_repr]),
+                      nn.FieldType(self.so2, n_out // 8 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 8 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out // 8 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 8 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.so2, n_out // 8 * self.repr), 2),
+            # 64x64
+            nn.R2Conv(nn.FieldType(self.so2, n_out // 8 * self.repr),
+                      nn.FieldType(self.so2, n_out // 4 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 4 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out // 4 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 4 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.so2, n_out // 4 * self.repr), 2),
+            # 32x32
+            nn.R2Conv(nn.FieldType(self.so2, n_out // 4 * self.repr),
+                      nn.FieldType(self.so2, n_out // 2 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 2 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out // 2 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out // 2 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.so2, n_out // 2 * self.repr), 2),
+            # 16x16
+            nn.R2Conv(nn.FieldType(self.so2, n_out // 2 * self.repr),
+                      nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.so2, n_out * self.repr), 2),
+            # 8x8
+            nn.R2Conv(nn.FieldType(self.so2, n_out * self.repr),
+                      nn.FieldType(self.so2, n_out * 2 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * 2 * self.repr),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out * 2 * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * 2 * self.repr)),
+
+            nn.R2Conv(nn.FieldType(self.so2, n_out * 2 * self.repr),
+                      nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr),
+                      kernel_size=3, padding=0, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.so2, n_out * self.repr), 2),
+            # 3x3
+            nn.R2Conv(nn.FieldType(self.so2, n_out * self.repr),
+                      nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.so2, n_out * len(self.repr) * [self.so2.trivial_repr]) + nn.FieldType(self.so2, n_out * self.repr)),
+            # 1x1
+        )
+
+    def forward(self, geo):
+        return self.conv(geo)
+
+class EquivariantEncoder128O2(torch.nn.Module):
+    def __init__(self, obs_channel=2, n_out=128, initialize=True):
+        super().__init__()
+        self.obs_channel = obs_channel
+        self.o2 = gspaces.FlipRot2dOnR2(N=-1, maximum_frequency=3)
+        self.so2 = gspaces.Rot2dOnR2(N=-1, maximum_frequency=3)
+        self.repr = [self.o2.irrep(0, 0), self.o2.irrep(1, 0), self.o2.irrep(1, 1), self.o2.irrep(1, 2), self.o2.irrep(1, 3)]
+        self.conv = torch.nn.Sequential(
+            # 128x128
+            nn.R2Conv(nn.FieldType(self.o2, obs_channel * [self.o2.trivial_repr]),
+                      nn.FieldType(self.o2, n_out // 8 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 8 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out // 8 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 8 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.o2, n_out // 8 * self.repr), 2),
+            # 64x64
+            nn.R2Conv(nn.FieldType(self.o2, n_out // 8 * self.repr),
+                      nn.FieldType(self.o2, n_out // 4 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 4 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out // 4 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 4 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.o2, n_out // 4 * self.repr), 2),
+            # 32x32
+            nn.R2Conv(nn.FieldType(self.o2, n_out // 4 * self.repr),
+                      nn.FieldType(self.o2, n_out // 2 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 2 * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out // 2 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out // 2 * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.o2, n_out // 2 * self.repr), 2),
+            # 16x16
+            nn.R2Conv(nn.FieldType(self.o2, n_out // 2 * self.repr),
+                      nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr),
+                      kernel_size=3, padding=1, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.o2, n_out * self.repr), 2),
+            # 8x8
+            nn.R2Conv(nn.FieldType(self.o2, n_out * self.repr),
+                      nn.FieldType(self.o2, n_out * 2 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * 2 * self.repr),
+                      kernel_size=3, padding=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out * 2 * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * 2 * self.repr)),
+
+            nn.R2Conv(nn.FieldType(self.o2, n_out * 2 * self.repr),
+                      nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr),
+                      kernel_size=3, padding=0, stride=1, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr)),
+            nn.NormMaxPool(nn.FieldType(self.o2, n_out * self.repr), 2),
+            # 3x3
+            nn.R2Conv(nn.FieldType(self.o2, n_out * self.repr),
+                      nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr),
+                      kernel_size=3, padding=0, initialize=initialize),
+            nn.GatedNonLinearity1(nn.FieldType(self.o2, n_out * len(self.repr) * [self.o2.trivial_repr]) + nn.FieldType(self.o2, n_out * self.repr)),
+            # 1x1
+        )
+
+    def forward(self, geo):
+        return self.conv(geo)

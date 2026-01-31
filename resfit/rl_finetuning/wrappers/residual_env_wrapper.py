@@ -153,7 +153,9 @@ class BasePolicyVecEnvWrapper:
         # Handle policy reset for terminated environments
         if terminated.any():
             reset_ids = torch.where(terminated)[0]
-            self.base_policy.reset(env_ids=reset_ids)
+            if   self.base_policy.config.name == 'diffusion': self.base_policy.reset()
+            elif self.base_policy.config.name == 'act':       self.base_policy.reset(env_ids=terminated_envs)
+            # self.base_policy.reset(env_ids=reset_ids)
 
         # Augment observations with base action and apply state standardization
         augmented_obs = self._augment_obs(raw_obs, base_naction)

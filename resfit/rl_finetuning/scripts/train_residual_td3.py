@@ -44,6 +44,8 @@ import wandb
 from resfit.dexmg.environments.dexmg import create_vectorized_env
 from resfit.lerobot.policies.act.configuration_act import ACTConfig
 from resfit.lerobot.policies.act.modeling_act import ACTPolicy
+from resfit.lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
+from resfit.lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
 from resfit.lerobot.utils.load_policy import download_policy_from_wandb, load_policy
 from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
@@ -235,6 +237,8 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     if isinstance(base_cfg, ACTConfig):
         cfg.actor_name = "residual_act"
+    elif isinstance(base_cfg, DiffusionConfig):
+        cfg.actor_name = "residual_diffusion"
     else:
         raise ValueError(f"Unknown base policy type: {type(base_cfg)}")
 

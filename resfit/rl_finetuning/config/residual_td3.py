@@ -137,7 +137,7 @@ class ResidualTD3CanConfig(ResidualTD3DexmgConfig):
 
     base_policy: BasePolicyConfig = field(
         default_factory=lambda: BasePolicyConfig(
-            wandb_id="robomimic-can-bc/sdo8cku7",
+            wandb_id="robomimic-can-bc/xhjdl8a7",
         )
     )
 
@@ -157,8 +157,7 @@ class ResidualTD3SquareConfig(ResidualTD3DexmgConfig):
 
     base_policy: BasePolicyConfig = field(
         default_factory=lambda: BasePolicyConfig(
-            # wandb_id="robomimic-square/e14vlvap",
-            wandb_id="dexmg-bc/e14vlvap",
+            wandb_id="robomimic-square-bc/3hzs5bz1",
         )
     )
 

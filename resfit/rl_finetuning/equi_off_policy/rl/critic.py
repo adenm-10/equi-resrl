@@ -248,7 +248,12 @@ class C51Loss(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, repr_dim, patch_repr_dim, prop_dim, action_dim, cfg: CriticConfig):
+    def __init__(self, 
+                 in_shape, 
+                 group,
+                 hidden_dim
+                 action_type, 
+                 cfg: CriticConfig):
         super().__init__()
         self.cfg = cfg
         self.loss_cfg = cfg.loss
@@ -261,21 +266,42 @@ class Critic(nn.Module):
         # Number of Q-heads (ensemble size)
         num_q = getattr(cfg, "num_q", 2)
 
+        # obs features + act + prop -> features
+        self.compress = torch.nn.Sequential(
+                                nn.Linear(
+                                    nn.FieldType(group, in_shape),
+                                    nn.FieldType(group, hidden_dim * [self.group.regular_repr])),
+                                nn.ReLU(nn.FieldType(group, hidden_dim * [self.group.regular_repr]))
+                           )
+
+        head_in_type = nn.FieldType(group, hidden_dim * [self.group.regular_repr])
+        head_hidden_type = hidden_type
+        head_out_type = action_type # TODO: COnvert this to ensure shape (num_heads, batch_size, 1)
+
         # Build an ensemble that shares the spatial trunk and owns K independent heads
-        self.q_ensemble = SpatialEmbQEnsemble(
-            fuse_patch=cfg.fuse_patch,
-            num_patch=repr_dim // patch_repr_dim,
-            patch_dim=patch_repr_dim,
-            emb_dim=cfg.spatial_emb,
-            prop_dim=prop_dim,
-            action_dim=action_dim,
-            hidden_dim=self.cfg.hidden_dim,
-            orth=self.cfg.orth,
-            output_dim=output_dim,
-            num_heads=num_q,
-            num_layers=cfg.num_layers,
-            use_layer_norm=cfg.use_layer_norm,
-        )
+        # self.q_ensemble = SpatialEmbQEnsemble(
+        #     fuse_patch=cfg.fuse_patch,
+        #     num_patch=repr_dim // patch_repr_dim,
+        #     patch_dim=patch_repr_dim,
+        #     emb_dim=cfg.spatial_emb,
+        #     prop_dim=prop_dim,
+        #     action_dim=action_dim,
+        #     hidden_dim=self.cfg.hidden_dim,
+        #     orth=self.cfg.orth,
+        #     output_dim=output_dim,
+        #     num_heads=num_q,
+        #     num_layers=cfg.num_layers,
+        #     use_layer_norm=cfg.use_layer_norm,
+        # )
+
+        self.q_ensemble = EquiQEnsemble(group          = group, 
+                                        in_type        = head_in_type,
+                                        hidden_type    = head_hidden_type,
+                                        out_type       = head_out_type,
+                                        num_heads      = cfg.num_critic_heads,
+                                        num_layers     = cfg.num_critic_layers,
+                                        use_layer_norm = cfg.use_layer_norm,
+                                       )
 
         # Loss objects (single instance) ----
         if self.loss_cfg.type == "hl_gauss":
@@ -300,8 +326,13 @@ class Critic(nn.Module):
         return (probs * support).sum(-1, keepdim=True)  # E[z]
 
     def forward(self, feat, prop, act, *, return_logits: bool = False):
+        assert isinstance(feat, nn.GeometricTensor), "Passed in non-Geometric Tensor to Equivariant Critic"
+        
+        # Compress Concatted features
+        features = self.compress(feat)
+
         # logits_per_head: [num_q, B, out_dim] where out_dim is either 1 or K (bins)
-        logits_per_head = self.q_ensemble(feat, prop, act)
+        logits_per_head = self.q_ensemble(feat, prop, act).tensor
 
         if self.loss_cfg.type == "hl_gauss":
             # expectation over bin centers → scalar Q, done per head
@@ -368,8 +399,8 @@ class EquiHeadMLP(nn.Module):
     def __init__(self, 
                  group, 
                  in_type,
-                 hidden_dim, 
-                 out_type: int, 
+                 hidden_type, 
+                 out_type, 
                  num_layers: int = 2, 
                  use_layer_norm: bool = True):
         super().__init__()
@@ -378,35 +409,37 @@ class EquiHeadMLP(nn.Module):
         softmax_out = False
         out_dim = 2 if softmax_out else 1
 
+        # TODO: Consider replacing below with below from Dian's equi_rl
+
+        # nn.R2Conv(nn.FieldType(self.c4_act, n_hidden * [self.c4_act.regular_repr] + (action_dim-2) * [self.c4_act.trivial_repr] + self.n_rho1*[self.c4_act.irrep(1)]),
+        #   nn.FieldType(self.c4_act, n_hidden * [self.c4_act.regular_repr]),
+        #   kernel_size=1, padding=0, initialize=initialize),
+        # nn.ReLU(nn.FieldType(self.c4_act, n_hidden * [self.c4_act.regular_repr]), inplace=True),
+        # nn.GroupPooling(nn.FieldType(self.c4_act, n_hidden * [self.c4_act.regular_repr])),
+        # nn.R2Conv(nn.FieldType(self.c4_act, n_hidden * [self.c4_act.trivial_repr]),
+        #   nn.FieldType(self.c4_act, 1 * [self.c4_act.trivial_repr]),
+        #   kernel_size=1, padding=0, initialize=initialize),
+
         # Build layers dynamically based on num_layers
-        layers = [nn.Linear(
-                        nn.FieldType(group, in_type),
-                        nn.FieldType(group, hidden_dim * [self.group.trivial_repr]),
-                    ),            
-                  nn.ReLU(nn.FieldType(group, hidden_dim * [self.group.trivial_repr]))]
+        layers = [nn.Linear(in_type, hidden_type),            
+                  nn.ReLU(hidden_type)]
 
         # Add hidden layers
         for _ in range(num_layers - 1):
-            layers.append(nn.Linear(
-                                nn.FieldType(group, hidden_dim * [self.group.trivial_repr]),
-                                nn.FieldType(group, hidden_dim * [self.group.trivial_repr]),
-                            ))
+            layers.append(nn.Linear(hidden_type, hidden_type))
             # if use_layer_norm:
             #     layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(nn.ReLU(nn.FieldType(group, hidden_dim * [self.group.trivial_repr])))
+            layers.append(nn.ReLU(hidden_type))
 
         # Add output layer
-        layers.append(nn.Linear(
-                            nn.FieldType(self.group, hidden_dim * [self.group.trivial_repr]),
-                            nn.FieldType(self.group, out_dim * out_type),
-                        ))
+        layers.append(nn.Linear(hidden_type, out_type))
 
         if softmax_out:
             layers.append(torch.nn.Softmax(dim=1))
 
         self.net = nn.Sequential(*layers)
 
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
+    def forward(self, z):
         """Forward pass through the MLP.
 
         Args:
@@ -420,48 +453,37 @@ class EquiHeadMLP(nn.Module):
 class EquiQEnsemble(nn.Module):
     def __init__(
         self,
-        *,
-        num_patch: int,
-        patch_dim: int,
-        prop_dim: int,
-        action_dim: int,
-        fuse_patch: int,
-        emb_dim: int,
-        hidden_dim: int,
-        orth: int,
-        output_dim: int = 1,
+        group, 
+        in_type,
+        hidden_type,
+        out_type,
+        # *,
+        # num_patch: int,
+        # patch_dim: int,
+        # prop_dim: int,
+        # action_dim: int,
+        # fuse_patch: int,
+        # emb_dim: int,
+        # orth: int,
+        # output_dim: int = 1,
         num_heads: int = 2,
         num_layers: int = 2,
         use_layer_norm: bool = True,
     ):
         super().__init__()
 
-        self.group = gspaces.rot2dOnR2(N=N)
-
-        self.action_shape = 2 * [self.group.irrep(1)]               # action_xy, action_rx_ry
-                          + 3 * [self.group.trivial_repr],          # action_z, action_rz, action_gripper
-        self.prop_shape   = 4 * [self.group.irrep(1)]               # pos_xy + 3 rotation columns
-                          + 3 * [self.group.trivial_repr]           # pos_z, ee_q (2)
-
-        self.feat_type = nn.FieldType(
-                self.group,
-                hidden_dim * [self.group.regular_repr] # agentview img
-                + self.prop_shape                         # proprioceptive state
-                + self.action_shape                       # base action 
-            )
-
         # Trunk (shared across heads)
-        if fuse_patch:
-            proj_in_dim = num_patch + action_dim + prop_dim
-            num_proj = patch_dim
-        else:
-            proj_in_dim = patch_dim + action_dim + prop_dim
-            num_proj = num_patch
+        # if fuse_patch:
+        #     proj_in_dim = num_patch + action_dim + prop_dim
+        #     num_proj = patch_dim
+        # else:
+        #     proj_in_dim = patch_dim + action_dim + prop_dim
+        #     num_proj = num_patch
 
-        self.fuse_patch = fuse_patch
-        self.patch_dim = patch_dim
-        self.prop_dim = prop_dim
-        self.action_dim = action_dim
+        # self.fuse_patch = fuse_patch
+        # self.patch_dim = patch_dim
+        # self.prop_dim = prop_dim
+        # self.action_dim = action_dim
 
         # Build input projection layers
         # input_layers = [nn.Linear(proj_in_dim, emb_dim)]
@@ -472,28 +494,33 @@ class EquiQEnsemble(nn.Module):
         # self.weight = nn.Parameter(torch.zeros(1, num_proj, emb_dim))
         # nn.init.normal_(self.weight)
 
-        input_layers = [nn.Linear(
-                                nn.FieldType(self.group, self.feat_type),
-                                nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
-                            ),            
-                        nn.ReLU(nn.FieldType(self.group, hidden_dim * [self.group.regular_repr])),
-                        nn.Linear(
-                                nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
-                                nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
-                            )
-                        ]
-        self.input_proj = nn.Sequential(*input_layers)
+        # input_layers = [nn.Linear(
+        #                         nn.FieldType(self.group, self.feat_type),
+        #                         nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
+        #                     ),            
+        #                 nn.ReLU(nn.FieldType(self.group, hidden_dim * [self.group.regular_repr])),
+        #                 nn.Linear(
+        #                         nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
+        #                         nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]),
+        #                     )
+        #                 ]
+        # self.input_proj = nn.Sequential(*input_layers)
 
         # TODO: Figure out how to adapt these?
         self.weight = nn.Parameter(torch.zeros(1, num_proj, emb_dim))
         nn.init.normal_(self.weight)
 
         # vmap-based heads for efficient batched computation
-        self.num_heads = num_heads
-        input_dim = emb_dim + action_dim + prop_dim
+        # self.num_heads = num_heads
+        # input_dim = emb_dim + action_dim + prop_dim
 
         # Create multiple module instances and stack their parameters/buffers
-        self.heads = [EquiHeadMLP(self.group, self.feat_type, hidden_dim, self.action_shape, num_layers, use_layer_norm) for _ in range(num_heads)]
+        self.heads = [EquiHeadMLP(group=group, 
+                                  in_type=in_type, 
+                                  hidden_type=hidden_type, 
+                                  out_type=out_type, 
+                                  num_layers=num_layers, 
+                                  use_layer_norm=use_layer_norm) for _ in range(num_heads)]
         
         # TODO: Is below necessary or just for compute efficiency?
         # self.params, self.buffers = stack_module_state(heads)
@@ -525,175 +552,182 @@ class EquiQEnsemble(nn.Module):
     def extra_repr(self) -> str:
         return f"heads: {self.num_heads}, weight: nn.Parameter ({self.weight.size()})"
 
-    def _compute_trunk(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        # assert feat.size(-1) == self.patch_dim, "are you using CNN, need flatten&transpose"
-        # if self.fuse_patch:
-        #     feat = feat.transpose(1, 2)
+    # def _compute_trunk(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+    #     # assert feat.size(-1) == self.patch_dim, "are you using CNN, need flatten&transpose"
+    #     # if self.fuse_patch:
+    #     #     feat = feat.transpose(1, 2)
 
-        # Concat obs feats, prop data, actions
-        repeated_action = action.unsqueeze(1).repeat(1, feat.size(1), 1)
-        all_feats = [feat, repeated_action]
-        if self.prop_dim > 0:
-            repeated_prop = prop.unsqueeze(1).repeat(1, feat.size(1), 1)
-            all_feats.append(repeated_prop)
+    #     # Concat obs feats, prop data, actions
+    #     repeated_action = action.unsqueeze(1).repeat(1, feat.size(1), 1)
+    #     all_feats = [feat, repeated_action]
+    #     if self.prop_dim > 0:
+    #         repeated_prop = prop.unsqueeze(1).repeat(1, feat.size(1), 1)
+    #         all_feats.append(repeated_prop)
 
-        x = torch.cat(all_feats, dim=-1)
-        x = nn.GeometricTensor(x, self.feat_type)
+    #     x = torch.cat(all_feats, dim=-1)
+    #     x = nn.GeometricTensor(x, self.feat_type)
 
-        # Run them through common trunk
-        y: torch.Tensor = self.input_proj(x)
-        z = (self.weight * y).sum(1)
+    #     # Run them through common trunk
+    #     y: torch.Tensor = self.input_proj(x)
+    #     z = (self.weight * y).sum(1)
 
-        # TODO: Why add them back?
-        # if self.prop_dim == 0:
-        #     z = torch.cat((z, action), dim=-1)
-        # else:
-        z = torch.cat((z, prop, action), dim=-1)
-        z = nn.GeometricTensor(z, self.feat_type)
+    #     # TODO: Why add them back?
+    #     # if self.prop_dim == 0:
+    #     #     z = torch.cat((z, action), dim=-1)
+    #     # else:
+    #     z = torch.cat((z, prop, action), dim=-1)
+    #     z = nn.GeometricTensor(z, self.feat_type)
 
-        # Return Combined Features 
-        return z
+    #     # Return Combined Features 
+    #     return z
 
-    def forward(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        z = self._compute_trunk(feat, prop, action)  # [batch_size, input_dim]
-
-        # Reconstruct params/buffers from registered tensors (ensures proper device placement)
-        current_params = {}
-        current_buffers = {}
-
-        for name in self.params:
-            param_name = f"_vmap_param_{name.replace('.', '_')}"
-            current_params[name] = getattr(self, param_name)
-
-        for name in self.buffers:
-            buffer_name = f"_vmap_buffer_{name.replace('.', '_')}"
-            current_buffers[name] = getattr(self, buffer_name)
-
-        def f_one_head(p, b, z_input):
-            # p, b are the param/buffer for one head; z_input is [B, in_dim]
-            return functional_call(self._head_template, (p, b), (z_input,))  # [B, out_dim]
-
-        # Vectorize across heads; params/buffers carry leading H; z is shared across heads
-        # Output: [num_heads, batch_size, output_dim]
-        return vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)
-
-
-class SpatialEmbQEnsemble(nn.Module):
-    def __init__(
-        self,
-        *,
-        num_patch: int,
-        patch_dim: int,
-        prop_dim: int,
-        action_dim: int,
-        fuse_patch: int,
-        emb_dim: int,
-        hidden_dim: int,
-        orth: int,
-        output_dim: int = 1,
-        num_heads: int = 2,
-        num_layers: int = 2,
-        use_layer_norm: bool = True,
-    ):
-        super().__init__()
-
-        # Trunk (shared across heads)
-        if fuse_patch:
-            proj_in_dim = num_patch + action_dim + prop_dim
-            num_proj = patch_dim
-        else:
-            proj_in_dim = patch_dim + action_dim + prop_dim
-            num_proj = num_patch
-
-        self.fuse_patch = fuse_patch
-        self.patch_dim = patch_dim
-        self.prop_dim = prop_dim
-        self.action_dim = action_dim
-
-        # Build input projection layers
-        input_layers = [nn.Linear(proj_in_dim, emb_dim)]
-        if use_layer_norm:
-            input_layers.append(nn.LayerNorm(emb_dim))
-        input_layers.append(nn.ReLU(inplace=True))
-        self.input_proj = nn.Sequential(*input_layers)
-        self.weight = nn.Parameter(torch.zeros(1, num_proj, emb_dim))
-        nn.init.normal_(self.weight)
-
-        # vmap-based heads for efficient batched computation
-        self.num_heads = num_heads
-        input_dim = emb_dim + action_dim + prop_dim
-
-        # Create multiple module instances and stack their parameters/buffers
-        heads = [HeadMLP(input_dim, hidden_dim, output_dim, num_layers, use_layer_norm) for _ in range(num_heads)]
-        self.params, self.buffers = stack_module_state(heads)
-
-        # Store a template head with no parameters (for structure only)
-        self._head_template = HeadMLP(input_dim, hidden_dim, output_dim, num_layers, use_layer_norm)
-
-        # Register params and buffers so they get moved with the module
-        for name, param in self.params.items():
-            self.register_parameter(f"_vmap_param_{name.replace('.', '_')}", nn.Parameter(param))
-        for name, buffer in self.buffers.items():
-            self.register_buffer(f"_vmap_buffer_{name.replace('.', '_')}", buffer)
-
-        # Apply per-head initialization
-        self._init_per_head_params(orth)
-
-    def _init_per_head_params(self, orth: bool):
-        """Apply per-head initialization to the stacked parameters."""
-        with torch.no_grad():
-            if orth:
-                # Apply orthogonal initialization to all linear layers
-                for key, param in self.params.items():
-                    if "weight" in key and param.dim() >= 2:
-                        # param shape: [num_heads, out_features, in_features] or similar
-                        for h in range(self.num_heads):
-                            if param[h].dim() >= 2:
-                                utils.orth_weight_init(param[h])
-
-    def extra_repr(self) -> str:
-        return f"heads: {self.num_heads}, weight: nn.Parameter ({self.weight.size()})"
-
-    def _compute_trunk(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        assert feat.size(-1) == self.patch_dim, "are you using CNN, need flatten&transpose"
-        if self.fuse_patch:
-            feat = feat.transpose(1, 2)
-
-        repeated_action = action.unsqueeze(1).repeat(1, feat.size(1), 1)
-        all_feats = [feat, repeated_action]
-        if self.prop_dim > 0:
-            repeated_prop = prop.unsqueeze(1).repeat(1, feat.size(1), 1)
-            all_feats.append(repeated_prop)
-
-        x = torch.cat(all_feats, dim=-1)
-        y: torch.Tensor = self.input_proj(x)
-        z = (self.weight * y).sum(1)
-
-        if self.prop_dim == 0:
-            z = torch.cat((z, action), dim=-1)
-        else:
-            z = torch.cat((z, prop, action), dim=-1)
-        return z
-
-    def forward(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        z = self._compute_trunk(feat, prop, action)  # [batch_size, input_dim]
+    # def forward(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+    def forward(self, feat):
+        # z = self._compute_trunk(feat, prop, action)  # [batch_size, input_dim]
 
         # Reconstruct params/buffers from registered tensors (ensures proper device placement)
-        current_params = {}
-        current_buffers = {}
+        # current_params = {}
+        # current_buffers = {}
 
-        for name in self.params:
-            param_name = f"_vmap_param_{name.replace('.', '_')}"
-            current_params[name] = getattr(self, param_name)
+        # for name in self.params:
+        #     param_name = f"_vmap_param_{name.replace('.', '_')}"
+        #     current_params[name] = getattr(self, param_name)
 
-        for name in self.buffers:
-            buffer_name = f"_vmap_buffer_{name.replace('.', '_')}"
-            current_buffers[name] = getattr(self, buffer_name)
+        # for name in self.buffers:
+        #     buffer_name = f"_vmap_buffer_{name.replace('.', '_')}"
+        #     current_buffers[name] = getattr(self, buffer_name)
 
-        def f_one_head(p, b, z_input):
-            # p, b are the param/buffer for one head; z_input is [B, in_dim]
-            return functional_call(self._head_template, (p, b), (z_input,))  # [B, out_dim]
+        # def f_one_head(p, b, z_input):
+        #     # p, b are the param/buffer for one head; z_input is [B, in_dim]
+        #     return functional_call(self._head_template, (p, b), (z_input,))  # [B, out_dim]
 
-        # Vectorize across heads; params/buffers carry leading H; z is shared across heads
-        # Output: [num_heads, batch_size, output_dim]
-        return vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)
+        # # Vectorize across heads; params/buffers carry leading H; z is shared across heads
+        # # Output: [num_heads, batch_size, output_dim]
+        # return vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)
+
+        # TODO: Confirm this
+        q_vals = []
+        for head in self.heads:
+            q_vals.append(head(feat).tensor)
+
+        return torch.stack(q_vals, dim=0)
+
+# class SpatialEmbQEnsemble(nn.Module):
+#     def __init__(
+#         self,
+#         *,
+#         num_patch: int,
+#         patch_dim: int,
+#         prop_dim: int,
+#         action_dim: int,
+#         fuse_patch: int,
+#         emb_dim: int,
+#         hidden_dim: int,
+#         orth: int,
+#         output_dim: int = 1,
+#         num_heads: int = 2,
+#         num_layers: int = 2,
+#         use_layer_norm: bool = True,
+#     ):
+#         super().__init__()
+
+#         # Trunk (shared across heads)
+#         if fuse_patch:
+#             proj_in_dim = num_patch + action_dim + prop_dim
+#             num_proj = patch_dim
+#         else:
+#             proj_in_dim = patch_dim + action_dim + prop_dim
+#             num_proj = num_patch
+
+#         self.fuse_patch = fuse_patch
+#         self.patch_dim = patch_dim
+#         self.prop_dim = prop_dim
+#         self.action_dim = action_dim
+
+#         # Build input projection layers
+#         input_layers = [nn.Linear(proj_in_dim, emb_dim)]
+#         if use_layer_norm:
+#             input_layers.append(nn.LayerNorm(emb_dim))
+#         input_layers.append(nn.ReLU(inplace=True))
+#         self.input_proj = nn.Sequential(*input_layers)
+#         self.weight = nn.Parameter(torch.zeros(1, num_proj, emb_dim))
+#         nn.init.normal_(self.weight)
+
+#         # vmap-based heads for efficient batched computation
+#         self.num_heads = num_heads
+#         input_dim = emb_dim + action_dim + prop_dim
+
+#         # Create multiple module instances and stack their parameters/buffers
+#         heads = [HeadMLP(input_dim, hidden_dim, output_dim, num_layers, use_layer_norm) for _ in range(num_heads)]
+#         self.params, self.buffers = stack_module_state(heads)
+
+#         # Store a template head with no parameters (for structure only)
+#         self._head_template = HeadMLP(input_dim, hidden_dim, output_dim, num_layers, use_layer_norm)
+
+#         # Register params and buffers so they get moved with the module
+#         for name, param in self.params.items():
+#             self.register_parameter(f"_vmap_param_{name.replace('.', '_')}", nn.Parameter(param))
+#         for name, buffer in self.buffers.items():
+#             self.register_buffer(f"_vmap_buffer_{name.replace('.', '_')}", buffer)
+
+#         # Apply per-head initialization
+#         self._init_per_head_params(orth)
+
+#     def _init_per_head_params(self, orth: bool):
+#         """Apply per-head initialization to the stacked parameters."""
+#         with torch.no_grad():
+#             if orth:
+#                 # Apply orthogonal initialization to all linear layers
+#                 for key, param in self.params.items():
+#                     if "weight" in key and param.dim() >= 2:
+#                         # param shape: [num_heads, out_features, in_features] or similar
+#                         for h in range(self.num_heads):
+#                             if param[h].dim() >= 2:
+#                                 utils.orth_weight_init(param[h])
+
+#     def extra_repr(self) -> str:
+#         return f"heads: {self.num_heads}, weight: nn.Parameter ({self.weight.size()})"
+
+#     def _compute_trunk(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+#         assert feat.size(-1) == self.patch_dim, "are you using CNN, need flatten&transpose"
+#         if self.fuse_patch:
+#             feat = feat.transpose(1, 2)
+
+#         repeated_action = action.unsqueeze(1).repeat(1, feat.size(1), 1)
+#         all_feats = [feat, repeated_action]
+#         if self.prop_dim > 0:
+#             repeated_prop = prop.unsqueeze(1).repeat(1, feat.size(1), 1)
+#             all_feats.append(repeated_prop)
+
+#         x = torch.cat(all_feats, dim=-1)
+#         y: torch.Tensor = self.input_proj(x)
+#         z = (self.weight * y).sum(1)
+
+#         if self.prop_dim == 0:
+#             z = torch.cat((z, action), dim=-1)
+#         else:
+#             z = torch.cat((z, prop, action), dim=-1)
+#         return z
+
+#     def forward(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+#         z = self._compute_trunk(feat, prop, action)  # [batch_size, input_dim]
+
+#         # Reconstruct params/buffers from registered tensors (ensures proper device placement)
+#         current_params = {}
+#         current_buffers = {}
+
+#         for name in self.params:
+#             param_name = f"_vmap_param_{name.replace('.', '_')}"
+#             current_params[name] = getattr(self, param_name)
+
+#         for name in self.buffers:
+#             buffer_name = f"_vmap_buffer_{name.replace('.', '_')}"
+#             current_buffers[name] = getattr(self, buffer_name)
+
+#         def f_one_head(p, b, z_input):
+#             # p, b are the param/buffer for one head; z_input is [B, in_dim]
+#             return functional_call(self._head_template, (p, b), (z_input,))  # [B, out_dim]
+
+#         # Vectorize across heads; params/buffers carry leading H; z is shared across heads
+#         # Output: [num_heads, batch_size, output_dim]
+#         return vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)

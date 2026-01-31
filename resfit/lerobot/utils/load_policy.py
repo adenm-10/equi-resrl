@@ -61,7 +61,7 @@ def load_policy(policy_dir: Path) -> ACTPolicy:
 
     # TODO: improve policy-type inference logic when additional policies are added
     if "diffusion" in policy_name_field:
-        raise NotImplementedError("Diffusion policy not implemented")
+        # raise NotImplementedError("Diffusion policy not implemented")
         return DiffusionPolicy.from_pretrained(policy_dir)
     if "use_vae" in cfg_dict:
         return ACTPolicy.from_pretrained(policy_dir)

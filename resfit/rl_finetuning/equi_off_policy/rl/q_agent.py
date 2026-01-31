@@ -16,7 +16,7 @@ from resfit.rl_finetuning.off_policy.common_utils import utils
 
 # TODO: Incorporate agent config into equi encoder
 from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
-from   resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
+from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic, EquivariantEncoder128
 
 from resfit.rl_finetuning.off_policy.rl.actor import Actor
 from resfit.rl_finetuning.off_policy.rl.critic import Critic
@@ -57,28 +57,40 @@ class QAgent(nn.Module):
             rl_cameras = [rl_cameras]
         assert len(rl_cameras) > 0, "At least one camera must be provided"
 
+        # TODO: Make sure right rl_cameras are being passed
         self.rl_cameras = rl_cameras
         self.cfg = cfg
         self.residual_actor = residual_actor
 
         # Build the per-camera encoders *after* `self.rl_cameras` is defined so
         # that the helper function can iterate over them.
-        self.encoders: nn.ModuleList = self._build_encoders(obs_shape)
-        self.enc = EquivariantResEncoder76Cyclic(obs_channel, self.n_hidden, initialize).to(self.cfg.device)
+        # self.encoders: nn.ModuleList = self._build_encoders(obs_shape)
+        
+        # TODO: Figure out how to parse correctly
+        #   - Are output features unordered and in latent space?
+        #   - Do I have to maintain the N-channel ordering?
+        #   - Currently treating as unordered features in latent space
+        # (self, obs_channel=2, n_out=128, initialize=True, N=4)
+        # input: (batch_size, obs_channel, 128, 128each chan)
+        # output: (batch_size, N * n_out, 1, 1) as Geometric Tensor
+        self.enc = EquivariantEncoder128(obs_channel = obs_shape, 
+                                    n_out       = self.hidden_dim, 
+                                    initialize  = self.initialize, 
+                                    N           = self.N).to(self.cfg.device)
 
         # All encoders share the same architecture ⇒ repr / patch dim are identical.
-        sample_encoder = self.encoders[0]
-        repr_dim_single = int(sample_encoder.repr_dim)  # type: ignore[attr-defined]
-        patch_repr_dim = int(sample_encoder.patch_repr_dim)  # type: ignore[attr-defined]
+        # sample_encoder = self.encoders[0]
+        # repr_dim_single = int(sample_encoder.repr_dim)  # type: ignore[attr-defined]
+        # patch_repr_dim = int(sample_encoder.patch_repr_dim)  # type: ignore[attr-defined]
 
         # Concatenate the patch dimension from every camera (dim=1) → overall
         # representation dimension scales linearly with #cameras.
-        repr_dim = repr_dim_single * len(self.rl_cameras)
-        print("encoder output dim: ", repr_dim)
-        print("patch output dim: ", patch_repr_dim)
+        # repr_dim = repr_dim_single * len(self.rl_cameras)
+        # print("encoder output dim: ", repr_dim)
+        # print("patch output dim: ", patch_repr_dim)
 
-        assert len(prop_shape) == 1
-        prop_dim = prop_shape[0] if cfg.use_prop else 0
+        # assert len(prop_shape) == 1
+        # prop_dim = prop_shape[0] if cfg.use_prop else 0
 
         # create critics & actor
         self.critic = Critic(
@@ -88,7 +100,12 @@ class QAgent(nn.Module):
             action_dim=action_dim,
             cfg=self.cfg.critic,
         )
-        self.actor = Actor(repr_dim, patch_repr_dim, prop_dim, action_dim, cfg.actor, residual_actor=residual_actor)
+        self.actor = Actor(
+            repr_dim, 
+            patch_repr_dim, 
+            prop_dim, 
+            action_dim, 
+            cfg.actor, residual_actor=residual_actor)
 
         self.critic_target = copy.deepcopy(self.critic)
         self.actor_target = copy.deepcopy(self.actor)
@@ -168,8 +185,20 @@ class QAgent(nn.Module):
         for _ in self.rl_cameras:
             if self.cfg.enc_type == "vit":
                 enc = VitEncoder(obs_shape, self.cfg.vit).to(self.cfg.device)
+            elif self.cfg.enc_type == "equi":
+                # TODO: Figure out how to parse correctly
+                #   - Are output features unordered and in latent space?
+                #   - Do I have to maintain the N-channel ordering?
+                #   - Currently treating as unordered features in latent space
+                enc = EquivariantEncoder128(obs_channel = obs_shape, 
+                                            n_out       = self.hidden_dim, 
+                                            initialize  = self.initialize, 
+                                            N           = self.N).to(self.cfg.device)
+                # (self, obs_channel=2, n_out=128, initialize=True, N=4)
+                # input: (batch_size, obs_channel, 128, 128each chan)
+                # output: (batch_size, N * n_out, 1, 1) as Geometric Tensor
             else:
-                enc = EquivariantResEncoder76Cyclic(obs_channel, self.n_hidden, initialize).to(self.cfg.device)
+                raise AssertionError(f"Unknown encoder type {self.cfg.enc_type}.")
 
             encoders.append(enc)
 
@@ -213,46 +242,39 @@ class QAgent(nn.Module):
 
         self.cfg.act_method = original_method
 
-    def _encode(self, obs: dict[str, torch.Tensor], augment: bool) -> torch.Tensor:
-        r"""This function encodes the observation into feature tensor.
+    # def _encode(self, obs: dict[str, torch.Tensor], augment: bool) -> torch.Tensor:
+    #     r"""This function encodes the observation into feature tensor.
 
-        Images may be stored in the replay buffers as uint8 to save GPU memory.  In
-        that case we convert them to float32 in \[0,1] before feeding them to the
-        encoders.  If the image is already a float tensor (offline dataset or
-        direct env observations during evaluation) we assume it is properly
-        normalised.
-        """
-        # feats = []
-        # for cam_idx, cam_name in enumerate(self.rl_cameras):
-        #     data = obs[cam_name]
+    #     Images may be stored in the replay buffers as uint8 to save GPU memory.  In
+    #     that case we convert them to float32 in \[0,1] before feeding them to the
+    #     encoders.  If the image is already a float tensor (offline dataset or
+    #     direct env observations during evaluation) we assume it is properly
+    #     normalised.
+    #     """
 
-        #     if data.dtype == torch.uint8:
-        #         # uint8 → float32 in [0,1]
-        #         data = data.float().div_(255.0)
-        #     else:
-        #         data = data.float()
+    #     feats = []
+    #     for cam_idx, cam_name in enumerate(self.rl_cameras):
+    #         data = obs[cam_name]
 
-        #     if augment:
-        #         data = self.aug(data)
+    #         if data.dtype == torch.uint8:
+    #             # uint8 → float32 in [0,1]
+    #             data = data.float().div_(255.0)
+    #         else:
+    #             data = data.float()
 
-        #     # Forward pass through the *corresponding* encoder
-        #     feat_cam = self.encoders[cam_idx].forward(data, flatten=False)
-        #     feats.append(feat_cam)
+    #         if augment:
+    #             data = self.aug(data)
 
-        # # Concatenate along the *patch* dimension (dim=1)
-        # feat_all = torch.cat(feats, dim=1)
-        # return feat_all  # noqa: RET504
-        img = obs["agentview_image"]
-        batch_size = img.shape[0]
-        t = img.shape[1]
-        img = rearrange(obs, "b t c h w -> (b t) c h w")
-        
-        # TODO: Handle Null Cropping values
-        if False:
-            img = self.crop_randomizer(img)
+    #         # Forward pass through the *corresponding* encoder
+    #         feat_cam = self.encoders[cam_idx].forward(data, flatten=False)
+    #         feats.append(feat_cam)
 
-        # assert "feat" not in obs
-        return self.enc(obs, augment=False).tensor.reshape(batch_size * t, -1)  # b d
+    #     # Concatenate along the *patch* dimension (dim=1)
+    #     feat_all = torch.cat(feats, dim=1)
+    #     return feat_all  # noqa: RET504
+
+    #     assert "feat" not in obs
+    #     return self.enc(obs, augment=False).tensor.reshape(batch_size * t, -1)  # b d
 
     def _maybe_unsqueeze_(self, obs):
         should_unsqueeze = False
@@ -272,9 +294,8 @@ class QAgent(nn.Module):
         obs = copy.copy(obs)
         unsqueezed = self._maybe_unsqueeze_(obs)
 
-        # Encode in Actor?
         assert "feat" not in obs
-        obs["feat"] = self._encode(obs, augment=False)
+        obs["feat"] = self.enc(obs)
 
         action = self._act_default(
             obs=obs,
@@ -302,7 +323,7 @@ class QAgent(nn.Module):
         use_target: bool,
     ) -> torch.Tensor:
         actor = self.actor_target if use_target else self.actor
-        dist = actor.forward(obs, stddev)
+        dist = actor.forward(obs["feat"], stddev)
 
         # Only assert not training when this is called from the public act() method
         # (which is used for actual evaluation), not when called internally during training
@@ -472,8 +493,8 @@ class QAgent(nn.Module):
         assert not self.residual_actor, "Not implemented"
         obs: dict[str, torch.Tensor] = batch["obs"]
 
-        assert "feat" not in obs, "safety check"
-        obs["feat"] = self._encode(obs, augment=True)
+        assert "feat" not in obs
+        obs["feat"] = self.enc(obs)
 
         if not backprop_encoder:
             obs["feat"] = obs["feat"].detach()
@@ -575,6 +596,8 @@ class QAgent(nn.Module):
                 # we first get the ref_action and then pop the feature
                 # then we get the curr_action so that the obs["feat"] is the current feature
                 # which can be used for computing q-values
+
+                # TODO: Do I need to encode this first?
                 bc_obs = bc_batch.obs
                 curr_action = self.act(bc_obs, eval_mode=True, cpu=False)
 
@@ -630,10 +653,11 @@ class QAgent(nn.Module):
         # To not bootstrap on terminal states we zero out the discount factor for terminal next states
         effective_discount = discount * next_nonterminal
 
-        obs["feat"] = self._encode(obs, augment=True)
+        assert "feat" not in obs
+        obs["feat"] = self.enc(obs)
 
         with torch.no_grad():
-            next_obs["feat"] = self._encode(next_obs, augment=True)
+            next_obs["feat"] = self.enc(next_obs)
 
         metrics = {}
         metrics["data/batch_R"] = reward.mean().item()
