@@ -41,6 +41,13 @@ class BasePolicyConfig:
 
 
 @dataclass
+class EquivarianceConfig:
+    N: int = 12
+    degree_channel: int = 6
+    initialize: bool = True
+
+
+@dataclass
 class ResidualTD3AlgoConfig(RLPDAlgoConfig):
     # ------------------------------------------------------------------
     # Critic warmup phase ----------------------------------------------
@@ -123,6 +130,9 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # Whether to run an evaluation pass before training begins (at step 0)
     eval_first: bool = True
 
+    # Equivariant agent or not
+    equivariance: EquivarianceConfig | None = None
+
 
 @dataclass
 class ResidualTD3CanConfig(ResidualTD3DexmgConfig):
@@ -162,6 +172,50 @@ class ResidualTD3SquareConfig(ResidualTD3DexmgConfig):
     )
 
     wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-square-residual-td3"))
+
+
+@dataclass
+class ResidualEquiTD3CanConfig(ResidualTD3DexmgConfig):
+    task: str = "Can"
+
+    offline_data: OfflineDataConfig = field(
+        default_factory=lambda: OfflineDataConfig(
+            name="ankile/robomimic-mh-can-image",
+            num_episodes=300,
+        )
+    )
+
+    base_policy: BasePolicyConfig = field(
+        default_factory=lambda: BasePolicyConfig(
+            wandb_id="robomimic-can-bc/xhjdl8a7",
+        )
+    )
+
+    wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-can-residual-td3"))
+
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=12))
+
+
+@dataclass
+class ResidualEquiTD3SquareConfig(ResidualTD3DexmgConfig):
+    task: str = "Square"
+
+    offline_data: OfflineDataConfig = field(
+        default_factory=lambda: OfflineDataConfig(
+            name="ankile/robomimic-mh-square-image",
+            num_episodes=300,
+        )
+    )
+
+    base_policy: BasePolicyConfig = field(
+        default_factory=lambda: BasePolicyConfig(
+            wandb_id="robomimic-square-bc/3hzs5bz1",
+        )
+    )
+
+    wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-square-residual-td3"))
+
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=12))
 
 
 @dataclass
@@ -275,3 +329,6 @@ cs.store(name="residual_td3_square_config", node=ResidualTD3SquareConfig)
 cs.store(name="residual_td3_box_clean_config", node=ResidualTD3BoxCleanConfig)
 cs.store(name="residual_td3_coffee_config", node=ResidualTD3CoffeeConfig)
 cs.store(name="residual_td3_two_arm_cansort_config", node=ResidualTD3TwoArmCanSortConfig)
+
+cs.store(name="residual_equi_td3_can_config",    node=ResidualEquiTD3CanConfig)
+cs.store(name="residual_equi_td3_square_config", node=ResidualEquiTD3SquareConfig)

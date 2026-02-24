@@ -164,3 +164,19 @@ Why is the below line present in original repo? Diffusion looks fully implemente
  - From:
     - resfit/lerobot/utils/load_policy.py
     - line 64
+
+
+Problem Statement:
+ - Want to compare performance for diffusion policy tuning using equivariant and non-equivariant residual RL
+    1. Get baselines
+        1. Get Base Policy Running (Done)
+        2. Get Normal Residual Algorithm Running (Done)
+        3. Recreate Baseline to verify codebase working as intended (IP)
+        4. Get Diffusion Policy tuning Baseline (NS)
+    1. Implement equivariance
+        1. Design equivariant architectures (IP)
+        2. Implement new configs (Done)
+        3. Implement and Test full Equivariant Q-Agent API (IP)
+            1. Verify Dataset relative position conversion
+    3. Get equivariant comparison data
+ - Want to im

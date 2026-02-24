@@ -35,8 +35,8 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         self,
         obs_shape=(3, 84, 84),
         crop_shape=(76, 76),
-        n_hidden=128,
         N=8,
+        n_hidden=128,
         initialize=True,
     ):
         super().__init__()
@@ -48,18 +48,18 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         # self.group = gspaces.no_base_space(CyclicGroup(self.N))
         self.group = gspaces.rot2dOnR2(N=N)
 
-        self.action_shape = 2 * [self.group.irrep(1)]               # action_xy, action_rx_ry
-                          + 3 * [self.group.trivial_repr],          # action_z, action_rz, action_gripper
-        self.prop_shape   = 4 * [self.group.irrep(1)]               # pos_xy + 3 rotation columns
-                          + 3 * [self.group.trivial_repr]           # pos_z, ee_q (2)
+        self.prop_shape   = 4 * [self.group.irrep(1)] \
+                          + 3 * [self.group.trivial_repr] # pos_xy + 3 rotation columns \ pos_z, ee_q (2)
+        self.action_shape = 2 * [self.group.irrep(1)] \
+                          + 3 * [self.group.trivial_repr] # action_xy, action_rx_ry \ action_z, action_rz, action_gripper
         
-        self.full_feat_shape = self.group,
-                               self.n_hidden   * [self.group.regular_repr] # agentview img
-                               + self.n_hidden * [self.group.trivial_repr] # ih
-                               + self.prop_shape                           # proprioceptive state
-                               + self.action_shape                         # base action 
-        
-        self.out_type = nn.FieldType(self.group, self.n_hidden * [self.group.regular_repr])
+        self.out_type = nn.FieldType(
+            self.group,
+            self.n_hidden * [self.group.regular_repr]      # agentview
+            + self.n_hidden * [self.group.trivial_repr]    # in-hand
+            + self.prop_shape                              # proprioception
+            + self.action_shape                            # base action
+        )
         self.enc_obs = EquivariantEncoder128(obs_channel, self.n_hidden, initialize)
         self.enc_ih = InHandEncoder(self.n_hidden).to(self.device)
         
@@ -93,7 +93,7 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         ee_pos = rearrange(ee_pos, "b t d -> (b t) d")
         ee_quat = rearrange(ee_quat, "b t d -> (b t) d")
         ee_q = rearrange(ee_q, "b t d -> (b t) d")
-        base_action = rearrange(ee_q, "b t d -> (b t) d")
+        base_action = rearrange(base_action, "b t d -> (b t) d")
         ih = rearrange(ih, "b t c h w -> (b t) c h w")
 
         # According to Claude:
@@ -148,13 +148,15 @@ class EquivariantResObsEnc(ModuleAttrMixin):
                 ee_q,
                 
                 # Base action components
-                action_xy[:, 0:1],    # x
-                action_xy[:, 1:2],    # y
-                action_rx_ry[:, 0:1], # rx
-                action_rx_ry[:, 1:2], # ry
-                action_z,             # z
-                action_rz,            # rz
-                action_gripper,       # gripper
+                # action_xy[:, 0:1],    # x
+                # action_xy[:, 1:2],    # y
+                # action_rx_ry[:, 0:1], # rx
+                # action_rx_ry[:, 1:2], # ry
+                action_xy,      # x
+                action_rx_ry,   # rx
+                action_z,       # z
+                action_rz,      # rz
+                action_gripper, # gripper
             ],
             dim=1
         )

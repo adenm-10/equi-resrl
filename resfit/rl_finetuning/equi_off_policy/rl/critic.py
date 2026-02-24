@@ -249,13 +249,14 @@ class C51Loss(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, 
-                 in_shape, 
                  group,
-                 hidden_dim
-                 action_type, 
+                 in_type, 
+                 hidden_dim,
+                 action_dim, 
                  cfg: CriticConfig):
         super().__init__()
         self.cfg = cfg
+        self.group = group
         self.loss_cfg = cfg.loss
 
         if self.loss_cfg.type in {"hl_gauss", "c51"}:
@@ -269,37 +270,21 @@ class Critic(nn.Module):
         # obs features + act + prop -> features
         self.compress = torch.nn.Sequential(
                                 nn.Linear(
-                                    nn.FieldType(group, in_shape),
-                                    nn.FieldType(group, hidden_dim * [self.group.regular_repr])),
-                                nn.ReLU(nn.FieldType(group, hidden_dim * [self.group.regular_repr]))
+                                    in_type,
+                                    nn.FieldType(self.group, hidden_dim * [self.group.regular_repr])),
+                                nn.ReLU(nn.FieldType(self.group, hidden_dim * [self.group.regular_repr]))
                            )
 
-        head_in_type = nn.FieldType(group, hidden_dim * [self.group.regular_repr])
-        head_hidden_type = hidden_type
-        head_out_type = action_type # TODO: COnvert this to ensure shape (num_heads, batch_size, 1)
+        head_in_type = nn.FieldType(self.group, hidden_dim * [self.group.regular_repr])
+        head_hidden_type = nn.FieldType(self.group, hidden_dim * [self.group.trivial_repr])
+        head_out_type = nn.FieldType(self.group, 1 * [self.group.trivial_repr]) # TODO Confirm this is outputting num_head x batch_size q values
 
-        # Build an ensemble that shares the spatial trunk and owns K independent heads
-        # self.q_ensemble = SpatialEmbQEnsemble(
-        #     fuse_patch=cfg.fuse_patch,
-        #     num_patch=repr_dim // patch_repr_dim,
-        #     patch_dim=patch_repr_dim,
-        #     emb_dim=cfg.spatial_emb,
-        #     prop_dim=prop_dim,
-        #     action_dim=action_dim,
-        #     hidden_dim=self.cfg.hidden_dim,
-        #     orth=self.cfg.orth,
-        #     output_dim=output_dim,
-        #     num_heads=num_q,
-        #     num_layers=cfg.num_layers,
-        #     use_layer_norm=cfg.use_layer_norm,
-        # )
-
-        self.q_ensemble = EquiQEnsemble(group          = group, 
+        self.q_ensemble = EquiQEnsemble(group          = self.group, 
                                         in_type        = head_in_type,
                                         hidden_type    = head_hidden_type,
                                         out_type       = head_out_type,
-                                        num_heads      = cfg.num_critic_heads,
-                                        num_layers     = cfg.num_critic_layers,
+                                        num_layers     = cfg.num_layers,
+                                        num_heads      = cfg.num_q,
                                         use_layer_norm = cfg.use_layer_norm,
                                        )
 
@@ -325,14 +310,14 @@ class Critic(nn.Module):
         # (B,K) * (K,) → (B,)
         return (probs * support).sum(-1, keepdim=True)  # E[z]
 
-    def forward(self, feat, prop, act, *, return_logits: bool = False):
+    def forward(self, feat, *, return_logits: bool = False):
         assert isinstance(feat, nn.GeometricTensor), "Passed in non-Geometric Tensor to Equivariant Critic"
         
         # Compress Concatted features
-        features = self.compress(feat)
+        feat = self.compress(feat)
 
         # logits_per_head: [num_q, B, out_dim] where out_dim is either 1 or K (bins)
-        logits_per_head = self.q_ensemble(feat, prop, act).tensor
+        logits_per_head = self.q_ensemble(feat)
 
         if self.loss_cfg.type == "hl_gauss":
             # expectation over bin centers → scalar Q, done per head
@@ -356,21 +341,21 @@ class Critic(nn.Module):
         # MSE case: outputs are already scalars per head → [num_q, B, 1]
         return logits_per_head
 
-    def q_value(self, feat, prop, act):
+    def q_value(self, feat):
         """
         Returns the Q-value for a given feature, property, and action.
         I.e., gets all Q-values, subsets them, and returns the min.
         Used for critic loss computation (uses configurable min_q_heads).
         """
         # Get the Q-values for all heads
-        q_out = self.forward(feat, prop, act)
+        q_out = self.forward(feat)
 
         # Take min over random subset of heads (configurable via min_q_heads)
         num_heads = min(self.cfg.min_q_heads, q_out.shape[0])
         idx = torch.randperm(q_out.shape[0], device=q_out.device)[:num_heads]
         return torch.min(q_out.index_select(0, idx), dim=0).values
 
-    def q_value_for_policy(self, feat, prop, act):
+    def q_value_for_policy(self, feat):
         """
         Returns the Q-value for policy gradient computation.
         Supports different policy gradient types:
@@ -379,7 +364,7 @@ class Critic(nn.Module):
         - "q1": just use q1 from ensemble (standard TD3 approach)
         """
         # Get the Q-values for all heads
-        q_out = self.forward(feat, prop, act)
+        q_out = self.forward(feat)
 
         if self.cfg.policy_gradient_type == "ensemble_mean":
             # Take mean over all heads (standard RED-Q approach)
@@ -457,17 +442,7 @@ class EquiQEnsemble(nn.Module):
         in_type,
         hidden_type,
         out_type,
-        # *,
-        # num_patch: int,
-        # patch_dim: int,
-        # prop_dim: int,
-        # action_dim: int,
-        # fuse_patch: int,
-        # emb_dim: int,
-        # orth: int,
-        # output_dim: int = 1,
         num_heads: int = 2,
-        num_layers: int = 2,
         use_layer_norm: bool = True,
     ):
         super().__init__()
@@ -506,21 +481,16 @@ class EquiQEnsemble(nn.Module):
         #                 ]
         # self.input_proj = nn.Sequential(*input_layers)
 
-        # TODO: Figure out how to adapt these?
-        self.weight = nn.Parameter(torch.zeros(1, num_proj, emb_dim))
-        nn.init.normal_(self.weight)
-
         # vmap-based heads for efficient batched computation
         # self.num_heads = num_heads
         # input_dim = emb_dim + action_dim + prop_dim
 
         # Create multiple module instances and stack their parameters/buffers
-        self.heads = [EquiHeadMLP(group=group, 
-                                  in_type=in_type, 
-                                  hidden_type=hidden_type, 
-                                  out_type=out_type, 
-                                  num_layers=num_layers, 
-                                  use_layer_norm=use_layer_norm) for _ in range(num_heads)]
+        self.heads = torch.nn.ModuleList([EquiHeadMLP(group=group, 
+                                            in_type=in_type, 
+                                            hidden_type=hidden_type, 
+                                            out_type=out_type, 
+                                            use_layer_norm=use_layer_norm) for _ in range(num_heads)])
         
         # TODO: Is below necessary or just for compute efficiency?
         # self.params, self.buffers = stack_module_state(heads)

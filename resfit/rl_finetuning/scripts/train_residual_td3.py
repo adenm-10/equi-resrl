@@ -49,7 +49,7 @@ from resfit.lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
 from resfit.lerobot.utils.load_policy import download_policy_from_wandb, load_policy
 from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
-from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+# from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
 from resfit.rl_finetuning.utils.dtype import to_uint8
 from resfit.rl_finetuning.utils.evaluate_dexmg import run_dexmg_evaluation
 from resfit.rl_finetuning.utils.hugging_face import (
@@ -366,6 +366,12 @@ def main(cfg: ResidualTD3DexmgConfig):
     # ---------------------------------------------------------------------
     # Networks ------------------------------------------------------------
     # ---------------------------------------------------------------------
+
+    agent = None
+    if cfg.equivariance is None:
+        from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+    else:
+        from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
     agent = QAgent(
         obs_shape=(img_c, img_h, img_w),
         prop_shape=(lowdim_dim,),

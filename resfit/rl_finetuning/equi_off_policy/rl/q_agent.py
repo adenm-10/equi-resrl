@@ -10,6 +10,10 @@ from contextlib import contextmanager
 import torch
 from torch import nn
 
+from escnn import gspaces, nn
+from escnn.group import CyclicGroup
+from einops import rearrange
+
 from resfit.rl_finetuning.config.rlpd import QAgentConfig
 from resfit.rl_finetuning.off_policy import common_utils
 from resfit.rl_finetuning.off_policy.common_utils import utils
@@ -61,10 +65,11 @@ class QAgent(nn.Module):
         self.rl_cameras = rl_cameras
         self.cfg = cfg
         self.residual_actor = residual_actor
+        self.equi_cfg = self.cfg.equivariance
 
         # Build the per-camera encoders *after* `self.rl_cameras` is defined so
         # that the helper function can iterate over them.
-        # self.encoders: nn.ModuleList = self._build_encoders(obs_shape)
+        # self.enc: nn.ModuleList = self._build_encoders(obs_shape)
         
         # TODO: Figure out how to parse correctly
         #   - Are output features unordered and in latent space?
@@ -74,12 +79,16 @@ class QAgent(nn.Module):
         # input: (batch_size, obs_channel, 128, 128each chan)
         # output: (batch_size, N * n_out, 1, 1) as Geometric Tensor
         self.enc = EquivariantEncoder128(obs_channel = obs_shape, 
-                                    n_out       = self.hidden_dim, 
-                                    initialize  = self.initialize, 
-                                    N           = self.N).to(self.cfg.device)
+                                         N           = self.equi_cfg.N,
+                                         n_hidden    = self.equi_cfg.degree_channel, 
+                                         initialize  = self.equi_cfg.initialize, 
+                                         ).to(self.cfg.device)
+
+        self.group = gspaces.rot2dOnR2(N=self.equi_cfg.N)
+
 
         # All encoders share the same architecture ⇒ repr / patch dim are identical.
-        # sample_encoder = self.encoders[0]
+        # sample_encoder = self.enc[0]
         # repr_dim_single = int(sample_encoder.repr_dim)  # type: ignore[attr-defined]
         # patch_repr_dim = int(sample_encoder.patch_repr_dim)  # type: ignore[attr-defined]
 
@@ -94,25 +103,26 @@ class QAgent(nn.Module):
 
         # create critics & actor
         self.critic = Critic(
-            repr_dim=repr_dim,
-            patch_repr_dim=patch_repr_dim,
-            prop_dim=prop_dim,
+            group=self.group,
+            in_type=self.enc.out_type, 
+            hidden_dim=self.equi_cfg.degree_channel,
             action_dim=action_dim,
             cfg=self.cfg.critic,
         )
         self.actor = Actor(
-            repr_dim, 
-            patch_repr_dim, 
-            prop_dim, 
-            action_dim, 
-            cfg.actor, residual_actor=residual_actor)
+            group=self.group,
+            in_type=self.enc.out_type, 
+            hidden_dim=self.equi_cfg.degree_channel,
+            action_shape=self.enc.action_shape,
+            cfg=self.cfg.actor, 
+            residual_actor=residual_actor)
 
         self.critic_target = copy.deepcopy(self.critic)
         self.actor_target = copy.deepcopy(self.actor)
 
         print(common_utils.wrap_ruler("encoder weights"))
-        print(self.encoders)
-        common_utils.count_parameters(self.encoders)
+        print(self.enc)
+        common_utils.count_parameters(self.enc)
 
         print(common_utils.wrap_ruler("critic weights"))
         print(self.critic)
@@ -125,12 +135,12 @@ class QAgent(nn.Module):
         # optimizers
         # Freeze encoder parameters if requested
         if getattr(self.cfg, "freeze_encoder", False):
-            for param in self.encoders.parameters():
+            for param in self.enc.parameters():
                 param.requires_grad = False
             print("🧊 Encoder parameters frozen - no gradient updates will be performed")
 
         # Create optimizers (PyTorch will ignore frozen parameters)
-        self.encoder_opt = torch.optim.AdamW(self.encoders.parameters(), lr=self.cfg.critic_lr)
+        self.encoder_opt = torch.optim.AdamW(self.enc.parameters(), lr=self.cfg.critic_lr)
         self.critic_opt = torch.optim.AdamW(self.critic.parameters(), lr=self.cfg.critic_lr)
         self.actor_opt = torch.optim.AdamW(self.actor.parameters(), lr=self.cfg.actor_lr)
 
@@ -213,7 +223,7 @@ class QAgent(nn.Module):
 
     def train(self, training=True):
         self.training = training
-        self.encoders.train(training)
+        self.enc.train(training)
         self.actor.train(training)
         self.critic.train(training)
 
@@ -266,7 +276,7 @@ class QAgent(nn.Module):
     #             data = self.aug(data)
 
     #         # Forward pass through the *corresponding* encoder
-    #         feat_cam = self.encoders[cam_idx].forward(data, flatten=False)
+    #         feat_cam = self.enc[cam_idx].forward(data, flatten=False)
     #         feats.append(feat_cam)
 
     #     # Concatenate along the *patch* dimension (dim=1)
@@ -447,7 +457,7 @@ class QAgent(nn.Module):
         critic_loss.backward(retain_graph=True)
 
         # Gradient clipping
-        encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self.encoders.parameters(), self.cfg.critic_grad_clip_norm)
+        encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self.enc.parameters(), self.cfg.critic_grad_clip_norm)
         critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.critic_grad_clip_norm)
 
         # Store gradient norms for logging
@@ -507,7 +517,7 @@ class QAgent(nn.Module):
             use_target=False,
         )
         action: torch.Tensor = batch["action"]
-        loss = nn.functional.mse_loss(pred_action, action, reduction="none")
+        loss = torch.nn.functional.mse_loss(pred_action, action, reduction="none")
         loss = loss.sum(1).mean(0)
         return loss  # noqa: RET504
 
@@ -624,7 +634,7 @@ class QAgent(nn.Module):
 
         if bc_backprop_encoder:
             metrics["train/encoder_grad_norm"] = torch.nn.utils.clip_grad_norm_(
-                self.encoders.parameters(), self.cfg.actor_grad_clip_norm
+                self.enc.parameters(), self.cfg.actor_grad_clip_norm
             ).item()
 
         if bc_backprop_encoder:

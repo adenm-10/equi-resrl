@@ -72,46 +72,26 @@ from einops import rearrange
 
 class Actor(nn.Module):
     def __init__(self, 
-                 in_shape, 
                  group,
+                 in_type, 
                  hidden_dim,
-                 action_type, 
-                 num_layers,
+                 action_shape,
                  cfg: ActorConfig, 
                  residual_actor: bool = False):
         super().__init__()
 
         self.residual_actor = residual_actor
-        self.group = gspaces.rot2dOnR2(N=N)
+        self.group = group
         self.cfg = cfg
-        obs_channel = obs_shape[0]
 
         # if residual_actor:
         #     # The residual actor takes the base action as input alongside the state
         #     self.prop_dim += action_dim
 
-        # if cfg.spatial_emb > 0:
-        #     assert cfg.spatial_emb > 1, "this is the dimension"
-        #     self.compress = SpatialEmb(
-        #         num_patch=repr_dim // patch_repr_dim,
-        #         patch_dim=patch_repr_dim,
-        #         prop_dim=self.prop_dim,
-        #         proj_dim=cfg.spatial_emb,
-        #         dropout=cfg.dropout,
-        #         use_layer_norm=cfg.use_layer_norm,
-        #     )
-        #     policy_in_dim = cfg.spatial_emb
-        # else:
-        #     layers = [nn.Linear(repr_dim, cfg.feature_dim)]
-        #     if cfg.use_layer_norm:
-        #         layers.append(nn.LayerNorm(cfg.feature_dim))
-        #     layers.extend([nn.Dropout(cfg.dropout), nn.ReLU()])
-        #     self.compress = nn.Sequential(*layers)
-
         # obs features + act + prop -> features
         self.compress = torch.nn.Sequential(
                                 nn.Linear(
-                                    nn.FieldType(group, in_shape),
+                                    in_type,
                                     nn.FieldType(group, hidden_dim * [self.group.regular_repr])),
                                 nn.ReLU(nn.FieldType(group, hidden_dim * [self.group.regular_repr]))
                            )
@@ -119,8 +99,8 @@ class Actor(nn.Module):
         # Create policy network
         self.pol_in_type = nn.FieldType(group, hidden_dim * [self.group.regular_repr])
         self.pol_hidden_type = nn.FieldType(group, hidden_dim * [self.group.trivial_repr])
-        self.pol_out_type = action_type
-        self.policy = self.build_equi_policy(num_layer=num_layers)
+        self.pol_out_type = nn.FieldType(group, action_shape)
+        self.policy = self.build_equi_policy(num_layer=cfg.num_layers)
 
         # Apply weight initialization
         # self._initialize_weights(cfg)
@@ -191,7 +171,7 @@ class Actor(nn.Module):
         # data is in xyzw, but rotation transformer takes wxyz
         return self.quaternion_to_sixd.forward(quat[:, [3, 0, 1, 2]]) 
 
-    def build_equi_policy(self, num_layer, dropout=False, use_layer_norm=False):
+    def build_equi_policy(self, num_layers, dropout=False, use_layer_norm=False):
 
         # TODO:
         # - Include LayerNorm?
@@ -203,10 +183,10 @@ class Actor(nn.Module):
             layers.append(nn.ReLU(self.pol_hidden_type))
 
         layers.append(nn.Linear(self.pol_hidden_type, self.pol_out_type))
-        layers.append(torch.nn.Tanh())
+        # layers.append(torch.nn.Tanh())
         return nn.Sequential(*layers)
         
-    def forward(self, feat):
+    def forward(self, feat, std):
         assert isinstance(feat, nn.GeometricTensor), "Passed in non-Geometric Tensor to Equivariant Actor"
 
         feat = self.compress(feat)
