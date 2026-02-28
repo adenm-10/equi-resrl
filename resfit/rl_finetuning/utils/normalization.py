@@ -265,3 +265,127 @@ class StateStandardizer:
             min_std=min_std,
             device=device,
         )
+
+class EquivariantStateStandardizer:
+    """
+    State standardizer that respects equivariant structure.
+    
+    Key differences from StateStandardizer:
+    1. irrep(1) pairs (x,y) use the SAME std (max of the two) to preserve rotational structure
+    2. Quaternion dims use a single shared std to approximately preserve unit-norm structure
+    3. Trivial/scalar dims are standardized normally (per-dimension)
+    
+    Expected state layout for single-arm Panda: [ee_pos(3), ee_quat(4), ee_q(2)]
+      - dims 0,1 (pos_xy):  irrep(1) pair → shared std
+      - dim  2   (pos_z):   trivial → normal standardization
+      - dims 3-6 (ee_quat): quaternion group → shared std
+      - dims 7,8 (ee_q):    trivial → normal standardization
+    """
+
+    def __init__(
+        self,
+        state_mean: torch.Tensor,
+        state_std: torch.Tensor,
+        equivariant_pairs: list[list[int]],  # groups of indices that must share the same std
+        min_std: float = 1e-1,
+        device: torch.device | str = "cpu",
+    ):
+        """
+        Args:
+            state_mean: Mean values from dataset statistics
+            state_std: Standard deviation values from dataset statistics  
+            equivariant_pairs: List of index groups that must share the same std.
+                               e.g. [[0, 1], [3, 4, 5, 6]] means dims 0,1 share std
+                               and dims 3,4,5,6 share std.
+            min_std: Minimum std to prevent normalization blow-up
+            device: Device to place tensors on
+        """
+        self.device = torch.device(device)
+        self.min_std = min_std
+        self.equivariant_pairs = equivariant_pairs
+
+        self._mean = state_mean.to(self.device)
+        self._std = torch.maximum(
+            state_std.to(self.device), 
+            torch.tensor(min_std, device=self.device)
+        )
+
+        # For each equivariant group, replace per-dim stds with the max std in that group
+        self._equi_std = self._std.clone()
+        for group in equivariant_pairs:
+            shared_std = self._std[group].max()
+            for idx in group:
+                self._equi_std[idx] = shared_std
+
+        # For equivariant groups, also use shared mean (zero) to preserve symmetry
+        # This is important: if mean_x != mean_y, centering distorts the rotation
+        self._equi_mean = self._mean.clone()
+        for group in equivariant_pairs:
+            shared_mean = self._mean[group].mean()
+            for idx in group:
+                self._equi_mean[idx] = shared_mean
+
+        print("EquivariantStateStandardizer initialized:")
+        print(f"  Original std:     {self._std.cpu().numpy()}")
+        print(f"  Equivariant std:  {self._equi_std.cpu().numpy()}")
+        print(f"  Original mean:    {self._mean.cpu().numpy()}")
+        print(f"  Equivariant mean: {self._equi_mean.cpu().numpy()}")
+        print(f"  Equivariant groups: {equivariant_pairs}")
+
+    def standardize(self, state: torch.Tensor) -> torch.Tensor:
+        mean = self._equi_mean.to(state.device)
+        std = self._equi_std.to(state.device)
+        std_safe = torch.maximum(std, torch.tensor(1e-8, device=state.device))
+        return (state - mean) / std_safe
+
+    def unstandardize(self, state: torch.Tensor) -> torch.Tensor:
+        mean = self._equi_mean.to(state.device)
+        std = self._equi_std.to(state.device)
+        return state * std + mean
+
+    def to(self, device: torch.device | str) -> "EquivariantStateStandardizer":
+        new = EquivariantStateStandardizer.__new__(EquivariantStateStandardizer)
+        new.device = torch.device(device)
+        new.min_std = self.min_std
+        new.equivariant_pairs = self.equivariant_pairs
+        new._mean = self._mean.to(device)
+        new._std = self._std.to(device)
+        new._equi_mean = self._equi_mean.to(device)
+        new._equi_std = self._equi_std.to(device)
+        return new
+
+    @classmethod
+    def from_dataset_stats(
+        cls,
+        state_stats: dict,
+        equivariant_pairs: list[list[int]] | None = None,
+        min_std: float = 1e-1,
+        device: torch.device | str = "cpu",
+    ) -> "EquivariantStateStandardizer":
+        """
+        Create from dataset statistics.
+
+        Args:
+            state_stats: Dictionary with 'mean' and 'std' keys
+            equivariant_pairs: Index groups sharing std. 
+                               Default for single-arm Panda: [[0,1], [3,4,5,6]]
+            min_std: Minimum std
+            device: Device
+        """
+        if equivariant_pairs is None:
+            # Default: single-arm Panda layout [ee_pos(3), ee_quat(4), ee_q(2)]
+            equivariant_pairs = [
+                [0, 1],        # pos_xy: irrep(1), must share std
+                [3, 4, 5, 6],  # ee_quat: quaternion, must share std
+            ]
+
+        state_mean = torch.tensor(state_stats["mean"], dtype=torch.float32)
+        state_std = torch.tensor(state_stats["std"], dtype=torch.float32)
+
+        return cls(
+            state_mean=state_mean,
+            state_std=state_std,
+            equivariant_pairs=equivariant_pairs,
+            min_std=min_std,
+            device=device,
+        )

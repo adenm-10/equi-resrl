@@ -1,5 +1,6 @@
 from typing import Union
-import pytorch3d.transforms as pt
+# import pytorch3d.transforms as pt
+from resfit.rl_finetuning.equi_off_policy.common_utils import rotation_utils as pt
 import torch
 import numpy as np
 import functools

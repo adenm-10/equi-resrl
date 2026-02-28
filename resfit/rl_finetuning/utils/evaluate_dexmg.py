@@ -30,6 +30,7 @@ def run_dexmg_evaluation(
     save_q_plots: bool = False,
     run_name: str | None = None,
     output_dir: str | Path | None = "outputs",
+    equivariant: bool = False,
 ) -> tuple[dict[str, float], float]:
     """Extended evaluation to match the richer functionality available in
     the *residual_td3_dexmg* evaluator.  In particular, this version:
@@ -179,15 +180,25 @@ def run_dexmg_evaluation(
 
             # Build features on-the-fly to obtain Q-predictions --------
             obs_q = {k: v.clone() if isinstance(v, torch.Tensor) else v for k, v in obs.items()}
-            obs_q["feat"] = agent._encode(obs_q, augment=False)
+            obs_q["feat"] = None
+            if not equivariant:
+                obs_q["feat"] = agent._encode(obs_q, augment=False)
+            else:
+                obs_q["feat"] = agent.enc(obs_q)
 
             # For Q-value computation, use combined action and clamp to [-1, 1] (consistent with training)
             if agent.residual_actor:
                 q_actions = torch.clamp(obs["observation.base_action"] + actions, -1.0, 1.0)
 
-            q_pred = (
-                agent.critic.q_value(obs_q["feat"], obs_q["observation.state"], q_actions).detach().cpu().squeeze(-1)
-            )
+            if not equivariant:
+                q_pred = (
+                    agent.critic.q_value(obs_q["feat"], obs_q["observation.state"], q_actions).detach().cpu().squeeze(-1)
+                )
+            else:
+                q_pred = (
+                    agent.critic.q_value(obs_q["feat"], q_actions).detach().cpu().squeeze(-1)
+                )
+
 
         # --------------------------------------------------------------
         # 2. Environment step ------------------------------------------

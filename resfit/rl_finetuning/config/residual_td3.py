@@ -43,8 +43,13 @@ class BasePolicyConfig:
 @dataclass
 class EquivarianceConfig:
     N: int = 12
-    degree_channel: int = 6
+    equi_N: int = 32
+    degree_channel: int = 32 # power of 8 for agent view encoder
     initialize: bool = True
+
+    num_actor_layers: int = 2
+    num_critic_layers: int = 2
+
 
 
 @dataclass

@@ -287,10 +287,10 @@ class EquivariantEncoder128(torch.nn.Module):
     Equivariant Encoder. The input is a trivial representation with obs_channel channels.
     The output is a regular representation with n_out channels
     """
-    def __init__(self, obs_channel=2, n_out=128, initialize=True, N=4):
+    def __init__(self, group, obs_channel=2, n_out=128, initialize=True, N=4):
         super().__init__()
         self.obs_channel = obs_channel
-        self.c4_act = gspaces.Rot2dOnR2(N)
+        self.c4_act = group
         self.conv = torch.nn.Sequential(
             # 128x128
             nn.R2Conv(nn.FieldType(self.c4_act, obs_channel * [self.c4_act.trivial_repr]),
@@ -342,7 +342,7 @@ class EquivariantEncoder128Dihedral(torch.nn.Module):
     def __init__(self, obs_channel=2, n_out=128, initialize=True, N=4):
         super().__init__()
         self.obs_channel = obs_channel
-        self.d4_act = gspaces.FlipRot2dOnR2(N)
+        self.d4_act = gspaces.Fliprot2dOnR2(N)
         self.conv = torch.nn.Sequential(
             # 128x128
             nn.R2Conv(nn.FieldType(self.d4_act, obs_channel * [self.d4_act.trivial_repr]),
@@ -394,7 +394,7 @@ class EquivariantEncoder128SO2(torch.nn.Module):
     def __init__(self, obs_channel=2, n_out=128, initialize=True):
         super().__init__()
         self.obs_channel = obs_channel
-        self.so2 = gspaces.Rot2dOnR2(N=-1, maximum_frequency=3)
+        self.so2 = gspaces.rot2dOnR2(N=-1, maximum_frequency=3)
         self.repr = [self.so2.irrep(0), self.so2.irrep(1), self.so2.irrep(2), self.so2.irrep(3)]
         self.conv = torch.nn.Sequential(
             # 128x128
@@ -447,8 +447,8 @@ class EquivariantEncoder128O2(torch.nn.Module):
     def __init__(self, obs_channel=2, n_out=128, initialize=True):
         super().__init__()
         self.obs_channel = obs_channel
-        self.o2 = gspaces.FlipRot2dOnR2(N=-1, maximum_frequency=3)
-        self.so2 = gspaces.Rot2dOnR2(N=-1, maximum_frequency=3)
+        self.o2 = gspaces.Fliprot2dOnR2(N=-1, maximum_frequency=3)
+        self.so2 = gspaces.rot2dOnR2(N=-1, maximum_frequency=3)
         self.repr = [self.o2.irrep(0, 0), self.o2.irrep(1, 0), self.o2.irrep(1, 1), self.o2.irrep(1, 2), self.o2.irrep(1, 3)]
         self.conv = torch.nn.Sequential(
             # 128x128
@@ -496,3 +496,51 @@ class EquivariantEncoder128O2(torch.nn.Module):
 
     def forward(self, geo):
         return self.conv(geo)
+
+class EquivariantResEncoder76Cyclic(torch.nn.Module):
+    def __init__(self, obs_channel: int = 2, n_out: int = 128, initialize: bool = True, N=8):
+        super().__init__()
+        self.obs_channel = obs_channel
+        self.group = gspaces.rot2dOnR2(N)
+        self.conv = torch.nn.Sequential(
+            # 76x76
+            nn.R2Conv(
+                nn.FieldType(self.group, obs_channel * [self.group.trivial_repr]),
+                nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr]),
+                kernel_size=5,
+                padding=0,
+                initialize=initialize,
+            ),
+            # 72x72
+            nn.ReLU(nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr]), inplace=True),
+            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=True),
+            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr]), 2),
+            # 36x36
+            EquiResBlock(self.group, n_out // 8, n_out // 4, initialize=True),
+            EquiResBlock(self.group, n_out // 4, n_out // 4, initialize=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 4 * [self.group.regular_repr]), 2),
+            # 18x18
+            EquiResBlock(self.group, n_out // 4, n_out // 2, initialize=True),
+            EquiResBlock(self.group, n_out // 2, n_out // 2, initialize=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 2 * [self.group.regular_repr]), 2),
+            # 9x9
+            EquiResBlock(self.group, n_out // 2, n_out, initialize=True),
+            EquiResBlock(self.group, n_out, n_out, initialize=True),
+            nn.PointwiseMaxPool(nn.FieldType(self.group, n_out * [self.group.regular_repr]), 3),
+            # 3x3
+            nn.R2Conv(
+                nn.FieldType(self.group, n_out * [self.group.regular_repr]),
+                nn.FieldType(self.group, n_out * [self.group.regular_repr]),
+                kernel_size=3,
+                padding=0,
+                initialize=initialize,
+            ),
+            nn.ReLU(nn.FieldType(self.group, n_out * [self.group.regular_repr]), inplace=True),
+            # 1x1
+        )
+
+    def forward(self, x) -> nn.GeometricTensor:
+        if type(x) is torch.Tensor:
+            x = nn.GeometricTensor(x, nn.FieldType(self.group, self.obs_channel * [self.group.trivial_repr]))
+        return self.conv(x)

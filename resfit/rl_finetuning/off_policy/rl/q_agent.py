@@ -18,7 +18,7 @@ from resfit.rl_finetuning.off_policy.rl.actor import Actor
 from resfit.rl_finetuning.off_policy.rl.critic import Critic
 
 
-class QAgent(nn.Module):
+class QAgent(torch.nn.Module):
     def __init__(
         self,
         obs_shape: tuple[int, int, int],
@@ -83,13 +83,7 @@ class QAgent(nn.Module):
             action_dim=action_dim,
             cfg=self.cfg.critic,
         )
-        self.actor = Actor(repr_dim, 
-            repr_dim=patch_repr_dim, 
-            prop_dim=prop_dim, 
-            action_dim=action_dim, 
-            cfg=cfg.actor, 
-            residual_actor=residual_actor
-        )
+        self.actor = Actor(repr_dim, patch_repr_dim, prop_dim, action_dim, cfg.actor, residual_actor=residual_actor)
 
         self.critic_target = copy.deepcopy(self.critic)
         self.actor_target = copy.deepcopy(self.actor)

@@ -8,7 +8,7 @@ import copy
 from contextlib import contextmanager
 
 import torch
-from torch import nn
+# from torch import nn
 
 from escnn import gspaces, nn
 from escnn.group import CyclicGroup
@@ -18,15 +18,15 @@ from resfit.rl_finetuning.config.rlpd import QAgentConfig
 from resfit.rl_finetuning.off_policy import common_utils
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
-# TODO: Incorporate agent config into equi encoder
 from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
-from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic, EquivariantEncoder128
+# from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic, EquivariantEncoder128
+from resfit.rl_finetuning.equi_off_policy.networks.equi_obs_encoder import EquivariantResObsEnc
 
-from resfit.rl_finetuning.off_policy.rl.actor import Actor
-from resfit.rl_finetuning.off_policy.rl.critic import Critic
+from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
+from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic
 
 
-class QAgent(nn.Module):
+class QAgent(torch.nn.Module):
     def __init__(
         self,
         obs_shape: tuple[int, int, int],
@@ -34,6 +34,7 @@ class QAgent(nn.Module):
         action_dim: int,
         rl_cameras: list[str] | str,
         cfg: QAgentConfig,
+        equi_cfg,
         residual_actor: bool = False,
     ):
         """Initialize the Q-agent.
@@ -61,61 +62,43 @@ class QAgent(nn.Module):
             rl_cameras = [rl_cameras]
         assert len(rl_cameras) > 0, "At least one camera must be provided"
 
-        # TODO: Make sure right rl_cameras are being passed
         self.rl_cameras = rl_cameras
         self.cfg = cfg
         self.residual_actor = residual_actor
-        self.equi_cfg = self.cfg.equivariance
+        self.equi_cfg = equi_cfg
 
-        # Build the per-camera encoders *after* `self.rl_cameras` is defined so
-        # that the helper function can iterate over them.
-        # self.enc: nn.ModuleList = self._build_encoders(obs_shape)
-        
-        # TODO: Figure out how to parse correctly
-        #   - Are output features unordered and in latent space?
-        #   - Do I have to maintain the N-channel ordering?
-        #   - Currently treating as unordered features in latent space
-        # (self, obs_channel=2, n_out=128, initialize=True, N=4)
-        # input: (batch_size, obs_channel, 128, 128each chan)
-        # output: (batch_size, N * n_out, 1, 1) as Geometric Tensor
-        self.enc = EquivariantEncoder128(obs_channel = obs_shape, 
-                                         N           = self.equi_cfg.N,
-                                         n_hidden    = self.equi_cfg.degree_channel, 
-                                         initialize  = self.equi_cfg.initialize, 
-                                         ).to(self.cfg.device)
+        self.group = gspaces.no_base_space(CyclicGroup(equi_cfg.N))
+        self.enc = EquivariantResObsEnc(group      = self.group,
+                                        obs_shape  = obs_shape, 
+                                        N          = equi_cfg.N,
+                                        n_hidden   = equi_cfg.degree_channel, 
+                                        initialize = equi_cfg.initialize, 
+                                    ).to(self.cfg.device)
 
-        self.group = gspaces.rot2dOnR2(N=self.equi_cfg.N)
+        critic_in_type = nn.FieldType(self.group, 
+                                      equi_cfg.degree_channel * [self.group.regular_repr]
+                                      + self.enc.action_shape
+                                    )
 
-
-        # All encoders share the same architecture ⇒ repr / patch dim are identical.
-        # sample_encoder = self.enc[0]
-        # repr_dim_single = int(sample_encoder.repr_dim)  # type: ignore[attr-defined]
-        # patch_repr_dim = int(sample_encoder.patch_repr_dim)  # type: ignore[attr-defined]
-
-        # Concatenate the patch dimension from every camera (dim=1) → overall
-        # representation dimension scales linearly with #cameras.
-        # repr_dim = repr_dim_single * len(self.rl_cameras)
-        # print("encoder output dim: ", repr_dim)
-        # print("patch output dim: ", patch_repr_dim)
-
-        # assert len(prop_shape) == 1
-        # prop_dim = prop_shape[0] if cfg.use_prop else 0
-
-        # create critics & actor
         self.critic = Critic(
             group=self.group,
-            in_type=self.enc.out_type, 
+            in_type=critic_in_type, 
             hidden_dim=self.equi_cfg.degree_channel,
             action_dim=action_dim,
+            num_layers=self.equi_cfg.num_critic_layers,
+            initialize=equi_cfg.initialize,
             cfg=self.cfg.critic,
         )
         self.actor = Actor(
             group=self.group,
-            in_type=self.enc.out_type, 
+            in_type=self.enc.enc_out_type, 
             hidden_dim=self.equi_cfg.degree_channel,
             action_shape=self.enc.action_shape,
+            num_layers=self.equi_cfg.num_actor_layers,
+            initialize=self.equi_cfg.initialize,
             cfg=self.cfg.actor, 
             residual_actor=residual_actor)
+        self.to(self.cfg.device)
 
         self.critic_target = copy.deepcopy(self.critic)
         self.actor_target = copy.deepcopy(self.actor)
@@ -175,44 +158,12 @@ class QAgent(nn.Module):
         # data augmentation
         self.aug = common_utils.RandomShiftsAug(pad=4)
 
-        self.bc_policies: list[nn.Module] = []
+        self.bc_policies: list[torch.nn.Module] = []
         # to log rl vs bc during evaluation
         self.stats: common_utils.MultiCounter | None = None
 
         self.critic_target.train(False)
         self.train(True)
-        self.to(self.cfg.device)
-
-    def _build_encoders(self, obs_shape):
-        """Constructs and returns an ``nn.ModuleList`` with one encoder per
-        camera based on ``self.cfg.enc_type``.  All encoders share the same
-        architecture and therefore yield feature tensors with identical
-        dimensions which simplifies feature fusion downstream.
-        """
-
-        encoders = nn.ModuleList()
-
-        for _ in self.rl_cameras:
-            if self.cfg.enc_type == "vit":
-                enc = VitEncoder(obs_shape, self.cfg.vit).to(self.cfg.device)
-            elif self.cfg.enc_type == "equi":
-                # TODO: Figure out how to parse correctly
-                #   - Are output features unordered and in latent space?
-                #   - Do I have to maintain the N-channel ordering?
-                #   - Currently treating as unordered features in latent space
-                enc = EquivariantEncoder128(obs_channel = obs_shape, 
-                                            n_out       = self.hidden_dim, 
-                                            initialize  = self.initialize, 
-                                            N           = self.N).to(self.cfg.device)
-                # (self, obs_channel=2, n_out=128, initialize=True, N=4)
-                # input: (batch_size, obs_channel, 128, 128each chan)
-                # output: (batch_size, N * n_out, 1, 1) as Geometric Tensor
-            else:
-                raise AssertionError(f"Unknown encoder type {self.cfg.enc_type}.")
-
-            encoders.append(enc)
-
-        return encoders
 
     def add_bc_policy(self, bc_policy):
         bc_policy.train(False)
@@ -251,40 +202,6 @@ class QAgent(nn.Module):
         yield
 
         self.cfg.act_method = original_method
-
-    # def _encode(self, obs: dict[str, torch.Tensor], augment: bool) -> torch.Tensor:
-    #     r"""This function encodes the observation into feature tensor.
-
-    #     Images may be stored in the replay buffers as uint8 to save GPU memory.  In
-    #     that case we convert them to float32 in \[0,1] before feeding them to the
-    #     encoders.  If the image is already a float tensor (offline dataset or
-    #     direct env observations during evaluation) we assume it is properly
-    #     normalised.
-    #     """
-
-    #     feats = []
-    #     for cam_idx, cam_name in enumerate(self.rl_cameras):
-    #         data = obs[cam_name]
-
-    #         if data.dtype == torch.uint8:
-    #             # uint8 → float32 in [0,1]
-    #             data = data.float().div_(255.0)
-    #         else:
-    #             data = data.float()
-
-    #         if augment:
-    #             data = self.aug(data)
-
-    #         # Forward pass through the *corresponding* encoder
-    #         feat_cam = self.enc[cam_idx].forward(data, flatten=False)
-    #         feats.append(feat_cam)
-
-    #     # Concatenate along the *patch* dimension (dim=1)
-    #     feat_all = torch.cat(feats, dim=1)
-    #     return feat_all  # noqa: RET504
-
-    #     assert "feat" not in obs
-    #     return self.enc(obs, augment=False).tensor.reshape(batch_size * t, -1)  # b d
 
     def _maybe_unsqueeze_(self, obs):
         should_unsqueeze = False
@@ -379,7 +296,8 @@ class QAgent(nn.Module):
                 next_action = next_residual_action
 
             # Compute target Q using min over a random subset of 2 heads
-            target_all = self.critic_target.q_value(next_obs["feat"], next_obs["observation.state"], next_action)
+            # target_all = self.critic_target.q_value(next_obs["feat"], next_obs["observation.state"], next_action)
+            target_all = self.critic_target.q_value(next_obs["feat"], next_action)
             target_q_min = target_all.squeeze(-1)  # [B]
             target_q = (reward + (discount * target_q_min)).detach()
 
@@ -390,13 +308,15 @@ class QAgent(nn.Module):
 
         if self.critic.loss_cfg.type == "hl_gauss":
             # Compute logits for current Q heads and average HL-Gauss loss across heads
-            q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
+            # q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
+            q_per_head, logits_per_head = self.critic(obs["feat"], return_logits=True)
             K = logits_per_head.shape[0]
             losses = [self.critic.hl_loss(logits_per_head[i], target_q) for i in range(K)]
             critic_loss = torch.stack(losses).mean()
         elif self.critic.loss_cfg.type == "c51":
             # Compute logits for current Q heads and C51 distributional loss
-            q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
+            # q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
+            q_per_head, logits_per_head = self.critic(obs["feat"], return_logits=True)
 
             # Get next state distribution for C51 target computation
             with torch.no_grad():
@@ -422,7 +342,8 @@ class QAgent(nn.Module):
             losses = [self.critic.c51_loss(logits_per_head[i], target_distribution) for i in range(K)]
             critic_loss = torch.stack(losses).mean()
         else:
-            q_all = self.critic(obs["feat"], obs["observation.state"], action).squeeze(-1)  # [K,B]
+            # q_all = self.critic(obs["feat"], obs["observation.state"], action).squeeze(-1)  # [K,B]
+            q_all = self.critic(obs["feat"], action).squeeze(-1)  # [K,B]
             # Compute TD errors for prioritized experience replay (before taking mean)
             td_errors = torch.abs(q_all - target_q.unsqueeze(0)).mean(dim=0)  # [B] - mean across heads
 
@@ -454,7 +375,7 @@ class QAgent(nn.Module):
         self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
 
-        critic_loss.backward(retain_graph=True)
+        critic_loss.backward()
 
         # Gradient clipping
         encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self.enc.parameters(), self.cfg.critic_grad_clip_norm)
@@ -492,7 +413,8 @@ class QAgent(nn.Module):
         else:
             combined_action = action_pred
 
-        q = self.critic.q_value_for_policy(obs["feat"], obs["observation.state"], combined_action)
+        # q = self.critic.q_value_for_policy(obs["feat"], obs["observation.state"], combined_action)
+        q = self.critic.q_value_for_policy(obs["feat"], combined_action)
         actor_loss_base = -q.mean()
 
         actor_loss_total = actor_loss_base + action_l2_penalty
@@ -507,7 +429,8 @@ class QAgent(nn.Module):
         obs["feat"] = self.enc(obs)
 
         if not backprop_encoder:
-            obs["feat"] = obs["feat"].detach()
+            raw = obs["feat"].tensor.detach()
+            obs["feat"] = nn.GeometricTensor(raw, obs["feat"].type)
 
         pred_action = self._act_default(
             obs=obs,
@@ -611,8 +534,11 @@ class QAgent(nn.Module):
                 bc_obs = bc_batch.obs
                 curr_action = self.act(bc_obs, eval_mode=True, cpu=False)
 
-                curr_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], curr_action)
-                ref_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], ref_action)
+                # curr_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], curr_action)
+                # ref_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], ref_action)
+
+                curr_q = self.critic.q_value_for_policy(bc_obs["feat"], curr_action)
+                ref_q  = self.critic.q_value_for_policy(bc_obs["feat"], ref_action)
 
                 ratio = (ref_q > curr_q).float().mean().item()
 
@@ -691,7 +617,8 @@ class QAgent(nn.Module):
             return metrics
 
         # NOTE: actor loss does not backprop into the encoder
-        obs["feat"] = obs["feat"].detach()
+        raw = obs["feat"].tensor.detach()
+        obs["feat"] = nn.GeometricTensor(raw, obs["feat"].type)
 
         if bc_batch is None:
             actor_metric = self.update_actor(obs, stddev)

@@ -58,7 +58,7 @@ from resfit.rl_finetuning.utils.hugging_face import (
     optimized_replay_buffer_dumps,
     optimized_replay_buffer_loads,
 )
-from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer
+from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer, EquivariantStateStandardizer
 from resfit.rl_finetuning.utils.rb_transforms import MultiStepTransform
 from resfit.rl_finetuning.wrappers.residual_env_wrapper import BasePolicyVecEnvWrapper
 
@@ -245,6 +245,10 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Load dataset and get normalization functions early
     print("Loading dataset and setting up normalization...")
     dataset = LeRobotDataset(cfg.offline_data.name)
+    # raw = dataset[0]["observation.state"]
+    # print(f"Full raw state: {raw}")
+    # print(f"State stats: {dataset.meta.stats['observation.state']}")
+    # assert False
 
     # Create action scaler from dataset statistics
     action_scaler = ActionScaler.from_dataset_stats(
@@ -255,11 +259,21 @@ def main(cfg: ResidualTD3DexmgConfig):
     )
 
     # Create state standardizer from dataset statistics
-    state_standardizer = StateStandardizer.from_dataset_stats(
-        state_stats=dataset.meta.stats["observation.state"],
-        min_std=cfg.offline_data.min_state_std,
-        device=device,
-    )
+    state_standardizer = None
+    equivariant_run = not cfg.equivariance is None
+    if not equivariant_run:
+        state_standardizer = StateStandardizer.from_dataset_stats(
+            state_stats=dataset.meta.stats["observation.state"],
+            min_std=cfg.offline_data.min_state_std,
+            device=device,
+        )
+    else:
+        state_standardizer = EquivariantStateStandardizer.from_dataset_stats(
+            state_stats=dataset.meta.stats["observation.state"],
+            equivariant_pairs=[[0, 1], [3, 4, 5, 6]],  # pos_xy, quaternion
+            min_std=cfg.offline_data.min_state_std,
+            device=device,
+        )
 
     def get_envs(
         env_name: str,
@@ -269,7 +283,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         video_key: str,
         debug: bool,
         action_scaler: ActionScaler,
-        state_standardizer: StateStandardizer,
+        state_standardizer,
     ):
         assert action_scaler is not None, "action_scaler must be provided for consistent normalization"
         assert state_standardizer is not None, "state_standardizer must be provided for consistent normalization"
@@ -368,18 +382,28 @@ def main(cfg: ResidualTD3DexmgConfig):
     # ---------------------------------------------------------------------
 
     agent = None
-    if cfg.equivariance is None:
+    if not equivariant_run:
         from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+        agent = QAgent(
+            obs_shape=(img_c, img_h, img_w),
+            prop_shape=(lowdim_dim,),
+            action_dim=action_dim,
+            rl_cameras=image_keys,
+            cfg=cfg.agent,
+            residual_actor=True,  # Enable residual actor mode
+        )
     else:
+        print(f"Instantiating Equivariant Agent")
         from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
-    agent = QAgent(
-        obs_shape=(img_c, img_h, img_w),
-        prop_shape=(lowdim_dim,),
-        action_dim=action_dim,
-        rl_cameras=image_keys,
-        cfg=cfg.agent,
-        residual_actor=True,  # Enable residual actor mode
-    )
+        agent = QAgent(
+            obs_shape=(img_c, img_h, img_w),
+            prop_shape=(lowdim_dim,),
+            action_dim=action_dim,
+            rl_cameras=image_keys,
+            cfg=cfg.agent,
+            equi_cfg=cfg.equivariance,
+            residual_actor=True,  # Enable residual actor mode
+        )
     horizon = env.vec_env.metadata["horizon"]
 
     # Set up actor learning rate warmup
@@ -724,10 +748,16 @@ def main(cfg: ResidualTD3DexmgConfig):
     # ------------------------------------------------------------------
     # Warm-up phase (random policy) --------------------------------------
     # ------------------------------------------------------------------
-
+    # BREAK HERE
     if len(online_rb) < cfg.algo.learning_starts and not loaded_online_from_cache:
         print(f"Warm-up: filling online buffer with {cfg.algo.learning_starts - len(online_rb)} random steps…")
         obs, _ = env.reset()
+        # raw_state = obs["observation.state"].float().squeeze(0)
+        # print(f"Raw ee_pos: {raw_state[:3]}")
+        # print(f"Raw ee_quat: {raw_state[3:7]}, norm: {torch.norm(raw_state[3:7])}")
+        # print(f"Raw ee_q: {raw_state[7:9]}")
+        # assert False
+
         # --------------------------------------------------------------
         # Logging helper: print progress every 1 000 collected transitions
         # --------------------------------------------------------------
@@ -932,7 +962,9 @@ def main(cfg: ResidualTD3DexmgConfig):
     # ------------------------------------------------------------------
     # Critic warmup phase ----------------------------------------------
     # ------------------------------------------------------------------
+    # BREAK HERE
     if cfg.algo.critic_warmup_steps > 0:
+    # if False:
         print(f"Critic warmup: running {cfg.algo.critic_warmup_steps} critic-only updates...")
         _run_critic_warmup(
             agent=agent,
@@ -1017,6 +1049,7 @@ def main(cfg: ResidualTD3DexmgConfig):
                     save_q_plots=cfg.save_video,  # Enable Q-plots when video saving is enabled
                     run_name=run_name,
                     output_dir=outputs_dir,
+                    equivariant=equivariant_run
                 )
 
                 # Handle model saving when success rate improves
