@@ -42,13 +42,12 @@ class BasePolicyConfig:
 
 @dataclass
 class EquivarianceConfig:
-    N: int = 12
-    equi_N: int = 32
-    degree_channel: int = 32 # power of 8 for agent view encoder
+    N: int = 8
+    degree_channel: int = 128 # power of 8 for agent view encoder
     initialize: bool = True
 
-    num_actor_layers: int = 2
-    num_critic_layers: int = 2
+    num_actor_layers: int = 1
+    num_critic_layers: int = 1
 
 
 
@@ -102,7 +101,8 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # ------------------------------------------------------------------
     agent: QAgentConfig = field(
         default_factory=lambda: QAgentConfig(
-            actor_lr=1e-6,
+            # actor_lr=1e-6,
+            actor_lr=1e-4,
             critic_lr=1e-4,
             critic_target_tau=0.005,
             actor=ActorConfig(

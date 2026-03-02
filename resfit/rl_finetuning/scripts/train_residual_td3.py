@@ -58,7 +58,8 @@ from resfit.rl_finetuning.utils.hugging_face import (
     optimized_replay_buffer_dumps,
     optimized_replay_buffer_loads,
 )
-from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer, EquivariantStateStandardizer
+from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer, EquivariantActionScaler, EquivariantStateStandardizer, detect_robot_base_xy
+# from resfit.rl_finetuning.utils.equi_normalizer import LinearNormalizer
 from resfit.rl_finetuning.utils.rb_transforms import MultiStepTransform
 from resfit.rl_finetuning.wrappers.residual_env_wrapper import BasePolicyVecEnvWrapper
 
@@ -250,28 +251,42 @@ def main(cfg: ResidualTD3DexmgConfig):
     # print(f"State stats: {dataset.meta.stats['observation.state']}")
     # assert False
 
-    # Create action scaler from dataset statistics
-    action_scaler = ActionScaler.from_dataset_stats(
-        action_stats=dataset.meta.stats["action"],
-        action_scale=cfg.agent.actor.action_scale,
-        min_range_per_dim=cfg.offline_data.min_action_range,
-        device=device,
-    )
+    ROBOT_BASE_XY = detect_robot_base_xy(cfg.task, cfg.video_key)
 
     # Create state standardizer from dataset statistics
-    state_standardizer = None
+    state_standardizer = action_scaler = None
     equivariant_run = not cfg.equivariance is None
     if not equivariant_run:
         state_standardizer = StateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
             min_std=cfg.offline_data.min_state_std,
             device=device,
+            robot_base_xy=ROBOT_BASE_XY,
         )
+
+        # Create action scaler from dataset statistics
+        action_scaler = ActionScaler.from_dataset_stats(
+            action_stats=dataset.meta.stats["action"],
+            action_scale=cfg.agent.actor.action_scale,
+            min_range_per_dim=cfg.offline_data.min_action_range,
+            device=device,
+        )
+
     else:
         state_standardizer = EquivariantStateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
-            equivariant_pairs=[[0, 1], [3, 4, 5, 6]],  # pos_xy, quaternion
-            min_std=cfg.offline_data.min_state_std,
+            equivariant_pairs=[[0, 1]],          # pos_xy only
+            passthrough_dims=[3, 4, 5, 6],       # quaternion → 6D downstream
+        )
+
+        action_scaler = EquivariantActionScaler.from_dataset_stats(
+            action_stats=dataset.meta.stats["action"],  # {'min': ..., 'max': ...}
+            equivariant_pairs=[
+                [0, 1],  # action_xy:   irrep(1) — translational x,y
+                [3, 4],  # action_rxry: irrep(1) — rotational rx,ry
+            ],
+            action_scale=0.5,         # see discussion below
+            min_range_per_dim=1e-1,
             device=device,
         )
 
@@ -891,6 +906,57 @@ def main(cfg: ResidualTD3DexmgConfig):
     outputs_dir = run_cache_dir / "outputs"
     model_save_dir.mkdir(parents=True, exist_ok=True)
     outputs_dir.mkdir(parents=True, exist_ok=True)
+    
+    if equivariant_run:
+        print("\n" + "="*70)
+        print("EQUIVARIANT STANDARDIZATION VALIDATION")
+        print("="*70)
+
+        # 1. Robot base detection
+        print(f"\n[1] Robot base XY: {state_standardizer.robot_base_xy.numpy()}")
+
+        # 2. Effective normalization params for equivariant dims
+        equi_mean = state_standardizer._mean[:2].numpy()
+        equi_std = state_standardizer._std[:2].numpy()
+        print(f"\n[2] Equivariant dims [0,1] (pos_xy):")
+        print(f"    eff_mean = {equi_mean}  (should be [0, 0])")
+        print(f"    eff_std  = {equi_std}  (should be uniform)")
+        assert np.allclose(equi_mean, 0), f"FAIL: equivariant mean should be 0, got {equi_mean}"
+        assert np.isclose(equi_std[0], equi_std[1]), f"FAIL: equivariant std not uniform: {equi_std}"
+        print("    ✅ Mean is zero, std is uniform")
+
+        # 3. Passthrough dims
+        pt_dims = sorted(state_standardizer.passthrough_dims)
+        pt_mean = state_standardizer._mean[pt_dims].numpy()
+        pt_std = state_standardizer._std[pt_dims].numpy()
+        print(f"\n[3] Passthrough dims {pt_dims} (quaternion):")
+        print(f"    eff_mean = {pt_mean}  (should be all 0)")
+        print(f"    eff_std  = {pt_std}  (should be all 1)")
+        assert np.allclose(pt_mean, 0), f"FAIL: passthrough mean should be 0, got {pt_mean}"
+        assert np.allclose(pt_std, 1), f"FAIL: passthrough std should be 1, got {pt_std}"
+        print("    ✅ Identity transform (no normalization)")
+
+        # 5. Base action check
+        print(f"\n[5] Base action (should be relative deltas):")
+        _ba_samples = []
+        for _ in range(20):
+            _obs, _ = env.reset()
+            ba = _obs["observation.base_action"].cpu().squeeze(0)
+            _ba_samples.append(ba.numpy())
+        _ba = np.stack(_ba_samples)
+        print(f"    action_xy  mean: {_ba[:, :2].mean(0)}  std: {_ba[:, :2].std(0)}")
+        print(f"    action_xy  range: [{_ba[:, :2].min():.4f}, {_ba[:, :2].max():.4f}]")
+        if np.abs(_ba[:, :2].mean()) < 0.2:
+            print("    ✅ Base actions are zero-centered (relative deltas)")
+        else:
+            print("    ⚠️  Base actions may not be relative — investigate")
+
+        print("\n" + "="*70)
+        print("VALIDATION COMPLETE")
+        print("="*70 + "\n")
+
+        # Clean reset for training
+        obs, _ = env.reset()
 
     obs, _ = env.reset()
 
