@@ -205,3 +205,61 @@ class BasePolicyVecEnvWrapper:
     def __getattr__(self, name: str):
         """Delegate unknown attributes to the underlying vectorized environment."""
         return getattr(self.vec_env, name)
+
+    def validate_normalizers(self):
+        """Verify that normalizers behave as expected (identity or otherwise)."""
+        print("\n" + "="*60)
+        print("WRAPPER NORMALIZER VALIDATION")
+        print("="*60)
+        
+        # 1. Reset and capture raw vs augmented state
+        raw_obs, _ = self.vec_env.reset()
+        self.base_policy.reset()
+        
+        with torch.no_grad():
+            base_action = self.base_policy.select_action(raw_obs)
+        
+        raw_state = raw_obs["observation.state"].clone()
+        scaled_base = self.action_scaler.scale(base_action)
+        standardized_state = self.state_standardizer.standardize(raw_state.clone())
+        
+        state_diff = (standardized_state - raw_state).abs().max().item()
+        print(f"  State standardizer max diff from raw: {state_diff:.8f}")
+        
+        # 2. Scale → unscale round-trip
+        unscaled_base = self.action_scaler.unscale(scaled_base)
+        roundtrip_diff = (unscaled_base - base_action).abs().max().item()
+        print(f"  Action scale→unscale round-trip diff: {roundtrip_diff:.8f}")
+        
+        # 3. Zero-residual test (most important)
+        augmented_obs, _ = self.reset()
+        base_naction = self._last_base_naction.clone()
+        
+        zero_residual = torch.zeros_like(base_naction)
+        _, _, _, _, info = self.step(zero_residual)
+        
+        combined = info["scaled_action"]
+        zero_diff = (combined - base_naction).abs().max().item()
+        print(f"  Zero residual → combined == base? max diff: {zero_diff:.8f}")
+        
+        if zero_diff > 1e-6:
+            print(f"  ⚠️  FAILED: zero residual should give base action exactly")
+        else:
+            print(f"  ✅ Zero residual gives base action")
+        
+        # 4. Check what env actually received
+        # The env should have received unscale(base_naction + 0) = unscale(scale(base_action)) = base_action
+        env_action = self.action_scaler.unscale(base_naction)
+        env_vs_raw = (env_action - base_action[:base_naction.shape[0]]).abs().max().item()
+        print(f"  Env received action vs raw base policy output diff: {env_vs_raw:.8f}")
+        
+        # 5. Print ranges for sanity
+        print(f"\n  Raw state range: [{raw_state.min():.4f}, {raw_state.max():.4f}]")
+        print(f"  Standardized state range: [{standardized_state.min():.4f}, {standardized_state.max():.4f}]")
+        print(f"  Raw base action range: [{base_action.min():.4f}, {base_action.max():.4f}]")
+        print(f"  Scaled base action range: [{scaled_base.min():.4f}, {scaled_base.max():.4f}]")
+        
+        print("="*60 + "\n")
+        
+        # Re-reset for clean state
+        return self.reset()

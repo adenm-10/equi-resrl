@@ -40,6 +40,12 @@ from torch.utils.data import DataLoader
 from torchrl.data import LazyTensorStorage, ReplayBuffer, TensorDictPrioritizedReplayBuffer
 from tqdm import tqdm
 
+from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer import (
+    build_equivariant_normalizer,
+    IdentityScaler,
+    IdentityStandardizer
+)
+
 import wandb
 from resfit.dexmg.environments.dexmg import create_vectorized_env
 from resfit.lerobot.policies.act.configuration_act import ACTConfig
@@ -58,8 +64,17 @@ from resfit.rl_finetuning.utils.hugging_face import (
     optimized_replay_buffer_dumps,
     optimized_replay_buffer_loads,
 )
-from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer, EquivariantActionScaler, EquivariantStateStandardizer, detect_robot_base_xy
-# from resfit.rl_finetuning.utils.equi_normalizer import LinearNormalizer
+
+from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer
+# from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer_util import (
+#     LinearNormalizer,
+#     get_range_normalizer_from_stat,
+#     get_range_symmetric_normalizer_from_stat,
+#     get_image_range_normalizer,
+#     get_identity_normalizer_from_stat,
+# )
+
+
 from resfit.rl_finetuning.utils.rb_transforms import MultiStepTransform
 from resfit.rl_finetuning.wrappers.residual_env_wrapper import BasePolicyVecEnvWrapper
 
@@ -246,12 +261,16 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Load dataset and get normalization functions early
     print("Loading dataset and setting up normalization...")
     dataset = LeRobotDataset(cfg.offline_data.name)
+    # print(f"\ndataset.meta.stats: {dataset.meta.stats['observation.state']}")
+    # print(f"dataset.meta.info = {dataset.meta}")
+    
+
+    # assert False
+    
     # raw = dataset[0]["observation.state"]
     # print(f"Full raw state: {raw}")
     # print(f"State stats: {dataset.meta.stats['observation.state']}")
     # assert False
-
-    ROBOT_BASE_XY = detect_robot_base_xy(cfg.task, cfg.video_key)
 
     # Create state standardizer from dataset statistics
     state_standardizer = action_scaler = None
@@ -260,8 +279,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         state_standardizer = StateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
             min_std=cfg.offline_data.min_state_std,
-            device=device,
-            robot_base_xy=ROBOT_BASE_XY,
+            device=device
         )
 
         # Create action scaler from dataset statistics
@@ -273,22 +291,8 @@ def main(cfg: ResidualTD3DexmgConfig):
         )
 
     else:
-        state_standardizer = EquivariantStateStandardizer.from_dataset_stats(
-            state_stats=dataset.meta.stats["observation.state"],
-            equivariant_pairs=[[0, 1]],          # pos_xy only
-            passthrough_dims=[3, 4, 5, 6],       # quaternion → 6D downstream
-        )
-
-        action_scaler = EquivariantActionScaler.from_dataset_stats(
-            action_stats=dataset.meta.stats["action"],  # {'min': ..., 'max': ...}
-            equivariant_pairs=[
-                [0, 1],  # action_xy:   irrep(1) — translational x,y
-                [3, 4],  # action_rxry: irrep(1) — rotational rx,ry
-            ],
-            action_scale=0.5,         # see discussion below
-            min_range_per_dim=1e-1,
-            device=device,
-        )
+        state_standardizer = IdentityStandardizer()
+        action_scaler = IdentityScaler()
 
     def get_envs(
         env_name: str,
@@ -354,6 +358,11 @@ def main(cfg: ResidualTD3DexmgConfig):
         action_scaler=action_scaler,
         state_standardizer=state_standardizer,
     )
+    
+    # obs, _ = env.validate_normalizers()
+    # print(env.vec_env.metadata)  # might show controller config
+    # assert False
+    
     cfg.eval_num_envs = min(cfg.eval_num_envs, cfg.eval_num_episodes)
     num_cpus_available = os.cpu_count() - 1 if os.cpu_count() is not None else 1
     cfg.eval_num_envs = min(num_cpus_available, cfg.eval_num_envs)
@@ -409,7 +418,8 @@ def main(cfg: ResidualTD3DexmgConfig):
         )
     else:
         print(f"Instantiating Equivariant Agent")
-        from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
+        # from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
+        from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_q_agent import QAgent
         agent = QAgent(
             obs_shape=(img_c, img_h, img_w),
             prop_shape=(lowdim_dim,),
@@ -419,6 +429,15 @@ def main(cfg: ResidualTD3DexmgConfig):
             equi_cfg=cfg.equivariance,
             residual_actor=True,  # Enable residual actor mode
         )
+        # ROBOT_BASE_XY = detect_robot_base_xy(cfg.task, cfg.video_key)
+        normalizer = build_equivariant_normalizer(
+            stats=dataset.meta.stats,
+            # robot_base_xy=ROBOT_BASE_XY,
+            # absolute_actions=False,
+        )
+        # agent.enc.set_normalizer(normalizer, ROBOT_BASE_XY)
+        agent.enc.set_normalizer(normalizer)
+        agent.to(device)
     horizon = env.vec_env.metadata["horizon"]
 
     # Set up actor learning rate warmup
@@ -471,12 +490,15 @@ def main(cfg: ResidualTD3DexmgConfig):
         "sampling_strategy": cfg.algo.sampling_strategy,
         "buffer_size": cfg.algo.buffer_size,
         "batch_size": online_batch_size,
+        
         # Include random action noise scale to prevent mixing data from different noise levels
         "random_action_noise_scale": cfg.algo.random_action_noise_scale,
+        
         # Normalization parameters for consistency
         "min_action_range": cfg.offline_data.min_action_range,
         "min_state_std": cfg.offline_data.min_state_std,
         "normalized_actions": True,
+        
         # Library versions for compatibility
         "torchrl_version": torchrl.__version__,
         "tensordict_version": tensordict.__version__,
@@ -623,11 +645,16 @@ def main(cfg: ResidualTD3DexmgConfig):
                 # Use GT action as base action (original behavior)
                 base_action_scaled = gt_action_scaled
 
+            # Right after env.reset() or env.step()
+
             # Build observation dict directly in target format
             curr_obs = {
                 "observation.state": state_standardizer.standardize(sample["observation.state"].float().squeeze(0)),
                 "observation.base_action": base_action_scaled,
             }
+            # print(f"curr_obs shape: {curr_obs.shape}")
+            # print(f"curr_obs: {curr_obs}")
+            # assert False
             for k in image_keys:
                 curr_obs[k] = sample[k].squeeze(0)
 
@@ -802,6 +829,10 @@ def main(cfg: ResidualTD3DexmgConfig):
             next_obs, reward, terminated, truncated, info = env.step(rand_actions)
             done = terminated | truncated
 
+            # print(f"warmup next_obs.shape: {next_obs.shape}")
+            # print(f"warmup next_obs: {next_obs}")
+            # assert False
+
             reward_sum += reward.sum().item()
             episode_count += done.float().sum().item()
 
@@ -906,57 +937,6 @@ def main(cfg: ResidualTD3DexmgConfig):
     outputs_dir = run_cache_dir / "outputs"
     model_save_dir.mkdir(parents=True, exist_ok=True)
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    
-    if equivariant_run:
-        print("\n" + "="*70)
-        print("EQUIVARIANT STANDARDIZATION VALIDATION")
-        print("="*70)
-
-        # 1. Robot base detection
-        print(f"\n[1] Robot base XY: {state_standardizer.robot_base_xy.numpy()}")
-
-        # 2. Effective normalization params for equivariant dims
-        equi_mean = state_standardizer._mean[:2].numpy()
-        equi_std = state_standardizer._std[:2].numpy()
-        print(f"\n[2] Equivariant dims [0,1] (pos_xy):")
-        print(f"    eff_mean = {equi_mean}  (should be [0, 0])")
-        print(f"    eff_std  = {equi_std}  (should be uniform)")
-        assert np.allclose(equi_mean, 0), f"FAIL: equivariant mean should be 0, got {equi_mean}"
-        assert np.isclose(equi_std[0], equi_std[1]), f"FAIL: equivariant std not uniform: {equi_std}"
-        print("    ✅ Mean is zero, std is uniform")
-
-        # 3. Passthrough dims
-        pt_dims = sorted(state_standardizer.passthrough_dims)
-        pt_mean = state_standardizer._mean[pt_dims].numpy()
-        pt_std = state_standardizer._std[pt_dims].numpy()
-        print(f"\n[3] Passthrough dims {pt_dims} (quaternion):")
-        print(f"    eff_mean = {pt_mean}  (should be all 0)")
-        print(f"    eff_std  = {pt_std}  (should be all 1)")
-        assert np.allclose(pt_mean, 0), f"FAIL: passthrough mean should be 0, got {pt_mean}"
-        assert np.allclose(pt_std, 1), f"FAIL: passthrough std should be 1, got {pt_std}"
-        print("    ✅ Identity transform (no normalization)")
-
-        # 5. Base action check
-        print(f"\n[5] Base action (should be relative deltas):")
-        _ba_samples = []
-        for _ in range(20):
-            _obs, _ = env.reset()
-            ba = _obs["observation.base_action"].cpu().squeeze(0)
-            _ba_samples.append(ba.numpy())
-        _ba = np.stack(_ba_samples)
-        print(f"    action_xy  mean: {_ba[:, :2].mean(0)}  std: {_ba[:, :2].std(0)}")
-        print(f"    action_xy  range: [{_ba[:, :2].min():.4f}, {_ba[:, :2].max():.4f}]")
-        if np.abs(_ba[:, :2].mean()) < 0.2:
-            print("    ✅ Base actions are zero-centered (relative deltas)")
-        else:
-            print("    ⚠️  Base actions may not be relative — investigate")
-
-        print("\n" + "="*70)
-        print("VALIDATION COMPLETE")
-        print("="*70 + "\n")
-
-        # Clean reset for training
-        obs, _ = env.reset()
 
     obs, _ = env.reset()
 
@@ -976,6 +956,10 @@ def main(cfg: ResidualTD3DexmgConfig):
         """Run critic-only updates for warmup phase."""
         for i in range(cfg.algo.critic_warmup_steps):
             # Sample mixed online/offline batch
+
+            # import time
+            # start = time.time()
+
             with training_timer.time("batch_sampling"):
                 # Sample batches from replay buffers
                 online_batch = online_rb.sample(online_batch_size)
@@ -990,9 +974,15 @@ def main(cfg: ResidualTD3DexmgConfig):
                     # Online-only training
                     batch = online_batch
 
+            # print(f"sample time: {time.time() - start}")
+
             # Only update critic during warmup (update_actor=False)
             with training_timer.time("gradient_update"):
                 metrics = agent.update(batch, stddev=0.0, update_actor=False, bc_batch=None, ref_agent=agent)
+                # assert False
+            # print("sanity")
+            # assert False
+            # print(f"update time: {time.time() - start}")
 
             # Update priorities for prioritized experience replay
             if cfg.algo.sampling_strategy == "prioritized_replay" and "_td_errors" in metrics:
@@ -1017,12 +1007,15 @@ def main(cfg: ResidualTD3DexmgConfig):
                     # Online-only training - update only online buffer
                     online_rb.update_tensordict_priority(batch)
 
+            # print(f"replay store time: {time.time() - start}\n")
+
             # Progress logging
             if i % 100 == 0:
                 print(
                     f"Critic warmup: {i} / {cfg.algo.critic_warmup_steps}, "
-                    f"train/critic_qt={metrics['train/critic_qt']:.4f} "
-                    f"train/critic_loss={metrics['train/critic_loss']:.4f}"
+                    f"train/critic_qt={metrics['train/critic_qt']:.4f}, "
+                    f"train/critic_loss={metrics['train/critic_loss']:.4f}, "
+                    f"Elapsed time: {time.time() - train_start_time}"
                 )
 
     # ------------------------------------------------------------------

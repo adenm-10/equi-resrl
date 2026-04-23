@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import torch
 from torch import nn
@@ -300,6 +301,9 @@ class Critic(nn.Module):
         return (probs * support).sum(-1, keepdim=True)  # E[z]
 
     def forward(self, feat, prop, act, *, return_logits: bool = False):
+        # torch.cuda.synchronize()
+        # t1 = time.perf_counter()
+        
         # logits_per_head: [num_q, B, out_dim] where out_dim is either 1 or K (bins)
         logits_per_head = self.q_ensemble(feat, prop, act)
 
@@ -321,6 +325,11 @@ class Critic(nn.Module):
             if return_logits:
                 return q_per_head, logits_per_head
             return q_per_head
+
+        # torch.cuda.synchronize()
+        # t2 = time.perf_counter()
+
+        # print(f"non-equi critic full forward pass: {t2-t1:.4f}s")
 
         # MSE case: outputs are already scalars per head → [num_q, B, 1]
         return logits_per_head
@@ -473,7 +482,18 @@ class HeadMLP(nn.Module):
         Returns:
             Output tensor [batch_size, out_dim]
         """
-        return self.net(z)
+
+        # torch.cuda.synchronize()
+        # t1 = time.perf_counter()
+
+        ret = self.net(z)
+
+        # torch.cuda.synchronize()
+        # t2 = time.perf_counter()
+
+        # print(f"non-equi critic head forward pass: {t2-t1:.4f}s")
+
+        return ret
 
 
 class SpatialEmbQEnsemble(nn.Module):
@@ -574,6 +594,9 @@ class SpatialEmbQEnsemble(nn.Module):
         return z
 
     def forward(self, feat: torch.Tensor, prop: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        # torch.cuda.synchronize()
+        # t1 = time.perf_counter()
+      
         z = self._compute_trunk(feat, prop, action)  # [batch_size, input_dim]
 
         # Reconstruct params/buffers from registered tensors (ensures proper device placement)
@@ -594,4 +617,12 @@ class SpatialEmbQEnsemble(nn.Module):
 
         # Vectorize across heads; params/buffers carry leading H; z is shared across heads
         # Output: [num_heads, batch_size, output_dim]
-        return vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)
+        
+        ret = vmap(f_one_head, in_dims=(0, 0, None))(current_params, current_buffers, z)
+
+        # torch.cuda.synchronize()
+        # t2 = time.perf_counter()
+
+        # print(f"non-equi critic head forward pass: {t2-t1:.4f}s")
+
+        return ret

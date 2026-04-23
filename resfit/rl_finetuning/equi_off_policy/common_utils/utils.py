@@ -13,6 +13,7 @@ from torch import nn
 from torch.distributions.utils import _standard_normal
 from torchvision import transforms
 
+from typing import Dict, Callable, List
 
 def get_rescale_transform(target_size):
     return transforms.Resize(
@@ -63,76 +64,48 @@ def to_torch(xs, device):
     return tuple(torch.as_tensor(x, device=device) for x in xs)
 
 
-def orth_weight_init(m):
-    if isinstance(m, nn.Linear):
-        nn.init.orthogonal_(m.weight.data)
-        if hasattr(m.bias, "data"):
-            m.bias.data.fill_(0.0)
-    elif isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
-        gain = nn.init.calculate_gain("relu")
-        nn.init.orthogonal_(m.weight.data, gain)
-        if hasattr(m.bias, "data"):
-            m.bias.data.fill_(0.0)
+"""Equivariant initialization utilities.
+
+Drop-in replacement for the non-equivariant `utils.orth_weight_init` /
+`utils.apply_initialization_to_network` helpers, operating in the
+equivariant basis-coefficient space instead of raw weight matrices.
+"""
+
+import torch
+from escnn import nn as enn
+from escnn.nn.init import deltaorthonormal_init
 
 
-def initialize_layer_weights(layer: nn.Linear, distribution: str, scale: float | None = None):
-    """Initialize layer weights and bias using the specified distribution.
-
-    Args:
-        layer: The linear layer to initialize
-        distribution: The distribution to use ('default', 'normal', 'orthogonal', 'xavier_uniform')
-        scale: Scale parameter - for 'normal': std, for 'orthogonal'/'xavier_uniform': gain
-    """
-    if distribution == "default":
-        # Use PyTorch's default initialization - do nothing
-        pass
-    elif distribution == "normal":
-        if scale is not None:
-            nn.init.normal_(layer.weight, mean=0.0, std=scale)
-            if layer.bias is not None:
-                nn.init.normal_(layer.bias, mean=0.0, std=scale)
-        else:
-            # Use default normal initialization
-            nn.init.normal_(layer.weight)
-            if layer.bias is not None:
-                nn.init.normal_(layer.bias)
-    elif distribution == "orthogonal":
-        gain = scale if scale is not None else 1.0
-        nn.init.orthogonal_(layer.weight, gain=gain)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)
-    elif distribution == "xavier_uniform":
-        gain = scale if scale is not None else 1.0
-        nn.init.xavier_uniform_(layer.weight, gain=gain)
-        if layer.bias is not None:
-            nn.init.zeros_(layer.bias)
-    else:
-        raise ValueError(
-            f"Unsupported distribution: {distribution}. "
-            f"Supported options: 'default', 'normal', 'orthogonal', 'xavier_uniform'"
-        )
-
-
-def apply_initialization_to_network(
-    network: nn.Module, distribution: str, scale: float | None = None, exclude_final_layer: bool = False
-):
-    """Apply initialization to all Linear layers in a network.
+def apply_deltaortho_init(network, *, exclude_final_layer: bool = False):
+    """Apply deltaorthonormal_init to every escnn.nn.Linear in *network*.
 
     Args:
-        network: The network to initialize
-        distribution: The distribution to use
-        scale: Scale parameter for the distribution
-        exclude_final_layer: If True, skip the last Linear layer in the network
+        network: an nn.Module (or nn.Sequential) containing escnn.nn.Linear layers.
+        exclude_final_layer: if True, skip the last escnn.nn.Linear found
+                             (useful when the final layer gets its own scaling).
     """
-    if distribution == "default":
-        return  # Do nothing for default initialization
+    linears = [m for m in network.modules() if isinstance(m, enn.Linear)]
 
-    linear_layers = [m for m in network.modules() if isinstance(m, nn.Linear)]
-    layers_to_init = linear_layers[:-1] if exclude_final_layer and linear_layers else linear_layers
+    if not linears:
+        return
 
-    for layer in layers_to_init:
-        initialize_layer_weights(layer, distribution, scale)
+    targets = linears[:-1] if exclude_final_layer else linears
 
+    for module in targets:
+        deltaorthonormal_init(module.weights.data, module.basisexpansion)
+        if module.bias is not None:
+            module.bias.data.zero_()
+
+
+def scale_final_equi_layer(network, scale: float):
+    """Scale the weights (and bias) of the last escnn.nn.Linear in *network*."""
+    for module in reversed(list(network.modules())):
+        if isinstance(module, enn.Linear):
+            with torch.no_grad():
+                module.weights.mul_(scale)
+                if module.bias is not None:
+                    module.bias.mul_(scale)
+            return
 
 def clip_action_norm(action, max_norm):
     assert max_norm > 0
@@ -199,3 +172,56 @@ def schedule(schdl, step):
             mix = np.clip((step - duration1) / duration2, 0.0, 1.0)
             return (1.0 - mix) * final1 + mix * final2
     raise NotImplementedError(schdl)
+
+# ==========================
+# For Normalizer
+# ==========================
+
+def dict_apply(
+        x: Dict[str, torch.Tensor], 
+        func: Callable[[torch.Tensor], torch.Tensor]
+        ) -> Dict[str, torch.Tensor]:
+    result = dict()
+    for key, value in x.items():
+        if isinstance(value, dict):
+            result[key] = dict_apply(value, func)
+        else:
+            result[key] = func(value)
+    return result
+
+class DictOfTensorMixin(nn.Module):
+    def __init__(self, params_dict=None):
+        super().__init__()
+        if params_dict is None:
+            params_dict = nn.ParameterDict()
+        self.params_dict = params_dict
+
+    @property
+    def device(self):
+        return next(iter(self.parameters())).device
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        def dfs_add(dest, keys, value: torch.Tensor):
+            if len(keys) == 1:
+                dest[keys[0]] = value
+                return
+
+            if keys[0] not in dest:
+                dest[keys[0]] = nn.ParameterDict()
+            dfs_add(dest[keys[0]], keys[1:], value)
+
+        def load_dict(state_dict, prefix):
+            out_dict = nn.ParameterDict()
+            for key, value in state_dict.items():
+                value: torch.Tensor
+                if key.startswith(prefix):
+                    param_keys = key[len(prefix):].split('.')[1:]
+                    # if len(param_keys) == 0:
+                    #     import pdb; pdb.set_trace()
+                    dfs_add(out_dict, param_keys, value.clone())
+            return out_dict
+
+        self.params_dict = load_dict(state_dict, prefix + 'params_dict')
+        self.params_dict.requires_grad_(False)
+        return 
+    

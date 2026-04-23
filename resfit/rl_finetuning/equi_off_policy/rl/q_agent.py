@@ -71,19 +71,19 @@ class QAgent(torch.nn.Module):
         self.enc = EquivariantResObsEnc(group      = self.group,
                                         obs_shape  = obs_shape, 
                                         N          = equi_cfg.N,
-                                        n_hidden   = equi_cfg.degree_channel, 
+                                        n_hidden   = equi_cfg.enc_degree_channel, 
                                         initialize = equi_cfg.initialize, 
                                     ).to(self.cfg.device)
 
         critic_in_type = nn.FieldType(self.group, 
-                                      equi_cfg.degree_channel * [self.group.regular_repr]
+                                      equi_cfg.enc_degree_channel * [self.group.regular_repr]
                                       + self.enc.action_shape
                                     )
 
         self.critic = Critic(
             group=self.group,
             in_type=critic_in_type, 
-            hidden_dim=self.equi_cfg.degree_channel,
+            hidden_dim=self.equi_cfg.critic_degree_channel,
             action_dim=action_dim,
             num_layers=self.equi_cfg.num_critic_layers,
             initialize=equi_cfg.initialize,
@@ -92,7 +92,7 @@ class QAgent(torch.nn.Module):
         self.actor = Actor(
             group=self.group,
             in_type=self.enc.enc_out_type, 
-            hidden_dim=self.equi_cfg.degree_channel,
+            hidden_dim=self.equi_cfg.actor_degree_channel,
             action_shape=self.enc.action_shape,
             num_layers=self.equi_cfg.num_actor_layers,
             initialize=self.equi_cfg.initialize,
@@ -102,6 +102,9 @@ class QAgent(torch.nn.Module):
 
         self.critic_target = copy.deepcopy(self.critic)
         self.actor_target = copy.deepcopy(self.actor)
+
+        self._enc_params = list(self.enc.parameters())
+        self._critic_params = list(self.critic.parameters())
 
         print(common_utils.wrap_ruler("encoder weights"))
         print(self.enc)
@@ -232,6 +235,11 @@ class QAgent(torch.nn.Module):
             use_target=False,
         )
 
+        # print(f"residual action: mean={action.abs().mean():.4f}, max={action.abs().max():.4f}")
+        # print(f"base_action: mean={obs['observation.base_action'].abs().mean():.4f}")
+        # print(f"feat range: [{obs['feat'].tensor.min():.4f}, {obs['feat'].tensor.max():.4f}]")
+        # assert False
+
         if unsqueezed:
             action = action.squeeze(0)
 
@@ -356,14 +364,18 @@ class QAgent(torch.nn.Module):
                 # Mean squared error across heads and batch (uniform sampling)
                 critic_loss = (td_errors**2).mean()
 
+
         metrics = {}
         metrics["train/critic_qt"] = target_q.mean().item()
         metrics["train/critic_loss"] = critic_loss.item()
+
         # Store target_q for potential logging (calculated only when needed)
         metrics["_target_q"] = target_q.detach().cpu()
+        
         # Store TD errors for prioritized experience replay
         if td_errors is not None:
             metrics["_td_errors"] = td_errors.detach().cpu()
+        
         # Log importance sampling weights for monitoring PER behavior
         if importance_weights is not None:
             metrics["train/importance_weights_mean"] = importance_weights.mean().item()
@@ -378,8 +390,8 @@ class QAgent(torch.nn.Module):
         critic_loss.backward()
 
         # Gradient clipping
-        encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self.enc.parameters(), self.cfg.critic_grad_clip_norm)
-        critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.critic_grad_clip_norm)
+        encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self._enc_params, self.cfg.critic_grad_clip_norm)
+        critic_grad_norm = torch.nn.utils.clip_grad_norm_(self._critic_params, self.cfg.critic_grad_clip_norm)
 
         # Store gradient norms for logging
         metrics["train/encoder_grad_norm"] = encoder_grad_norm.item()
@@ -396,8 +408,6 @@ class QAgent(torch.nn.Module):
         action_pred: torch.Tensor = self._act_default(
             obs=obs,
             eval_mode=False,
-            # stddev=stddev,
-            # NOTE: This fix has not been fully verified yet.
             stddev=0.0,
             clip=self.cfg.stddev_clip,
             use_target=False,
@@ -407,19 +417,20 @@ class QAgent(torch.nn.Module):
         action_l2_penalty = self.cfg.actor.action_l2_reg_weight * torch.mean(torch.sum(action_pred**2, dim=-1))
 
         if self.residual_actor:
-            # Create the full action by combining the base action and the residual action
-            # and clamp to the valid range [-1, 1] to match environment execution
             combined_action = torch.clamp(obs["observation.base_action"] + action_pred, -1.0, 1.0)
         else:
             combined_action = action_pred
 
-        # q = self.critic.q_value_for_policy(obs["feat"], obs["observation.state"], combined_action)
+        # Retain grad on the combined action so we can measure ∇_a Q after backward
+        combined_action.retain_grad()
+
         q = self.critic.q_value_for_policy(obs["feat"], combined_action)
         actor_loss_base = -q.mean()
 
         actor_loss_total = actor_loss_base + action_l2_penalty
 
         return actor_loss_total, actor_loss_base, combined_action, action_pred, action_l2_penalty
+
 
     def _compute_actor_bc_loss(self, batch, *, backprop_encoder):
         assert not self.residual_actor, "Not implemented"
@@ -447,7 +458,6 @@ class QAgent(torch.nn.Module):
     def update_actor(self, obs: dict[str, torch.Tensor], stddev: float):
         metrics = {}
 
-        # Compute actor loss and get the actions used (single actor call)
         (
             actor_loss_total,
             actor_loss_base,
@@ -458,22 +468,44 @@ class QAgent(torch.nn.Module):
 
         metrics["train/actor_loss_base"] = actor_loss_base.item()
         metrics["train/actor_loss_total"] = actor_loss_total.item()
-        # Store residual actions for logging (the actual residual component we want to monitor)
         metrics["_actions"] = action_pred.detach().cpu()
-        # Also store combined actions if needed for other purposes
         metrics["_combined_actions"] = combined_action.detach().cpu()
 
-        # Log L2 regularization penalty if applied
         if self.cfg.actor.action_l2_reg_weight > 0:
             metrics["train/actor_l2_penalty"] = action_l2_penalty.item()
 
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss_total.backward()
 
-        # Gradient clipping
-        actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.actor_grad_clip_norm)
+        # ---- Diagnostic logging ----
 
-        # Store gradient norm for logging
+        # 1) ∇_a Q: does the critic provide a gradient signal w.r.t. actions?
+        #    If this is near zero, the critic landscape is flat — either the
+        #    critic isn't seeing the residual or ensemble pessimism is canceling gradients.
+        if combined_action.grad is not None:
+            metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
+            metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+        else:
+            metrics["debug/dQ_da_norm"] = 0.0
+
+        # 2) Residual action magnitude: is the actor outputting anything?
+        with torch.no_grad():
+            metrics["debug/residual_norm"] = action_pred.norm(dim=-1).mean().item()
+            metrics["debug/residual_mean_abs"] = action_pred.abs().mean().item()
+            metrics["debug/residual_max_abs"] = action_pred.abs().max().item()
+
+        # 3) Q sensitivity: does the critic value differ between combined and base-only?
+        #    If these are nearly equal, the critic is blind to the residual.
+        if self.residual_actor:
+            with torch.no_grad():
+                q_base_only = self.critic.q_value_for_policy(obs["feat"], obs["observation.base_action"])
+                metrics["debug/q_combined_mean"] = (-actor_loss_base).item()  # same as q.mean()
+                metrics["debug/q_base_only_mean"] = q_base_only.mean().item()
+                metrics["debug/q_advantage"] = metrics["debug/q_combined_mean"] - metrics["debug/q_base_only_mean"]
+
+        # ---- End diagnostics ----
+
+        actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.actor_grad_clip_norm)
         metrics["train/actor_grad_norm"] = actor_grad_norm.item()
 
         self.actor_opt.step()
@@ -579,6 +611,10 @@ class QAgent(torch.nn.Module):
         bc_batch=None,
         ref_agent: QAgent | None = None,
     ):
+
+        import time
+        start = time.time()
+
         obs: dict[str, torch.Tensor] = batch["obs"]
         action: torch.Tensor = batch["action"]
         reward: torch.Tensor = batch[("next", "reward")]
@@ -586,8 +622,14 @@ class QAgent(torch.nn.Module):
         next_nonterminal: torch.Tensor = batch["nonterminal"]
         next_obs: dict[str, torch.Tensor] = batch[("next", "obs")]
 
+        # print(f"obs.shape: {obs.shape}")
+        # print(f"obs = {obs}")
+        # assert False
+
         # To not bootstrap on terminal states we zero out the discount factor for terminal next states
         effective_discount = discount * next_nonterminal
+        
+        # print(f"setup time: {time.time() - start}")
 
         assert "feat" not in obs
         obs["feat"] = self.enc(obs)
@@ -595,11 +637,17 @@ class QAgent(torch.nn.Module):
         with torch.no_grad():
             next_obs["feat"] = self.enc(next_obs)
 
+        # print(f"2x enc time: {time.time() - start}")
+
         metrics = {}
         metrics["data/batch_R"] = reward.mean().item()
 
         # Extract importance sampling weights if available (for prioritized experience replay)
         importance_weights = batch.get("_weight", None)
+
+        # import time
+        # start = time.time()
+        # print(f"sample time: {time.time() - start}")
 
         critic_metric = self.update_critic(
             obs=obs,
@@ -610,8 +658,13 @@ class QAgent(torch.nn.Module):
             stddev=stddev,
             importance_weights=importance_weights,
         )
+
+        # print(f"critic update time: {time.time() - start}")
+
         utils.soft_update_params(self.critic, self.critic_target, self.cfg.critic_target_tau)
         metrics.update(critic_metric)
+
+        # print(f"other update time: {time.time()-start}\n")
 
         if not update_actor:
             return metrics
@@ -625,6 +678,8 @@ class QAgent(torch.nn.Module):
         else:
             assert ref_agent is not None
             actor_metric = self.update_actor_rft(obs, stddev, bc_batch, ref_agent)
+
+        # print(f"actor update time: {time.time() - start}\n")
 
         utils.soft_update_params(self.actor, self.actor_target, self.cfg.critic_target_tau)
         metrics.update(actor_metric)

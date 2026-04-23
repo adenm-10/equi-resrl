@@ -2,19 +2,17 @@ import torch
 import numpy as np
 from torchvision import models as vision_models
 
-from escnn import gspaces, nn
-from escnn.group import CyclicGroup
-from einops import rearrange
-
 import resfit.rl_finetuning.equi_off_policy.common_utils.crop_randomizer as dmvc
-from   resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantEncoder128
 from   resfit.rl_finetuning.equi_off_policy.common_utils.module_attr_mixin import ModuleAttrMixin
-from   resfit.rl_finetuning.equi_off_policy.common_utils.rotation_transformer import RotationTransformer
-from   resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
 from   robomimic.models.base_nets import SpatialSoftmax
 
 from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer_util import LinearNormalizer
+from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import ResBlock, ResEncoder76
 
+
+# ---------------------------------------------------------------------------
+# Helpers (unchanged from equivariant version)
+# ---------------------------------------------------------------------------
 
 class Identity(torch.nn.Module):
     def __init__(self, *args, **kwargs):
@@ -22,6 +20,7 @@ class Identity(torch.nn.Module):
 
     def forward(self, x):
         return x
+
 
 class InHandEncoder(torch.nn.Module):
     def __init__(self, out_size):
@@ -46,48 +45,55 @@ def quaternion_to_rotation_6d(q: torch.Tensor) -> torch.Tensor:
     ], dim=-1).reshape(*q.shape[:-1], 3, 3)
     return matrix[..., :2, :].clone().reshape(*matrix.shape[:-2], 6)
 
+# ---------------------------------------------------------------------------
+# Non-equivariant ResObsEnc (mirrors EquivariantResObsEnc)
+#
+# Input dimension breakdown (N=8, n_hidden=128):
+#   agentview encoder  : n_hidden * N       = 1024
+#   in-hand encoder    : n_hidden           = 128
+#   proprioception     : 4*2 + 3*1          = 11
+#       pos_xy(2), ee_rot(6), pos_z(1), ee_q(2)
+#   action             : 2*2 + 3*1          = 7
+#       action_xy(2), action_rx_ry(2), action_z(1), action_rz(1), action_gripper(1)
+#   ─────────────────────────────────────────────
+#   total              :                      1170
+#
+# Output dimension: n_hidden * N = 1024
+# ---------------------------------------------------------------------------
 
-class EquivariantResObsEnc(ModuleAttrMixin):
+class ResObsEnc(ModuleAttrMixin):
     def __init__(
         self,
-        group,
         obs_shape=(3, 84, 84),
         crop_shape=(76, 76),
         N=8,
         n_hidden=128,
-        initialize=True,
         absolute_actions=False,
     ):
         super().__init__()
         self.obs_channel = obs_shape[0]
         self.n_hidden = n_hidden
         self.N = N
-        self.group = group
         self.absolute_actions = absolute_actions
 
-        self.prop_shape = (
-            4 * [self.group.irrep(1)]               # pos_xy + 3 rotation col pairs
-            + 3 * [self.group.trivial_repr]         # pos_z, ee_q(2)
+        # ---- Dimension bookkeeping (replaces escnn field types) ----
+        # Proprioception: pos_xy(2) + ee_rot(6) + pos_z(1) + ee_q(2)
+        self.prop_dim = 11
+        # Action: action_xy(2) + action_rx_ry(2) + action_z(1) + action_rz(1) + action_gripper(1)
+        self.action_dim = 7
+
+        enc_in_dim = (
+            n_hidden * N          # agentview visual features
+            + n_hidden            # in-hand visual features
+            + self.prop_dim
+            + self.action_dim
         )
+        enc_out_dim = n_hidden * N
 
-        self.action_shape = (
-            2 * [self.group.irrep(1)]               # action_xy, action_rx_ry
-            + 3 * [self.group.trivial_repr]          # action_z, action_rz, action_gripper
-        )
+        self.enc_out = torch.nn.Linear(enc_in_dim, enc_out_dim)
 
-        self.enc_in_type = nn.FieldType(
-            self.group,
-            n_hidden * [self.group.regular_repr]    # agentview
-            + n_hidden * [self.group.trivial_repr]  # ih
-            + self.prop_shape
-            + self.action_shape
-        )
-
-        self.enc_out_type = nn.FieldType(self.group, self.n_hidden * [self.group.regular_repr])
-        self.enc_out = nn.Linear(self.enc_in_type, self.enc_out_type)
-
-        self.enc_obs = EquivariantResEncoder76Cyclic(self.obs_channel, self.n_hidden, initialize, self.N)
-        self.enc_ih = InHandEncoder(self.n_hidden).to(self.device)
+        self.enc_obs = ResEncoder76(self.obs_channel, n_hidden, N)
+        self.enc_ih = InHandEncoder(n_hidden).to(self.device)
 
         self.gTgc = torch.Tensor([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
 
@@ -100,18 +106,17 @@ class EquivariantResObsEnc(ModuleAttrMixin):
     def get6DRotation(self, quat):
         return quaternion_to_rotation_6d(quat[:, [3, 0, 1, 2]])
 
-    def set_normalizer(self, 
-                       normalizer: LinearNormalizer, 
-                       robot_base_xy: torch.Tensor=None):
+    def set_normalizer(self,
+                       normalizer: LinearNormalizer,
+                       robot_base_xy: torch.Tensor = None):
         """
         Store the pre-built LinearNormalizer and robot base position.
-        
+
         LinearNormalizer inherits from DictOfTensorMixin(nn.Module), so storing
         it as self.normalizer makes it a submodule — it follows .to(device),
         .cuda(), and appears in state_dict() automatically.
         """
         self.normalizer = normalizer
-        # self.register_buffer("_robot_base_xy", robot_base_xy.clone().float())
         self._normalizers_ready = True
 
         for name in ["pos_xy", "pos_z", "ee_rot", "ee_q"]:
@@ -121,7 +126,6 @@ class EquivariantResObsEnc(ModuleAttrMixin):
             print(f"{name}: scale={s.detach().numpy()}, offset={o.detach().numpy()}")
             print(f"  input_stats: min={inp['min'].detach().numpy()}, max={inp['max'].detach().numpy()}")
 
-
     def forward(self, nobs):
         assert self._normalizers_ready, "Call set_normalizer() before forward()"
 
@@ -129,16 +133,6 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         ih  = nobs["observation.images.robot0_eye_in_hand"]
         base_action = nobs["observation.base_action"]
         state = nobs["observation.state"]
-
-        # print(f"\n\nobs: [{obs.min():.3f}, {obs.max():.3f}]")
-        # print(f"ih:  [{ih.min():.3f}, {ih.max():.3f}]")
-        # print(f"base_action:   [{base_action.min():.3f}, {base_action.max():.3f}]")
-        # print(f"state: [{state.min():.3f}, {state.max():.3f}]")
-        # In forward, once:
-        # print(f"state shape: {state.shape}")
-        # print(f"state[0]: {state[0].cpu().numpy()}")
-        # print(f"dataset min: {dataset.meta.stats['observation.state']['min']}")
-        # print(f"dataset max: {dataset.meta.stats['observation.state']['max']}")
 
         batch_size = obs.shape[0]
 
@@ -150,15 +144,12 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         ih_out = self.enc_ih(ih)
 
         obs     = self.crop_randomizer(obs)
-        enc_out = self.enc_obs(obs).tensor.reshape(batch_size, -1)
+        enc_out = self.enc_obs(obs).reshape(batch_size, -1)
 
         # ---- Proprioception ----
         ee_pos  = state[...,  :3]
         ee_quat = state[..., 3:7]
         ee_q    = state[..., 7:9]
-
-        # base_xy = self._robot_base_xy.to(ee_pos.device)
-        # pos_xy = self.normalizer["pos_xy"].normalize(ee_pos[:, 0:2] - base_xy)
 
         pos_xy = self.normalizer["pos_xy"].normalize(ee_pos[:, 0:2])
         pos_z  = self.normalizer["pos_z"].normalize(ee_pos[:, 2:3])
@@ -166,41 +157,21 @@ class EquivariantResObsEnc(ModuleAttrMixin):
         ee_q   = self.normalizer["ee_q"].normalize(ee_q)
 
         # ---- Action ----
-        # if self.absolute_actions:
-        #     base_xy_dev = self._robot_base_xy.to(base_action.device)
-        #     abs_target_xy = state[..., :2] + base_action[:, 0:2]
-        #     action_xy = self.normalizer["action_xy"].normalize(abs_target_xy - base_xy_dev)
-        # else:
-        #     action_xy = self.normalizer["action_xy"].normalize(base_action[:, 0:2])
-
         action_xy      = self.normalizer["action_xy"].normalize(base_action[:, 0:2])
         action_z       = self.normalizer["action_z"].normalize(base_action[:, 2:3])
         action_rx_ry   = self.normalizer["action_rx_ry"].normalize(base_action[:, 3:5])
         action_rz      = self.normalizer["action_rz"].normalize(base_action[:, 5:6])
         action_gripper = self.normalizer["action_gripper"].normalize(base_action[:, 6:7])
 
-        # action_xy      = base_action[:, 0:2]
-        # action_z       = base_action[:, 2:3]
-        # action_rx_ry   = base_action[:, 3:5]
-        # action_rz      = base_action[:, 5:6]
-        # action_gripper = base_action[:, 6:7]
-
-        # print(f"pos_xy: [{pos_xy.min():.3f}, {pos_xy.max():.3f}]")
-        # print(f"pos_z:  [{pos_z.min():.3f}, {pos_z.max():.3f}]")
-        # print(f"ee_q:   [{ee_q.min():.3f}, {ee_q.max():.3f}]")
-        # print(f"act_xy: [{action_xy.min():.3f}, {action_xy.max():.3f}]")
-        # print(f"act_z:  [{action_z.min():.3f}, {action_z.max():.3f}]")
-        # print(f"act_gr: [{action_gripper.min():.3f}, {action_gripper.max():.3f}]")
-        # print(f"ee_rot: [{ee_rot.min():.3f}, {ee_rot.max():.3f}]")
-        # assert False
-
-        # ---- Concatenate into equivariant feature vector ----
+        # ---- Concatenate feature vector ----
+        # Same ordering as the equivariant version for reproducibility,
+        # including the interleaved rotation column layout.
         features = torch.cat(
             [
                 enc_out,
                 ih_out,
 
-                # Proprioception (irrep(1) pairs interleaved per rotation matrix column)
+                # Proprioception (same interleaved rotation layout as equivariant)
                 pos_xy,
                 ee_rot[:, 0:1], ee_rot[:, 3:4],  # col 0: (R00, R10)
                 ee_rot[:, 1:2], ee_rot[:, 4:5],  # col 1: (R01, R11)
@@ -218,7 +189,6 @@ class EquivariantResObsEnc(ModuleAttrMixin):
             dim=1,
         )
 
-        features = nn.GeometricTensor(features, self.enc_in_type)
         enc_out = self.enc_out(features)
 
         return enc_out

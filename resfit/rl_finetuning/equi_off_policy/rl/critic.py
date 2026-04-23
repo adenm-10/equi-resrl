@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import torch
 # from torch import nn
@@ -18,6 +19,7 @@ from torch.nn import functional
 
 from resfit.rl_finetuning.config.rlpd import CriticConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
+from resfit.rl_finetuning.equi_off_policy.common_utils.utils import apply_deltaortho_init
 
 
 class HLGaussLoss(torch.nn.Module):
@@ -269,6 +271,7 @@ class Critic(torch.nn.Module):
 
         # Number of Q-heads (ensemble size)
         num_q = getattr(cfg, "num_q", 2)
+        orth = getattr(cfg, "orth", False)
 
         head_hidden_type = nn.FieldType(self.group, hidden_dim * [self.group.regular_repr])
         head_out_type = nn.FieldType(self.group, output_dim * [self.group.trivial_repr])
@@ -281,6 +284,7 @@ class Critic(torch.nn.Module):
                                         num_layers     = num_layers,
                                         num_heads      = cfg.num_q,
                                         use_layer_norm = cfg.use_layer_norm,
+                                        orth           = orth,
                                     )
 
         # Loss objects (single instance) ----
@@ -306,6 +310,10 @@ class Critic(torch.nn.Module):
         return (probs * support).sum(-1, keepdim=True)  # E[z]
 
     def forward(self, feat, act, *, return_logits: bool = False):
+
+        # torch.cuda.synchronize()
+        # t1 = time.perf_counter()
+
         feat = torch.cat((feat.tensor, act), dim=-1)
         feat = nn.GeometricTensor(feat, self.in_type)
 
@@ -330,6 +338,11 @@ class Critic(torch.nn.Module):
             if return_logits:
                 return q_per_head, logits_per_head
             return q_per_head
+
+        # torch.cuda.synchronize()
+        # t2 = time.perf_counter()
+
+        # print(f"equi critic full forward pass: {t2-t1:.4f}s")
 
         # MSE case: outputs are already scalars per head → [num_q, B, 1]
         return logits_per_head
@@ -382,23 +395,37 @@ class EquiQEnsemble(torch.nn.Module):
         num_layers,
         num_heads: int = 2,
         use_layer_norm: bool = True,
+        orth: bool = False,
     ):
         super().__init__()
+
+        # When using deltaortho, skip the slow default generalized_he_init
+        escnn_init = not orth and initialize
+
         self.heads = torch.nn.ModuleList([EquiHeadMLP(group=group, 
                                                       in_type=in_type, 
                                                       hidden_type=hidden_type, 
                                                       out_type=out_type, 
-                                                      initialize=initialize,
+                                                      initialize=escnn_init,
                                                       num_layers=num_layers,
                                                       use_layer_norm=use_layer_norm) for _ in range(num_heads)]
                                         )
 
+        # Mirrors SpatialEmbQEnsemble._init_per_head_params(orth):
+        # apply deltaortho init to all linear layers in every head
+        if orth:
+            for head in self.heads:
+                apply_deltaortho_init(head.net, exclude_final_layer=False)
+
     def forward(self, feat):
+
         q_vals = []
         for head in self.heads:
             q_vals.append(head(feat).tensor)
 
-        return torch.stack(q_vals, dim=0)
+        ret = torch.stack(q_vals, dim=0)
+
+        return ret
 
 class EquiHeadMLP(torch.nn.Module):
     """Single MLP head for the ensemble."""
@@ -426,4 +453,5 @@ class EquiHeadMLP(torch.nn.Module):
         self.net = torch.nn.Sequential(*layers)
 
     def forward(self, feat):
-        return self.net(feat)
+        ret = self.net(feat)
+        return ret

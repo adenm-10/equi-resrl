@@ -5,6 +5,8 @@
 import torch
 from torch import nn
 
+import time
+
 from resfit.rl_finetuning.config.rlpd import VitEncoderConfig
 from resfit.rl_finetuning.off_policy.networks.min_vit import MinVit
 
@@ -27,6 +29,9 @@ class VitEncoder(nn.Module):
         self.repr_dim = self.cfg.embed_dim * self.vit.num_patches
 
     def forward(self, obs, flatten=True) -> torch.Tensor:
+        torch.cuda.synchronize()
+        t1 = time.perf_counter()
+
         if obs.max() > 5:
             obs = obs / 255.0
         obs = obs - 0.5
@@ -34,6 +39,12 @@ class VitEncoder(nn.Module):
         if flatten:
             # [B, D, N] -> [B, D*N]
             feats = feats.flatten(1, 2)
+
+        torch.cuda.synchronize()
+        t2 = time.perf_counter()
+
+        # print(f"ViT Encoder forward pass: {t2-t1:.4f}s")
+
         return feats
 
 
