@@ -40,7 +40,7 @@ from torch.utils.data import DataLoader
 from torchrl.data import LazyTensorStorage, ReplayBuffer, TensorDictPrioritizedReplayBuffer
 from tqdm import tqdm
 
-from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer import (
+from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
     build_equivariant_normalizer,
     IdentityScaler,
     IdentityStandardizer
@@ -66,15 +66,6 @@ from resfit.rl_finetuning.utils.hugging_face import (
 )
 
 from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer
-# from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer_util import (
-#     LinearNormalizer,
-#     get_range_normalizer_from_stat,
-#     get_range_symmetric_normalizer_from_stat,
-#     get_image_range_normalizer,
-#     get_identity_normalizer_from_stat,
-# )
-
-
 from resfit.rl_finetuning.utils.rb_transforms import MultiStepTransform
 from resfit.rl_finetuning.wrappers.residual_env_wrapper import BasePolicyVecEnvWrapper
 
@@ -418,8 +409,8 @@ def main(cfg: ResidualTD3DexmgConfig):
         )
     else:
         print(f"Instantiating Equivariant Agent")
-        # from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
-        from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_q_agent import QAgent
+        from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
+        # from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_q_agent import QAgent
         agent = QAgent(
             obs_shape=(img_c, img_h, img_w),
             prop_shape=(lowdim_dim,),
@@ -775,6 +766,12 @@ def main(cfg: ResidualTD3DexmgConfig):
 
             # Save buffer to disk for future runs + upload to Hub ----------------
             cache_dir.mkdir(parents=True, exist_ok=True)
+            import torchrl.data.replay_buffers.samplers as _samplers
+            print(f"[DEBUG] PrioritizedSampler.dumps = {_samplers.PrioritizedSampler.dumps}")
+            print(f"[DEBUG] sampler instance type = {type(offline_rb._sampler)}")
+            print(f"[DEBUG] sampler instance MRO = {type(offline_rb._sampler).__mro__}")
+            print(f"[DEBUG] sampler.dumps = {offline_rb._sampler.dumps}")
+            # assert False
             optimized_replay_buffer_dumps(offline_rb, cache_dir)
 
             with open(cache_dir / "user_metadata.json", "w") as f:

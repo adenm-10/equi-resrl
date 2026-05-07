@@ -22,6 +22,58 @@ _hf_api = HfApi()
 COMPRESSION_LEVEL = PERF_CONFIG.compression_level
 MAX_WORKERS = min(PERF_CONFIG.max_workers, mp.cpu_count())
 
+from torchrl.data.replay_buffers import samplers
+import json, torch
+from pathlib import Path
+from tensordict import MemoryMappedTensor
+
+def _cast(x):
+    if isinstance(x, torch.Tensor): return x.item()
+    return x
+
+def _safe_dumps(self, path):
+    path = Path(path).absolute(); path.mkdir(exist_ok=True, parents=True)
+    mm_st = MemoryMappedTensor.empty((self._max_capacity,), dtype=torch.float64,
+                                     filename=path / "sumtree.memmap")
+    mm_mt = MemoryMappedTensor.empty((self._max_capacity,), dtype=torch.float64,
+                                     filename=path / "mintree.memmap")
+    mm_st.copy_(torch.as_tensor([self._sum_tree[i] for i in range(self._max_capacity)]))
+    mm_mt.copy_(torch.as_tensor([self._min_tree[i] for i in range(self._max_capacity)]))
+
+    mp = self._max_priority
+    mp_ser = [_cast(mp[0]), _cast(mp[1])] if isinstance(mp, tuple) else (_cast(mp) if mp is not None else None)
+
+    with open(path / "sampler_metadata.json", "w") as file:
+        json.dump({
+            "_alpha": _cast(self._alpha),
+            "_beta": _cast(self._beta),
+            "_eps": _cast(self._eps),
+            "_max_priority": mp_ser,
+            "_max_capacity": self._max_capacity,
+        }, file)
+
+def _safe_loads(self, path):
+    path = Path(path).absolute()
+    with open(path / "sampler_metadata.json", "r") as file:
+        metadata = json.load(file)
+    self._alpha = metadata["_alpha"]
+    self._beta = metadata["_beta"]
+    self._eps = metadata["_eps"]
+    mp = metadata["_max_priority"]
+    self._max_priority = tuple(mp) if isinstance(mp, list) else mp
+    _max_capacity = metadata["_max_capacity"]
+    if _max_capacity != self._max_capacity:
+        raise RuntimeError(f"max capacity mismatch: loaded {_max_capacity} vs self {self._max_capacity}")
+    mm_st = MemoryMappedTensor.from_filename(shape=(self._max_capacity,), dtype=torch.float64,
+                                             filename=path / "sumtree.memmap")
+    mm_mt = MemoryMappedTensor.from_filename(shape=(self._max_capacity,), dtype=torch.float64,
+                                             filename=path / "mintree.memmap")
+    for i, elt in enumerate(mm_st.tolist()): self._sum_tree[i] = elt
+    for i, elt in enumerate(mm_mt.tolist()): self._min_tree[i] = elt
+
+samplers.PrioritizedSampler.dumps = _safe_dumps
+samplers.PrioritizedSampler.loads = _safe_loads
+
 
 def _create_archive_fast(cache_dir: Path, tar_path: Path) -> None:
     """Create tar.gz archive using optimized settings for speed."""
@@ -109,7 +161,12 @@ def optimized_replay_buffer_dumps(replay_buffer, cache_dir: Path) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Use the standard dumps method but with timing
+    # try:
     replay_buffer.dumps(cache_dir)
+    # assert False
+    # except TypeError as e:
+    #     print(f"[HF] WARNING: Buffer cache dump failed (torchrl serialization bug): {e}")
+    #     print("[HF] Continuing without cache...")
 
     end_time = time.time()
     print(f"[HF] ReplayBuffer dumps completed in {end_time - start_time:.2f} seconds")
@@ -121,7 +178,10 @@ def optimized_replay_buffer_loads(replay_buffer, cache_dir: Path) -> None:
     start_time = time.time()
 
     # Use the standard loads method but with timing
+    # try:
     replay_buffer.loads(cache_dir)
+    # except TypeError as e:
+    #     print(f"[HF] WARNING: Buffer cache dump failed (torchrl serialization bug): {e}")
 
     end_time = time.time()
     print(f"[HF] ReplayBuffer loads completed in {end_time - start_time:.2f} seconds")

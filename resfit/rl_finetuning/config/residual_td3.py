@@ -43,7 +43,7 @@ class BasePolicyConfig:
 @dataclass
 class EquivarianceConfig:
     N: int = 8
-    enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
+    enc_degree_channel: int = 16 # power of 8 for agent view encoder, ideally 128
     initialize: bool = True
 
     num_actor_layers: int = 2
@@ -104,13 +104,14 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # ------------------------------------------------------------------
     agent: QAgentConfig = field(
         default_factory=lambda: QAgentConfig(
-            # actor_lr=1e-6,
-            actor_lr=1e-4,
+            actor_lr=1e-6, # default
+            # actor_lr=1e-5,
             critic_lr=1e-4,
             critic_target_tau=0.005,
             actor=ActorConfig(
                 action_scale=0.1,
                 actor_last_layer_init_scale=0.0,  # imp for residual
+                # actor_last_layer_init_scale=1e-4,  # imp for residual
             ),
         )
     )
@@ -201,7 +202,7 @@ class ResidualEquiTD3CanConfig(ResidualTD3DexmgConfig):
 
     wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-can-residual-td3"))
 
-    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=12))
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
 
 
 @dataclass
@@ -223,7 +224,7 @@ class ResidualEquiTD3SquareConfig(ResidualTD3DexmgConfig):
 
     wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-square-residual-td3"))
 
-    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=12))
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
 
 
 @dataclass

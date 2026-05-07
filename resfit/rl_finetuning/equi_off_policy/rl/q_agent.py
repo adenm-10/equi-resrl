@@ -18,8 +18,7 @@ from resfit.rl_finetuning.config.rlpd import QAgentConfig
 from resfit.rl_finetuning.off_policy import common_utils
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
-from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
-# from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic, EquivariantEncoder128
+from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_clip
 from resfit.rl_finetuning.equi_off_policy.networks.equi_obs_encoder import EquivariantResObsEnc
 
 from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
@@ -68,36 +67,43 @@ class QAgent(torch.nn.Module):
         self.equi_cfg = equi_cfg
 
         self.group = gspaces.no_base_space(CyclicGroup(equi_cfg.N))
-        self.enc = EquivariantResObsEnc(group      = self.group,
-                                        obs_shape  = obs_shape, 
-                                        N          = equi_cfg.N,
-                                        n_hidden   = equi_cfg.enc_degree_channel, 
-                                        initialize = equi_cfg.initialize, 
-                                    ).to(self.cfg.device)
+        
+        self.enc = EquivariantResObsEnc(
+            group      = self.group,
+            obs_shape  = obs_shape, 
+            N          = equi_cfg.N,
+            n_hidden   = equi_cfg.enc_degree_channel, 
+            initialize = equi_cfg.initialize, 
+            use_layer_norm = True,
+        ).to(self.cfg.device)
 
-        critic_in_type = nn.FieldType(self.group, 
-                                      equi_cfg.enc_degree_channel * [self.group.regular_repr]
-                                      + self.enc.action_shape
-                                    )
+        self.critic_in_type = self.actor_in_type = self.enc.enc_out_type_actor
 
         self.critic = Critic(
-            group=self.group,
-            in_type=critic_in_type, 
-            hidden_dim=self.equi_cfg.critic_degree_channel,
-            action_dim=action_dim,
-            num_layers=self.equi_cfg.num_critic_layers,
-            initialize=equi_cfg.initialize,
-            cfg=self.cfg.critic,
+            group       = self.group,
+            vis_ih_type = self.enc.vis_ih_type,
+            prop_type   = self.enc.prop_type,
+            action_type = self.enc.action_type,
+            hidden_dim  = self.equi_cfg.critic_degree_channel,
+            num_layers  = self.equi_cfg.num_critic_layers,
+            initialize  = equi_cfg.initialize,
+            cfg         = self.cfg.critic,
         )
+
         self.actor = Actor(
-            group=self.group,
-            in_type=self.enc.enc_out_type, 
-            hidden_dim=self.equi_cfg.actor_degree_channel,
-            action_shape=self.enc.action_shape,
-            num_layers=self.equi_cfg.num_actor_layers,
-            initialize=self.equi_cfg.initialize,
-            cfg=self.cfg.actor, 
-            residual_actor=residual_actor)
+            group          = self.group,
+            vis_ih_type    = self.enc.vis_ih_type,
+            prop_type      = self.enc.prop_type,
+            action_type    = self.enc.action_type,
+            action_layout  = self.enc.action_layout,
+            hidden_dim     = self.equi_cfg.actor_degree_channel,
+            action_shape   = self.enc.action_shape,
+            num_layers     = self.equi_cfg.num_actor_layers,
+            initialize     = self.equi_cfg.initialize,
+            cfg            = self.cfg.actor,
+            residual_actor = residual_actor,
+        )
+            
         self.to(self.cfg.device)
 
         self.critic_target = copy.deepcopy(self.critic)
@@ -224,8 +230,8 @@ class QAgent(torch.nn.Module):
         obs = copy.copy(obs)
         unsqueezed = self._maybe_unsqueeze_(obs)
 
-        assert "feat" not in obs
-        obs["feat"] = self.enc(obs)
+        assert "actor_feat" not in obs
+        obs["actor_feat"], obs["critic_feat"] = self.enc(obs)
 
         action = self._act_default(
             obs=obs,
@@ -248,29 +254,21 @@ class QAgent(torch.nn.Module):
             action = action.cpu()
         return action
 
-    def _act_default(
-        self,
-        *,
-        obs: dict[str, torch.Tensor],
-        eval_mode: bool,
-        stddev: float,
-        clip: float | None,
-        use_target: bool,
-    ) -> torch.Tensor:
+    def _act_default(self, *, obs, eval_mode, stddev, clip, use_target):
         actor = self.actor_target if use_target else self.actor
-        dist = actor.forward(obs["feat"], stddev)
 
-        # Only assert not training when this is called from the public act() method
-        # (which is used for actual evaluation), not when called internally during training
         if eval_mode and not use_target:
             assert not self.training
 
         if eval_mode:
-            action = dist.mean
-        else:
-            action = dist.sample(clip=clip)
+            # Deterministic mean — no noise, no clip applied here. Caller is
+            # responsible for any final action-bound clipping (see residual combine).
+            return actor.forward(obs["actor_feat"], std=None)
 
-        return action
+        # Stochastic: actor adds gaussian noise scaled by stddev and equi-clips
+        # the noised action to [-1, 1]. Optional `clip` (per-step noise bound)
+        # is dropped — set to None.
+        return actor.forward(obs["actor_feat"], std=stddev)
 
     def update_critic(
         self,
@@ -297,15 +295,17 @@ class QAgent(torch.nn.Module):
             )
 
             if self.residual_actor:
-                # Current step: 'action' from the replay buffer is the executed combined action
-                # Next step: combine and clamp to match environment execution
-                next_action = torch.clamp(next_obs["observation.base_action"] + next_residual_action, -1.0, 1.0)
+                next_action = equi_clip(
+                    next_obs["observation.base_action"] + next_residual_action,
+                    self.actor.action_layout,
+                    bound=1.0,
+                )
             else:
                 next_action = next_residual_action
 
             # Compute target Q using min over a random subset of 2 heads
             # target_all = self.critic_target.q_value(next_obs["feat"], next_obs["observation.state"], next_action)
-            target_all = self.critic_target.q_value(next_obs["feat"], next_action)
+            target_all = self.critic_target.q_value(next_obs["critic_feat"], next_action)
             target_q_min = target_all.squeeze(-1)  # [B]
             target_q = (reward + (discount * target_q_min)).detach()
 
@@ -317,19 +317,19 @@ class QAgent(torch.nn.Module):
         if self.critic.loss_cfg.type == "hl_gauss":
             # Compute logits for current Q heads and average HL-Gauss loss across heads
             # q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
-            q_per_head, logits_per_head = self.critic(obs["feat"], return_logits=True)
+            q_per_head, logits_per_head = self.critic(obs["critic_feat"], return_logits=True)
             K = logits_per_head.shape[0]
             losses = [self.critic.hl_loss(logits_per_head[i], target_q) for i in range(K)]
             critic_loss = torch.stack(losses).mean()
         elif self.critic.loss_cfg.type == "c51":
             # Compute logits for current Q heads and C51 distributional loss
             # q_per_head, logits_per_head = self.critic(obs["feat"], obs["observation.state"], action, return_logits=True)
-            q_per_head, logits_per_head = self.critic(obs["feat"], return_logits=True)
+            q_per_head, logits_per_head = self.critic(obs["critic_feat"], return_logits=True)
 
             # Get next state distribution for C51 target computation
             with torch.no_grad():
                 _, next_logits = self.critic_target(
-                    next_obs["feat"], next_obs["observation.state"], next_action, return_logits=True
+                    next_obs["critic_feat"], next_obs["observation.state"], next_action, return_logits=True
                 )
                 # Take min over random subset of heads for next distribution (configurable via min_q_heads)
                 num_heads = min(self.critic.cfg.min_q_heads, next_logits.shape[0])
@@ -351,7 +351,7 @@ class QAgent(torch.nn.Module):
             critic_loss = torch.stack(losses).mean()
         else:
             # q_all = self.critic(obs["feat"], obs["observation.state"], action).squeeze(-1)  # [K,B]
-            q_all = self.critic(obs["feat"], action).squeeze(-1)  # [K,B]
+            q_all = self.critic(obs["critic_feat"], action).squeeze(-1)  # [K,B]
             # Compute TD errors for prioritized experience replay (before taking mean)
             td_errors = torch.abs(q_all - target_q.unsqueeze(0)).mean(dim=0)  # [B] - mean across heads
 
@@ -403,7 +403,7 @@ class QAgent(torch.nn.Module):
         return metrics
 
     def _compute_actor_loss(self, obs: dict[str, torch.Tensor], stddev: float):
-        assert "feat" in obs, "safety check"
+        assert "critic_feat" in obs, "safety check"
 
         action_pred: torch.Tensor = self._act_default(
             obs=obs,
@@ -417,31 +417,31 @@ class QAgent(torch.nn.Module):
         action_l2_penalty = self.cfg.actor.action_l2_reg_weight * torch.mean(torch.sum(action_pred**2, dim=-1))
 
         if self.residual_actor:
-            combined_action = torch.clamp(obs["observation.base_action"] + action_pred, -1.0, 1.0)
+            combined_action = equi_clip(
+                obs["observation.base_action"] + action_pred,
+                self.actor.action_layout,
+                bound=1.0,
+            )
         else:
             combined_action = action_pred
 
-        # Retain grad on the combined action so we can measure ∇_a Q after backward
         combined_action.retain_grad()
-
-        q = self.critic.q_value_for_policy(obs["feat"], combined_action)
+        q = self.critic.q_value_for_policy(obs["critic_feat"], combined_action)
         actor_loss_base = -q.mean()
 
         actor_loss_total = actor_loss_base + action_l2_penalty
-
         return actor_loss_total, actor_loss_base, combined_action, action_pred, action_l2_penalty
-
 
     def _compute_actor_bc_loss(self, batch, *, backprop_encoder):
         assert not self.residual_actor, "Not implemented"
         obs: dict[str, torch.Tensor] = batch["obs"]
 
         assert "feat" not in obs
-        obs["feat"] = self.enc(obs)
+        obs["actor_feat"], _ = self.enc(obs)
 
         if not backprop_encoder:
-            raw = obs["feat"].tensor.detach()
-            obs["feat"] = nn.GeometricTensor(raw, obs["feat"].type)
+            raw = obs["actor_feat"].tensor.detach()
+            obs["actor_feat"] = nn.GeometricTensor(raw, obs["actor_feat"].type)
 
         pred_action = self._act_default(
             obs=obs,
@@ -468,9 +468,12 @@ class QAgent(torch.nn.Module):
 
         metrics["train/actor_loss_base"] = actor_loss_base.item()
         metrics["train/actor_loss_total"] = actor_loss_total.item()
+        # Store residual actions for logging (the actual residual component we want to monitor)
         metrics["_actions"] = action_pred.detach().cpu()
+        # Also store combined actions if needed for other purposes
         metrics["_combined_actions"] = combined_action.detach().cpu()
 
+        # Log L2 regularization penalty if applied
         if self.cfg.actor.action_l2_reg_weight > 0:
             metrics["train/actor_l2_penalty"] = action_l2_penalty.item()
 
@@ -494,17 +497,23 @@ class QAgent(torch.nn.Module):
             metrics["debug/residual_mean_abs"] = action_pred.abs().mean().item()
             metrics["debug/residual_max_abs"] = action_pred.abs().max().item()
 
+            metrics["debug/combined_act_norm"] = combined_action.norm(dim=-1).mean().item()
+            metrics["debug/combined_act_mean_abs"] = combined_action.abs().mean().item()
+            metrics["debug/combined_act_max_abs"] = combined_action.abs().max().item()
+
+
         # 3) Q sensitivity: does the critic value differ between combined and base-only?
         #    If these are nearly equal, the critic is blind to the residual.
         if self.residual_actor:
             with torch.no_grad():
-                q_base_only = self.critic.q_value_for_policy(obs["feat"], obs["observation.base_action"])
+                q_base_only = self.critic.q_value_for_policy(obs["critic_feat"], obs["observation.base_action"])
                 metrics["debug/q_combined_mean"] = (-actor_loss_base).item()  # same as q.mean()
                 metrics["debug/q_base_only_mean"] = q_base_only.mean().item()
                 metrics["debug/q_advantage"] = metrics["debug/q_combined_mean"] - metrics["debug/q_base_only_mean"]
+                metrics["debug/q_advantage_ratio"] = metrics["debug/q_advantage"] / metrics["debug/q_combined_mean"]
 
-        # ---- End diagnostics ----
 
+        # Gradient clipping
         actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.actor_grad_clip_norm)
         metrics["train/actor_grad_norm"] = actor_grad_norm.item()
 
@@ -569,8 +578,8 @@ class QAgent(torch.nn.Module):
                 # curr_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], curr_action)
                 # ref_q = self.critic.q_value_for_policy(bc_obs["feat"], bc_obs["observation.state"], ref_action)
 
-                curr_q = self.critic.q_value_for_policy(bc_obs["feat"], curr_action)
-                ref_q  = self.critic.q_value_for_policy(bc_obs["feat"], ref_action)
+                curr_q = self.critic.q_value_for_policy(bc_obs["critic_feat"], curr_action)
+                ref_q  = self.critic.q_value_for_policy(bc_obs["critic_feat"], ref_action)
 
                 ratio = (ref_q > curr_q).float().mean().item()
 
@@ -632,10 +641,13 @@ class QAgent(torch.nn.Module):
         # print(f"setup time: {time.time() - start}")
 
         assert "feat" not in obs
-        obs["feat"] = self.enc(obs)
+        obs["actor_feat"], obs["critic_feat"] = self.enc(obs)
+        # print(f"obs[actor_feat].size() = {obs['actor_feat'].size()}")
+        # print(f"obs[critic_feat].size() = {obs['critic_feat'].size()}")
+        # assert False
 
         with torch.no_grad():
-            next_obs["feat"] = self.enc(next_obs)
+            next_obs["actor_feat"], next_obs["critic_feat"] = self.enc(next_obs)
 
         # print(f"2x enc time: {time.time() - start}")
 
@@ -670,8 +682,8 @@ class QAgent(torch.nn.Module):
             return metrics
 
         # NOTE: actor loss does not backprop into the encoder
-        raw = obs["feat"].tensor.detach()
-        obs["feat"] = nn.GeometricTensor(raw, obs["feat"].type)
+        obs["actor_feat"]  = nn.GeometricTensor(obs["actor_feat"].tensor.detach(),  obs["actor_feat"].type)
+        obs["critic_feat"] = nn.GeometricTensor(obs["critic_feat"].tensor.detach(), obs["critic_feat"].type)
 
         if bc_batch is None:
             actor_metric = self.update_actor(obs, stddev)

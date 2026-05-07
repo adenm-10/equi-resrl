@@ -1,5 +1,4 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.  
-
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: CC-BY-NC-4.0
 
 import torch
@@ -9,40 +8,45 @@ from resfit.rl_finetuning.off_policy.common_utils import utils
 
 
 class Actor(torch.nn.Module):
-    """Non-equivariant actor (mirrors equivariant Actor).
-
-    Architecture:
-        [Linear → (LayerNorm) → (Dropout) → ReLU] × L → Linear → Tanh → out
-        where hidden width = hidden_dim * N
-
-    Optional features (all controlled via cfg with safe defaults):
-        - LayerNorm:  cfg.use_layer_norm  (default False)
-        - Dropout:    cfg.dropout          (default 0.0 = off)
-        - Orth init:  cfg.orth             (default False)
-        - Final layer scale: cfg.actor_last_layer_init_scale (default None = skip)
-    """
-
-    def __init__(self,
-                 in_dim: int,
-                 hidden_dim: int,
-                 action_dim: int,
-                 num_layers: int,
-                 cfg: ActorConfig,
-                 N: int = 8,
-                 residual_actor: bool = False):
+    def __init__(self, in_dim, hidden_dim, action_dim, prop_dim,
+                 num_layers, cfg: ActorConfig, N: int = 8,
+                 residual_actor: bool = True):
         super().__init__()
-
-        self.residual_actor = residual_actor
+        assert residual_actor, "Non-residual mode dropped — actor is residual-only"
+        self.residual_actor = True
         self.cfg = cfg
+        self.action_dim = action_dim
+        self.prop_dim = prop_dim
 
-        hid_full = hidden_dim * N
+        # in_dim = vis + ih + prop + base_action
+        self.vis_ih_dim = in_dim - prop_dim - action_dim
+
+        hid_full = proj_dim = hidden_dim * N
         use_layer_norm = getattr(cfg, "use_layer_norm", False)
         dropout = getattr(cfg, "dropout", 0.0)
 
-        # ---- Build policy MLP ----
-        layers = []
-        current_dim = in_dim
+        # ---- Visual projection ----
+        self.visual_proj_dim = getattr(cfg, "visual_proj_dim", 128)
+        vp_layers = [torch.nn.Linear(self.vis_ih_dim, self.visual_proj_dim)]
+        if use_layer_norm:
+            vp_layers.append(torch.nn.LayerNorm(self.visual_proj_dim))
+        vp_layers.append(torch.nn.ReLU())
+        self.visual_proj = torch.nn.Sequential(*vp_layers)
 
+        # ---- Trunk: bottleneck (v, prop, base_action) ----
+        trunk_in_dim = self.visual_proj_dim + prop_dim + action_dim
+        proj_layers = [torch.nn.Linear(trunk_in_dim, proj_dim)]
+        if use_layer_norm:
+            proj_layers.append(torch.nn.LayerNorm(proj_dim))
+        proj_layers.append(torch.nn.ReLU())
+        self.input_proj = torch.nn.Sequential(*proj_layers)
+
+        # ---- Policy MLP with skip injection ----
+        skip_dim = prop_dim + action_dim   # always-residual
+        policy_in_dim = proj_dim + skip_dim
+
+        layers = []
+        current_dim = policy_in_dim
         for _ in range(num_layers):
             layers.append(torch.nn.Linear(current_dim, hid_full))
             if use_layer_norm:
@@ -51,40 +55,20 @@ class Actor(torch.nn.Module):
                 layers.append(torch.nn.Dropout(dropout))
             layers.append(torch.nn.ReLU(inplace=True))
             current_dim = hid_full
-
         layers.append(torch.nn.Linear(current_dim, action_dim))
         layers.append(torch.nn.Tanh())
         self.policy = torch.nn.Sequential(*layers)
 
-        # ---- Initialization ----
         self._initialize_weights(cfg)
 
-        # for module in reversed(list(self.policy.modules())):
-        #     if isinstance(module, torch.nn.Linear):
-        #         print(f"Final layer weight norm: {module.weight.data.norm():.8f}")
-        #         print(f"Final layer bias norm: {module.bias.data.norm():.8f}")
-        #         break
-
-        # assert False
-
     def _initialize_weights(self, cfg: ActorConfig):
-        """Apply weight initialization.
-
-        - cfg.orth (bool):  orthogonal init for all layers
-        - cfg.actor_last_layer_init_scale (float | None):
-              if set, rescale the final Linear layer's weights by this factor.
-              Small values (e.g. 0.01) ensure near-zero initial actions,
-              preventing early saturation in residual RL.
-        """
-        orth = getattr(cfg, "orth", False)
-
-        if orth:
+        if getattr(cfg, "orth", False):
+            self.visual_proj.apply(utils.orth_weight_init)
+            self.input_proj.apply(utils.orth_weight_init)
             self.policy.apply(utils.orth_weight_init)
 
-        # Optionally scale down the final layer for small initial actions
         last_layer_scale = getattr(cfg, "actor_last_layer_init_scale", None)
         if last_layer_scale is not None:
-            # Walk backwards to find the last Linear
             for module in reversed(list(self.policy.modules())):
                 if isinstance(module, torch.nn.Linear):
                     module.weight.data.mul_(last_layer_scale)
@@ -93,14 +77,16 @@ class Actor(torch.nn.Module):
                     break
 
     def forward(self, feat, std):
-        mu = self.policy(feat)
-        
-        # if not hasattr(self, '_debug_printed'):
-        # print(f"ACTOR FORWARD DEBUG: mu.abs().mean()={mu.abs().mean():.8f}, "
-        #     f"std={std}, action_scale={self.cfg.action_scale}")
-        #     # self._debug_printed = True
-        # assert False
+        # feat layout: [vis_ih | prop | base_action]
+        vis_ih      = feat[:, :self.vis_ih_dim]
+        prop        = feat[:, self.vis_ih_dim : self.vis_ih_dim + self.prop_dim]
+        base_action = feat[:, self.vis_ih_dim + self.prop_dim :]
 
+        v         = self.visual_proj(vis_ih)
+        trunk_in  = torch.cat([v, prop, base_action], dim=-1)
+        z         = self.input_proj(trunk_in)
+        policy_in = torch.cat([z, prop, base_action], dim=-1)
+
+        mu = self.policy(policy_in)
         scaled_mu = mu * self.cfg.action_scale
-        action_dist = utils.TruncatedNormal(scaled_mu, std)
-        return action_dist
+        return utils.TruncatedNormal(scaled_mu, std)

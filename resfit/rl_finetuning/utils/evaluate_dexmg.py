@@ -184,10 +184,10 @@ def run_dexmg_evaluation(
             if not equivariant:
                 obs_q["feat"] = agent._encode(obs_q, augment=False)
             else:
-                obs_q["feat"] = agent.enc(obs_q)
+                obs_q["actor_feat"], obs_q["critic_feat"] = agent.enc(obs)
 
             # For Q-value computation, use combined action and clamp to [-1, 1] (consistent with training)
-            if agent.residual_actor:
+            if agent.residual_actor and not equivariant:
                 q_actions = torch.clamp(obs["observation.base_action"] + actions, -1.0, 1.0)
 
             if not equivariant:
@@ -196,7 +196,7 @@ def run_dexmg_evaluation(
                 )
             else:
                 q_pred = (
-                    agent.critic.q_value(obs_q["feat"], q_actions).detach().cpu().squeeze(-1)
+                    agent.critic.q_value(obs_q["critic_feat"], q_actions).detach().cpu().squeeze(-1)
                 )
 
 

@@ -45,6 +45,7 @@ class CriticConfig:
     spatial_emb: int = 1024
 
     # Number of independent Q-heads (in the ensemble). Set to 2 for TD3, >2 for RED-Q style.
+    # num_q: int = 10
     num_q: int = 2
     loss: CriticLossCfg = field(default_factory=lambda: CriticLossCfg())
     # Policy gradient type: "ensemble_mean" (mean over all heads, standard RED-Q) or

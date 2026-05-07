@@ -143,7 +143,7 @@ class Actor(nn.Module):
             if final_layer is not None:
                 utils.initialize_layer_weights(
                     final_layer,
-                    cfg.actor_last_layer_init_distribution,
+                    cfg.actor_last_layer_init_distribution, # "normal"
                     cfg.actor_last_layer_init_scale,
                 )
 

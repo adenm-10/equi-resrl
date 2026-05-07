@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 from torchvision import models as vision_models
 
@@ -6,8 +7,8 @@ import resfit.rl_finetuning.equi_off_policy.common_utils.crop_randomizer as dmvc
 from   resfit.rl_finetuning.equi_off_policy.common_utils.module_attr_mixin import ModuleAttrMixin
 from   robomimic.models.base_nets import SpatialSoftmax
 
-from resfit.rl_finetuning.equi_off_policy.common_utils.equi_normalizer_util import LinearNormalizer
-from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import ResBlock, ResEncoder76
+from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import LinearNormalizer
+from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import *
 
 
 # ---------------------------------------------------------------------------
@@ -22,16 +23,16 @@ class Identity(torch.nn.Module):
         return x
 
 
-class InHandEncoder(torch.nn.Module):
-    def __init__(self, out_size):
-        super().__init__()
-        net = vision_models.resnet18(norm_layer=Identity)
-        self.resnet = torch.nn.Sequential(*(list(net.children())[:-2]))
-        self.spatial_softmax = SpatialSoftmax([512, 3, 3], num_kp=out_size // 2)
+# class InHandEncoder(torch.nn.Module):
+#     def __init__(self, out_size):
+#         super().__init__()
+#         net = vision_models.resnet18(norm_layer=lambda c: nn.GroupNorm(min(32, c), c))
+#         self.resnet = torch.nn.Sequential(*(list(net.children())[:-2]))
+#         self.spatial_softmax = SpatialSoftmax([512, 3, 3], num_kp=out_size // 2)
 
-    def forward(self, ih):
-        batch_size = ih.shape[0]
-        return self.spatial_softmax(self.resnet(ih)).reshape(batch_size, -1)
+#     def forward(self, ih):
+#         batch_size = ih.shape[0]
+#         return self.spatial_softmax(self.resnet(ih)).reshape(batch_size, -1)
 
 
 def quaternion_to_rotation_6d(q: torch.Tensor) -> torch.Tensor:
@@ -68,35 +69,43 @@ class ResObsEnc(ModuleAttrMixin):
         crop_shape=(76, 76),
         N=8,
         n_hidden=128,
+        ih_n_out=96,                     # NEW: in-hand encoder output dim
+        ih_channels=(16, 32, 64, 96),    # NEW: in-hand channel widths
+        ih_blocks_per_stage=1,           # NEW: in-hand depth
         absolute_actions=False,
     ):
         super().__init__()
         self.obs_channel = obs_shape[0]
         self.n_hidden = n_hidden
         self.N = N
+        self.ih_n_out = ih_n_out
         self.absolute_actions = absolute_actions
 
-        # ---- Dimension bookkeeping (replaces escnn field types) ----
-        # Proprioception: pos_xy(2) + ee_rot(6) + pos_z(1) + ee_q(2)
         self.prop_dim = 11
-        # Action: action_xy(2) + action_rx_ry(2) + action_z(1) + action_rz(1) + action_gripper(1)
         self.action_dim = 7
 
-        enc_in_dim = (
-            n_hidden * N          # agentview visual features
-            + n_hidden            # in-hand visual features
+        self.enc_out_dim_critic = (
+            n_hidden * N          # agentview
+            + ih_n_out            # in-hand   ← was n_hidden
+            + self.prop_dim
+        )
+
+        self.enc_out_dim_actor = (
+            n_hidden * N
+            + ih_n_out            # in-hand   ← was n_hidden
             + self.prop_dim
             + self.action_dim
         )
-        enc_out_dim = n_hidden * N
-
-        self.enc_out = torch.nn.Linear(enc_in_dim, enc_out_dim)
 
         self.enc_obs = ResEncoder76(self.obs_channel, n_hidden, N)
-        self.enc_ih = InHandEncoder(n_hidden).to(self.device)
+        self.enc_ih  = ResEncoder76InHand(
+            obs_channel=self.obs_channel,
+            channels=ih_channels,
+            n_out=ih_n_out,
+            blocks_per_stage=ih_blocks_per_stage,
+        )
 
         self.gTgc = torch.Tensor([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-
         self.crop_randomizer = dmvc.CropRandomizer(
             input_shape=obs_shape,
             crop_height=crop_shape[0],
@@ -166,7 +175,7 @@ class ResObsEnc(ModuleAttrMixin):
         # ---- Concatenate feature vector ----
         # Same ordering as the equivariant version for reproducibility,
         # including the interleaved rotation column layout.
-        features = torch.cat(
+        critic_features = torch.cat(
             [
                 enc_out,
                 ih_out,
@@ -178,17 +187,23 @@ class ResObsEnc(ModuleAttrMixin):
                 ee_rot[:, 2:3], ee_rot[:, 5:6],  # col 2: (R02, R12)
                 pos_z,
                 ee_q,
+            ],
+            dim=1,
+        )
+        actor_features = torch.empty_like(critic_features).copy_(critic_features)
+
+        actor_features = torch.cat(
+            [
+                actor_features,
 
                 # Action
                 action_xy,
-                action_rx_ry,
                 action_z,
+                action_rx_ry,
                 action_rz,
                 action_gripper,
             ],
             dim=1,
         )
 
-        enc_out = self.enc_out(features)
-
-        return enc_out
+        return actor_features, critic_features

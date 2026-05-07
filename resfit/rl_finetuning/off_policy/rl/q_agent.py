@@ -506,6 +506,34 @@ class QAgent(torch.nn.Module):
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss_total.backward()
 
+        if combined_action.grad is not None:
+            metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
+            metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+        else:
+            metrics["debug/dQ_da_norm"] = 0.0
+
+        # 2) Residual action magnitude: is the actor outputting anything?
+        with torch.no_grad():
+            metrics["debug/residual_norm"] = action_pred.norm(dim=-1).mean().item()
+            metrics["debug/residual_mean_abs"] = action_pred.abs().mean().item()
+            metrics["debug/residual_max_abs"] = action_pred.abs().max().item()
+
+            metrics["debug/combined_act_norm"] = combined_action.norm(dim=-1).mean().item()
+            metrics["debug/combined_act_mean_abs"] = combined_action.abs().mean().item()
+            metrics["debug/combined_act_max_abs"] = combined_action.abs().max().item()
+
+
+        # 3) Q sensitivity: does the critic value differ between combined and base-only?
+        #    If these are nearly equal, the critic is blind to the residual.
+        if self.residual_actor:
+            with torch.no_grad():
+                q_base_only = self.critic.q_value_for_policy(obs["feat"], obs["observation.state"], obs["observation.base_action"])
+                metrics["debug/q_combined_mean"] = (-actor_loss_base).item()  # same as q.mean()
+                metrics["debug/q_base_only_mean"] = q_base_only.mean().item()
+                metrics["debug/q_advantage"] = metrics["debug/q_combined_mean"] - metrics["debug/q_base_only_mean"]
+                metrics["debug/q_advantage_ratio"] = metrics["debug/q_advantage"] / metrics["debug/q_combined_mean"]
+
+
         # Gradient clipping
         actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.actor_grad_clip_norm)
 
