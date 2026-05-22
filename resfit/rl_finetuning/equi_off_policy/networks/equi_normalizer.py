@@ -305,7 +305,11 @@ def get_range_normalizer_from_stat(stat, output_max=1, output_min=-1, range_eps=
     )
 
 def get_range_symmetric_normalizer_from_stat(stat, output_max=1, output_min=-1, range_eps=1e-7):
-    # -1, 1 normalization
+    # Defensive copy — function mutates input_min/max below
+    stat = {
+        k: (v.copy() if hasattr(v, "copy") else np.array(v, dtype=np.float32))
+        for k, v in stat.items()
+    }
     input_max = stat['max']
     input_min = stat['min']
     abs_max = np.max([np.abs(stat['max'][:2]), np.abs(stat['min'][:2])])
@@ -382,91 +386,74 @@ def _dummy_stat(ndim: int) -> dict:
 
 def build_equivariant_normalizer(
     stats: dict,
-    min_range: float = 0.1,  # matches min_action_range default
+    robot_base_xy: torch.Tensor | np.ndarray | None = None,
+    min_range: float = 0.1,
 ) -> LinearNormalizer:
     """
     Build a LinearNormalizer with per-field equivariant-safe normalization.
 
-    State layout (9-dim):
-        [0:2]  pos_xy      — irrep(1), symmetric normalization
-        [2:3]  pos_z       — trivial, range normalization
-        [3:7]  ee_quat     — converted to 6D rot in encoder, identity here
-        [7:9]  ee_q        — trivial, range normalization
+    Parameters
+    ----------
+    stats : dict
+        Aggregated dataset stats (e.g. ``LeRobotDataset.meta.stats``).
+    robot_base_xy : (2,) tensor / array, optional
+        If provided, pos_xy stats are shifted by -robot_base_xy so that the
+        symmetric normalizer's ``scale`` is computed about the rotation
+        center, not the world origin. The matching subtraction at runtime
+        must happen in ResObsEnc.forward() — see set_normalizer().
 
-    Action layout (7-dim):
-        [0:2]  action_xy   — irrep(1), symmetric normalization
-        [2:3]  action_z    — trivial, range normalization
-        [3:5]  action_rx_ry — identity
-        [5:6]  action_rz   — identity
-        [6:7]  action_gripper — trivial, range normalization
-
-    for full dataset description:
-     - https://huggingface.co/datasets/ankile/robomimic-mh-can-image
+    Reference: https://huggingface.co/datasets/ankile/robomimic-mh-can-image
     """
-    # base_xy_np = robot_base_xy.cpu().numpy().astype(np.float32)
-
-    state_stat = {k: (v.cpu().numpy().astype(np.float32) if isinstance(v, torch.Tensor)
-                      else np.array(v, dtype=np.float32))
-                  for k, v in stats["observation.state"].items()}
-    action_stat = {k: (v.cpu().numpy().astype(np.float32) if isinstance(v, torch.Tensor)
-                       else np.array(v, dtype=np.float32))
-                   for k, v in stats["action"].items()}
-    
-    print(f"state_stat = {state_stat}")
-    print(f"\n\nstats[observation.state] = {stats['observation.state']}")
+    state_stat = {
+        k: (v.cpu().numpy().astype(np.float32) if isinstance(v, torch.Tensor)
+            else np.array(v, dtype=np.float32))
+        for k, v in stats["observation.state"].items()
+    }
+    action_stat = {
+        k: (v.cpu().numpy().astype(np.float32) if isinstance(v, torch.Tensor)
+            else np.array(v, dtype=np.float32))
+        for k, v in stats["action"].items()
+    }
 
     normalizer = LinearNormalizer()
 
     # ==== Proprioception ====
 
-    # pos_xy: symmetric (equivariant irrep(1)), centered by robot_base_xy
-    # pos_xy_stat = _shift_stat(_slice_stat(state_stat, slice(0, 2)), base_xy_np)
-    # normalizer["pos_xy"] = get_range_symmetric_normalizer_from_stat(pos_xy_stat)
-
+    # pos_xy: symmetric (irrep(1)). Shift by robot_base_xy so abs_max is
+    # measured around the rotation center.
     pos_xy_stat = _slice_stat(state_stat, slice(0, 2))
+    if robot_base_xy is not None:
+        base_xy_np = (
+            robot_base_xy.detach().cpu().numpy()
+            if isinstance(robot_base_xy, torch.Tensor)
+            else np.asarray(robot_base_xy)
+        ).astype(np.float32).reshape(2)
+        pos_xy_stat = _shift_stat(pos_xy_stat, base_xy_np)
+        print(f"[build_equivariant_normalizer] pos_xy shifted by base_xy={base_xy_np.tolist()}")
+    else:
+        print("[build_equivariant_normalizer] WARNING: no robot_base_xy provided; "
+              "pos_xy will be normalized around the world origin")
     normalizer["pos_xy"] = get_range_symmetric_normalizer_from_stat(pos_xy_stat)
 
-    # pos_z: range → [-1, 1]
+    # pos_z: range -> [-1, 1]
     normalizer["pos_z"] = get_range_normalizer_from_stat(_slice_stat(state_stat, slice(2, 3)))
 
-    # ee_rot: identity (quat → 6D rotation happens in encoder, no data-dependent scaling)
+    # ee_rot: identity (quat -> 6D rotation happens in encoder)
     normalizer["ee_rot"] = get_identity_normalizer_from_stat(_dummy_stat(6))
 
-    # ee_q: range → [-1, 1]
+    # ee_q: range
     normalizer["ee_q"] = get_range_normalizer_from_stat(_slice_stat(state_stat, slice(7, 9)))
 
-    # ==== Action ====
+    # ==== Action (delta-pose / OSC_POSE; deltas are origin-free) ====
 
-    # if absolute_actions:
-    #     action_xy_stat = {
-    #         "min": state_stat["min"][:2] + action_stat["min"][:2] - base_xy_np,
-    #         "max": state_stat["max"][:2] + action_stat["max"][:2] - base_xy_np,
-    #         "mean": state_stat["mean"][:2] + action_stat["mean"][:2] - base_xy_np,
-    #         "std": action_stat["std"][:2].copy(),
-    #     }
-    # else:
-    #     action_xy_stat = _slice_stat(action_stat, slice(0, 2))
-    # normalizer["action_xy"] = get_range_symmetric_normalizer_from_stat(action_xy_stat)
-
+    # action_xy: symmetric, NO shift (delta).
     action_xy_stat = _slice_stat(action_stat, slice(0, 2))
     normalizer["action_xy"] = get_range_symmetric_normalizer_from_stat(action_xy_stat)
 
-    # action_z: range
-    normalizer["action_z"] = get_range_normalizer_from_stat(_slice_stat(action_stat, slice(2, 3)))
-
-    # action_rx_ry: identity
-    normalizer["action_rx_ry"] = get_identity_normalizer_from_stat(_dummy_stat(2))
-
-    # action_rz: identity
-    normalizer["action_rz"] = get_identity_normalizer_from_stat(_dummy_stat(1))
-
-    # action_gripper: range
+    normalizer["action_z"]       = get_range_normalizer_from_stat(_slice_stat(action_stat, slice(2, 3)))
+    normalizer["action_rx_ry"]   = get_identity_normalizer_from_stat(_dummy_stat(2))
+    normalizer["action_rz"]      = get_identity_normalizer_from_stat(_dummy_stat(1))
     normalizer["action_gripper"] = get_range_normalizer_from_stat(_slice_stat(action_stat, slice(6, 7)))
-
-    # NOTE: Images are NOT included here.
-    # get_image_range_normalizer() expects [0,1] input (scale=2, offset=-1).
-    # Your replay buffer stores uint8 [0,255], so handle images inline in
-    # the encoder: obs.float() / 255.0 * 2.0 - 1.0
 
     return normalizer
 

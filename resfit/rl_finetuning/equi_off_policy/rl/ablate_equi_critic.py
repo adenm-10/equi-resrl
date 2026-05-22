@@ -25,23 +25,23 @@ class HeadMLP(torch.nn.Module):
                  hidden_dim: int,
                  output_dim: int,
                  num_layers: int = 2,
-                 use_layer_norm: bool = True,
+                 use_norms: bool = True,
                  dropout: float = 0.0):
         super().__init__()
 
         layers = []
-        current_dim = in_dim
 
-        for _ in range(num_layers):
-            layers.append(torch.nn.Linear(current_dim, hidden_dim))
-            if use_layer_norm:
-                layers.append(torch.nn.LayerNorm(hidden_dim))
-            if dropout > 0:
-                layers.append(torch.nn.Dropout(dropout))
-            layers.append(torch.nn.ReLU())  # no inplace — required for vmap
-            current_dim = hidden_dim
+        layers.append(torch.nn.Linear(in_dim, hidden_dim))
+        # if use_norms:
+        #     layers.append(torch.nn.LayerNorm(hidden_dim))
+        layers.append(torch.nn.ReLU())  # no inplace — required for vmap
 
-        layers.append(torch.nn.Linear(current_dim, output_dim))
+        layers.append(torch.nn.Linear(hidden_dim, hidden_dim))
+        # if use_norms:
+        #     layers.append(torch.nn.LayerNorm(hidden_dim))
+        layers.append(torch.nn.ReLU())  # no inplace — required for vmap
+
+        layers.append(torch.nn.Linear(hidden_dim, output_dim))
         self.net = torch.nn.Sequential(*layers)
 
     def forward(self, feat: torch.Tensor) -> torch.Tensor:
@@ -58,25 +58,25 @@ class QEnsemble(torch.nn.Module):
         output_dim: int,
         num_layers: int,
         num_heads: int = 2,
-        use_layer_norm: bool = True,
+        use_norms: bool = True,
         dropout: float = 0.0,
-        orth: bool = True,
+        use_orth_init: bool = True,
     ):
         super().__init__()
         self.num_heads = num_heads
 
         heads = [
-            HeadMLP(in_dim, hidden_dim, output_dim, num_layers, use_layer_norm, dropout)
+            HeadMLP(in_dim, hidden_dim, output_dim, num_layers, use_norms, dropout)
             for _ in range(num_heads)
         ]
 
-        if orth:
-            for head in heads:
-                head.net.apply(utils.orth_weight_init)
+        # if use_orth_init:
+        #     for head in heads:
+        #         head.net.apply(utils.orth_weight_init)
 
         self.params, self.buffers = stack_module_state(heads)
 
-        self._head_template = HeadMLP(in_dim, hidden_dim, output_dim, num_layers, use_layer_norm, dropout)
+        self._head_template = HeadMLP(in_dim, hidden_dim, output_dim, num_layers, use_norms, dropout)
 
         for name, param in self.params.items():
             self.register_parameter(
@@ -117,15 +117,6 @@ class QEnsemble(torch.nn.Module):
 #                                                       └─ act ──┘
 #
 #   z, prop, act ──► concat ──► q_ensemble (heads) ──► logits per head
-#
-# The visual_proj compresses the 1120-dim visual stream down to
-# `visual_proj_dim` (default 128, matching baseline patch dim) before action
-# and prop are concatenated. This brings action's share of trunk input from
-# ~0.6% (current: 7/1138) up to ~4.8% (with proj_dim=128: 7/146), matching
-# the baseline's per-token proportions and removing the initialization
-# disadvantage for action signal.
-#
-# The head-skip concat is unchanged in spirit: [z, prop, act].
 # ---------------------------------------------------------------------------
 
 class Critic(torch.nn.Module):
@@ -135,58 +126,60 @@ class Critic(torch.nn.Module):
                  action_dim: int,
                  prop_dim: int,
                  num_layers: int,
-                 cfg: CriticConfig,
-                 N: int = 8):
+                 N: int,
+                 
+                 loss,
+                 num_q,
+                 use_norms,
+                 use_orth_init,
+                 dropout,
+                 min_q_heads,
+                 policy_gradient_type,
+    ):
         super().__init__()
-        self.cfg = cfg
-        self.loss_cfg = cfg.loss
         self.action_dim = action_dim
         self.prop_dim = prop_dim
 
-        # NOTE on `in_dim`: by convention from the original code, in_dim is
-        # passed as `enc_out_dim_critic + action_dim`, but the actual `feat`
-        # tensor only has shape [B, enc_out_dim_critic] — action is concatenated
-        # separately inside forward(). So feat_dim = in_dim - action_dim, and
-        # the visual portion of feat is feat_dim - prop_dim.
+        output_dim = 1
+        hidden_dim_full = hidden_dim * N
         feat_dim = in_dim - action_dim
         self.feat_dim = feat_dim
         self.vis_dim = feat_dim - prop_dim   # everything except prop tail
 
-        # Visual projection dim — knob for action proportion.
-        # Default to baseline-parity (128); allow override via cfg.
-        self.visual_proj_dim = getattr(cfg, "visual_proj_dim", 128)
+        self.loss_cfg = loss
+        self.num_q = num_q
+        self.policy_gradient_type = policy_gradient_type
+        self.use_orth_init = use_orth_init
+        self.use_norms = use_norms
+        self.min_q_heads = min_q_heads
+        self.dropout = dropout
 
-        output_dim = self.loss_cfg.n_bins if self.loss_cfg.type in {"hl_gauss", "c51"} else 1
-        hidden_dim_full = proj_dim = hidden_dim * N
-
-        # ---- NEW: visual projection ----
-        # Compress [vis, ih] from vis_dim (e.g. 1120) → visual_proj_dim (e.g. 128)
-        # so action+prop have proportional weight at the trunk concat.
-        vis_proj_layers = [torch.nn.Linear(self.vis_dim, self.visual_proj_dim)]
-        if cfg.use_layer_norm:
-            vis_proj_layers.append(torch.nn.LayerNorm(self.visual_proj_dim))
+        # ---- Visual Projection: agentview + inhand -> visual features ----
+        vis_proj_layers = [torch.nn.Linear(self.vis_dim, hidden_dim_full)]
+        # if use_norms:
+        #     vis_proj_layers.append(torch.nn.LayerNorm(hidden_dim_full))
         vis_proj_layers.append(torch.nn.ReLU())
         self.visual_proj = torch.nn.Sequential(*vis_proj_layers)
 
-        # ---- Trunk: projected_visual + prop + action → bottleneck ----
-        trunk_in_dim = self.visual_proj_dim + prop_dim + action_dim
-        layers = [torch.nn.Linear(trunk_in_dim, proj_dim)]
-        if cfg.use_layer_norm:
-            layers.append(torch.nn.GroupNorm(proj_dim // N, proj_dim))
+        # ---- Trunk: visual features + prop + action -> all features ----
+        trunk_in_dim = hidden_dim_full + prop_dim + action_dim
+        layers = [torch.nn.Linear(trunk_in_dim, hidden_dim_full)]
+        # if use_norms:
+        #     layers.append(torch.nn.GroupNorm(hidden_dim_full // N, hidden_dim_full))
         layers.append(torch.nn.ReLU())
         self.input_proj = torch.nn.Sequential(*layers)
 
-        # ---- Heads see bottleneck + re-concatenated prop + action (skip) ----
-        head_in_dim = proj_dim + prop_dim + action_dim
+        # ---- Heads: all features + prop + action ----
+        head_in_dim = hidden_dim_full + prop_dim + action_dim
         self.q_ensemble = QEnsemble(
             in_dim=head_in_dim,
             hidden_dim=hidden_dim_full,
             output_dim=output_dim,
             num_layers=num_layers,
-            num_heads=cfg.num_q,
-            use_layer_norm=cfg.use_layer_norm,
-            dropout=getattr(cfg, "dropout", 0.0),
-            orth=getattr(cfg, "orth", True),
+            num_heads=num_q,
+            use_norms=use_norms,
+            dropout=dropout,
+            use_orth_init=use_orth_init,
         )
 
     @staticmethod
@@ -214,18 +207,22 @@ class Critic(torch.nn.Module):
 
     def q_value(self, feat, act):
         q_out = self.forward(feat, act)
-        num_heads = min(self.cfg.min_q_heads, q_out.shape[0])
+        num_heads = min(self.min_q_heads, q_out.shape[0])
         idx = torch.randperm(q_out.shape[0], device=q_out.device)[:num_heads]
         return torch.min(q_out.index_select(0, idx), dim=0).values
 
     def q_value_for_policy(self, feat, act):
         q_out = self.forward(feat, act)
-        if self.cfg.policy_gradient_type == "ensemble_mean":
+
+        if self.policy_gradient_type == "ensemble_mean":
             return q_out.mean(dim=0)
-        if self.cfg.policy_gradient_type == "min_random_pair":
-            num_heads = min(self.cfg.min_q_heads, q_out.shape[0])
+        
+        if self.policy_gradient_type == "min_random_pair":
+            num_heads = min(self.min_q_heads, q_out.shape[0])
             idx = torch.randperm(q_out.shape[0], device=q_out.device)[:num_heads]
             return torch.min(q_out.index_select(0, idx), dim=0).values
-        if self.cfg.policy_gradient_type == "q1":
+        
+        if self.policy_gradient_type == "q1":
             return q_out[0]
-        raise ValueError(f"Unknown policy_gradient_type: {self.cfg.policy_gradient_type}")
+        
+        raise ValueError(f"Unknown policy_gradient_type: {self.policy_gradient_type}")

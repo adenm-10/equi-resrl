@@ -558,7 +558,9 @@ class FieldNorm(EquivariantModule):
         # N.B.: we implicitly assume the dimensions to be iid,
         # i.e. the covariance matrix is a scalar multiple of the identity
         # vars = centered.var(dim=2, unbiased=False, keepdim=True).detach()
-        vars = (centered**2).mean(dim=2, keepdim=True)
+        # vars = (centered**2).mean(dim=2, keepdim=True)
+        spatial_axes = tuple(range(3, centered.ndim))   # empty for 3D input
+        vars = (centered**2).mean(dim=(2,) + spatial_axes, keepdim=True)
         # vars = (centered**2).mean(dim=2, keepdim=True).detach()
 
         return means, vars

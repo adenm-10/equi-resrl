@@ -1,9 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.  
 
 # SPDX-License-Identifier: CC-BY-NC-4.0
-
 from __future__ import annotations
-
 import os
 
 # Cap all BLAS/OpenMP threadpools (critical to set before importing numpy/torch)
@@ -55,7 +53,7 @@ from resfit.lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
 from resfit.lerobot.utils.load_policy import download_policy_from_wandb, load_policy
 from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
-# from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+
 from resfit.rl_finetuning.utils.dtype import to_uint8
 from resfit.rl_finetuning.utils.evaluate_dexmg import run_dexmg_evaluation
 from resfit.rl_finetuning.utils.hugging_face import (
@@ -152,6 +150,33 @@ os.environ["MUJOCO_GL"] = "egl"
 if "MUJOCO_EGL_DEVICE_ID" in os.environ:
     del os.environ["MUJOCO_EGL_DEVICE_ID"]
 
+# -----------------------------------------------------------------------------
+# Robot base XY probe (one-shot, cached) --------------------------------------
+# -----------------------------------------------------------------------------
+def get_robot_base_xy_cached(env_name: str, video_key: str, cache_root: Path) -> torch.Tensor:
+    """Return robot base (x, y) for ``env_name``. Probes the simulator on the
+    first call and caches to ``{cache_root}/env_probes/{env_name}.json`` for
+    all subsequent runs."""
+    cache_file = cache_root / "env_probes" / f"{env_name}.json"
+
+    if cache_file.exists():
+        with open(cache_file) as f:
+            data = json.load(f)
+        base_xy = torch.tensor(data["base_xy"], dtype=torch.float32)
+        print(f"[robot_base_xy] Loaded from cache {cache_file}: {base_xy.tolist()}")
+        return base_xy
+
+    # Lazy import to avoid pulling robosuite at module import time
+    from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import detect_robot_base_xy
+
+    print(f"[robot_base_xy] No cache for '{env_name}'; probing env...")
+    base_xy = detect_robot_base_xy(env_name, video_key)
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump({"env_name": env_name, "base_xy": base_xy.tolist()}, f, indent=2)
+    print(f"[robot_base_xy] Cached to {cache_file}: {base_xy.tolist()}")
+    return base_xy
 
 def _add_transitions_to_buffer(
     *,
@@ -410,25 +435,31 @@ def main(cfg: ResidualTD3DexmgConfig):
     else:
         print(f"Instantiating Equivariant Agent")
         from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
-        # from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_q_agent import QAgent
         agent = QAgent(
             obs_shape=(img_c, img_h, img_w),
             prop_shape=(lowdim_dim,),
             action_dim=action_dim,
             rl_cameras=image_keys,
-            cfg=cfg.agent,
+            agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
-            residual_actor=True,  # Enable residual actor mode
+            residual_actor=True,
+            equivariant=cfg.equivariance.use_equivariant_model,
         )
-        # ROBOT_BASE_XY = detect_robot_base_xy(cfg.task, cfg.video_key)
+
+        # if cfg.equivariance.use_equivariant_model:
+        robot_base_xy = get_robot_base_xy_cached(
+            env_name=cfg.task,
+            video_key=cfg.video_key,
+            cache_root=_CACHE_ROOT,
+        )
         normalizer = build_equivariant_normalizer(
             stats=dataset.meta.stats,
-            # robot_base_xy=ROBOT_BASE_XY,
-            # absolute_actions=False,
+            robot_base_xy=robot_base_xy,
         )
-        # agent.enc.set_normalizer(normalizer, ROBOT_BASE_XY)
-        agent.enc.set_normalizer(normalizer)
+        agent.enc.set_normalizer(normalizer, robot_base_xy=robot_base_xy)
+
         agent.to(device)
+        
     horizon = env.vec_env.metadata["horizon"]
 
     # Set up actor learning rate warmup
@@ -791,11 +822,6 @@ def main(cfg: ResidualTD3DexmgConfig):
     if len(online_rb) < cfg.algo.learning_starts and not loaded_online_from_cache:
         print(f"Warm-up: filling online buffer with {cfg.algo.learning_starts - len(online_rb)} random steps…")
         obs, _ = env.reset()
-        # raw_state = obs["observation.state"].float().squeeze(0)
-        # print(f"Raw ee_pos: {raw_state[:3]}")
-        # print(f"Raw ee_quat: {raw_state[3:7]}, norm: {torch.norm(raw_state[3:7])}")
-        # print(f"Raw ee_q: {raw_state[7:9]}")
-        # assert False
 
         # --------------------------------------------------------------
         # Logging helper: print progress every 1 000 collected transitions
@@ -954,9 +980,6 @@ def main(cfg: ResidualTD3DexmgConfig):
         for i in range(cfg.algo.critic_warmup_steps):
             # Sample mixed online/offline batch
 
-            # import time
-            # start = time.time()
-
             with training_timer.time("batch_sampling"):
                 # Sample batches from replay buffers
                 online_batch = online_rb.sample(online_batch_size)
@@ -971,15 +994,9 @@ def main(cfg: ResidualTD3DexmgConfig):
                     # Online-only training
                     batch = online_batch
 
-            # print(f"sample time: {time.time() - start}")
-
             # Only update critic during warmup (update_actor=False)
             with training_timer.time("gradient_update"):
                 metrics = agent.update(batch, stddev=0.0, update_actor=False, bc_batch=None, ref_agent=agent)
-                # assert False
-            # print("sanity")
-            # assert False
-            # print(f"update time: {time.time() - start}")
 
             # Update priorities for prioritized experience replay
             if cfg.algo.sampling_strategy == "prioritized_replay" and "_td_errors" in metrics:
@@ -1003,8 +1020,6 @@ def main(cfg: ResidualTD3DexmgConfig):
                 else:
                     # Online-only training - update only online buffer
                     online_rb.update_tensordict_priority(batch)
-
-            # print(f"replay store time: {time.time() - start}\n")
 
             # Progress logging
             if i % 100 == 0:
@@ -1094,6 +1109,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         # (3) Periodic evaluation ------------------------------------------
         # ------------------------------------------------------------------
         if global_step % cfg.eval_interval_every_steps == 0 and (cfg.eval_first or global_step > 0):
+        # if False:
             with training_timer.time("evaluation"):
                 eval_metrics = run_dexmg_evaluation(
                     env=eval_env,
@@ -1216,6 +1232,8 @@ def main(cfg: ResidualTD3DexmgConfig):
             # Compute residual action statistics only when logging
             if "_actions" in metrics:
                 actions = metrics["_actions"]
+                # print(actions)
+                # assert False
                 # Compute L1/L2 magnitudes (only during logging to save computation)
                 residual_l1_magnitude = torch.mean(torch.abs(actions)).item()
                 residual_l2_magnitude = torch.mean(torch.square(actions)).item()

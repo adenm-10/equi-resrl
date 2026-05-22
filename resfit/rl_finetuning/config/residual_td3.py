@@ -42,9 +42,13 @@ class BasePolicyConfig:
 
 @dataclass
 class EquivarianceConfig:
+    use_equivariant_model: bool = True
+
     N: int = 8
-    enc_degree_channel: int = 16 # power of 8 for agent view encoder, ideally 128
+    enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
     initialize: bool = True
+    use_norms: bool = True
+    use_orth_init: bool = True
 
     num_actor_layers: int = 2
     actor_degree_channel: int = 128

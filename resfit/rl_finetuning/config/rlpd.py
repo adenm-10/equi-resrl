@@ -36,7 +36,7 @@ class CriticLossCfg:
 
 @dataclass
 class CriticConfig:
-    drop: float = 0
+    dropout: float = 0
     feature_dim: int = 128
     fuse_patch: int = 1
     hidden_dim: int = 1024

@@ -44,37 +44,46 @@ def _init_norm(norm: nn.GroupNorm, *, zero_scale: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, use_norms: bool = False):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
-                               stride=stride, padding=1, bias=False)
-        self.norm1 = _make_gn(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
-                               padding=1, bias=False)
-        self.norm2 = _make_gn(out_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        # self.norm1 = _make_gn(out_channels) if use_norms else nn.Identity()
+        
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        # self.norm2 = _make_gn(out_channels) if use_norms else nn.Identity()
         self.relu = nn.ReLU(inplace=True)
 
         if in_channels != out_channels or stride != 1:
-            self.skip = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1,
-                          stride=stride, bias=False),
-                _make_gn(out_channels),
-            )
+            if use_norms:
+                self.skip = nn.Sequential(
+                    nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                    # _make_gn(out_channels),
+                )
+            else:
+                self.skip = nn.Sequential(
+                    nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False))
         else:
             self.skip = nn.Identity()
 
         # Initialization
-        _kaiming_init_conv(self.conv1)
-        _kaiming_init_conv(self.conv2)
-        _init_norm(self.norm1, zero_scale=False)
-        _init_norm(self.norm2, zero_scale=True)        # SkipInit
-        if isinstance(self.skip, nn.Sequential):
-            _kaiming_init_conv(self.skip[0])
-            _init_norm(self.skip[1], zero_scale=False)
+        # _kaiming_init_conv(self.conv1)
+        # _kaiming_init_conv(self.conv2)
+        # if use_norms:
+            # _init_norm(self.norm1, zero_scale=False)
+            # _init_norm(self.norm2, zero_scale=True)
+
+        # if isinstance(self.skip, nn.Sequential):
+            # _kaiming_init_conv(self.skip[0])
+            # if use_norms:
+                # _init_norm(self.skip[1], zero_scale=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.relu(self.norm1(self.conv1(x)))
-        out = self.norm2(self.conv2(out))
+        # out = self.relu(self.norm1(self.conv1(x)))
+        # out = self.norm2(self.conv2(out))
+        # return self.relu(out + self.skip(x))
+
+        out = self.relu(self.conv1(x))
+        out = self.conv2(out)
         return self.relu(out + self.skip(x))
 
 
@@ -94,7 +103,12 @@ class ResBlock(nn.Module):
 # ---------------------------------------------------------------------------
 
 class ResEncoder76(nn.Module):
-    def __init__(self, obs_channel: int = 3, n_out: int = 128, N: int = 8):
+    def __init__(self, 
+                 obs_channel: int = 3, 
+                 n_out: int = 128, 
+                 N: int = 8,
+                 use_norms: bool = True
+    ):
         super().__init__()
         c1 = max((n_out // 8) * N, 1)
         c2 = max((n_out // 4) * N, 1)
@@ -103,44 +117,56 @@ class ResEncoder76(nn.Module):
         self.out_channels = c4
 
         # Stem: 76 -> 72
-        self.stem = nn.Sequential(
-            nn.Conv2d(obs_channel, c1, kernel_size=5, padding=0, bias=False),
-            _make_gn(c1),
-            nn.ReLU(inplace=True),
-        )
-        _kaiming_init_conv(self.stem[0])
-        _init_norm(self.stem[1])
+        if use_norms:
+            self.stem = nn.Sequential(
+                nn.Conv2d(obs_channel, c1, kernel_size=5, padding=0, bias=False),
+                # _make_gn(c1),
+                nn.ReLU(inplace=True),
+            )
+            # _init_norm(self.stem[1])
+        else:
+            self.stem = nn.Sequential(
+                nn.Conv2d(obs_channel, c1, kernel_size=5, padding=0, bias=False),
+                nn.ReLU(inplace=True),
+            )
+        # _kaiming_init_conv(self.stem[0])
 
         self.stage1 = nn.Sequential(
-            ResBlock(c1, c1),
-            # ResBlock(c1, c1),
+            ResBlock(c1, c1, use_norms=use_norms),
+            ResBlock(c1, c1, use_norms=use_norms),
             nn.MaxPool2d(2),     # 72 -> 36
         )
         self.stage2 = nn.Sequential(
-            ResBlock(c1, c2),
-            # ResBlock(c2, c2),
+            ResBlock(c1, c2, use_norms=use_norms),
+            ResBlock(c2, c2, use_norms=use_norms),
             nn.MaxPool2d(2),     # 36 -> 18
         )
         self.stage3 = nn.Sequential(
-            ResBlock(c2, c3),
-            # ResBlock(c3, c3),
+            ResBlock(c2, c3, use_norms=use_norms),
+            ResBlock(c3, c3, use_norms=use_norms),
             nn.MaxPool2d(2),     # 18 -> 9
         )
         self.stage4 = nn.Sequential(
-            ResBlock(c3, c4),
-            # ResBlock(c4, c4),
+            ResBlock(c3, c4, use_norms=use_norms),
+            ResBlock(c4, c4, use_norms=use_norms),
             nn.MaxPool2d(3),     # 9 -> 3
         )
 
         # Tail: 3 -> 1.  GN over c4 channels at 1x1 spatial = LayerNorm on
         # the flattened feature vector. Downstream Linear sees an O(1) signal.
-        self.tail = nn.Sequential(
-            nn.Conv2d(c4, c4, kernel_size=3, padding=0, bias=False),
-            _make_gn(c4),
-            # nn.ReLU(inplace=True),
-        )
-        _kaiming_init_conv(self.tail[0])
-        _init_norm(self.tail[1])
+        if use_norms:
+            self.tail = nn.Sequential(
+                nn.Conv2d(c4, c4, kernel_size=3, padding=0, bias=False),
+                # _make_gn(c4),
+                nn.ReLU(inplace=True),
+            )
+            # _init_norm(self.tail[1])
+        else:
+            self.tail = nn.Sequential(
+                nn.Conv2d(c4, c4, kernel_size=3, padding=0, bias=False),
+                nn.ReLU(inplace=True),
+            )
+        # _kaiming_init_conv(self.tail[0])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -173,10 +199,10 @@ class NormResBlock(torch.nn.Module):
 
         self.conv1 = torch.nn.Conv2d(in_channels, out_channels, kernel_size,
                                       padding=pad, stride=stride, bias=False)
-        self.norm1 = torch.nn.GroupNorm(_gn_groups(out_channels), out_channels)
+        # self.norm1 = torch.nn.GroupNorm(_gn_groups(out_channels), out_channels)
         self.conv2 = torch.nn.Conv2d(out_channels, out_channels, kernel_size,
                                       padding=pad, bias=False)
-        self.norm2 = torch.nn.GroupNorm(_gn_groups(out_channels), out_channels)
+        # self.norm2 = torch.nn.GroupNorm(_gn_groups(out_channels), out_channels)
         self.relu  = torch.nn.ReLU(inplace=True)
 
         self.skip = None
@@ -184,13 +210,19 @@ class NormResBlock(torch.nn.Module):
             self.skip = torch.nn.Sequential(
                 torch.nn.Conv2d(in_channels, out_channels, 1,
                                  stride=stride, bias=False),
-                torch.nn.GroupNorm(_gn_groups(out_channels), out_channels),
+                # torch.nn.GroupNorm(_gn_groups(out_channels), out_channels),
             )
 
     def forward(self, x):
+        # identity = x if self.skip is None else self.skip(x)
+        # out = self.relu(self.norm1(self.conv1(x)))
+        # out = self.norm2(self.conv2(out))
+        # out = out + identity
+        # return self.relu(out)
+
         identity = x if self.skip is None else self.skip(x)
-        out = self.relu(self.norm1(self.conv1(x)))
-        out = self.norm2(self.conv2(out))
+        out = self.relu(self.conv1(x))
+        out = self.conv2(out)
         out = out + identity
         return self.relu(out)
 
@@ -226,7 +258,7 @@ class ResEncoder76InHand(torch.nn.Module):
 
         seq = [
             torch.nn.Conv2d(obs_channel, c1, kernel_size=5, padding=0, bias=False),
-            torch.nn.GroupNorm(_gn_groups(c1), c1),
+            # torch.nn.GroupNorm(_gn_groups(c1), c1),
             torch.nn.ReLU(inplace=True),
         ]
         seq += stage(c1, c1, blocks_per_stage, pool_k=2)   # 72 → 36
@@ -239,10 +271,12 @@ class ResEncoder76InHand(torch.nn.Module):
             # torch.nn.ReLU(inplace=True),
         ]
         self.conv = torch.nn.Sequential(*seq)
-        self.out_ln = torch.nn.LayerNorm(n_out) if out_layernorm else torch.nn.Identity()
+        # self.out_ln = torch.nn.LayerNorm(n_out)
+        self.out_ln = torch.nn.Identity()
         self.n_out = n_out
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.conv(x)              # [B, n_out, 1, 1]
         h = h.flatten(1)              # [B, n_out]
+        # return h
         return self.out_ln(h)         # apply LN on the flat feature

@@ -69,39 +69,43 @@ class ResObsEnc(ModuleAttrMixin):
         crop_shape=(76, 76),
         N=8,
         n_hidden=128,
-        ih_n_out=96,                     # NEW: in-hand encoder output dim
-        ih_channels=(16, 32, 64, 96),    # NEW: in-hand channel widths
+        ih_channels=(16, 32, 64, 128),    # NEW: in-hand channel widths
         ih_blocks_per_stage=1,           # NEW: in-hand depth
-        absolute_actions=False,
+        use_norms=True,
     ):
         super().__init__()
         self.obs_channel = obs_shape[0]
         self.n_hidden = n_hidden
         self.N = N
-        self.ih_n_out = ih_n_out
-        self.absolute_actions = absolute_actions
+        self.n_hidden = n_hidden
 
         self.prop_dim = 11
         self.action_dim = 7
 
         self.enc_out_dim_critic = (
             n_hidden * N          # agentview
-            + ih_n_out            # in-hand   ← was n_hidden
+            + n_hidden            # in-hand   ← was n_hidden
             + self.prop_dim
         )
 
         self.enc_out_dim_actor = (
             n_hidden * N
-            + ih_n_out            # in-hand   ← was n_hidden
+            + n_hidden            # in-hand   ← was n_hidden
             + self.prop_dim
             + self.action_dim
         )
 
-        self.enc_obs = ResEncoder76(self.obs_channel, n_hidden, N)
+        self.enc_obs = ResEncoder76(
+            obs_channel=self.obs_channel, 
+            n_out=n_hidden, 
+            N=N,
+            use_norms=use_norms
+        )
+
         self.enc_ih  = ResEncoder76InHand(
             obs_channel=self.obs_channel,
             channels=ih_channels,
-            n_out=ih_n_out,
+            n_out=n_hidden,
             blocks_per_stage=ih_blocks_per_stage,
         )
 
