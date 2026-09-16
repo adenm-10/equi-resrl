@@ -6,3 +6,16 @@ offline_buffer_cache/
 online_buffer_cache/
 bc_run_*
 deps/
+
+# --- docs: papers are large binaries, kept locally only ---
+docs/papers/
+
+# --- local training run dirs (created by train_residual_td3.py) ---
+local_runs/
+run_20*/
+
+# --- raw terminal dumps (content migrated into docs/) ---
+log.txt
+
+# --- Claude Code local overrides ---
+.claude/settings.local.json
