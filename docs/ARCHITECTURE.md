@@ -135,9 +135,10 @@ No activation between the first Linear and the pooling — the ReLU on line 28 i
 `GroupPooling` (a max over the group channels of each field) is itself nonlinear, so the head is
 not purely linear, but it is shallower and has fewer nonlinearities than the config implies.
 This `GroupPooling` layer is what makes the Q output invariant rather than equivariant, and must be
-preserved. It is **not** what fixed the collapse: it was already present at `7dae4925`, where three
-separate runs collapsed to zero. The actual difference at `caf83f3` is the **removal of `FieldNorm`
-and the ReLUs** from this head. See [EQUIVARIANCE.md](EQUIVARIANCE.md), "What actually changed".
+preserved. **Note this head is HEAD's, not the successful run's** — at `7dae4925`, where `z8yoqylh`
+ran, `FieldNorm` and the ReLUs were still active here. Why that matters, and why the earlier
+"`FieldNorm` broke the critic" reasoning no longer holds, is in
+[EQUIVARIANCE.md](EQUIVARIANCE.md), "What actually changed".
 
 Actor policy head ([actor.py:68-72](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L68)):
 

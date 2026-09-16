@@ -17,87 +17,141 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-09-16 — The lost run was not lost, and the target was wrong
+
+Started as a session to move the previous session's setup onto a second workstation. Turned into
+recovering `z8yoqylh` and discovering the reproduction had been aimed at the wrong commit.
+
+**Done**
+
+- **Moved the repo setup to `boce-WS-01`** (`10.188.60.163`, user `aden`, `~/projects/equi-resrl`).
+  There was already a GitHub remote sitting at `caf83f3`; pushed the 14 unpushed commits plus tags,
+  pulled there. Docs, `.claude/` skills, 148 tests, `preflight.py`, `submit.sh` all in place; gate
+  passes.
+- **Recovered `z8yoqylh`** at `boce-WS-01:~/projects/equi-resrl/wandb/run-20260522_083555-z8yoqylh`,
+  173 MB, config and logs intact. Backed up to `~/equi-resrl-preserve/`.
+- **Corrected the record** in EXPERIMENTS.md (append-only, new section) and repointed
+  `preflight.py` at `z8yoqylh`'s environment. Tagged `repro-z8yoqylh-actual` at `7dae4925`.
+- **Launched the 3-seed replication** on `boce-WS-01`, seed-group `equi-repro-7dae4925`: seeds
+  2114495708 / 1 / 2 as `9qgsaxsr` / `4sseggkv` / `dxbept4u`. Pre-registered before launching.
+- **Killed `m0ylcivk`**, the `caf83f3` run started earlier in the day, once it was clear it was not
+  the reproduction.
+
+**Findings**
+
+1. **`z8yoqylh` ran at `7dae4925`, not `caf83f3`** — from its own `wandb-metadata.json`. That is
+   the same commit as the three collapsed runs, so `7dae4925` is not an architectural failure, and
+   **the `FieldNorm` hypothesis is dead**: `FieldNorm` was in the critic head of the run that
+   reached 0.94.
+2. **The launch carried an override no doc mentioned:**
+   `agent.actor.actor_last_layer_init_scale=1e-4`, against a default of 0.0 that sits in the config
+   with `1e-4` commented out beneath it. `z8yoqylh` and `a3e3zylp` share a commit and a config and
+   differ in only this and the host/stack — one reached 0.94, the other 0.00.
+3. **Host correlates perfectly with outcome across the whole project.** Every collapsed equivariant
+   run ran on `ZXP-S-works`; the one success ran on `boce-WS-01`, whose stack is torch 2.6.0 /
+   torchrl 0.7.0 / escnn 1.0.11. `preflight.py` had been validating the environment against
+   `a3e3zylp` — a run that collapsed to 0.00.
+4. **The successful run had robot-base centering disabled.** At `7dae4925` every call site is
+   commented out, so it rotated about the world origin — the case EQUIVARIANCE.md calls a silent
+   symmetry break. It reached 0.94 anyway. The feature is active at HEAD, so **HEAD is not the
+   architecture that produced 0.94.**
+5. Recovered specifics: seed **2114495708**, best **0.94** (not ~0.92 from the screenshot), runtime
+   **47.3 h** measured. `enc_degree_channel=32` was the one assumption guessed right.
+6. Two path traps in the worktree setup: `_CACHE_ROOT` defaults to the *current directory*, and the
+   BC artifact downloads into `./artifacts/`. Handled with `CACHE_DIR` and a symlink; without them
+   it is a 21 GB rebuild.
+7. Each run holds ~25 GB resident, not ~21 GB. Three is the ceiling on `boce-WS-01`, not a
+   comfortable three.
+
+**Decisions**
+
+- **Replicate before explaining.** Three seeds at the recovered config first; isolating init-scale
+  versus stack is deferred to R11. Rationale: with two candidate causes and n=1, isolating first
+  risks spending ~94 h explaining a result that may not replicate.
+- **Three seeds in parallel over sequential.** Sharing GPU 1 costs 1.85x (measured, 79.7 versus
+  145-150 ms/update) but gets all three in ~87 h against ~94 h sequential. The replication arm runs
+  alone on GPU 0 so the number that matters most is the cleanest.
+- **Left the wrong tag in place.** `repro-z8yoqylh-base` points at `caf83f3`; it is already pushed,
+  so it was superseded rather than moved.
+- **Freeze stays on** `equi_off_policy/`, with a new reason: three runs are in flight and the
+  analysis compares them against `z8yoqylh`.
+
+**Next**
+
+R7 — the 10k and 20k evaluations, where every past collapse was already unambiguous. Then R8
+(config caveats at `7dae4925`, which blocks the results entry) and R10 (`/analyze-experiment`, then
+lift the freeze).
+
+---
+
 ## 2026-09-16 — Phase 2 + launch readiness
 
-Built the pre-submission gate, the submit script, and the config reconstruction. No changes under
-`equi_off_policy/`; the freeze held.
+Built the pre-submission gate, the submit script, and a reconstruction of `z8yoqylh`'s config. No
+changes under `equi_off_policy/`; the freeze held.
+
+**Condensed 2026-09-16.** Several findings in this entry were aimed at `caf83f3` and are superseded
+by the recovery of `z8yoqylh` later the same day — see the top entry and the correction section in
+[EXPERIMENTS.md](EXPERIMENTS.md). What each one got right and wrong is noted inline.
 
 **Done**
 
 - **`tests/` — 148 tests across 7 files.** Independent group-action implementation, layout checks
-  against the physics, actor equivariance, critic invariance, `equi_clip` commutation, and no-op
-  pins. See [tests/README.md](../tests/README.md).
-- **`preflight.py`** — three-tier gate (static / GPU construction / resources) reporting GO or
-  NO-GO, exiting non-zero so launches can be blocked on it. Currently **GO**.
-- **`submit.sh`** — single rewritable launcher, runs the gate first, follows the repo's existing
-  ablation naming convention (group = variant, name = variant-seed, explicit integer seeds).
-- **Tagged `repro-z8yoqylh-base`** at `caf83f3`.
-- **Pre-registered the reproduction** in EXPERIMENTS.md with six numbered assumptions.
+  against the physics, actor equivariance, critic invariance, `equi_clip` commutation, no-op pins.
+- **`preflight.py`** — three-tier gate (static / GPU construction / resources), exiting non-zero so
+  launches can be blocked on it. **`submit.sh`** — single rewritable launcher.
+- Tagged `repro-z8yoqylh-base` at `caf83f3` and pre-registered the reproduction with six
+  assumptions. **Both aimed at the wrong commit.** The tag is superseded by
+  `repro-z8yoqylh-actual` at `7dae4925`; the pre-registration by the correction entry.
 
 **Findings**
 
-1. **The equivariant implementation is correct.** Declared representations match the physics at all
-   8 group elements — including the interleaved rotation-column regrouping, the most error-prone
-   part of the design. Actor equivariance and critic invariance both hold to `< 1e-4`. So the
-   `7dae4925` collapse was *not* a broken symmetry, which strengthens the `FieldNorm` explanation.
-2. **The reference run used config defaults, not the README overrides.** `a3e3zylp`'s resolved
-   config is `n_step=3, gamma=0.99, stddev=0.05, action_scale=0.1` — the dataclass defaults, with
-   `algo.prefetch_batches=4` as the only algorithmic override. The README and the coffee/square
-   scripts pass `n_step=5 gamma=0.995 stddev=0.025 action_scale=0.2`. Copying those would have been
-   wrong twice over: not a reproduction, *and* `n_step`/`gamma` are cache-key fields, so it would
-   have invalidated 21 GB of buffers and forced a multi-hour rebuild.
-3. **`enc_degree_channel` changed 16 → 32 in `caf83f3`.** The one genuine fork in the
-   reconstruction. Going with 32 (the target commit's default, changed in the same commit titled
-   "got equivariant agent working"); 16 is the first thing to retry if it fails. Assumption 2 in
-   the pre-registration.
-4. **The 45° vision equivariance error is ≈0.32 relative** — much larger than expected. Exact at
+1. **The equivariant implementation is correct.** Representations match the physics at all 8 group
+   elements, including the interleaved rotation-column regrouping. Actor equivariance and critic
+   invariance hold to `< 1e-4`. **Still true and still important** — it is why the collapses were
+   never a broken symmetry. The inference drawn from it at the time, that this strengthened the
+   `FieldNorm` explanation, is dead.
+2. **`a3e3zylp` ran on config defaults, not the README overrides** — `n_step=3, gamma=0.99,
+   stddev=0.05, action_scale=0.1`, with `algo.prefetch_batches=4` the only algorithmic override.
+   Still true, and `z8yoqylh`'s recovered config confirms it used the same defaults. Copying the
+   README's `n_step=5 gamma=0.995` would also have invalidated 21 GB of cache, since both are
+   cache-key fields.
+3. **Chose `enc_degree_channel=32`** over 16. Correct by luck: `z8yoqylh` ran at 32, but at
+   `7dae4925`, where the default was 16 — so it was set explicitly, not inherited.
+4. **The 45° vision equivariance error is ≈0.32 relative**, much larger than expected. Exact at
    right angles, a third off at diagonals, because rotating a pixel grid by 45° needs resampling.
-   A second approximation source on top of the tilted camera. Recorded in EQUIVARIANCE.md.
+   Recorded in EQUIVARIANCE.md.
 5. **`train_bc_dexmg.py` parses CLI args at import time** (line 217, outside the `__main__` guard at
-   905), so the module cannot be imported. Skipped in the import test with a dedicated test
-   documenting the defect. Not on the reproduction path.
-
-**Next**
-
-Commit, then the live smoke run (`debug=true`) watching `dQ_da`. If it is still ~2e-4, stop and
-re-diagnose instead of starting a 3-day run. Otherwise `./submit.sh 1`, then seeds 2 and 3.
+   905), so it cannot be imported. Skipped in the import test with a dedicated test documenting the
+   defect. Not on the reproduction path.
 
 ---
 
 ## 2026-09-16 — Pre-flight audit for the reproduction
 
-Checked the machine and wandb rather than assuming. Two findings changed the picture.
+Checked the machine and wandb rather than assuming.
+
+**Condensed 2026-09-16**, for the same reason as the entry above. **Finding 1 of this audit was the
+`FieldNorm` hypothesis, and it is now known false** — `z8yoqylh` ran at `7dae4925` with `FieldNorm`
+present in the critic head. The audit's error was reasoning about which commit the run used from the
+commit titles and the local evidence, rather than from the run's own metadata, which existed the
+whole time on a machine nobody checked.
 
 **Ready, verified**
 
-Environment matches the 300k run exactly (torchrl 0.9.2, tensordict 0.9.1, escnn 1.0.13, CUDA on
-both 3090s). BC base policy needs no retraining — still live in wandb and cached locally. Both Can
-buffer caches computed by hash and present on disk (`cd03f9df` offline 5 GB, `9ff5ddd4` online
-16 GB), so startup is minutes and there is no parallel-seed cache-write race.
+Environment on `ZXP-S-works` matched `a3e3zylp` exactly. BC base policy needed no retraining. Both
+Can buffer caches present by hash, so startup is minutes and there is no parallel-seed write race.
 
-**Findings**
+**Findings that still stand**
 
-1. **Group pooling is not what fixed the collapse.** `nn.GroupPooling` was already in the critic
-   head at `7dae4925`, and all three surviving 300k runs at that commit ended at exactly 0.00 with
-   three different seeds and configs. The real change at `caf83f3` is the **removal of `FieldNorm`
-   and the ReLUs** from the critic head. `FieldNorm` subtracts each field's projection onto the
-   trivial subspace, which for `regular_repr` is its group-invariant component — the very thing the
-   following `GroupPooling` extracts. Matches `dQ_da ≈ 2e-4` with a low stable `critic_loss`.
-   Good news for the reproduction: the target differs from the failures in the right way. Raises the
-   risk on P3.4 (restoring critic normalization) correspondingly.
-2. **`msfkjwab`, the Can baseline, is also deleted from wandb** — not just `z8yoqylh`. It survives
-   only as `wandb/run-20260226_193630-msfkjwab/` on this disk. R7 revised: it cannot be re-pulled.
-3. **Two 300k runs existed only in wandb**: `czjqzg0b` (2026-05-07) and `qe2by47h` (2026-05-16).
-   Both collapsed. `qe2by47h` is the most recent equivariant run of any kind. Now in EXPERIMENTS.md.
-4. **RAM is the binding constraint, not VRAM.** ~21 GB per run (16 GB preallocated online buffer +
-   5 GB offline) against 58 GB available. Two seeds in parallel, not three.
-5. **There is no launch script for Can residual RL**, equivariant or otherwise. Past runs were
-   launched from commands kept in `note.txt`.
-6. `x2w6phzf` used **N=12**, not N=8 — the only run that did.
-
-**Next**
-
-R1–R5, then launch. R section of TODO.md rewritten with the audit results.
+1. **`msfkjwab`, the Can baseline, is deleted from wandb.** It survives only as
+   `ZXP-S-works:wandb/run-20260226_143630-msfkjwab/`. It cannot be re-pulled.
+2. **Two 300k runs existed only in wandb:** `czjqzg0b` (2026-05-07) and `qe2by47h` (2026-05-16),
+   both collapsed. Now in EXPERIMENTS.md.
+3. **RAM is the binding constraint, not VRAM.** Correct in kind, wrong in size: the estimate was
+   ~21 GB per run, and the measurement on `boce-WS-01` is ~25 GB.
+4. **There was no launch script for Can residual RL.** Past runs were launched from commands kept
+   in `note.txt` — which is why `z8yoqylh`'s override was invisible until its metadata was read.
+5. `x2w6phzf` used **N=12**, the only run that did.
 
 ---
 
@@ -116,30 +170,24 @@ Documentation and tooling only. No changes to the training pipeline; the reprodu
   provenance table before believing a run config; `wandb-summary.json` holds only the last value).
 - **`.claude/settings.json`** — read-only Bash allowlist to cut permission prompts.
 
-**Findings**
+**Findings** — all four became STANDARDS.md rules, so they are recorded there rather than restated
+here.
 
-1. **The scalar ablation is not a controlled ablation.** `use_equivariant_model=False` is supposed
-   to isolate equivariance, but the two stacks differ in six ways at once: actor depth (1 hardcoded
-   vs `num_layers` honored), actor dropout (ignored vs applied), output squashing (none vs `Tanh`),
-   return type (tensor vs `TruncatedNormal`), critic head nonlinearities (0 ReLUs vs 2), and
-   ensemble implementation (loop vs `vmap`). Running it today would give an uninterpretable result.
-   Recorded as STANDARDS.md rule 3.3; P4's ablation task is now blocked on matching the stacks
-   rather than on compute. This is the most consequential thing Phase 1 turned up.
-2. **Layer count and normalization are each configured twice** — `agent.actor.num_layers` and
-   `equivariance.num_actor_layers`, `agent.*.use_layer_norm` and `equivariance.use_norms`. The
-   baseline path reads the first of each pair, the equivariant path the second, so setting the wrong
-   one looks reasonable and does nothing. STANDARDS.md rule 1.4.
-3. **`train/` and `training/` are both in use** for nearly the same thing. Rule 6.1 picks
-   `train/` for per-update metrics and `training/` for run-level state, and forbids a third
-   spelling.
-4. **`layer_norm` in the baseline actor is an int used as a 3-way enum** (1 = after every layer,
-   2 = last only), undocumented and only discoverable by reading `build_fc`. Upstream code; rule 1.5
-   says do not copy it.
+1. **The scalar ablation is not a controlled ablation** (rule 3.3). `use_equivariant_model=False`
+   is supposed to isolate equivariance, but the two stacks differ in six ways at once — actor depth,
+   actor dropout, output squashing, return type, critic head nonlinearity count, and ensemble
+   implementation. Running it today gives an uninterpretable result, so P4's ablation is blocked on
+   matching the stacks, not on compute. The most consequential thing Phase 1 turned up, and still
+   open.
+2. **Layer count and normalization are each configured twice** (rule 1.4) — the baseline path reads
+   `agent.*`, the equivariant path reads `equivariance.*`, so setting the wrong one of a pair looks
+   reasonable and does nothing.
+3. **`train/` and `training/` were both in use** for nearly the same thing (rule 6.1).
+4. **`layer_norm` in the baseline actor is an int used as a 3-way enum** (rule 1.5), undocumented
+   and only discoverable by reading `build_fc`. Upstream code; do not copy it.
 
-**Next**
-
-R1–R3: tag `caf83f3`, reconstruct the lost config with assumptions written down, fix the run-naming
-convention. Then the smoke gate and 3 seeds.
+**Next** — recorded as written, and superseded the same day: tag `caf83f3`, reconstruct the lost
+config, fix run naming, then the smoke gate and 3 seeds. The commit was wrong; see the top entry.
 
 ---
 
@@ -182,21 +230,17 @@ First session of the documentation effort. No code changes to the training pipel
    starts at 0.52 and discriminates far better. Can is still right for the reproduction because
    that is what the lost run used.
 
-**Decisions**
+**Decisions** — each now lives in the doc that owns it; pointers only, to avoid drift.
 
-- **Reproduction freeze.** No edits under `resfit/rl_finetuning/equi_off_policy/` until the
-  `z8yoqylh` result is reproduced. Priority 1 (scientific consistency) overriding priority 2 — known
-  defects stay in place so that a reproduction failure cannot be confused with a change we made.
-- **Tilted camera accepted.** Approximate vision equivariance is considered a useful prior; the
-  proprioception and action branches are exactly equivariant. Not scheduled for work.
-- **`rl_utils.py` deleted.** Untracked, unimported, and unimportable — it had
-  `from __future__ import annotations` on line 15, a hard `SyntaxError`, so it had never once
-  loaded. Its one original idea, `TrivialLayerNorm`, is preserved verbatim in TODO item P3.4.
-- **`note.txt` and `log.txt` removed from tracking.** Content migrated into these docs; both
-  recoverable via `git show HEAD~1:note.txt`.
-- **BC retraining is not needed.** Base policies for Can, Square, and TwoArmCoffee are cached under
-  `artifacts/`. Both Can and Square use **Diffusion** policies, not ACT — verified from the cached
-  `policy/config.json`, and worth knowing since the README example and the upstream paper use ACT.
+- **Reproduction freeze** on `resfit/rl_finetuning/equi_off_policy/` — priority 1 over priority 2,
+  so a reproduction failure cannot be confused with a change we made. Still in force, with an
+  updated reason; see STATUS.md.
+- **Tilted camera accepted** as a useful approximation — EQUIVARIANCE.md assumption 1.
+- **`rl_utils.py` deleted**, and **`note.txt` / `log.txt` untracked** — TODO H1/H3. The notes files
+  are recoverable via `git show 8442ba2^:note.txt`.
+- **BC retraining is not needed.** Policies for Can, Square and TwoArmCoffee are cached under
+  `artifacts/`. Can and Square use **Diffusion** policies, not ACT — verified from the cached
+  `policy/config.json`, and worth knowing because the README example and the upstream paper use ACT.
 
 **Next**
 

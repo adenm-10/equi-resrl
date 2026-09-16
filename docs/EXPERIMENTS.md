@@ -679,3 +679,11 @@ expectations, so the environment matches `z8yoqylh`'s `requirements.txt` exactly
 that projects **~47 h for seed 2114495708 and ~85-90 h for seeds 1 and 2.** Running the shared pair
 sequentially instead would have cost ~94 h for both, so sharing is the better choice for getting
 all three, at the price of the two robustness arms landing about two days after the replication arm.
+
+**Config caveats: UNVERIFIED at this commit.** The schema requires this field and it cannot yet be
+filled honestly. The provenance table in [ARCHITECTURE.md](ARCHITECTURE.md) lists which
+`EquivarianceConfig` fields are accepted, logged and ignored, and the no-op tests pin that list at
+HEAD / `caf83f3`. **Nobody has checked which fields are inert at `7dae4925`.** One prior claim about
+that commit — that `use_norms`, `use_orth_init` and `use_equivariant_model` did not exist there —
+proved false when `z8yoqylh`'s resolved config showed all three. Closing this is TODO R8, and it
+blocks the results entry for these three runs.

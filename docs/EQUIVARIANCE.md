@@ -126,40 +126,42 @@ the change that fixed the collapse — see below.
 
 ### What actually changed between the collapsed runs and the successful one
 
-Verified 2026-09-16 by diffing `7dae4925` against `caf83f3`. `GroupPooling` was **already present**
-at `7dae4925`, and all three surviving runs at that commit collapsed to zero success. The critic
-head there was:
+**Rewritten 2026-09-16 after `z8yoqylh` was recovered from disk. The previous version of this
+section was wrong.** It argued that `caf83f3` fixed the collapse by removing `FieldNorm` and the
+ReLUs from the critic head. That cannot be true: the recovered `wandb-metadata.json` shows
+`z8yoqylh` ran at **`7dae4925`**, so the run that reached 0.94 had `FieldNorm` and the ReLUs
+**present**, in this head:
 
 ```
-Linear → FieldNorm → ReLU → [Linear → FieldNorm → ReLU] × (num_layers-1) → GroupPooling → Linear
+Linear -> FieldNorm -> ReLU -> [Linear -> FieldNorm -> ReLU] x (num_layers-1) -> GroupPooling -> Linear
 ```
 
-At `caf83f3` it became simply `Linear → GroupPooling → Linear`, with every `FieldNorm` and `ReLU`
-commented out. So the difference is the **removal of `FieldNorm` (and the ReLUs) from the critic
-head**, not the addition of group pooling.
+`GroupPooling` is still load-bearing. But `7dae4925` produced both the three collapses *and* the
+only success, so no architectural property of that commit explains the difference.
 
-There is a plausible mechanism. `FieldNorm` was applied to `hidden_type`, which is
-`regular_repr` — and per escnn's definition, `FieldNorm` computes each field's mean as *the
-projection onto the trivial-representation subspace* and subtracts it. The trivial subspace of a
-regular representation is exactly its group-invariant component. So `FieldNorm` was stripping the
-invariant part of every field, and the `GroupPooling` immediately after was then trying to extract
-an invariant from features whose invariant content had just been normalized away.
+What differs is the launch. `z8yoqylh` and `a3e3zylp` share a commit and a config file, and
+`a3e3zylp`'s extra `equivariance.num_actor_layers=3` is a verified no-op, so they differ in exactly
+two things:
 
-That is consistent with the diagnostics: `dQ_da_mean_abs ≈ 2e-4` (a critic with almost no usable
-action dependence) alongside a low, stable `critic_loss` (it fit *something* well). It is a
-hypothesis, not a proven cause — but it is a specific and testable one.
+| | `z8yoqylh` | `a3e3zylp` |
+|---|---|---|
+| `actor_last_layer_init_scale` | **1e-4**, passed on the CLI | 0.0, the default |
+| Host / stack | boce-WS-01, torchrl 0.7.0, escnn 1.0.11 | ZXP-S-works, torchrl 0.9.2, escnn 1.0.13 |
+| Result | 0.82 -> **0.94** | 0.88 -> **0.00** |
 
-**It is also not the only change.** `caf83f3` doubled the encoder depth in the same commit (4 -> 8
-residual blocks; the second block in each stage had been commented out) and raised
-`enc_degree_channel` from 16 to 32. A deeper, wider encoder giving better features is an equally
-plausible reason a previously-signalless critic started working. So a successful reproduction will
-confirm *that* the commit works without identifying *which* of the three changes did it. See
-EXPERIMENTS.md, "three candidates, not one".
+At `7dae4925` the config reads `actor_last_layer_init_scale=0.0,  # imp for residual` with
+`# actor_last_layer_init_scale=1e-4,  # imp for residual` commented out directly beneath it. A zero
+last-layer init makes the residual exactly zero at step 0; 1e-4 does not. Which of the two
+differences matters is untested, and they are confounded in the record: every collapsed equivariant
+run ran on ZXP-S-works, and the one success ran on boce-WS-01.
 
-**Consequence for TODO P3.4:** restoring normalization to the critic head is higher-risk than it
-looks. Whatever goes back in must not touch the invariant subspace of a regular representation.
-`TrivialLayerNorm` operating *after* pooling is safe in exactly this respect; `FieldNorm` *before*
-pooling is the thing that appears to have broken it.
+**Consequence for TODO P3.4: the risk assessment inverts.** `FieldNorm` before pooling was believed
+to be what broke the critic. It was present in the run that worked, so it is no longer evidence
+about the collapses. The mechanism that motivated the belief is still a real property of the layer —
+`FieldNorm` subtracts each field's projection onto the trivial subspace, which for a `regular_repr`
+field is exactly the group-invariant component `GroupPooling` exists to extract — so it remains an
+argument for `TrivialLayerNorm` after pooling rather than `FieldNorm` before it. It is just not
+evidence that the current head is the reason anything worked.
 
 ### Clipping has to respect the representation
 
@@ -221,6 +223,29 @@ leaves the center at the world origin — which silently breaks the symmetry rat
 
 `detect_robot_base_xy` also warns if the base orientation is not the identity quaternion, because
 the subtraction assumes the base frame is aligned with the world frame.
+
+### The successful run did not do any of this — found 2026-09-16
+
+**At `7dae4925`, where `z8yoqylh` ran, robot-base centering is entirely disabled.** Every call site
+is commented out: `ROBOT_BASE_XY = detect_robot_base_xy(...)` and the `robot_base_xy=` argument to
+`build_equivariant_normalizer` (`train_residual_td3.py:423-426`), the `_robot_base_xy` buffer
+registration (`equi_obs_encoder.py:170`), and the `pos_xy` statistic shift
+(`equi_normalizer.py:406, 422-423, 442-444`). The live line is `agent.enc.set_normalizer(normalizer)`
+with no base argument, and `ResObsEnc.forward` normalizes `ee_pos[:, 0:2]` directly. `env_probes/`
+is not even tracked at that commit.
+
+So the only equivariant run that ever worked **rotated about the world origin, not the robot base** —
+the case this section describes as silently breaking the symmetry. It reached 0.94 anyway.
+
+Two readings, and the record does not yet separate them. Either the rotation center matters less
+than this section assumes on Can, where the object distribution may be narrow enough that a wrong
+center is a small perturbation; or it matters and 0.94 was reached despite it. Note this does not
+explain the collapses either, since the collapsed runs at the same commit shared the same disabled
+centering.
+
+The feature is active at HEAD, and `preflight.py` checks for `env_probes/<task>.json`. That means
+**HEAD is not the architecture that produced 0.94**, independently of everything else that changed
+between the two commits. Any future comparison against `z8yoqylh` has to account for it.
 
 ## Assumptions
 

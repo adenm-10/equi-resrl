@@ -12,9 +12,9 @@ Aden wants to do. Do **not** start making changes — this skill ends with a que
 
 Read all four. They are small and they are the point of this skill.
 
-1. [docs/STATUS.md](../../../docs/STATUS.md) — what is true right now. **Check for an active freeze**; there is currently one on `resfit/rl_finetuning/equi_off_policy/` until the lost run is reproduced.
+1. [docs/STATUS.md](../../../docs/STATUS.md) — what is true right now. **Check for an active freeze**; there is currently one on `resfit/rl_finetuning/equi_off_policy/` until the 3-seed replication reports.
 2. [docs/PROGRESS.md](../../../docs/PROGRESS.md) — what happened in recent sessions. Top 2–3 entries.
-3. [docs/TODO.md](../../../docs/TODO.md) — the prioritized backlog, organized as H (housekeeping), R (reproduce the lost run), P1–P4 (standards, tests, cleanup, science).
+3. [docs/TODO.md](../../../docs/TODO.md) — the prioritized backlog, organized as H (housekeeping), R (replicate the recovered run), P1–P4 (standards, tests, cleanup, science).
 4. [docs/EXPERIMENTS.md](../../../docs/EXPERIMENTS.md) — the run record. Read the summary table and any entry STATUS.md points at.
 
 Then skim for orientation, not in depth:
@@ -92,7 +92,9 @@ ResFiT (residual off-policy RL for finetuning BC policies). Stage 1 trains a bas
 2 freezes it and trains a small TD3 residual on top. The research question is whether making that
 residual SO(2)-equivariant, following the SO(2) equivariant RL paper, improves sample efficiency —
 even though the base policy it corrects is not equivariant. The baseline reproduces on the Can and
-Square robomimic tasks. An equivariant version trained successfully once on Can, but that run's
-data was deleted, so reproducing it across at least 3 seeds is the current priority. The three
+Square robomimic tasks. An equivariant version trained successfully once on Can (`z8yoqylh`, 0.94). That run was
+long believed deleted; on 2026-09-16 it was found intact on a second workstation, `boce-WS-01`, with
+its full config. Replicating it across 3 seeds is the current priority, and those runs are in
+flight there. **Work spans two machines now** — check STATUS.md for which is which. The three
 project priorities, in order, are scientific consistency, code simplicity and correctness, and
 human interpretability.
