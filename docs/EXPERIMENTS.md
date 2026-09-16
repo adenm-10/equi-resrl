@@ -312,9 +312,15 @@ scheduled in TODO P3 behind the reproduction.
 
 | Seed | wandb | Steps | step-0 | best | final | ep-len start → end | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1 | | | | | | | |
-| 2 | | | | | | | |
-| 3 | | | | | | | |
+| 1 | **`m0ylcivk`** | *running* | | | | | launched 2026-09-16 12:05 at `f6716c9`, GPU 0 |
+| 2 | | *not launched* | | | | | held pending seed 1 |
+| 3 | | *not launched* | | | | | held pending seed 1 |
+
+Run URL: `https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/m0ylcivk`
+
+Seed 1 launch log kept at `wandb/run-*-m0ylcivk/files/output.log`. **Do not delete that directory** —
+it is the only copy if the wandb run is ever removed, which has already happened twice in this
+project (`z8yoqylh`, `msfkjwab`).
 
 ---
 
