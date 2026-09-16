@@ -55,31 +55,31 @@ fi
 # --- gate -------------------------------------------------------------------
 # Blocks the launch if imports break, configs drift, the equivariance tests
 # fail, or the machine cannot hold the run. See preflight.py.
+GROUP="equi-residual-rl"
+
+# Built once and passed to both the gate and the run, so the gate validates
+# exactly what will launch rather than a hand-kept copy.
+OVERRIDES=(
+    --config-name=residual_equi_td3_can_config
+    algo.prefetch_batches=4
+    wandb.project=robomimic-can-final
+    "wandb.name=${GROUP}-${SEED}"
+    "wandb.group=${GROUP}"
+    "wandb.notes=repro/z8yoqylh/equi_can_seed${SEED}"
+    "seed=${SEED}"
+    debug=false
+)
+
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
     echo "Running pre-submission gate..."
-    "$PY" preflight.py --task Can --concurrent-seeds 1
+    "$PY" preflight.py --task Can --concurrent-seeds 1 --compose "${OVERRIDES[@]}"
 else
     echo "WARNING: preflight gate skipped via SKIP_PREFLIGHT=1"
 fi
 
-# --- run --------------------------------------------------------------------
-# Naming follows the repo's existing ablation-script convention
-# (shell/paper_runs/ablations/boxcleanup/nstep/2b_boxcleanup_nstep5_1.sh):
-#   group = the variant, shared across seeds
-#   name  = variant-seedindex
-#   seed  = small explicit integer, not the 10-digit random default
-GROUP="equi-residual-rl"
-
+# --- run -------------------------------------------------------------------
 echo
 echo "Launching ${GROUP}-${SEED} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
 echo
 
-"$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 \
-    --config-name=residual_equi_td3_can_config \
-    algo.prefetch_batches=4 \
-    wandb.project=robomimic-can-final \
-    wandb.name="${GROUP}-${SEED}" \
-    wandb.group="${GROUP}" \
-    wandb.notes="equivariant residual TD3 on Can, reproduction of z8yoqylh, seed ${SEED}" \
-    seed="${SEED}" \
-    debug=false
+"$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 "${OVERRIDES[@]}"

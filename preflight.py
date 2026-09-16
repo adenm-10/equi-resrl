@@ -124,6 +124,34 @@ def tier1_git() -> None:
         record(PASS, "no untracked .py files")
 
 
+def tier1_compose(overrides: list[str]) -> bool:
+    """Compose the exact override set through Hydra without training.
+
+    Catches malformed overrides before a launch. Hydra treats a comma in a
+    value as a list separator, so `wandb.notes="a, b"` aborts at startup --
+    which cost two failed launches before this check existed.
+    """
+    section("Tier 1 - hydra override composition")
+    if not overrides:
+        record(WARN, "compose", "no overrides passed; skipping (submit.sh passes them)")
+        return True
+    proc = subprocess.run(
+        [sys.executable, "-m", "resfit.rl_finetuning.scripts.train_residual_td3",
+         "--cfg", "job", "--resolve", *overrides],
+        cwd=REPO, capture_output=True, text=True, check=False,
+        env={**os.environ, "PYTHONPATH": f"{REPO}:{os.environ.get('PYTHONPATH', '')}"},
+    )
+    if proc.returncode == 0:
+        seed = next((l.strip() for l in proc.stdout.splitlines()
+                     if l.startswith("seed:")), "seed: ?")
+        record(PASS, "hydra composes", f"{len(overrides)} override(s); {seed}")
+        return True
+    err = (proc.stderr or proc.stdout).strip().splitlines()
+    record(FAIL, "hydra composes",
+           "\n".join(f"{' ' * 9}  {l}" for l in err[:6]))
+    return False
+
+
 def tier1_pytest() -> bool:
     section("Tier 1 - static tests")
     return _run_pytest(["tests/test_imports.py", "tests/test_config.py"], "imports + config")
@@ -282,13 +310,16 @@ def main() -> int:
     ap.add_argument("--concurrent-seeds", type=int, default=1,
                     help="how many runs will share this machine at once")
     ap.add_argument("--skip-tier2", action="store_true", help="skip the GPU suite")
+    ap.add_argument("--compose", nargs=argparse.REMAINDER, default=[],
+                    help="hydra overrides to dry-run compose; must come last")
     args = ap.parse_args()
 
     print(f"\033[1mPre-submission gate\033[0m  task={args.task}  repo={REPO}")
 
     tier1_environment()
     tier1_git()
-    ok = tier1_pytest()
+    ok = tier1_compose(args.compose)
+    ok = tier1_pytest() and ok
     if not args.skip_tier2:
         ok = tier2() and ok
     else:
