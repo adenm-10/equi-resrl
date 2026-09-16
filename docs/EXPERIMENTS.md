@@ -643,3 +643,39 @@ reconstructed:
 **Known confound, deliberately not addressed here.** This replication holds both the init-scale
 override and the host/stack at the successful run's values, so a success will not say which of the
 two caused the original collapses. Isolating them comes after the result is confirmed.
+
+### LAUNCHED 2026-09-16 16:00 EDT — `equi-repro-7dae4925`, all three seeds
+
+| Seed | wandb run | GPU | Role |
+|---|---|---|---|
+| 2114495708 | **`9qgsaxsr`** | 0, alone | Exact replication of `z8yoqylh` |
+| 1 | **`4sseggkv`** | 1, shared | Seed robustness |
+| 2 | **`dxbept4u`** | 1, shared | Seed robustness |
+
+Host `boce-WS-01`. Launched from a git worktree at `7dae4925`
+(`~/projects/equi-resrl-7dae4925`) via `~/launch_repro.sh <seed> <gpu>`, with
+`CACHE_DIR=~/projects/equi-resrl` and `artifacts/` symlinked to the main checkout.
+
+**Startup verified on all three:** `Set random seed to <seed>` matches, both buffer caches
+reported `found on disk` at the expected hashes (`8edf618e` offline / 62,454 transitions,
+`43637c10` online / 10,000), no rebuild, no errors. The gate passed with the corrected version
+expectations, so the environment matches `z8yoqylh`'s `requirements.txt` exactly.
+
+**Two things observed at launch, recorded because they contradict the docs.**
+
+1. **`env_probes/` does not exist at `7dae4925` and is not needed.** It is untracked at that
+   commit (created 2026-05-21, one day before `z8yoqylh`), and every use of the robot-base probe
+   in that tree is commented out — `train_residual_td3.py:423` and `:426`, plus the
+   `equi_normalizer.py` centering block. **So the successful run had robot-base centering
+   disabled.** The feature is active at HEAD and `preflight.py` checks for the file, which is why
+   the worktree looked broken at first. It is not.
+2. **Each run holds ~25 GB resident, not the ~21 GB in TODO R0.** Measured RSS: 24.8 / 23.6 /
+   24.9 GB. Three runs leave 22 GB of 125 GB available — stable, since the buffers are
+   preallocated, but tighter than planned. Three is the maximum on this machine, not a comfortable
+   three.
+
+**Measured warmup rates, showing the cost of GPU sharing:** 79.7 ms/update solo on GPU 0 against
+145-150 ms/update for the two sharing GPU 1, a 1.85x penalty. Against `z8yoqylh`'s measured 47.3 h,
+that projects **~47 h for seed 2114495708 and ~85-90 h for seeds 1 and 2.** Running the shared pair
+sequentially instead would have cost ~94 h for both, so sharing is the better choice for getting
+all three, at the price of the two robustness arms landing about two days after the replication arm.
