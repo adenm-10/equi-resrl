@@ -67,11 +67,13 @@ def tier1_environment() -> None:
         record(FAIL, "PYTHONPATH",
                f'repo root not on the path. Run: export PYTHONPATH="{REPO}:$PYTHONPATH"')
 
-    # Versions pinned to the 300k run's requirements.txt. A mismatch does not
-    # only risk behaviour drift: torchrl and tensordict versions are part of the
-    # replay-buffer cache key, so bumping either silently invalidates 21 GB of
-    # cached buffers and triggers a multi-hour rebuild.
-    expected = {"torch": "2.9.1", "torchrl": "0.9.2", "tensordict": "0.9.1", "escnn": "1.0.13"}
+    # Versions pinned to z8yoqylh's requirements.txt — the only equivariant run
+    # that ever succeeded. These were previously taken from a3e3zylp, which is a
+    # run that collapsed to 0.00, so the gate was validating against a failure.
+    # A mismatch does not only risk behaviour drift: torchrl and tensordict
+    # versions are part of the replay-buffer cache key, so bumping either
+    # silently invalidates 21 GB of cached buffers and triggers a rebuild.
+    expected = {"torch": "2.6.0", "torchrl": "0.7.0", "tensordict": "0.7.0", "escnn": "1.0.11"}
     for mod, want in expected.items():
         try:
             got = __import__(mod).__version__

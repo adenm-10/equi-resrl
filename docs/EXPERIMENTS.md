@@ -504,3 +504,142 @@ Recorded so the gaps are visible:
 - **No SAC anything.** There is no SAC implementation in the repo.
 - **No equivariance unit test has ever been run.** Every equivariance claim to date rests on code
   reading.
+
+---
+
+## 2026-09-16 — CORRECTION — `z8yoqylh` recovered from disk, and it ran at `7dae4925`
+
+**This entry corrects several claims in the entries above. Per the append-only rule nothing
+earlier was edited; read this entry as superseding them.**
+
+The lost run was found on the second workstation (`boce-WS-01`, `10.188.60.163`) at
+`~/projects/equi-resrl/wandb/run-20260522_083555-z8yoqylh`, 173 MB, with `config.yaml`,
+`wandb-metadata.json`, `output.log` and `requirements.txt` all intact. It was never on
+`ZXP-S-works`, which is why the earlier audit concluded it was gone.
+
+### What the recovered metadata says
+
+| Field | Value |
+|---|---|
+| **Commit** | **`7dae4925beaf2e7b2a68099413b98ea21615bef1`** |
+| Host | `boce-WS-01`, 2 × RTX 4090, 24 logical cores, 134 GB RAM |
+| Started | 2026-05-22T12:35:55Z |
+| **Seed** | **2114495708** (recovered from the run directory name) |
+| Runtime | 170,382.85 s = **47.3 h** |
+| Stack | torch 2.6.0+cu124, torchrl 0.7.0, tensordict 0.7.0, **escnn 1.0.11**, numpy 1.26.4, CPython 3.10.20 |
+| Overrides | `algo.prefetch_batches=4`, **`agent.actor.actor_last_layer_init_scale=1e-4`** |
+| step-0 eval | 0.82 |
+| **best** | **0.94** (progression 0.82 → 0.90 → 0.94) |
+
+Resolved config, confirming the architecture: `enc_degree_channel: 32`,
+`actor_degree_channel: 128`, `critic_degree_channel: 128`, `action_scale: 0.1`, `n_step: 3`,
+`gamma: 0.99`, `stddev_max/min: 0.05` (flat schedule), `buffer_size: 200000`,
+`critic_warmup_steps: 10000`, `num_updates_per_iteration: 4`, `use_norms: true`,
+`use_orth_init: true`, `use_equivariant_model: true`.
+
+### Claims above that are now false
+
+1. **"Commit: unknown. Believed to be `caf83f3` or later."** It was `7dae4925`.
+2. **"Three runs at `7dae4925` all ended at exactly 0.00 — that is an architectural failure, not
+   seed variance."** `7dae4925` also produced the only success. It is not an architectural failure
+   at that commit.
+3. **The `FieldNorm` hypothesis is no longer motivated.** `FieldNorm` and the ReLUs were present in
+   the critic head of the run that reached 0.94. Removing them in `caf83f3` cannot be what fixed a
+   run that predates `caf83f3`.
+4. **Assumption 3 of the `caf83f3` pre-registration is wrong.** `use_norms`, `use_orth_init` and
+   `use_equivariant_model` were claimed to have been added in `caf83f3`; all three appear in
+   `z8yoqylh`'s resolved config at `7dae4925`.
+5. **"best ~0.92", from the screenshot.** Recomputed from `output.log`: **0.94**.
+6. **Tag `repro-z8yoqylh-base` points at `caf83f3`, the wrong commit.** Left in place because it is
+   already pushed; superseded by a tag at `7dae4925`.
+
+Assumption 2 of that pre-registration — `enc_degree_channel = 32` — was **correct**.
+
+### The natural experiment this exposes
+
+`z8yoqylh` and `a3e3zylp` share a commit and a config file and differ in exactly two things.
+`a3e3zylp`'s extra `equivariance.num_actor_layers=3` is a verified no-op, so the architectures are
+identical.
+
+| | `z8yoqylh` | `a3e3zylp` |
+|---|---|---|
+| Commit | `7dae4925` | `7dae4925` |
+| Host / stack | boce-WS-01, torchrl 0.7.0, escnn 1.0.11 | ZXP-S-works, torchrl 0.9.2, escnn 1.0.13 |
+| `actor_last_layer_init_scale` | **1e-4** | 0.0 (default) |
+| Result | 0.82 → **0.94** | 0.88 → **0.00** |
+
+At `7dae4925` the config file reads:
+
+```python
+actor_last_layer_init_scale=0.0,     # imp for residual
+# actor_last_layer_init_scale=1e-4,  # imp for residual
+```
+
+Two candidate causes, confounded in the existing record: the init-scale override, and the software
+stack. **Every collapsed equivariant run ran on `ZXP-S-works`; the single success ran on
+`boce-WS-01`.** Host correlates perfectly with outcome across the whole history. Isolating the two
+is deferred until the replication below confirms the result.
+
+### Runtime reference, measured, 300k steps on Can
+
+| Run | Model | GPU | Runtime |
+|---|---|---|---|
+| `msfkjwab` | baseline, non-equivariant | 3090 | 59,099 s = 16.4 h |
+| `a3e3zylp` | equivariant, `7dae4925` | 3090 | 148,767 s = 41.3 h |
+| `z8yoqylh` | equivariant, `7dae4925` | 4090 | 170,383 s = 47.3 h |
+
+The equivariant model costs ~2.5× the baseline on identical hardware: 1.2M gradient updates
+(300k × UTD 4) through escnn, with gradients at ~92% of wall clock. Note the 4090 run was *slower*
+than the 3090 run, so the newer box is not a speedup — concurrent runs on that machine in May are
+the likely explanation.
+
+---
+
+## PRE-REGISTERED, NOT YET LAUNCHED (2)
+
+### Replication of `z8yoqylh` at the recovered config — 3 seeds on `boce-WS-01`
+
+Written before launching, per STANDARDS.md rule 5.4. Supersedes the `caf83f3` pre-registration
+above, which was aimed at the wrong commit. **Seed-group id: `equi-repro-7dae4925`.**
+
+| | |
+|---|---|
+| **Commit** | `7dae4925`, checked out in a git worktree so HEAD keeps the docs, tests and gate |
+| **Config** | `residual_equi_td3_can_config` |
+| **Overrides** | `algo.prefetch_batches=4`, `agent.actor.actor_last_layer_init_scale=1e-4`, plus naming and `seed` |
+| **Task** | Can · **Seeds** 2114495708 (the original), 1, 2 — run in parallel |
+| **Host** | `boce-WS-01`, stack matching the reference run exactly |
+| **Expected runtime** | ~47 h solo; the two sharing a GPU will take longer |
+
+**Hypothesis.** At `7dae4925` with `actor_last_layer_init_scale=1e-4`, the equivariant residual
+agent trains to 300k steps on Can without collapsing, reaching an evaluation success rate near
+**0.94** on the original seed, and above its step-0 base rate on all three seeds.
+
+**What decides it.** Primary: `eval/success_rate` at 300k, and whether any seed collapses to 0.00.
+Seed 2114495708 is the exact-replication arm and is expected to land near 0.94; seeds 1 and 2
+measure whether the result is robust to initialization and exploration. Secondary:
+`eval/mean_successful_episode_length`, to test the flat-episode-length observation from the lost
+comparison.
+
+**Early read.** Every collapse in the record was unambiguous by the 10k and 20k evaluations
+(0.00, 0.02, 0.18). Three seeds all clearing their step-0 rate at 20k is the first real signal.
+
+**Assumptions.** Far fewer than the `caf83f3` attempt, because the config is recovered rather than
+reconstructed:
+
+1. **Passing `seed=2114495708` reproduces the original seeding.** Verified by reading
+   `train_residual_td3.py:321-331` at `7dae4925`: a `None` seed is randomized and then immediately
+   used to seed `random`, `numpy` and `torch`, so an explicit seed follows the identical path.
+2. **The current `boce-WS-01` environment still matches the run's `requirements.txt`.** Confirmed
+   field by field against the recovered file.
+3. **Buffer caches hit.** The cache-key metadata dicts are byte-identical between `7dae4925` and
+   HEAD, so the hashes the gate computed (`8edf618e` offline, `43637c10` online) are valid at the
+   older commit. `CACHE_DIR` must point at the main checkout, because `_CACHE_ROOT` defaults to the
+   *current directory* (`train_residual_td3.py:138`) and a worktree would otherwise miss both.
+4. **Naming differences are scientifically inert.** The original ran as `wandb.name=residual-rl`
+   with the stale `paper_runs/square/yet_to_come` note; these runs use the rule 5.2 convention.
+5. **GPU contention does not affect results, only wall clock.** Two of the three seeds share a GPU.
+
+**Known confound, deliberately not addressed here.** This replication holds both the init-scale
+override and the host/stack at the successful run's values, so a success will not say which of the
+two caused the original collapses. Isolating them comes after the result is confirmed.
