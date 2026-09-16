@@ -216,11 +216,39 @@ Secondary: `eval/mean_successful_episode_length`, to test whether the flat-episo
 observation from the lost comparison survives multiple seeds. Early indicator:
 `debug/dQ_da_mean_abs` during critic warmup — see below.
 
-**Predicted early signal.** The `FieldNorm` hypothesis says the collapsed runs had a critic with
-almost no action dependence (`dQ_da_mean_abs ≈ 2e-4`). If removing `FieldNorm` is what fixed the
-run, `caf83f3` should show a materially larger `dQ_da` within the first few thousand updates. This
-is checkable in minutes rather than 31 hours, and it is the single most informative number in the
-smoke run. **If `dQ_da` is still ~2e-4, stop and re-diagnose rather than burning 3 days.**
+**Predicted early signal — ORIGINAL VERSION WAS WRONG, corrected below.**
+
+*Original text, left per the append-only rule:* "The `FieldNorm` hypothesis says the collapsed runs
+had a critic with almost no action dependence (`dQ_da_mean_abs ≈ 2e-4`). If removing `FieldNorm` is
+what fixed the run, `caf83f3` should show a materially larger `dQ_da` within the first few thousand
+updates. If `dQ_da` is still ~2e-4, stop and re-diagnose rather than burning 3 days."
+
+**Why that was wrong.** The `2e-4` reference was `a3e3zylp`'s value at step **300,000** — the end of
+a collapsed run. Comparing our step-100 value against it compares two different quantities. At
+matched steps every run starts in the same place:
+
+| Run | step 100 | mean, first 2k steps | final |
+|---|---|---|---|
+| `a3e3zylp` (collapsed, enc16) | 1.03e-04 | 9.81e-05 | 2.23e-04 |
+| `czjqzg0b` (collapsed, enc16) | 7.66e-05 | 1.03e-04 | 2.67e-04 |
+| `qe2by47h` (collapsed, enc32) | 1.31e-04 | 1.25e-04 | **1.35e+02** |
+| `m0ylcivk` (this run, enc32) | 8.60e-05 | 8.60e-05 | *running* |
+
+Our 8.60e-05 is inside the collapsed runs' early range (7.7e-05 to 1.3e-04), so **a single early
+`dQ_da` reading does not discriminate**. The gate as written was worthless.
+
+**Also note `qe2by47h` ended at 1.35e+02** — its Q-gradient *exploded* by six orders of magnitude,
+where the other two ended near 2-3e-04. So "vanishing action gradient" is not one clean story
+across the three collapsed runs, and any diagnosis resting on it needs to account for that split.
+
+**Corrected early signal.** Compare the *trajectory* of `dQ_da` over the first 10-20k steps against
+the three collapsed runs over the same window, not a single reading against a single late value.
+Divergence from all three early trajectories is the signal; matching them is not evidence of
+anything.
+
+**The honest decision point is the 2nd and 3rd evaluations** (10k and 20k steps, ~1.5 and ~3 h in).
+Every collapse was unambiguous by then: `a3e3zylp` 0.88 -> 0.00, `avjcx236` 0.86 -> 0.02,
+`1zrjfc56` 0.88 -> 0.18.
 
 ### Runtime: ~58 h per seed, not ~31 h
 
