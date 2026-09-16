@@ -147,8 +147,14 @@ an invariant from features whose invariant content had just been normalized away
 
 That is consistent with the diagnostics: `dQ_da_mean_abs ≈ 2e-4` (a critic with almost no usable
 action dependence) alongside a low, stable `critic_loss` (it fit *something* well). It is a
-hypothesis, not a proven cause — but it is a specific and testable one, and it explains why
-removing the norms fixed the run.
+hypothesis, not a proven cause — but it is a specific and testable one.
+
+**It is also not the only change.** `caf83f3` doubled the encoder depth in the same commit (4 -> 8
+residual blocks; the second block in each stage had been commented out) and raised
+`enc_degree_channel` from 16 to 32. A deeper, wider encoder giving better features is an equally
+plausible reason a previously-signalless critic started working. So a successful reproduction will
+confirm *that* the commit works without identifying *which* of the three changes did it. See
+EXPERIMENTS.md, "three candidates, not one".
 
 **Consequence for TODO P3.4:** restoring normalization to the critic head is higher-risk than it
 looks. Whatever goes back in must not touch the invariant subspace of a regular representation.

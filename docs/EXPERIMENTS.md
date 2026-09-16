@@ -199,13 +199,13 @@ Written before launching, per STANDARDS.md rule 5.4. Fill in results after.
 
 | | |
 |---|---|
-| **Commit** | launched at `a5e712a`. Everything under `resfit/` is **byte-identical** to `caf83f3` (tagged `repro-z8yoqylh-base`) — `git diff caf83f3 HEAD -- resfit/` is empty. The eight commits in between are docs, tests and tooling only, so the training code is the tagged baseline. |
+| **Commit** | launched at `d446171`. Everything under `resfit/` is **byte-identical** to `caf83f3` (tagged `repro-z8yoqylh-base`) — `git diff caf83f3 HEAD -- resfit/` is empty. The eight commits in between are docs, tests and tooling only, so the training code is the tagged baseline. |
 | **Config** | `residual_equi_td3_can_config` |
 | **Overrides** | `algo.prefetch_batches=4` only, plus naming and `seed` |
 | **Launcher** | `./submit.sh <seed> [gpu]` |
 | **Task** | Can · **Seeds** 1, 2, 3, run sequentially |
 | **wandb** | project `robomimic-can-final`, group `equi-residual-rl`, names `equi-residual-rl-{1,2,3}` |
-| **Expected runtime** | ~31–33 h per seed, from the three comparable 300k runs |
+| **Expected runtime** | **~58 h per seed** (revised 2026-09-16, see below). 3 seeds sequential is ~7.3 days. |
 
 **Hypothesis.** At `caf83f3` the equivariant residual agent trains to 300k steps on Can without
 collapsing, reaching an evaluation success rate in the 0.80–0.92 band — matching the screenshot of
@@ -221,6 +221,44 @@ almost no action dependence (`dQ_da_mean_abs ≈ 2e-4`). If removing `FieldNorm`
 run, `caf83f3` should show a materially larger `dQ_da` within the first few thousand updates. This
 is checkable in minutes rather than 31 hours, and it is the single most informative number in the
 smoke run. **If `dQ_da` is still ~2e-4, stop and re-diagnose rather than burning 3 days.**
+
+### Runtime: ~58 h per seed, not ~31 h
+
+Corrected before launch. The first estimate used `qe2by47h` (31.1 h, the only prior run that was
+alone on the machine at `enc_degree_channel=32`). That was wrong, because `caf83f3` **also doubled
+the encoder depth**.
+
+At `7dae4925` each of the four encoder stages had one residual block and the second was commented
+out. At `caf83f3` all eight are active:
+
+```
+7dae4925:  4 active residual blocks     caf83f3:  8 active residual blocks
+```
+
+Measured on this machine during the smoke run: **163 ms per critic update** against `qe2by47h`'s
+**82 ms** — a 1.99x ratio, matching the block doubling almost exactly. Gradient updates are 93% of
+wall clock and there are 1.2M of them (300k steps x UTD 4), giving ~54 h of gradient time and
+**~58 h per seed**.
+
+### What actually changed in `caf83f3`: three candidates, not one
+
+This matters for interpreting the result. `caf83f3` changed three things at once on the
+critic/encoder path:
+
+1. **`FieldNorm` and the ReLUs removed from the critic head** — the original hypothesis.
+2. **Encoder depth doubled**, 4 -> 8 residual blocks. A deeper encoder producing better features is
+   an equally good explanation for a critic that previously had no usable action gradient.
+3. **`enc_degree_channel` default raised 16 -> 32.**
+
+So **if the reproduction succeeds, it will not tell us which of the three fixed it.** Isolating them
+needs follow-up runs at ~58 h each. Worth deciding whether that is the right spend before doing it —
+a cheaper route may be to check `dQ_da` under each variant for a few thousand steps rather than
+running each to 300k.
+
+One candidate was eliminated. `qe2by47h` logged `use_norms: false`, which raised the possibility
+that it ran without `FieldNorm` and collapsed anyway. It did not: at `7dae4925` the critic head read
+`CriticConfig.use_layer_norm` (default `True`) and `q_agent` hardcoded `use_layer_norm = True`, so
+`equivariance.use_norms` never reached it. All three collapsed runs had `FieldNorm`.
 
 ### Assumptions in this reconstruction
 
