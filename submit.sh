@@ -35,12 +35,29 @@ cd "$REPO"
 export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 export CUDA_VISIBLE_DEVICES="$GPU"
 
+# Resolve the interpreter rather than trusting the ambient shell. A bare
+# `python` picks up system python when this script runs from a non-interactive
+# shell that never sourced conda, and every dependency then appears missing --
+# the gate correctly reports NO-GO, but for the wrong reason.
+PY="${PYTHON:-python}"
+if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
+    FALLBACK="$HOME/miniforge3/envs/residual/bin/python"
+    if [[ -x "$FALLBACK" ]]; then
+        echo "note: '$PY' lacks the deps; falling back to $FALLBACK"
+        PY="$FALLBACK"
+    else
+        echo "error: no interpreter with torchrl+escnn found." >&2
+        echo "       run 'conda activate residual', or set PYTHON=/path/to/python" >&2
+        exit 1
+    fi
+fi
+
 # --- gate -------------------------------------------------------------------
 # Blocks the launch if imports break, configs drift, the equivariance tests
 # fail, or the machine cannot hold the run. See preflight.py.
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
     echo "Running pre-submission gate..."
-    python preflight.py --task Can --concurrent-seeds 1
+    "$PY" preflight.py --task Can --concurrent-seeds 1
 else
     echo "WARNING: preflight gate skipped via SKIP_PREFLIGHT=1"
 fi
@@ -57,7 +74,7 @@ echo
 echo "Launching ${GROUP}-${SEED} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
 echo
 
-python -m resfit.rl_finetuning.scripts.train_residual_td3 \
+"$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 \
     --config-name=residual_equi_td3_can_config \
     algo.prefetch_batches=4 \
     wandb.project=robomimic-can-final \
