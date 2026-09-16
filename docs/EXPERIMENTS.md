@@ -199,7 +199,7 @@ Written before launching, per STANDARDS.md rule 5.4. Fill in results after.
 
 | | |
 |---|---|
-| **Commit** | `caf83f3`, tagged `repro-z8yoqylh-base` |
+| **Commit** | launched at `a5e712a`. Everything under `resfit/` is **byte-identical** to `caf83f3` (tagged `repro-z8yoqylh-base`) — `git diff caf83f3 HEAD -- resfit/` is empty. The eight commits in between are docs, tests and tooling only, so the training code is the tagged baseline. |
 | **Config** | `residual_equi_td3_can_config` |
 | **Overrides** | `algo.prefetch_batches=4` only, plus naming and `seed` |
 | **Launcher** | `./submit.sh <seed> [gpu]` |
