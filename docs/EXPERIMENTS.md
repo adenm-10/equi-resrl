@@ -687,3 +687,202 @@ HEAD / `caf83f3`. **Nobody has checked which fields are inert at `7dae4925`.** O
 that commit — that `use_norms`, `use_orth_init` and `use_equivariant_model` did not exist there —
 proved false when `z8yoqylh`'s resolved config showed all three. Closing this is TODO R8, and it
 blocks the results entry for these three runs.
+
+---
+
+## 2026-09-18 — RESULTS — `equi-repro-7dae4925`: all three seeds collapsed
+
+The replication pre-registered above ran and **failed on every seed.** Recorded here as a result in
+its own right; the reason it failed is the correction entry that follows.
+
+| Seed | wandb | Step-0 | Every eval after step 0 | Final `eval/success_rate` | Steps reached |
+|---|---|---|---|---|---|
+| 2114495708 | `9qgsaxsr` | 0.84 | **0.00 × 30** | **0.00** | 300,000 — completed |
+| 1 | `4sseggkv` | 0.82 | **0.00 × 20** | 0.00 | 209,500 — killed |
+| 2 | `dxbept4u` | 0.84 | **0.00 × 20** | 0.00 | 209,500 — killed |
+
+Against the pre-registered decision criterion — `eval/success_rate` at 300k, and whether any seed
+collapses to 0.00 — this is an unambiguous negative on all three arms. Not one evaluation after
+step 0, across 71 evaluations and three seeds, produced a single successful episode. Per rule 5.5
+the step-0 figures are the base BC policy alone and are not results.
+
+Seed 2114495708 is the informative arm: it ran the full 300k in **34.6 h** (124,642 s, faster than
+the ~47 h projected) and ended at 0.00, with `debug/residual_max_abs` saturated at 1.0 and
+`eval/mean_successful_episode_length` at 0. Seeds 1 and 2 were killed on 2026-09-18 at 07:48 EDT
+after 20 consecutive 0.00 evaluations each, once the exact-replication arm had already finished at
+0.00 and the cause below was identified. Their remaining ~90k steps could not have changed any
+pre-registered conclusion. Both wandb directories are intact in
+`~/projects/equi-resrl-7dae4925/wandb/`.
+
+**The `dQ_da` early-signal gate, once more.** Seed 2114495708's final `debug/dQ_da_norm` was
+2.60e-02 — neither the vanishing 2-3e-04 of two collapsed runs nor the exploding 1.35e+02 of
+`qe2by47h`. A third distinct value on a third collapse. The 2026-09-16 note that this metric does
+not discriminate collapse stands, and is now stronger.
+
+**Config caveats.** The unverified field flagged in the pre-registration is now resolved, and
+resolved against the runs: the config these three ran differs from `z8yoqylh`'s in five fields.
+See the correction below. **These three runs are not a replication of `z8yoqylh` and should not be
+cited as evidence about its architecture.** They are evidence about `7dae4925`.
+
+---
+
+## 2026-09-18 — CORRECTION — `z8yoqylh` ran `caf83f3`'s code, not `7dae4925`'s
+
+**The 2026-09-16 correction was backwards.** It retargeted the reproduction from `caf83f3` to
+`7dae4925` on the strength of the `git.commit` field in `z8yoqylh`'s recovered wandb metadata. That
+field records the value of `HEAD` at launch. It does not record the working tree, and `z8yoqylh`'s
+working tree was dirty. The original target, `caf83f3`, was right.
+
+### The evidence
+
+**1. Five config fields disagree with `7dae4925` and agree with `caf83f3`.** `z8yoqylh`'s resolved
+config cannot have been produced by the code at `7dae4925`, because that code has no such fields:
+
+| Config field | `z8yoqylh` logged | code at `7dae4925` | code at `caf83f3` |
+|---|---|---|---|
+| `agent.critic.<name>` | `dropout` | `drop` | `dropout` |
+| `equivariance.enc_degree_channel` | 32 | 16 (default) | 32 (default) |
+| `equivariance.use_equivariant_model` | True | **absent** | present |
+| `equivariance.use_norms` | True | **absent** | present |
+| `equivariance.use_orth_init` | True | **absent** | present |
+
+`git log -S` dates the three `use_*` fields to `caf83f3` itself and the `enc_degree_channel`
+default of 32 to `aabde0f`; `7dae4925` sits between them with 16.
+
+**2. The full config composes exactly.** Composing `caf83f3`'s `residual_equi_td3_can_config` with
+`z8yoqylh`'s recorded launch arguments plus `seed=2114495708` reproduces its logged config on **all
+117 fields.** The only apparent differences are ten int-versus-float YAML renderings of identical
+values (`0` / `0.0`, `1` / `1.0`, `-1` / `-1.0`) and `actor_name`, which is not a config input at
+all — it is inferred at runtime from the base policy at `train_residual_td3.py:273`.
+
+**3. The timing fits, to the hour.** `z8yoqylh` started 2026-05-22 at 08:35 EDT. `caf83f3` was
+committed the **same morning at 10:28 EDT**, with the message *"got equivariant agent working for
+the first time."* The run was launched from a tree already carrying the `caf83f3` changes, watched
+for about two hours — its evaluation at 30k hit 0.94 — and then committed.
+
+### Claims that are now false
+
+| Claim, from the 2026-09-16 entry and STATUS.md | Actually |
+|---|---|
+| `z8yoqylh` ran at `7dae4925` | It ran `caf83f3`'s code with `HEAD` reading `7dae4925` |
+| `7dae4925` produced both the collapses and the success | It produced **only collapses** — see the results entry above |
+| The `FieldNorm` hypothesis is dead | **Reopened.** It was ruled out on the premise that `FieldNorm` was present in the successful run's critic head at `7dae4925`. That premise is gone. |
+| The successful run had robot-base centering disabled | **Probably not.** At `7dae4925` every centering call site is commented out, which is where that claim came from. At `caf83f3` the centering block is live (`equi_normalizer.py:425`, with an explicit warning when no base is supplied). So `z8yoqylh` likely rotated about the robot base and the symmetry was *not* silently broken. |
+| `enc_degree_channel = 32` was guessed correctly | The guess was right, but the three replication runs ran **16**, because that is `7dae4925`'s default and nobody overrode it |
+| `use_norms` / `use_orth_init` / `use_equivariant_model` exist at `7dae4925` | They do not. That inference was circular — it assumed the commit in order to conclude the fields existed. |
+
+`m0ylcivk`, the `caf83f3` run killed on 2026-09-16 for "not being the reproduction," was aimed at
+the right commit. Its local `wandb/run-*-m0ylcivk` directory is **gone from disk**, despite the
+do-not-delete note earlier in this file. It may survive in wandb.
+
+### The lesson, for the standards
+
+A recorded commit hash is necessary but **not sufficient** to determine the code that ran, because
+wandb records `HEAD` and not the working tree. The resolved config is the stronger evidence: it is
+produced by the code that actually executed. Where the two disagree, the config wins. Priority 1 in
+CLAUDE.md — "a run's recorded config must fully determine the code that ran" — was satisfied here
+only because the config schema happened to carry five discriminating fields.
+
+---
+
+## PRE-REGISTERED, NOT YET LAUNCHED (3)
+
+### Replication of `z8yoqylh` at `caf83f3` — 3 seeds on `boce-WS-01`
+
+Written before launching, per STANDARDS.md rule 5.4. Supersedes both earlier pre-registrations:
+the first aimed at `caf83f3` from a reconstructed config, the second at `7dae4925` from a
+misread commit field. This one aims at `caf83f3` with a **verified** config.
+**Seed-group id: `equi-repro-caf83f3`.**
+
+| | |
+|---|---|
+| **Commit** | `caf83f3`, in a git worktree at `~/projects/equi-resrl-caf83f3` |
+| **Config** | `residual_equi_td3_can_config` — verified to compose to `z8yoqylh`'s 117 logged fields |
+| **Overrides** | `algo.prefetch_batches=4`, `agent.actor.actor_last_layer_init_scale=1e-4`, plus naming and `seed` |
+| **Task** | Can · **Seeds** 2114495708 (the original), 1 — amended from three, see below |
+| **Host** | `boce-WS-01` |
+| **Expected runtime** | ~35-47 h; both seeds run solo on their own GPU |
+
+**Hypothesis.** At `caf83f3` with `actor_last_layer_init_scale=1e-4`, the equivariant residual agent
+trains to 300k steps on Can without collapsing, reaching an evaluation success rate near **0.94** on
+seed 2114495708 and above its step-0 base rate on both seeds.
+
+**What decides it.** Primary: `eval/success_rate` at 300k, and whether either seed collapses to
+0.00. Seed 2114495708 is the exact-replication arm. Secondary:
+`eval/mean_successful_episode_length`, for the flat-episode-length question.
+
+**Amended before launch: two seeds, not three.** Decided 2026-09-18 for wall clock — two seeds one
+per GPU both finish in ~35-47 h, where three would have put two of them on a shared GPU and ~85-90 h
+out, so the full result lands in about two days instead of four. The cost is stated plainly: **n=2
+has no tiebreaker.** If the two seeds split — one near 0.94, one at 0.00 — this design cannot say
+which is typical, and a third seed becomes necessary. That risk was accepted on the grounds that all
+three `7dae4925` seeds collapsed identically, so a split looks unlikely. Recorded here rather than
+edited in silently, per rule 5.4's purpose.
+
+**Early read.** `z8yoqylh` was at 0.80 by its second evaluation and never below 0.80 again. Every
+collapse in the record, now including all three `7dae4925` runs, was unambiguous by 10k-20k. A seed
+sitting at 0.00 at 20k has failed; there is no case in the record of recovery from it.
+
+**Assumptions.**
+
+1. **`caf83f3` is the code that produced `z8yoqylh`.** The 117-field config match, the five
+   discriminating schema fields, and the same-morning commit timing. This is the strongest
+   provenance any run in this project has had.
+2. **Passing `seed=2114495708` reproduces the original seeding.** `z8yoqylh` passed no `seed`
+   override, so its seed was randomized and then logged. Verified at `caf83f3`
+   (`train_residual_td3.py:345-352`): a `None` seed is randomized and then immediately used to seed
+   `random`, `numpy` and `torch`, so an explicit seed follows the identical path.
+3. **Results are not bit-reproducible.** `torch_deterministic = False` in the recovered config, so
+   even the exact-replication arm will differ run to run. The `7dae4925` arms' step-0 evaluations
+   came in at 0.84 / 0.82 / 0.84 against `z8yoqylh`'s 0.82 — that spread is the noise floor, and a
+   near-0.94 outcome, not an identical one, is what counts as success.
+4. **Buffer caches hit.** The gate computed `8edf618e` offline and `43637c10` online at HEAD; these
+   must be re-confirmed against what the script prints at `caf83f3`. `CACHE_DIR` must point at the
+   main checkout, because `_CACHE_ROOT` defaults to the current directory.
+5. **The gate cannot validate this commit's code.** `preflight.py` and `tests/` do not exist at
+   `caf83f3`, so the 148 tests and the equivariance checks run against HEAD, not against the code
+   being launched. This was equally true of the `7dae4925` launch and is worth fixing.
+
+**Known confound, deliberately not addressed.** As before, this holds the init-scale override and
+the host/stack together at the successful run's values, so a success will not say which caused the
+original collapses.
+
+**Planned layout**, matching the `7dae4925` launch so wall-clock and GPU contention stay
+comparable across the two attempts:
+
+| Seed | GPU | Role |
+|---|---|---|
+| 2114495708 | 0, alone | Exact replication of `z8yoqylh` |
+| 1 | 1, alone | Seed robustness |
+
+**The CUDA block is cleared.** `boce-WS-01` was rebooted 2026-09-18 around 07:30 EDT; the
+580.178.04 kernel module is now loaded and matches userspace, and torch sees both 4090s.
+
+**New environment deviation from `z8yoqylh`, recorded because host and stack are live candidate
+causes in this project.** The reboot moved the machine off the environment the successful run used:
+
+| | `z8yoqylh`, 2026-05-22 | now |
+|---|---|---|
+| Kernel | 6.8.0-111 | **6.8.0-138** |
+| NVIDIA driver | 580.173.02 | **580.178.04** |
+
+The python stack — torch 2.6.0, torchrl 0.7.0, tensordict 0.7.0, escnn 1.0.11 — is unchanged and
+still matches the recovered `requirements.txt` field for field, which is what `preflight.py`
+validates. A driver and kernel bump is a weaker difference than a library difference, but it is not
+nothing, and it is the one thing this replication cannot hold fixed. If both seeds collapse, this
+is the first thing to suspect before concluding anything about `caf83f3`.
+
+**To launch, after the reboot:**
+
+```bash
+cd ~/projects/equi-resrl && export PYTHONPATH="$PWD:$PYTHONPATH"
+python preflight.py                      # must reach GO, with Tier 2 included this time
+~/launch_repro.sh 2114495708 0 > ~/repro_caf_s2114495708.log 2>&1 &
+~/launch_repro.sh 1 1 > ~/repro_caf_s1.log 2>&1 &
+```
+
+Then verify on each: `Set random seed to <seed>` matches, and both buffer caches report `found on
+disk` at `8edf618e` (offline) and `43637c10` (online) with no rebuild. Those `~/*.log` files are
+block-buffered and lag by thousands of steps — read
+`~/projects/equi-resrl-caf83f3/wandb/run-*/files/output.log` instead. Record the three run ids here
+once they are known.

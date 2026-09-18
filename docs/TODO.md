@@ -58,40 +58,72 @@ Three options:
 
 ## R — Replicate the recovered run
 
-Current top priority. The run is no longer lost: it was recovered from `boce-WS-01` on 2026-09-16
-with its full config, and a 3-seed replication is in flight. The correction and the pre-registration
-are both in [EXPERIMENTS.md](EXPERIMENTS.md).
+Current top priority. **The `7dae4925` replication ran and failed on all three seeds, because it was
+aimed at the wrong commit.** `z8yoqylh` ran `caf83f3`'s code with `HEAD` reading `7dae4925`; the
+proof is a 117-field config match plus five schema fields that only exist at `caf83f3`. Both the
+results and the correction are in [EXPERIMENTS.md](EXPERIMENTS.md), 2026-09-18 entries.
 
-### R1–R6 — DONE 2026-09-16 `[SC]`
+### R1–R6 — DONE 2026-09-16, then INVALIDATED 2026-09-18 `[SC]`
 
-Recovered the run, corrected the target from `caf83f3` to `7dae4925`, tagged
-`repro-z8yoqylh-actual`, repointed `preflight.py` at `z8yoqylh`'s environment instead of a collapsed
-run's, pre-registered the replication, and launched all three seeds. Run IDs and startup
-verification are in EXPERIMENTS.md.
+The recovery and the tooling work stand. The retargeting does not: R2 corrected the target from
+`caf83f3` to `7dae4925`, which was backwards, and the tag `repro-z8yoqylh-actual` at `7dae4925` is
+wrong for the same reason. Two tags now point at non-targets; neither is being moved, on the same
+grounds as last time.
 
-The earlier `caf83f3` plan — six reconstruction assumptions, the `FieldNorm` hypothesis, the 58 h
-estimate — is void. It stays in EXPERIMENTS.md because that file is append-only, superseded by the
-correction entry.
+### R7 — DONE 2026-09-18 `[SC]`
 
-### R7. Watch the 10k and 20k evaluations `[SC]`
+All three `7dae4925` seeds sat at 0.00 for every evaluation after step 0. Seed 2114495708 completed
+300k at 0.00 in 34.6 h; seeds 1 and 2 were killed at 209,500 steps after 20 consecutive 0.00
+evaluations. Numbers in EXPERIMENTS.md.
 
-The decision point. Every collapse in the record was unambiguous by then — 0.00, 0.02, 0.18. Three
-seeds clearing their step-0 rate at 20k is the first real evidence the replication is working.
+### R8 — RESOLVED 2026-09-18, against the runs `[SC]`
 
-Read progress from `wandb/run-*/files/output.log` on `boce-WS-01`, **not** from
-`~/repro_s<seed>.log`, which is block-buffered and lags by thousands of steps.
+The config caveats are settled: the three runs' config differs from `z8yoqylh`'s in five fields
+(`critic.drop` vs `dropout`, `enc_degree_channel` 16 vs 32, and the three `use_*` flags absent).
+`use_norms`, `use_orth_init` and `use_equivariant_model` genuinely **do not exist** at `7dae4925` —
+the prior claim that they did was circular, assuming the commit in order to conclude the fields
+existed.
 
-### R8. Verify the config caveats at `7dae4925` `[SC]`
+### R12. Launch the `caf83f3` replication `[SC]`
 
-**New, and it blocks the EXPERIMENTS results entry for these runs.** The provenance table in
-[ARCHITECTURE.md](ARCHITECTURE.md) records which `EquivarianceConfig` fields are logged and ignored,
-and the no-op tests pin that at HEAD. **Nobody has checked which fields are inert at `7dae4925`,**
-and one prior claim about that commit — that `use_norms`, `use_orth_init` and
-`use_equivariant_model` did not exist there — proved false. So the three running runs currently have
-an unverified `Config caveats` field, which the entry schema requires.
+**Next action, staged and blocked only on a reboot.** Pre-registered in EXPERIMENTS.md as seed-group
+`equi-repro-caf83f3`, with the exact commands, the GPU layout and the startup checks to verify.
 
-Cheap to close: read the `7dae4925` tree, or run the no-op tests against the worktree.
-**Updates:** ARCHITECTURE.md, EXPERIMENTS.md.
+Ready: worktree at `~/projects/equi-resrl-caf83f3` with `artifacts/` symlinked, config verified to
+compose to `z8yoqylh`'s 117 logged fields, seeding path verified, `~/launch_repro.sh` rewritten for
+`caf83f3`. Preflight passes every check except CUDA.
+
+**Unblocked** by the 2026-09-18 reboot. Two seeds, one per GPU. The reboot moved the machine to
+kernel 6.8.0-138 and driver 580.178.04, away from `z8yoqylh`'s 6.8.0-111 / 580.173.02 — recorded in
+the pre-registration as the one variable this replication cannot hold fixed.
+**Updates:** EXPERIMENTS.md, STATUS.md.
+
+### R13. Re-examine the four conclusions that rested on `7dae4925` `[SC]` `[HI]`
+
+The correction entry lists them. Two need real work rather than a doc edit:
+
+- **The `FieldNorm` hypothesis is reopened.** It was ruled out on the premise that `FieldNorm` sat in
+  the successful run's critic head. That premise is gone.
+- **Robot-base centering was probably enabled**, not disabled. At `caf83f3` the centering block is
+  live (`equi_normalizer.py:425`); the "disabled" finding came from reading `7dae4925`, where every
+  call site is commented out. So `z8yoqylh` likely rotated about the robot base and the symmetry was
+  not silently broken — which removes a standing worry rather than adding one.
+
+**Updates:** EQUIVARIANCE.md, STATUS.md, ARCHITECTURE.md.
+
+### R14. The gate cannot validate the commit it launches `[CS]`
+
+`preflight.py` and `tests/` do not exist at `caf83f3` or `7dae4925`, so the 148 tests and the
+equivariance checks run against HEAD while the launch runs older code. True of both replication
+attempts. Worth fixing before the next one, or at minimum stating in every entry.
+**Updates:** tests/README.md, STANDARDS.md.
+
+### R15. `m0ylcivk`'s local directory is gone `[SC]`
+
+It was the `caf83f3` run killed on 2026-09-16 for "not being the reproduction" — aimed at the right
+commit after all. EXPERIMENTS.md:349 says do not delete that directory; it is not on disk. Check
+whether it survives in wandb, and if so whether its early evaluations agree with `z8yoqylh`.
+**Updates:** EXPERIMENTS.md.
 
 ### R9. Baseline arm — the local copy is the only copy `[SC]`
 
@@ -110,10 +142,11 @@ seed?
 
 ### R11. Isolate the two candidate causes `[SC]`
 
-Deferred until R10 confirms the result. Then two runs at ~47 h each:
+Deferred until R10 confirms the result. Then two runs at ~35-47 h each, **at `caf83f3`** — the
+commit references here were `7dae4925` until the 2026-09-18 correction:
 
-- `7dae4925` + `actor_last_layer_init_scale=0.0` on `boce-WS-01`, same seed — isolates the override.
-- `7dae4925` + `actor_last_layer_init_scale=1e-4` on `ZXP-S-works` — isolates the software stack.
+- `caf83f3` + `actor_last_layer_init_scale=0.0` on `boce-WS-01`, same seed — isolates the override.
+- `caf83f3` + `actor_last_layer_init_scale=1e-4` on `ZXP-S-works` — isolates the software stack.
 
 The second is the more interesting one. Host correlates perfectly with outcome across the entire
 project history — every collapsed equivariant run on `ZXP-S-works`, the one success on
