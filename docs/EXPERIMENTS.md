@@ -886,3 +886,44 @@ disk` at `8edf618e` (offline) and `43637c10` (online) with no rebuild. Those `~/
 block-buffered and lag by thousands of steps — read
 `~/projects/equi-resrl-caf83f3/wandb/run-*/files/output.log` instead. Record the three run ids here
 once they are known.
+
+### LAUNCHED 2026-09-18 08:30 EDT — `equi-repro-caf83f3`, both seeds
+
+| Seed | wandb run | GPU | Role |
+|---|---|---|---|
+| 2114495708 | **`38z4wr9z`** | 0, alone | Exact replication of `z8yoqylh` |
+| 1 | **`sw2qwfs9`** | 1, alone | Seed robustness |
+
+Host `boce-WS-01`. Launched from the git worktree at `caf83f3`
+(`~/projects/equi-resrl-caf83f3`) via `~/launch_repro.sh <seed> <gpu>`, with
+`CACHE_DIR=~/projects/equi-resrl` and `artifacts/` symlinked to the main checkout. Both detached
+with `setsid`, so they survive the launching session.
+
+**Gate:** full GO at `ef547ed`, Tier 2 included — 69 static tests plus the 79-test equivariance
+suite, all passing on the post-reboot 580.178.04 driver. This is the first launch in the project
+where the GPU equivariance suite was verified against the same driver the run uses.
+
+**Startup verified on both:** `Set random seed to <seed>` matches the requested seed; GPU assignment
+confirmed by UUID rather than by `CUDA_VISIBLE_DEVICES` alone (`38z4wr9z` → `GPU-ca9f06b8`,
+`sw2qwfs9` → `GPU-8d23cc42`); both buffer caches hit with **no rebuild** — `offline_buffer_cache/`
+and `online_buffer_cache/` still contain only `8edf618e` and `43637c10`, both dated 2026-05-21, and
+no new hash directory was created. RSS 23.7 and 23.8 GB, 47.5 GB of 125 GB, 55 GB still available.
+
+**Robot-base centering is active**, which settles the inverted claim from the 2026-09-16 entry.
+Both runs print `[robot_base_xy] Loaded from cache .../env_probes/Can.json: [-0.5, -0.1000]` at
+startup. At `7dae4925` every such call site is commented out, which is where the "centering was
+disabled" finding came from. At `caf83f3` it runs. **So `z8yoqylh` rotated about the robot base,
+not the world origin, and the symmetry was not silently broken** — the concern raised in
+[EQUIVARIANCE.md](EQUIVARIANCE.md) under "The rotation center" does not apply to the successful run.
+
+**Early rate, and why it is slower than the failed attempt.** Critic warmup is running at ~116
+ms/step against the 79.7 ms/update measured for the solo `7dae4925` run. That is expected and
+mildly reassuring: `caf83f3` has `enc_degree_channel=32` where `7dae4925` had 16, so it should cost
+more per step. The right comparator is `z8yoqylh`'s own measured **47.3 h**, not the failed
+attempt's 34.6 h. Treat this as preliminary — the `~/repro_caf_*.log` files are block-buffered and
+these numbers come from warmup, not the main loop.
+
+**Config caveats.** Verifiable this time, and verified: the provenance table in
+[ARCHITECTURE.md](ARCHITECTURE.md) and the no-op tests pin the inert `EquivarianceConfig` fields at
+HEAD / `caf83f3`, and `caf83f3` is the commit being launched. The 117-field config match to
+`z8yoqylh` is recorded in the pre-registration above.

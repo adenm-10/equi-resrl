@@ -84,18 +84,28 @@ The config caveats are settled: the three runs' config differs from `z8yoqylh`'s
 the prior claim that they did was circular, assuming the commit in order to conclude the fields
 existed.
 
-### R12. Launch the `caf83f3` replication `[SC]`
+### R12 — DONE 2026-09-18 `[SC]`
 
-**Next action, staged and blocked only on a reboot.** Pre-registered in EXPERIMENTS.md as seed-group
-`equi-repro-caf83f3`, with the exact commands, the GPU layout and the startup checks to verify.
+Launched `equi-repro-caf83f3`, two seeds, one per GPU: 2114495708 as `38z4wr9z` and seed 1 as
+`sw2qwfs9`. Full preflight GO including Tier 2. Startup verified on both. ETA ~47 h each, so both
+report around 2026-09-20. Details in EXPERIMENTS.md.
 
-Ready: worktree at `~/projects/equi-resrl-caf83f3` with `artifacts/` symlinked, config verified to
-compose to `z8yoqylh`'s 117 logged fields, seeding path verified, `~/launch_repro.sh` rewritten for
-`caf83f3`. Preflight passes every check except CUDA.
+The reboot moved the machine to kernel 6.8.0-138 and driver 580.178.04, away from `z8yoqylh`'s
+6.8.0-111 / 580.173.02 — recorded in the pre-registration as the one variable this replication
+cannot hold fixed.
 
-**Unblocked** by the 2026-09-18 reboot. Two seeds, one per GPU. The reboot moved the machine to
-kernel 6.8.0-138 and driver 580.178.04, away from `z8yoqylh`'s 6.8.0-111 / 580.173.02 — recorded in
-the pre-registration as the one variable this replication cannot hold fixed.
+### R16. Watch the 10k and 20k evaluations `[SC]`
+
+**The decision point, and it arrives well before the runs finish.** `z8yoqylh` was at 0.80 by its
+second evaluation and never dropped below 0.80 again. Every collapse in the record — now including
+all three `7dae4925` seeds — was unambiguous by 10k-20k, and nothing has ever recovered from 0.00 at
+20k. Both seeds clearing their step-0 rate at 20k is the first real evidence this worked.
+
+Read from `~/projects/equi-resrl-caf83f3/wandb/run-*/files/output.log`, **not** from
+`~/repro_caf_s<seed>.log`, which is block-buffered and lags by thousands of steps.
+
+If both collapse, suspect the kernel/driver change before concluding anything about `caf83f3` — it
+is the one difference from `z8yoqylh`'s environment that this attempt could not eliminate.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### R13. Re-examine the four conclusions that rested on `7dae4925` `[SC]` `[HI]`

@@ -53,8 +53,23 @@ tested it. `boce-WS-01` matches `z8yoqylh`'s recorded `requirements.txt` field f
 
 ## Running now
 
-**Nothing.** Seeds 1 and 2 were killed 2026-09-18 07:48 EDT at 209,500 steps, after 20 consecutive
-0.00 evaluations each and after the exact-replication arm had already finished at 0.00.
+Launched 2026-09-18 08:30 EDT on `boce-WS-01`, from the worktree at `caf83f3`. Seed-group
+`equi-repro-caf83f3`, pre-registered in [EXPERIMENTS.md](EXPERIMENTS.md).
+
+| Seed | wandb | GPU | Role | ETA |
+|---|---|---|---|---|
+| 2114495708 | `38z4wr9z` | 0, alone | exact replication | ~47 h |
+| 1 | `sw2qwfs9` | 1, alone | seed robustness | ~47 h |
+
+Startup verified on both: seeds match, GPU assignment confirmed by UUID, both caches hit with no
+rebuild, 23.7 / 23.8 GB resident of 125 GB. Expect ~47 h, matching `z8yoqylh`'s measured runtime
+rather than the failed attempt's 34.6 h — `caf83f3`'s encoder is twice as wide.
+
+Read progress from `~/projects/equi-resrl-caf83f3/wandb/run-*/files/output.log`, **not** from
+`~/repro_caf_s<seed>.log`, which is block-buffered and lags by thousands of steps.
+
+The previous three seeds were killed 2026-09-18 07:48 EDT at 209,500 steps, after 20 consecutive
+0.00 evaluations each.
 
 ## The driver problem, and what it left behind
 
@@ -100,7 +115,7 @@ against is that R13 and R14 both want code changes.
 |---|---|
 | `7dae4925` produced both the collapses and the success | It produced **only collapses** |
 | The `FieldNorm` hypothesis is dead | **Reopened** — it was ruled out on a premise that is gone |
-| The successful run had robot-base centering disabled | **Probably enabled.** The centering block is live at `caf83f3` (`equi_normalizer.py:425`); it is commented out only at `7dae4925`. So `z8yoqylh` likely rotated about the robot base and the symmetry was *not* silently broken. |
+| The successful run had robot-base centering disabled | **Enabled** — confirmed at launch, not just inferred. Both `caf83f3` runs print `[robot_base_xy] Loaded from cache ... [-0.5, -0.1000]` at startup; the call sites are commented out only at `7dae4925`. So `z8yoqylh` rotated about the robot base and the symmetry was *not* silently broken. |
 | `use_*` fields exist at `7dae4925` | They do not. That inference was circular. |
 | `enc_degree_channel = 32` was guessed right | The guess was right; the three runs nonetheless ran **16** |
 
