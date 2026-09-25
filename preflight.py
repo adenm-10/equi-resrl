@@ -156,7 +156,11 @@ def tier1_compose(overrides: list[str]) -> bool:
 
 def tier1_pytest() -> bool:
     section("Tier 1 - static tests")
-    return _run_pytest(["tests/test_imports.py", "tests/test_config.py"], "imports + config")
+    return _run_pytest(
+        ["tests/test_imports.py", "tests/test_config.py",
+         "tests/test_regression_single_arm.py"],
+        "imports + config + single-arm regression",
+    )
 
 
 def _run_pytest(paths: list[str], label: str) -> bool:

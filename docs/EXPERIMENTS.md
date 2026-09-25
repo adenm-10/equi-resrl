@@ -1021,3 +1021,19 @@ warnings: both Square buffer caches miss and will be built on the first run —
 **offline `1d31ed9b`** (~5 GB) and **online `66c46c51`** (~16 GB). Cross-check those two hashes
 against what the training script prints at startup; a mismatch means `preflight.cache_hashes()` has
 drifted from the meta dicts it mirrors.
+
+---
+
+## 2026-09-25 — CORRECTION — `equi-square-v1` launched at `b8e1de7`, not `3eae998`
+
+The pre-registration above records `3eae998`. The run launched at 09:17:27; `b8e1de7`
+was committed at 09:14:31, three minutes earlier, so `b8e1de7` is what ran.
+
+**No Python changed between the two commits** — the diff is `docs/EXPERIMENTS.md` and
+`submit.sh` only. So the code is identical and the result stands. The hash is corrected
+here rather than edited above, per rule 5.6, and because this project's standing lesson
+is that a recorded commit hash is not self-verifying.
+
+Seeds 2 and 3 will be launched from a worktree pinned at `b8e1de7`
+(`~/projects/equi-resrl-square`), so the seed group runs one commit throughout while
+HEAD continues to change for the BoxCleanup work.
