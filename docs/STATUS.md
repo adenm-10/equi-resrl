@@ -93,11 +93,12 @@ about 1.4 standard errors, so it is within noise and not the 0.00 anomaly that t
 
 **Both BoxCleanup arms wait for Square**, which finishes around 2026-09-29. Decided 2026-09-25.
 
-Square's 22.4 GB of caches free then, and BoxCleanup needs **~51 GB** (27.4 offline + 24 online)
-against 56 GB free today — a ~5 GB margin, so `preflight.py` returns NO-GO on disk for that task
-right now. Waiting also frees GPU 0 (GPU 1 is already idle), so the two arms can run
-**concurrently under identical wall-clock conditions** instead of weeks apart. They share their caches anyway: the cache key has no
-equivariance term, so the second arm costs no extra disk once the first has built them.
+Square's 22.4 GB of caches free then, and BoxCleanup needs **~51 GB** (27.4 offline + 24 online).
+At the decision there was 56 GB free, a ~5 GB margin, and `preflight.py` returned NO-GO on disk. A
+cleanup the same evening brought it to 67 GB, a ~16 GB margin, which clears the gate's 10 GB bar.
+Waiting also frees GPU 0 (GPU 1 is already idle), so the two arms can run **concurrently under
+identical wall-clock conditions** instead of weeks apart. They share their caches anyway: the cache
+key has no equivariance term, so the second arm costs no extra disk once the first has built them.
 
 At roughly 1.5–1.8 s/step, 500k steps is 9–10 days per arm. The ACT reset crash (TODO B3) has to be
 fixed before either arm launches; the fix touches only the ACT branch, so Can and Square stay

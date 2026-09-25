@@ -40,7 +40,15 @@ Closed Aden's "stop sending giant files to wandb" item. No training-path change.
   to `wandb_best/`; one captioned panel video; `metrics.jsonl` matching the record row for row;
   metric names identical to `xg0w2r0z` and `j04yoeui`; the BC upload loads through the unchanged
   `download_policy_from_wandb`, and the residual upload reloads strictly. Tooling checks, so not in
-  EXPERIMENTS.md.
+  EXPERIMENTS.md. Afterwards both runs and their uploads were deleted from wandb (the project
+  `equi-resrl-smoke` is left empty), and their weights were removed locally. Their packages in
+  `outputs/runs/equi-resrl-smoke/` keep the manifest, `wandb_logs/` with the `.wandb` record, and the
+  videos, 15 MB.
+- **Cleanup, 8.9 GB freed, 67 GB now free.** Trimmed the wandb artifact cache to 1 GB (7.1 GB, mostly
+  copies of the BoxCleanup BC run's uploads, which stay on wandb). Moved the dead `0prso90n` run's folder from the repo root to
+  `outputs/runs/robomimic-square-final/0prso90n/`, and removed the empty BoxCleanup diffusion
+  `bc_run_*` folder. The live Square run's `run_2026-09-25_11-45-19_*` folder is untouched; its old
+  code deletes it when the run completes.
 
 **Decided**
 
