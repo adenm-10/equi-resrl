@@ -927,3 +927,97 @@ these numbers come from warmup, not the main loop.
 [ARCHITECTURE.md](ARCHITECTURE.md) and the no-op tests pin the inert `EquivarianceConfig` fields at
 HEAD / `caf83f3`, and `caf83f3` is the commit being launched. The 117-field config match to
 `z8yoqylh` is recorded in the pre-registration above.
+
+---
+
+## 2026-09-25 — RESULTS — `equi-repro-caf83f3`: both seeds reproduced
+
+**The replication succeeded.** Both seeds ran the full 300,000 steps, neither collapsed, and both
+ended above their step-0 baseline. This is the first multi-seed result in the project.
+
+| Seed | wandb | Step-0 | Best | Final | Successful ep. length | Runtime |
+|---|---|---|---|---|---|---|
+| 2114495708 | `38z4wr9z` | 0.82 | **0.96** | 0.90 | 154.5 | 46.7 h |
+| 1 | `sw2qwfs9` | 0.94 | **0.96** | 0.94 | 161.6 | 47.6 h |
+| — | `z8yoqylh` (target) | 0.82 | 0.94 | 0.92 | 151.8 | 47.3 h |
+
+Read the step-0 column before the best column (rule 5.5). `38z4wr9z` is the load-bearing arm: same
+seed as `z8yoqylh`, it drew the same 0.82 step-0 and climbed **+0.14** to 0.96, slightly exceeding
+the run it was replicating. `sw2qwfs9` drew a 0.94 base policy and gained only +0.02, so its
+headline 0.94 is mostly a favourable draw rather than learning. The pair is n=2 for "does it
+reproduce" and weaker than it looks for "how much does it help".
+
+**No collapse in either run.** Zero evaluations with all 50 episodes failing, at any point in
+either seed. Every previous collapse in this project was unambiguous by 10k–20k steps.
+
+**Runtime matched the prediction.** 46.7 h and 47.6 h against the pre-registered ~47 h, which came
+from `z8yoqylh`'s measured 47.3 h rather than the failed attempt's 34.6 h. The reasoning that
+`caf83f3`'s wider encoder (`enc_degree_channel=32` vs 16) would cost more per step held.
+
+**The kernel and driver deviation did not matter.** The runs executed on kernel 6.8.0-138 and
+driver 580.178.04 where `z8yoqylh` ran on 6.8.0-111 and 580.173.02 — recorded in the
+pre-registration as the one variable this replication could not hold fixed. Both seeds reproduced
+anyway, so that difference is not load-bearing on Can.
+
+**Episode length is now n=3 and still flat.** 151.8, 154.5, 161.6 across the three successful
+equivariant runs, against the ≈105 the baseline reached on Can. The equivariant agent reaches a
+comparable success rate without learning to finish faster. This was flagged as the more interesting
+signal when it rested on a single run; it now rests on three, and it remains unexplained.
+
+**What this does not establish.** Both seeds ran at `caf83f3` from the pinned worktree, so this
+confirms the recovered configuration reproduces — it says nothing about HEAD, about Square, or
+about whether equivariance beats the non-equivariant baseline. The baseline comparator `msfkjwab`
+is still n=1 and still only on `ZXP-S-works`.
+
+Use `/analyze-experiment` for the full metric-by-metric read; this entry records the outcome.
+
+---
+
+## PRE-REGISTERED, NOT YET LAUNCHED (4)
+
+### Equivariant residual TD3 on Square at HEAD — `equi-square-v1`
+
+- **Commit:** `3eae998` (HEAD) · **Config:** `residual_equi_td3_square_config`
+- **Overrides:** `algo.prefetch_batches=4`, `agent.actor.actor_last_layer_init_scale=1e-4`
+- **Task:** Square · **Host:** `boce-WS-01`, GPU 0 · **Seeds:** 1 first, then 2 and 3 sequentially
+- **Launcher:** `submit.sh`, rewritten in place for this experiment
+
+**Hypothesis.** The equivariant residual agent improves over the Square base policy. Square is the
+discriminating task: its base policy sits at 0.52 (`870ws2c2`), where Can's starts at 0.82–0.94 and
+leaves almost no headroom to measure.
+
+**Decided by.** `eval/success_rate` at step 0 versus best versus final, and
+`eval/mean_successful_episode_length`. A run whose best equals its step-0 learned nothing.
+
+**Held fixed.** `n_step=3`, `gamma=0.99`, `buffer_size=200k`, `learning_starts=10k`,
+`action_scale=0.1`, stddev 0.05, `num_episodes=300`. Base policy is the Diffusion checkpoint
+`robomimic-square-bc/3hzs5bz1`, artifact `run_3hzs5bz1_best:v9`, verified as `type=diffusion`,
+`n_obs_steps=2`, `chunk_size=16` — the same policy type as Can's `xhjdl8a7`, so base-policy type is
+not confounded with task.
+
+**Why `actor_last_layer_init_scale` is passed explicitly.** HEAD defaults it to `0.0`. Every run in
+the `equi-repro-caf83f3` pair and both recovered successes (`z8yoqylh`, `36pfxsww`) resolved to
+`1e-4`, because that was the default at `caf83f3`. Launching at HEAD without the override would
+silently change the setting away from the one behind the only verified n=2 result. Passed on the
+CLI so the resolved config states the intent rather than inheriting it.
+
+**Not held fixed, stated because it matters.** This runs at **HEAD**, not at `caf83f3`. It is
+therefore *not* a controlled comparison against `38z4wr9z` / `sw2qwfs9`. It tests whether the
+algorithm works on a harder task; it does not isolate Square-versus-Can.
+
+**Comparator.** `870ws2c2`, the ResFiT baseline on Square: 0.52 → 0.90, single seed, commit
+`debc9b6c`. The 1-versus-n asymmetry is acknowledged in advance rather than discovered later.
+
+**The abort condition.** The March 2026 Square runs logged step-0 evaluations of **0.00** on a task
+whose base policy measures 0.52, then recovered to 0.48–0.66 in late April with no recorded config
+change. That was never diagnosed. **If step 0 is not near 0.52, this run is void** and the
+observation pipeline is the suspect, not the algorithm.
+
+**Gate, run 2026-09-25 at `3eae998`:** GO. Tier 1 clean (torch 2.6.0, torchrl 0.7.0, escnn 1.0.11,
+two RTX 4090s, working tree clean); Tier 2 clean (69 static + 79 equivariance tests); Tier 3 —
+BC policy cached and resolving in wandb, robot base probe `Square.json` = `[-0.56, 0.0]` from a
+single `robot0_base` with identity orientation, 127 GB RAM and 71 GB disk free. Two expected
+warnings: both Square buffer caches miss and will be built on the first run —
+**offline `1d31ed9b`** (~5 GB) and **online `66c46c51`** (~16 GB). Cross-check those two hashes
+against what the training script prints at startup; a mismatch means `preflight.cache_hashes()` has
+drifted from the meta dicts it mirrors.

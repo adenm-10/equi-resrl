@@ -1,29 +1,27 @@
 #!/bin/bash
-# Rewritable submission script. Overwrite this in place for each new experiment
-# rather than adding another file under shell/paper_runs/ (there are ~150 there
-# already). The durable record of what was run is docs/EXPERIMENTS.md plus the
-# resolved config in wandb -- NOT this file.
+# Rewritable submission script. Overwrite this in place for each new experiment.
+# The durable record is docs/EXPERIMENTS.md plus the resolved config in wandb.
 #
 #   ./submit.sh 1          # seed 1 on GPU 0
 #   ./submit.sh 2 1        # seed 2 on GPU 1
 #   SKIP_PREFLIGHT=1 ./submit.sh 1    # escape hatch, discouraged
 #
-# Currently configured for: equivariant residual TD3 on Can, reproducing the
-# lost z8yoqylh run. See docs/EXPERIMENTS.md, "Reproduction of z8yoqylh".
+# Currently configured for: equivariant residual TD3 on SQUARE at HEAD.
+# Pre-registered in docs/EXPERIMENTS.md as seed-group `equi-square-v1`.
 #
-# WHY THERE ARE ALMOST NO OVERRIDES HERE
-# --------------------------------------
-# The README and the coffee/square scripts pass n_step=5, gamma=0.995,
-# stddev=0.025, action_scale=0.2. The reference run did NOT: its resolved config
-# shows n_step=3, gamma=0.99, stddev=0.05, action_scale=0.1 -- i.e. the config
-# defaults, with `algo.prefetch_batches=4` as the only algorithmic override.
-# Every Can run in this project was launched that way.
+# WHY actor_last_layer_init_scale IS PASSED EXPLICITLY
+# ----------------------------------------------------
+# HEAD defaults this to 0.0. Every run in the verified n=2 Can replication
+# (38z4wr9z, sw2qwfs9) and both recovered successes (z8yoqylh, 36pfxsww)
+# resolved to 1e-4, because that was the default at caf83f3. Relying on the
+# default here would silently change the experiment. Passed explicitly so the
+# resolved config says what was intended.
 #
-# Two reasons not to "improve" on that:
-#   1. n_step and gamma are part of the replay-buffer cache key. Overriding
-#      either invalidates both Can caches (5 GB + 16 GB) and forces a dataset
-#      rebuild plus a 10k-step env warmup.
-#   2. It would no longer be a reproduction.
+# WHY THERE ARE NO OTHER OVERRIDES
+# --------------------------------
+# n_step, gamma, buffer_size and learning_starts are all part of the replay
+# buffer cache key. Overriding any of them changes the key. Defaults kept so
+# the hashes match preflight's mirror in cache_hashes().
 
 set -euo pipefail
 
@@ -35,10 +33,6 @@ cd "$REPO"
 export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 export CUDA_VISIBLE_DEVICES="$GPU"
 
-# Resolve the interpreter rather than trusting the ambient shell. A bare
-# `python` picks up system python when this script runs from a non-interactive
-# shell that never sourced conda, and every dependency then appears missing --
-# the gate correctly reports NO-GO, but for the wrong reason.
 PY="${PYTHON:-python}"
 if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     FALLBACK="$HOME/miniforge3/envs/residual/bin/python"
@@ -52,32 +46,27 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     fi
 fi
 
-# --- gate -------------------------------------------------------------------
-# Blocks the launch if imports break, configs drift, the equivariance tests
-# fail, or the machine cannot hold the run. See preflight.py.
-GROUP="equi-residual-rl"
+GROUP="equi-square-v1"
 
-# Built once and passed to both the gate and the run, so the gate validates
-# exactly what will launch rather than a hand-kept copy.
 OVERRIDES=(
-    --config-name=residual_equi_td3_can_config
+    --config-name=residual_equi_td3_square_config
     algo.prefetch_batches=4
-    wandb.project=robomimic-can-final
+    agent.actor.actor_last_layer_init_scale=1e-4
+    wandb.project=robomimic-square-final
     "wandb.name=${GROUP}-${SEED}"
     "wandb.group=${GROUP}"
-    "wandb.notes=repro/z8yoqylh/equi_can_seed${SEED}"
+    "wandb.notes=equi-square/head/seed${SEED}"
     "seed=${SEED}"
     debug=false
 )
 
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
     echo "Running pre-submission gate..."
-    "$PY" preflight.py --task Can --concurrent-seeds 1 --compose "${OVERRIDES[@]}"
+    "$PY" preflight.py --task Square --concurrent-seeds 1 --compose "${OVERRIDES[@]}"
 else
     echo "WARNING: preflight gate skipped via SKIP_PREFLIGHT=1"
 fi
 
-# --- run -------------------------------------------------------------------
 echo
 echo "Launching ${GROUP}-${SEED} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
 echo
