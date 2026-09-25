@@ -33,6 +33,11 @@ Get success rates by counting the `✓`/`✗` markers in each `Evaluating N epis
 trusting `wandb-summary.json`, which holds only the last logged value and can read as 0 for a run
 that did fine earlier.
 
+Runs launched with run packages also have `outputs/runs/<project>/<run_id>/`. Check it first:
+`manifest.json` lists the uncommitted files as well as the commit, and `wandb_logs/metrics.jsonl`
+has every logged metric row. If you query the wandb API instead, `Run.scan_history()` drops the final
+row, which is where the last eval lands.
+
 **Two things to get right, or the analysis will mislead:**
 
 - **The step-0 evaluation is the base BC policy alone**, because the residual initializes to exactly

@@ -26,13 +26,20 @@ contradicts the premise of R11 — resolve that before running R11.
 
 ### B3. Launch the BoxCleanup baseline `[SC]`
 
-Blocked on Square finishing (B5) and on the ACT BC run. Needs: `base_policy.wandb_id` set in **both**
-`config/residual_td3.py` and `preflight.TASKS` — they must agree — a pinned id in `test_config.py`,
-a pre-registration, a rewritten `submit.sh`, and ~51 GB free.
+Blocked on Square finishing (B5) and on **a crash in the residual env wrapper**:
+`BasePolicyVecEnvWrapper.step` resets an ACT base policy with `env_ids=terminated_envs`, an undefined
+name, so the run dies with `NameError` on its first successful episode. Can and Square never reach
+that branch. Fix it to `env_ids=reset_ids`, which touches only ACT runs, and cover it with a test.
 
-The pre-registration must carry the BC policy's **full evaluation sequence**, not its peak. The
-policy oscillates ±0.15 and its recorded best of 0.74 is an outlier; the true rate is about 0.65.
-Without that on record, the residual run's step-0 will look like a discrepancy when it is not.
+The ACT BC run finished: `dexmg-boxcleanup-bc/xg0w2r0z`, 50k steps. Back up `run_xg0w2r0z_best`
+first — the old code deleted the local copy, so the wandb artifact is the only one. Then set
+`base_policy.wandb_id` in **both** `config/residual_td3.py` and `preflight.TASKS` — they must agree —
+pin the id in `test_config.py`, pre-register, rewrite `submit.sh`, and have ~51 GB free.
+
+The pre-registration must carry the BC policy's **full evaluation sequence**, not its peak. It
+oscillates ±0.15; ten-eval averages are 0.61 for 21k–30k, 0.54 for 31k–40k and 0.51 for 41k–50k, and
+the recorded best of 0.74 at 24k, the checkpoint `wt_type="best"` loads, is an outlier. Without that
+on record, the residual run's step-0 will look like a discrepancy when it is not.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### B4. Launch the equivariant BoxCleanup `[SC]`
@@ -79,9 +86,10 @@ lost two runs to wandb deletion and this is the one that matters.
 ### H5. The 150 KB doc budget no longer fits, and cannot `[HI]`
 
 Needs a decision from Aden. The budget in CLAUDE.md is 150 KB for `CLAUDE.md` + `docs/*.md` +
-skills + `settings.json`. As of 2026-09-25 it is **about 182 KB, roughly 21% over**, after a further
-STATUS.md rewrite that cut 5 KB and the bimanual additions to EQUIVARIANCE.md, ARCHITECTURE.md and
-this file that the work required.
+skills + `settings.json`. After the run-package session on 2026-09-25 it is **201 KB by the
+`wc -c` check in CLAUDE.md, roughly 34% over**. That session added 11.7 KB, mostly the Run packages
+section in ARCHITECTURE.md and its PROGRESS.md entry; the bimanual session before it added the
+EQUIVARIANCE.md, ARCHITECTURE.md and TODO.md material that work required.
 
 The structural problem: **EXPERIMENTS.md is 40.4 KB, 27% of the budget, and is append-only by
 project rule** — and rule 5.4 requires a pre-registration for every run, plus a correcting entry
@@ -97,6 +105,21 @@ Three options:
    and the next cuts would trade correctness for size, which the session-end skill forbids.
 
 **Updates:** CLAUDE.md.
+
+### H6 — DONE 2026-09-25: stop sending large files to wandb `[SC]` `[HI]`
+
+Aden's item. Each run now keeps a persisted package under `outputs/runs/<project>/<run_id>/` and
+uploads one artifact, the best model plus its eval video, replaced in place. Layout in ARCHITECTURE.md
+"Run packages", the rule in STANDARDS.md 6.4, the decisions and their reasons in PROGRESS.md
+2026-09-25. Resuming a residual run is still not supported: `best_model.pt` has no optimizer state.
+
+### H7. The Can buffer caches are gone `[SC]`
+
+`offline_buffer_cache/8edf618e` and `online_buffer_cache/43637c10` were on disk on 2026-09-18
+(EXPERIMENTS.md) and are not now; nothing records who deleted them or why. The next Can run rebuilds
+them, so budget its disk and time. `test_config.py` still pins those hashes, which is correct — they
+are what a rebuild must reproduce.
+**Updates:** STATUS.md.
 
 ---
 
@@ -213,15 +236,15 @@ project history — every collapsed equivariant run on `ZXP-S-works`, the one su
 28 rules in [STANDARDS.md](STANDARDS.md), three skills in `.claude/skills/`. The significant finding
 is rule 3.3: the scalar ablation is not a controlled ablation. See P4.
 
-Remaining follow-up: revisit `analyze-experiment` when the wandb workflow changes. It reads run data
-from local `wandb/run-*/files/`, and now has to cope with **two machines** — the runs it needs to
+Remaining follow-up: `analyze-experiment` reads run data from local `wandb/run-*/files/`, and since
+2026-09-25 from run packages first. It still has to cope with **two machines** — the runs it needs to
 compare live on `boce-WS-01`, not here.
 
 ---
 
 ## P2 — Equivariance tests — MOSTLY DONE 2026-09-16
 
-`preflight.py` (3 tiers) plus `tests/` (231 tests as of 2026-09-25), passing on both machines. Full detail in
+`preflight.py` (3 tiers) plus `tests/` (244 tests as of 2026-09-25), passing on both machines. Full detail in
 [tests/README.md](../tests/README.md). **Result: the equivariant implementation is correct** —
 declared representations match the physics at all 8 group elements, the actor is equivariant and the
 critic invariant to `< 1e-4`. So the collapses were not a broken symmetry.
@@ -254,7 +277,9 @@ cleanup did not move behavior. Only after this do these become real, ablatable k
 
 From ARCHITECTURE.md "Known rough edges": the `std=0` versus `std=None` divergence in
 `Actor.forward`, the ignored `return_logits`, the stored-and-unread `loss_cfg`, the commented-out
-`assert False` debug blocks.
+`assert False` debug blocks. The base-policy reset timing in `BasePolicyVecEnvWrapper` is listed
+there too, but it is not a cleanup: changing it changes Can and Square behaviour, so it needs its own
+comparison runs.
 
 ### P3.3 Decide about the distributional critic `[CS]`
 

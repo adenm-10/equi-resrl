@@ -272,7 +272,7 @@ Roughly in order:
 6. Create offline and online replay buffers; populate the offline buffer from the dataset (cached in `offline_buffer_cache/`).
 7. Environment warmup: fill the online buffer to `algo.learning_starts` with base policy + noise.
 8. Critic warmup: `algo.critic_warmup_steps` critic-only updates, actor frozen.
-9. Main loop to `algo.total_timesteps`: step env, add to buffer, do `num_updates_per_iteration` gradient updates, evaluate every `eval_interval_every_steps`, checkpoint on best success rate.
+9. Main loop to `algo.total_timesteps`: step env, add to buffer, do `num_updates_per_iteration` gradient updates, evaluate every `eval_interval_every_steps`. On a new best success rate, save the residual weights and upload them with that eval's video (see "Run packages" below).
 
 `eval_first: bool = True` means there is an evaluation at step 0. Because
 `agent.actor.actor_last_layer_init_scale = 0.0`, the residual starts at exactly zero, so **the
@@ -291,7 +291,8 @@ be misleading.
 | Online buffer cache | `online_buffer_cache/` (32 GB) |
 | Robot base XY probes | `env_probes/<task>.json` |
 | Local wandb run data | `wandb/run-<date>-<run_id>/files/{config.yaml,output.log,wandb-metadata.json}` |
-| Past local run outputs | `local_runs/run_<timestamp>_.../` |
+| Run packages | `<CACHE_DIR>/outputs/runs/<project>/<run_id>/`, or `.../local/<timestamp>/` without wandb. See below. |
+| Past local run outputs | `local_runs/run_<timestamp>_.../`; before run packages, `run_<timestamp>_*` and `bc_run_*` in the launch directory, deleted when the run completed |
 | Run launchers | `resfit/rl_finetuning/shell/paper_runs/<task>/` and `.../ablations/<task>/<knob>/` |
 | Vendored dependencies | `deps/{lerobot,robosuite,mimicgen,dexmimicgen}/` (gitignored, 1.7 GB) |
 
@@ -304,6 +305,39 @@ Everything needed is on disk under `wandb/run-*-<run_id>/files/`:
   values did not affect the network.
 - `output.log` — per-step training lines and the evaluation markers, one `✓`/`✗` per episode.
 - `requirements.txt` — the Python environment at run time.
+
+### Run packages
+
+Both trainers write everything a run saves into one folder and keep it after the run:
+`<CACHE_DIR>/outputs/runs/<project>/<wandb_run_id>/`, or `local/<timestamp>/` when wandb is off.
+`CACHE_DIR` defaults to the launch directory. The helpers are at the bottom of
+`resfit/lerobot/utils/load_policy.py`.
+
+| Path | Contents |
+|---|---|
+| `manifest.json` | wandb ids and URL, host, argv, git commit **plus the list of uncommitted files**, one entry per resume, the best step and success rate, `completed` |
+| `wandb_best/` | An exact copy of the run's one wandb upload: `best.json`, `best_eval.mp4`, and `policy/` (BC) or `best_model.pt` (residual) |
+| `wandb_logs/` | wandb's `config.yaml`, `output.log`, summary, metadata and `requirements.txt`, the `run-<id>.wandb` record, and `metrics.jsonl` |
+| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` and `outputs/` |
+
+**The upload rule.** A run uploads one artifact, `run_<id>_best`: the best model plus the video of
+the eval that produced it. Each new best uploads a new version, waits for it to commit, then deletes
+the older versions, so wandb holds exactly one and a failed upload never leaves the run without a
+best. No per-eval videos, per-step models or `latest` uploads. At the end of a completed run the best
+video is posted once to the existing panel (`eval/rollout_video` for BC, `eval/video` for residual),
+captioned with its step and success rate. Every other panel is unchanged.
+
+**Read `metrics.jsonl`, not the wandb API.** `Run.scan_history()` drops the final history row, which
+is where the last eval and the best-video entry land. `metrics.jsonl` is parsed from the local
+`.wandb` record, which has every row; `wandb sync` on that record restores a deleted run. A crashed
+or killed run keeps its package with `completed: false` and no `wandb_logs/`; the same files are
+still under `wandb/`.
+
+**`best_model.pt` is for re-evaluation, not resuming.** It holds the agent's weights, the resolved
+config, the step and the success rate, and no optimizer state. `load_residual_model` loads it into an
+agent built from that config, and the equivariant normalizer must be attached with `set_normalizer`
+first. Save and load both run in eval mode, because escnn registers its cached basis buffers only
+there. A BC run resumes from its package with `--resume_ckpt <package>/latest`.
 
 ### Observation and action layout per task
 
@@ -350,6 +384,8 @@ earlier TwoArmCoffee BC policy, now commented out in the config) and `run_e14vlv
 
 To point a residual run at a different BC policy: find the run at wandb.ai, take the 8-character
 run id from the URL, and set `base_policy.wandb_id = "<project>/<run_id>"` in the task config.
+`base_policy.wt_type="best"` works for every BC run. `"latest"` or a step number resolves only for BC
+runs from before run packages, the last ones to upload those artifacts.
 
 ## Known rough edges
 
@@ -376,4 +412,12 @@ Recorded so they are not rediscovered. None are blocking.
   looser than `action_scale=0.1` suggests. Read `residual_l1` / `residual_l2` against 1.0, not
   against `action_scale`. Surfaced 2026-09-25 by parameterising the equivariance tests over arm
   count; the single-arm actor happened to stay under the bound, so the old test passed by luck.
+- **The base policy is reset only on success, and for diffusion it resets every env.**
+  `BasePolicyVecEnvWrapper.step` resets on `terminated` but not `truncated`, so after a timeout the
+  auto-reset env keeps executing the old episode's action chunk. The reset also comes after
+  `select_action`, and diffusion's `reset()` clears the queues of all envs, not just the finished one.
+  Fixing either changes Can and Square behaviour, so it breaks comparability with every run so far.
+- **The ACT branch of that reset crashes.** It passes `env_ids=terminated_envs`, a name that does not
+  exist, so the first success with an ACT base policy raises `NameError`. Can and Square use
+  diffusion and never reach it; BoxCleanup does. TODO B3.
 - Two git stashes exist: `stash@{0}` on `aabde0f`, `stash@{1}` on `d9909ce`. Contents unreviewed.

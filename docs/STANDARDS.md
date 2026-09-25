@@ -295,3 +295,14 @@ These three found the residual-saturation failure mode and should stay logged on
   a nearly flat surface.
 - `train/critic_loss` — a low, stable loss alongside a flat `dQ_da` means the critic is fitting
   something with no useful action dependence.
+
+### 6.4 One upload per run: the best, replaced in place `[SC]` `[HI]`
+
+A run uploads exactly one wandb artifact, `run_<id>_best`: the best model and the video of the eval
+that produced it, through `upload_best`. Everything else it produces goes in its run package under
+`outputs/runs/` (ARCHITECTURE.md, "Run packages"). Scalars, histograms and `value/` plots still log
+to wandb as before.
+
+Why: per-eval videos and per-step model uploads filled wandb storage, while the end-of-run cleanup
+deleted the only local copy — backwards for a project that has already lost runs to wandb deletion.
+A new file a run should keep goes into the package, not into a new upload.

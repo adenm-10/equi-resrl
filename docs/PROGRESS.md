@@ -17,6 +17,65 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-09-25 — Run packages: keep everything locally, upload only the best
+
+Closed Aden's "stop sending giant files to wandb" item. No training-path change.
+
+**Done**
+
+- **Run packages** (`503a9a3`). Both trainers write into `outputs/runs/<project>/<run_id>/` and keep
+  it: the existing local saves, `wandb_best/` (an exact copy of the one upload), `wandb_logs/`
+  (wandb's files, the `.wandb` record, `metrics.jsonl`) and a `manifest.json` with the commit and
+  uncommitted files. Each run uploads only `run_<id>_best`, the best model plus its eval video,
+  replaced in place; the best video goes to the existing panel once at the end. Helpers in
+  `load_policy.py`; ARCHITECTURE.md "Run packages", STANDARDS.md rule 6.4.
+- **The residual trainer saves its best weights** for the first time (`save_residual_model` /
+  `load_residual_model` in `utils/checkpoint.py`). Weights and config only, for re-evaluation.
+- **Removed the BC trainer's dead `--output_dir` flag.**
+- **`tests/test_run_package.py`**, 13 tests against a fake wandb plus a residual save/load round
+  trip, wired into Tier 1. Suite 231 → 244.
+- **Two smoke runs in the throwaway project `equi-resrl-smoke`**, launched from the branch, both
+  passing every check: `8ocaetgn` (BC, Can ACT, 3k steps, bests 0.65 → 0.85) and `rr5ytsrc`
+  (residual, Square equi, 1.5k steps, bests 0.40 → 0.60). One surviving upload each, byte-identical
+  to `wandb_best/`; one captioned panel video; `metrics.jsonl` matching the record row for row;
+  metric names identical to `xg0w2r0z` and `j04yoeui`; the BC upload loads through the unchanged
+  `download_policy_from_wandb`, and the residual upload reloads strictly. Tooling checks, so not in
+  EXPERIMENTS.md.
+
+**Decided**
+
+- **Overwrite, then delete.** wandb artifacts are immutable, so a new best version is uploaded and
+  committed before the older ones are deleted; a failed upload never leaves a run without a best.
+- **Persist the package instead of deleting the run folder.** The old end-of-run delete removed the
+  only local copy of models and videos from every run that completed, and the project has lost runs
+  to wandb deletion before. The kept `.wandb` record restores a run with `wandb sync`.
+- **Leave every other panel alone**, so dashboards and metric names stay comparable.
+- **One new test file, no new source files.** The helpers live in `load_policy.py`, which both
+  trainers already import.
+
+**Found**
+
+- **wandb's `Run.scan_history()` drops the final history row**, which holds the last eval and the
+  panel video. `metrics.jsonl` is parsed from the local `.wandb` record instead.
+- **escnn saves different state dicts in train and eval mode**; its cached basis buffers exist only
+  in eval mode. Residual weights are saved and loaded in eval mode.
+- **`load_residual_model` has to map tensors to the agent's device**, because the normalizer
+  rebuilds its parameters from the loaded tensors instead of copying into existing ones. Caught by
+  the round-trip test.
+- **The ACT reset in the residual env wrapper references an undefined name** and would crash
+  BoxCleanup on its first success. Also, the base policy is reset only on success, not timeout, and
+  diffusion's reset clears every env's queue. TODO B3, ARCHITECTURE.md rough edges.
+- **The BoxCleanup BC run finished lower than it looked at 31k.** Ten-eval averages 0.61 → 0.54 →
+  0.51, final 0.53; the "≈0.65" in the previous entry does not hold. STATUS.md.
+- **The Can buffer caches are gone** (TODO H7), and `docs/papers/SO2ERL.pdf` is missing, although
+  the session-start skill points to it.
+
+**Next**
+
+1. Fix the ACT reset crash (TODO B3), back up `run_xg0w2r0z_best`, then wire its id in.
+2. When Square finishes: free its caches, pre-register both BoxCleanup arms, launch them together.
+3. Independent of both: write up the five undocumented successful runs (TODO B2).
+
 ## 2026-09-25 — The encoder goes bimanual, and Square restarts
 
 The `caf83f3` replication reported (both seeds reproduced, first n=2 in the project). Work moved to

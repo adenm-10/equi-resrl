@@ -90,8 +90,8 @@ deletion, and a deleted run takes its config with it.
 ## Repository size
 
 The tracked repo is small (about 200 files, 1.5 MB) and should stay that way. Everything heavy is
-gitignored: `wandb/`, `artifacts/`, `outputs/`, `local_runs/`, both buffer caches, `deps/`, and
-`docs/papers/`. Docs are plain markdown, no images, no CSVs, no checkpoints. Experiment records
+gitignored: `wandb/`, `artifacts/`, `outputs/` (including the run packages in `outputs/runs/`),
+`local_runs/`, both buffer caches, `deps/`, and `docs/papers/`. Docs are plain markdown, no images, no CSVs, no checkpoints. Experiment records
 cite wandb URLs and numbers as text.
 
 ## Writing style for docs
