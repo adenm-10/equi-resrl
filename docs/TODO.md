@@ -26,8 +26,13 @@ contradicts the premise of R11 — resolve that before running R11.
 
 ### B3. Launch the BoxCleanup baseline `[SC]`
 
-Blocked on the ACT BC run finishing and on disk. Needs: `base_policy.wandb_id` set, a pinned id in
-`test_config.py`, a pre-registration, a rewritten `submit.sh`, and ~51 GB free.
+Blocked on Square finishing (B5) and on the ACT BC run. Needs: `base_policy.wandb_id` set in **both**
+`config/residual_td3.py` and `preflight.TASKS` — they must agree — a pinned id in `test_config.py`,
+a pre-registration, a rewritten `submit.sh`, and ~51 GB free.
+
+The pre-registration must carry the BC policy's **full evaluation sequence**, not its peak. The
+policy oscillates ±0.15 and its recorded best of 0.74 is an outlier; the true rate is about 0.65.
+Without that on record, the residual run's step-0 will look like a discrepancy when it is not.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### B4. Launch the equivariant BoxCleanup `[SC]`
@@ -37,12 +42,12 @@ Blocked on B3 building the shared caches and on a free GPU. Config
 measures a geometric prior, not an exploited symmetry — see EQUIVARIANCE.md.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
-### B5. Decide the BoxCleanup schedule `[SC]`
+### B5 — DECIDED 2026-09-25 `[SC]`
 
-At ~1.5–1.8 s/step, 500k steps is 9–10 days per arm, and only one GPU is free until Square finishes
-around 2026-09-29. Sequential is ~19 days; waiting for Square and running both arms concurrently
-pairs them under identical wall-clock conditions and fits the disk. Aden's call.
-**Updates:** STATUS.md.
+**Wait for Square, then run both BoxCleanup arms concurrently.** Square finishes around 2026-09-29
+and frees 22.4 GB plus GPU 1. Sequential would have been ~19 days and would have launched into a
+~5 GB disk margin; the pairing also gives both arms identical wall-clock conditions, and they share
+caches regardless. Cost is ~3.5 days of an idle GPU 1.
 
 ---
 
@@ -162,7 +167,7 @@ The correction entry lists them. Two need real work rather than a doc edit:
 
 ### R14. The gate cannot validate the commit it launches `[CS]`
 
-`preflight.py` and `tests/` do not exist at `caf83f3` or `7dae4925`, so the 148 tests and the
+`preflight.py` and `tests/` do not exist at `caf83f3` or `7dae4925`, so the whole suite and the
 equivariance checks run against HEAD while the launch runs older code. True of both replication
 attempts. Worth fixing before the next one, or at minimum stating in every entry.
 **Updates:** tests/README.md, STANDARDS.md.
@@ -216,7 +221,7 @@ compare live on `boce-WS-01`, not here.
 
 ## P2 — Equivariance tests — MOSTLY DONE 2026-09-16
 
-`preflight.py` (3 tiers) plus `tests/` (7 files, 148 tests), passing on both machines. Full detail in
+`preflight.py` (3 tiers) plus `tests/` (231 tests as of 2026-09-25), passing on both machines. Full detail in
 [tests/README.md](../tests/README.md). **Result: the equivariant implementation is correct** —
 declared representations match the physics at all 8 group elements, the actor is equivariant and the
 critic invariant to `< 1e-4`. So the collapses were not a broken symmetry.

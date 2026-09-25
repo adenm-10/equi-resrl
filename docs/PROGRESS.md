@@ -36,7 +36,7 @@ a second single-arm task and the first two-arm task.
   `detect_robot_base_xy` → `detect_robot_bases`, which returns *every* base rather than silently
   taking the first; `QAgent` now asserts encoder dims against the env instead of ignoring them.
 - **Tests parameterised over arm count.** The `obs_enc` fixture yields both layouts, so all of Tier 2
-  runs twice. Suite 74 → 230 passing.
+  runs twice. Suite 74 → 231 passing.
 - **`preflight.py` generalised.** `image_keys` and `num_episodes` moved into `TASKS`; added
   `TwoArmBoxCleanup`; cache sizes are now estimated per task and the disk check blocks on the
   estimate rather than a fixed 40 GB.
@@ -53,6 +53,11 @@ a second single-arm task and the first two-arm task.
   consistent with the other runs.
 - **ACT, not diffusion, for the BoxCleanup base policy**, matching the ResFiT authors' own
   simulation launchers.
+- **Wait for Square before launching BoxCleanup.** It finishes around 2026-09-29 and frees 22.4 GB,
+  which is what BoxCleanup's caches need, plus the second GPU. That lets the baseline and
+  equivariant arms run concurrently under identical wall-clock conditions rather than weeks apart,
+  and they share caches anyway. Cost is ~3.5 days of an idle GPU 1; the alternative was launching
+  into a ~6 GB disk margin and re-running later for pairing. Resolves TODO B5.
 
 **Found**
 
@@ -68,6 +73,21 @@ a second single-arm task and the first two-arm task.
   the equivariant run costs no extra disk.
 - **`ablate_equi_obs_encoder.py` is imported by nothing** and still references a normalizer key that
   no longer exists. Left under the freeze; queued for P3.5.
+- **The BoxCleanup BC policy's evaluation is unstable, and it matters.** 31 evals of 100 episodes
+  each: a clear climb from 0.26 to roughly 0.65, but oscillating +/-0.15 the whole way. The last six
+  are 0.68 0.53 0.67 0.66 0.69 0.53. The recorded peak of **0.74 at step 24k is an outlier draw**,
+  not the policy's true rate. `base_policy.wt_type="best"` selects on exactly this noisy signal, so
+  the saved checkpoint is biased high — which means the residual run's step-0 will look lower than
+  the BC "best" for reasons that are not a pipeline bug. Read step-0 as the base rate, and put the
+  whole sequence in the pre-registration.
+
+**Next**
+
+1. When BC finishes: verify the artifact, set `base_policy.wandb_id` in both the config and
+   `preflight.TASKS`, and back the checkpoint up.
+2. When Square finishes: free its caches, pre-register both BoxCleanup arms, and launch them
+   together.
+3. Independent of both: write up the five undocumented successful runs (TODO B2).
 
 ## 2026-09-16 — The lost run was not lost, and the target was wrong
 

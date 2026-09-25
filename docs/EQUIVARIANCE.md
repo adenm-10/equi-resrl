@@ -72,9 +72,10 @@ This regrouping is what the interleaved slicing at
 [obs_encoder.py:275-280](../resfit/rl_finetuning/equi_off_policy/networks/obs_encoder.py#L275)
 is doing. It looks like index gymnastics; it is the representation theory.
 
-### Action — 7 dimensions
+### Action — 6 + H dimensions per arm
 
-Delta end-effector pose in an OSC_POSE controller, plus gripper.
+Delta end-effector pose in an OSC_POSE controller, plus the gripper or hand. Slices below are
+relative to each arm's block; with `n_arms > 1` the block repeats contiguously.
 
 | Slice | Content | Representation |
 |---|---|---|
@@ -82,7 +83,9 @@ Delta end-effector pose in an OSC_POSE controller, plus gripper.
 | 2:3 | `action_z` | `trivial` |
 | 3:5 | `action_rx_ry` | `irrep(1)` |
 | 5:6 | `action_rz` | `trivial` |
-| 6:7 | `action_gripper` | `trivial` |
+| 6:6+H | `action_hand` | `trivial` x H |
+
+H is 1 for a parallel-jaw gripper (Can, Square) and 6 for a dexterous hand (TwoArmBoxCleanup).
 
 The base policy's action enters the network as an observation (`observation.base_action`, added by
 `BasePolicyVecEnvWrapper`), so it carries the same representation as the action.
@@ -188,9 +191,13 @@ it takes a single `abs_max` over both components and sets `input_min = -abs_max`
 
 Per-field assignment, from `build_equivariant_normalizer`:
 
+Field names carry an arm index, so arm 0's is `pos_xy_0`. `ResObsEnc` and
+`build_equivariant_normalizer` both build their keys from the same constants in
+`equi_normalizer.py`, so the two cannot drift apart.
+
 | Field | Normalizer | Why |
 |---|---|---|
-| `pos_xy` | symmetric, shifted by robot base xy | `irrep(1)`, needs isotropic scale about the rotation center |
+| `pos_xy` | symmetric, shifted by the rotation center | `irrep(1)`, needs isotropic scale about that center |
 | `pos_z` | plain range | `trivial`, free to scale per-dimension |
 | `ee_rot` | identity | already unit-norm from the rotation matrix |
 | `ee_q` | plain range | `trivial` |
@@ -198,7 +205,7 @@ Per-field assignment, from `build_equivariant_normalizer`:
 | `action_z` | plain range | `trivial` |
 | `action_rx_ry` | identity | `irrep(1)`; identity is trivially isotropic |
 | `action_rz` | identity | `trivial` |
-| `action_gripper` | plain range | `trivial` |
+| `action_hand` | plain range | `trivial` |
 
 This is all correct as written. It is also why the equivariant path sets the outer
 `StateStandardizer` and `ActionScaler` to identity and normalizes inside the encoder instead.
