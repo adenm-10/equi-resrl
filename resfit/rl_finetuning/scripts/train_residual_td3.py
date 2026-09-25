@@ -19,7 +19,6 @@ import json
 import logging
 import pprint
 import random
-import shutil
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -50,10 +49,19 @@ from resfit.lerobot.policies.act.configuration_act import ACTConfig
 from resfit.lerobot.policies.act.modeling_act import ACTPolicy
 from resfit.lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
 from resfit.lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
-from resfit.lerobot.utils.load_policy import download_policy_from_wandb, load_policy
+from resfit.lerobot.utils.load_policy import (
+    BEST_VIDEO,
+    create_run_package,
+    download_policy_from_wandb,
+    finalize_run_package,
+    load_policy,
+    log_best_video_to_panel,
+    upload_best,
+)
 from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
+from resfit.rl_finetuning.utils.checkpoint import save_residual_model
 from resfit.rl_finetuning.utils.dtype import to_uint8
 from resfit.rl_finetuning.utils.evaluate_dexmg import run_dexmg_evaluation
 from resfit.rl_finetuning.utils.hugging_face import (
@@ -968,13 +976,12 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Log horizon to wandb summary
     wandb.summary["environment/horizon"] = env.vec_env.metadata["horizon"]
 
-    # Create a timestamped folder in CACHE_DIR for all outputs
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_cache_dir = _CACHE_ROOT / f"run_{timestamp}_{run_name}"
+    # Everything the run saves goes into its package, which persists after the run.
+    run_dir = create_run_package()
 
     # Create subdirectories for models and outputs
-    model_save_dir = run_cache_dir / "models"
-    outputs_dir = run_cache_dir / "outputs"
+    model_save_dir = run_dir / "models"
+    outputs_dir = run_dir / "outputs"
     model_save_dir.mkdir(parents=True, exist_ok=True)
     outputs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1128,7 +1135,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         if global_step % cfg.eval_interval_every_steps == 0 and (cfg.eval_first or global_step > 0):
         # if False:
             with training_timer.time("evaluation"):
-                eval_metrics = run_dexmg_evaluation(
+                eval_metrics, eval_video = run_dexmg_evaluation(
                     env=eval_env,
                     agent=agent,
                     num_episodes=cfg.eval_num_episodes,
@@ -1146,6 +1153,20 @@ def main(cfg: ResidualTD3DexmgConfig):
                 if current_success_rate > best_eval_success_rate:
                     print(f"🎉 New best success rate: {current_success_rate:.4f} (prev: {best_eval_success_rate:.4f})")
                     best_eval_success_rate = current_success_rate
+
+                    # The run's only upload: the residual weights and this eval's video.
+                    best_model_path = model_save_dir / "best_model.pt"
+                    save_residual_model(
+                        agent,
+                        best_model_path,
+                        config=cfg,
+                        global_step=global_step,
+                        success_rate=current_success_rate,
+                    )
+                    best_files = {best_model_path.name: best_model_path}
+                    if eval_video is not None:
+                        best_files[BEST_VIDEO] = eval_video
+                    upload_best(run_dir, best_files, step=global_step, success_rate=current_success_rate)
 
         global_step += cfg.num_envs
 
@@ -1313,11 +1334,9 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     print(f"Training finished in {time.time() - train_start_time:.2f} seconds.")
 
-    # Clean up entire run directory after successful completion (videos/logs are saved to wandb)
-    if run_cache_dir.exists():
-        print(f"Cleaning up run directory: {run_cache_dir}")
-        shutil.rmtree(run_cache_dir)
-        print("Run directory cleaned up successfully.")
+    log_best_video_to_panel(run_dir, "eval/video", global_step)
+    wandb.finish()
+    finalize_run_package(run_dir)
 
 
 # -----------------------------------------------------------------------------

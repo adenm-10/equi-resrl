@@ -158,8 +158,8 @@ def tier1_pytest() -> bool:
     section("Tier 1 - static tests")
     return _run_pytest(
         ["tests/test_imports.py", "tests/test_config.py",
-         "tests/test_regression_single_arm.py"],
-        "imports + config + single-arm regression",
+         "tests/test_regression_single_arm.py", "tests/test_run_package.py"],
+        "imports + config + single-arm regression + run package",
     )
 
 

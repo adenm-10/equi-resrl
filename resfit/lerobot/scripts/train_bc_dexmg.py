@@ -33,7 +33,6 @@ import argparse
 import json
 import logging
 import multiprocessing as mp
-import os
 import re
 import shutil
 import time
@@ -57,7 +56,15 @@ import wandb
 from resfit.dexmg.environments.dexmg import VectorizedEnvWrapper, create_vectorized_env
 from resfit.lerobot.policies.factory import make_policy, make_policy_config
 from resfit.lerobot.policies.pretrained import PreTrainedPolicy
-from resfit.lerobot.utils.load_policy import load_checkpoint, save_checkpoint
+from resfit.lerobot.utils.load_policy import (
+    BEST_VIDEO,
+    create_run_package,
+    finalize_run_package,
+    load_checkpoint,
+    log_best_video_to_panel,
+    save_checkpoint,
+    upload_best,
+)
 
 # Set multiprocessing start method for CUDA compatibility
 # This must be done before any other multiprocessing operations
@@ -66,14 +73,6 @@ try:
 except RuntimeError:
     # Start method already set, which is fine
     pass
-
-# -----------------------------------------------------------------------------
-# Caching configuration ------------------------------------------------------
-# -----------------------------------------------------------------------------
-# Generic environment variable (shared across algorithms) -------------------
-# ``CACHE_DIR`` specifies the root folder for **all** local caches.
-# Falls back to the current directory if unset.
-_CACHE_ROOT = Path(os.environ.get("CACHE_DIR", ".")).expanduser().resolve()
 
 
 parser = argparse.ArgumentParser(description="Offline training on a HF Hub dataset with LeRobot policies")
@@ -109,7 +108,6 @@ parser.add_argument("--seed", type=int, default=None)
 parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
 
 # Logging & checkpoints
-parser.add_argument("--output_dir", type=str, default="outputs/train_hf")
 parser.add_argument("--log_freq", type=int, default=100, help="How often to print & log to W&B (in steps)")
 parser.add_argument("--save_freq", type=int, default=10_000, help="How often to save checkpoints (in steps)")
 
@@ -124,7 +122,9 @@ parser.add_argument(
     "--resume_run_id",
     type=str,
     default=None,
-    help="WandB run ID to resume from (grabs the 'latest' artifact to restore trainer state).",
+    help="WandB run ID to resume from (grabs the 'latest' artifact to restore trainer state). Only runs "
+    "from before the run-package change uploaded 'latest'; resume later runs with "
+    "--resume_ckpt <run package>/latest.",
 )
 
 # ------------------------------------------------------------------
@@ -415,11 +415,6 @@ def main(cfg: argparse.Namespace):
     # Create run start time for organizing video outputs
     run_start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    # Create a timestamped folder in CACHE_DIR for all outputs
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_cache_dir = _CACHE_ROOT / f"bc_run_{timestamp}_{Path(cfg.dataset).name}_{cfg.policy}"
-    run_cache_dir.mkdir(parents=True, exist_ok=True)
-
     if cfg.seed is not None:
         set_seed(cfg.seed)
         logger.info(colored(f"Random seed set to {cfg.seed}", "yellow"))
@@ -656,9 +651,8 @@ def main(cfg: argparse.Namespace):
     # ---------------------------------------------------------------------
     # Training loop
     # ---------------------------------------------------------------------
-    # Use the run cache directory for outputs instead of the default
-    output_dir = run_cache_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Everything the run saves goes into its package, which persists after the run.
+    output_dir = create_run_package()
 
     step = start_step
     eval_env = None  # type: ignore  # will hold the evaluation environment if created
@@ -805,17 +799,6 @@ def main(cfg: argparse.Namespace):
                 )
             )
 
-            if wandb is not None:
-                # Log model-only artifact (no optimizer)
-                art_model = wandb.Artifact(name=f"run_{wandb.run.id}_model_step_{step}", type="model")
-                art_model.add_dir(str(model_dir))
-                wandb.log_artifact(art_model)
-
-                # Log/overwrite the "latest" artifact with full state for resume
-                art_latest = wandb.Artifact(name=f"run_{wandb.run.id}_latest", type="model")
-                art_latest.add_dir(str(latest_dir))
-                wandb.log_artifact(art_latest, aliases=["latest"])
-
         step += 1
 
         # ------------------------------------------------------------------
@@ -856,9 +839,6 @@ def main(cfg: argparse.Namespace):
                     },
                     step=step,
                 )
-                if video_path is not None and video_path.exists():
-                    fps = eval_env.fps
-                    wandb.log({"eval/rollout_video": wandb.Video(str(video_path), format="mp4", fps=fps)}, step=step)
 
             # -------------------------------------------------------------
             # Checkpoint the model whenever we obtain a new best success-rate
@@ -879,27 +859,23 @@ def main(cfg: argparse.Namespace):
                     shutil.rmtree(best_dir)
                 save_checkpoint(best_dir, step, policy, optimizer)
 
-                if wandb is not None:
-                    # Overwrite/refresh the "best" artifact so that the most recent best checkpoint is easy to retrieve
-                    art_best = wandb.Artifact(name=f"run_{wandb.run.id}_best", type="model")
-                    art_best.add_dir(str(best_dir))
-                    wandb.log_artifact(art_best, aliases=["best", "latest"])
+                # The run's only upload: the policy (no optimizer state) and this eval's video.
+                upload_best(
+                    output_dir,
+                    {"policy": best_dir / "policy", BEST_VIDEO: video_path},
+                    step=step,
+                    success_rate=success_rate,
+                )
 
     logger.info(colored("Training finished!", "green", attrs=["bold"]))
+    log_best_video_to_panel(output_dir, "eval/rollout_video", step)
     if wandb is not None:
         wandb.finish()
 
     if eval_env is not None:
         eval_env.close()
 
-    # ---------------------------------------------------------------------
-    # Cleanup --------------------------------------------------------------
-    # ---------------------------------------------------------------------
-    # Clean up entire run directory after successful completion (videos/logs are saved to wandb)
-    if run_cache_dir.exists():
-        logger.info(f"Cleaning up run directory: {run_cache_dir}")
-        shutil.rmtree(run_cache_dir)
-        logger.info("Run directory cleaned up successfully.")
+    finalize_run_package(output_dir)
 
 
 if __name__ == "__main__":

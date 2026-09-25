@@ -12,7 +12,9 @@ from typing import Any
 
 import torch
 import wandb
+from omegaconf import OmegaConf
 
+from resfit.rl_finetuning.off_policy.common_utils import utils
 from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
 
 
@@ -129,3 +131,38 @@ def save_checkpoint(
 
     torch.save(checkpoint_data, checkpoint_path)
     print(f"💾 Saved checkpoint to: {checkpoint_path}")
+
+
+def save_residual_model(agent, path: Path, *, config, global_step: int, success_rate: float) -> None:
+    """Save the residual agent's weights for re-evaluation; no optimizer state.
+
+    escnn layers register cached matrices only in eval mode, so the state dict is
+    taken in eval mode and load_residual_model loads it the same way. Toggling the
+    mode consumes no randomness and runs no forward pass, so training is unaffected.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with utils.eval_mode(agent):
+        torch.save(
+            {
+                "agent_state_dict": agent.state_dict(),
+                "config": OmegaConf.to_container(config, resolve=True) if OmegaConf.is_config(config) else config,
+                "global_step": global_step,
+                "success_rate": success_rate,
+            },
+            path,
+        )
+
+
+def load_residual_model(agent, path: Path) -> dict:
+    """Load save_residual_model's weights into an agent built as training builds it.
+
+    The encoder's normalizer must already be attached (set_normalizer): its values
+    are overwritten from the file, but a fresh encoder has no normalizer submodule to
+    load into. Returns the rest of the saved dict: config, global_step, success_rate.
+    """
+    # The normalizer rebuilds its parameters from the loaded tensors rather than copying
+    # into existing ones, so they must already be on the agent's device.
+    saved = torch.load(path, map_location=next(agent.parameters()).device)
+    with utils.eval_mode(agent):
+        agent.load_state_dict(saved.pop("agent_state_dict"), strict=True)
+    return saved

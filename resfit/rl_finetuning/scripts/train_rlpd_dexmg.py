@@ -649,7 +649,7 @@ def main(cfg: RLPDDexmgConfig):
             or (cfg.eval_first and global_step == 0)
             or (global_step + cfg.num_envs >= cfg.algo.total_timesteps)
         ):
-            eval_metrics = run_dexmg_evaluation(
+            eval_metrics, _ = run_dexmg_evaluation(
                 env=eval_env,
                 agent=agent,
                 num_episodes=cfg.eval_num_episodes,

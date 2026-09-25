@@ -31,7 +31,7 @@ def run_dexmg_evaluation(
     run_name: str | None = None,
     output_dir: str | Path | None = "outputs",
     equivariant: bool = False,
-) -> tuple[dict[str, float], float]:
+) -> tuple[dict[str, float], Path | None]:
     """Extended evaluation to match the richer functionality available in
     the *residual_td3_dexmg* evaluator.  In particular, this version:
 
@@ -41,6 +41,9 @@ def run_dexmg_evaluation(
        at the end of the evaluation.
     3. Keeps the original simple success-rate / return metrics so existing
        training code continues to work unchanged.
+
+    Returns the metrics and the video's path (None when no video was saved). The
+    video is not uploaded here: the caller uploads only the best eval's video.
     """
 
     # ------------------------------------------------------------------
@@ -324,8 +327,9 @@ def run_dexmg_evaluation(
             wandb.log({"value/q_trajectories": wandb.Image(str(plot_path))}, step=global_step)
 
     # ------------------------------------------------------------------
-    # 6. Video dump + W&B logging --------------------------------------
+    # 6. Video dump -----------------------------------------------------
     # ------------------------------------------------------------------
+    video_path = None
     if save_video and all_frames is not None and run_name is not None:
         parent = Path(str(output_dir or "outputs")) / run_name.split("__")[0]
         parent.mkdir(parents=True, exist_ok=True)
@@ -340,10 +344,7 @@ def run_dexmg_evaluation(
             writer.append_data(fr)
         writer.close()
 
-        if wandb.run is not None:
-            wandb.log({"eval/video": wandb.Video(str(video_path), format="mp4")}, step=global_step)
-
     # Restore training mode --------------------------------------------
     agent.train(True)
 
-    return metrics
+    return metrics, video_path
