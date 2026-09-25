@@ -16,6 +16,21 @@ from typing import Union, Dict
 from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import dict_apply, DictOfTensorMixin
 
 #################################
+# Normalizer field names
+#################################
+
+# One set per arm. ResObsEnc and build_equivariant_normalizer both build their
+# keys from these, so the encoder and the normalizer cannot drift apart.
+PROP_FIELDS = ("pos_xy", "pos_z", "ee_rot", "ee_q")
+ACTION_FIELDS = ("action_xy", "action_z", "action_rx_ry", "action_rz", "action_hand")
+
+
+def arm_key(field: str, arm: int) -> str:
+    """Normalizer key for ``field`` on arm ``arm``."""
+    return f"{field}_{arm}"
+
+
+#################################
 # Utils
 #################################
 
@@ -388,6 +403,10 @@ def build_equivariant_normalizer(
     stats: dict,
     robot_base_xy: torch.Tensor | np.ndarray | None = None,
     min_range: float = 0.1,
+    *,
+    n_arms: int = 1,
+    gripper_dim: int = 2,
+    hand_dof: int = 1,
 ) -> LinearNormalizer:
     """
     Build a LinearNormalizer with per-field equivariant-safe normalization.
@@ -397,10 +416,14 @@ def build_equivariant_normalizer(
     stats : dict
         Aggregated dataset stats (e.g. ``LeRobotDataset.meta.stats``).
     robot_base_xy : (2,) tensor / array, optional
-        If provided, pos_xy stats are shifted by -robot_base_xy so that the
-        symmetric normalizer's ``scale`` is computed about the rotation
-        center, not the world origin. The matching subtraction at runtime
-        must happen in ResObsEnc.forward() — see set_normalizer().
+        If provided, every arm's pos_xy stats are shifted by -robot_base_xy so
+        that the symmetric normalizer's ``scale`` is computed about the shared
+        rotation center, not the world origin. The matching subtraction at
+        runtime must happen in ResObsEnc.forward() — see set_normalizer().
+    n_arms, gripper_dim, hand_dof : int
+        Per-arm layout, matching ResObsEnc. State blocks are
+        ``[eef_pos 3, eef_quat 4, gripper_qpos G]`` and action blocks are
+        ``[delta_pose 6, hand H]``.
 
     Reference: https://huggingface.co/datasets/ankile/robomimic-mh-can-image
     """
@@ -415,50 +438,73 @@ def build_equivariant_normalizer(
         for k, v in stats["action"].items()
     }
 
-    normalizer = LinearNormalizer()
+    state_stride = 7 + gripper_dim
+    action_stride = 6 + hand_dof
+    for name, stat, stride in (
+        ("observation.state", state_stat, state_stride),
+        ("action", action_stat, action_stride),
+    ):
+        expected = n_arms * stride
+        got = len(stat["min"])
+        if got != expected:
+            raise ValueError(f"{name} stats are {got}-dim, expected {expected} for n_arms={n_arms}")
 
-    # ==== Proprioception ====
-
-    # pos_xy: symmetric (irrep(1)). Shift by robot_base_xy so abs_max is
-    # measured around the rotation center.
-    pos_xy_stat = _slice_stat(state_stat, slice(0, 2))
+    base_xy_np = None
     if robot_base_xy is not None:
         base_xy_np = (
             robot_base_xy.detach().cpu().numpy()
             if isinstance(robot_base_xy, torch.Tensor)
             else np.asarray(robot_base_xy)
         ).astype(np.float32).reshape(2)
-        pos_xy_stat = _shift_stat(pos_xy_stat, base_xy_np)
         print(f"[build_equivariant_normalizer] pos_xy shifted by base_xy={base_xy_np.tolist()}")
     else:
         print("[build_equivariant_normalizer] WARNING: no robot_base_xy provided; "
               "pos_xy will be normalized around the world origin")
-    normalizer["pos_xy"] = get_range_symmetric_normalizer_from_stat(pos_xy_stat)
 
-    # pos_z: range -> [-1, 1]
-    normalizer["pos_z"] = get_range_normalizer_from_stat(_slice_stat(state_stat, slice(2, 3)))
+    normalizer = LinearNormalizer()
 
-    # ee_rot: identity (quat -> 6D rotation happens in encoder)
-    normalizer["ee_rot"] = get_identity_normalizer_from_stat(_dummy_stat(6))
+    for arm in range(n_arms):
+        s0 = arm * state_stride
+        a0 = arm * action_stride
 
-    # ee_q: range
-    normalizer["ee_q"] = get_range_normalizer_from_stat(_slice_stat(state_stat, slice(7, 9)))
+        # ==== Proprioception ====
 
-    # ==== Action (delta-pose / OSC_POSE; deltas are origin-free) ====
+        # pos_xy: symmetric (irrep(1)). Shift by the shared rotation center so
+        # abs_max is measured around it. Both arms use the same center.
+        pos_xy_stat = _slice_stat(state_stat, slice(s0, s0 + 2))
+        if base_xy_np is not None:
+            pos_xy_stat = _shift_stat(pos_xy_stat, base_xy_np)
+        normalizer[arm_key("pos_xy", arm)] = get_range_symmetric_normalizer_from_stat(pos_xy_stat)
 
-    # action_xy: symmetric, NO shift (delta).
-    action_xy_stat = _slice_stat(action_stat, slice(0, 2))
-    normalizer["action_xy"] = get_range_symmetric_normalizer_from_stat(action_xy_stat)
+        # pos_z: range -> [-1, 1]
+        normalizer[arm_key("pos_z", arm)] = get_range_normalizer_from_stat(
+            _slice_stat(state_stat, slice(s0 + 2, s0 + 3)))
 
-    normalizer["action_z"]       = get_range_normalizer_from_stat(_slice_stat(action_stat, slice(2, 3)))
-    normalizer["action_rx_ry"]   = get_identity_normalizer_from_stat(_dummy_stat(2))
-    normalizer["action_rz"]      = get_identity_normalizer_from_stat(_dummy_stat(1))
-    normalizer["action_gripper"] = get_range_normalizer_from_stat(_slice_stat(action_stat, slice(6, 7)))
+        # ee_rot: identity (quat -> 6D rotation happens in encoder)
+        normalizer[arm_key("ee_rot", arm)] = get_identity_normalizer_from_stat(_dummy_stat(6))
+
+        # ee_q: range
+        normalizer[arm_key("ee_q", arm)] = get_range_normalizer_from_stat(
+            _slice_stat(state_stat, slice(s0 + 7, s0 + state_stride)))
+
+        # ==== Action (delta-pose / OSC_POSE; deltas are origin-free) ====
+
+        # action_xy: symmetric, NO shift (delta).
+        normalizer[arm_key("action_xy", arm)] = get_range_symmetric_normalizer_from_stat(
+            _slice_stat(action_stat, slice(a0, a0 + 2)))
+
+        normalizer[arm_key("action_z", arm)] = get_range_normalizer_from_stat(
+            _slice_stat(action_stat, slice(a0 + 2, a0 + 3)))
+        normalizer[arm_key("action_rx_ry", arm)] = get_identity_normalizer_from_stat(_dummy_stat(2))
+        normalizer[arm_key("action_rz", arm)] = get_identity_normalizer_from_stat(_dummy_stat(1))
+        normalizer[arm_key("action_hand", arm)] = get_range_normalizer_from_stat(
+            _slice_stat(action_stat, slice(a0 + 6, a0 + action_stride)))
 
     return normalizer
 
-def detect_robot_base_xy(env_name: str, video_key: str, device: str = "cpu") -> torch.Tensor:
-    """Probe a single env instance to find the robot base XY position from MuJoCo."""
+def detect_robot_bases(env_name: str, video_key: str, device: str = "cpu") -> torch.Tensor:
+    """Probe a single env instance and return every robot base XY from MuJoCo,
+    ordered by body name so the result is stable across calls. Shape (n_arms, 2)."""
     from resfit.dexmg.environments.dexmg import create_vectorized_env
     _probe_env = create_vectorized_env(
         env_name=env_name,
@@ -472,19 +518,26 @@ def detect_robot_base_xy(env_name: str, video_key: str, device: str = "cpu") -> 
     for _ in range(10):
         if hasattr(_e, 'sim'):
             sim = _e.sim
-            for name in sim.model.body_names:
-                if name.endswith('_base') and 'robot' in name:
-                    bid = sim.model.body_name2id(name)
-                    pos = sim.data.body_xpos[bid]
-                    quat = sim.data.body_xquat[bid]
-                    print(f"Detected robot base: {name}, pos={pos}, quat={quat}")
+            names = sorted(
+                n for n in sim.model.body_names
+                if n.endswith('_base') and 'robot' in n
+            )
+            bases = []
+            for name in names:
+                bid = sim.model.body_name2id(name)
+                pos = sim.data.body_xpos[bid]
+                quat = sim.data.body_xquat[bid]
+                print(f"Detected robot base: {name}, pos={pos}, quat={quat}")
 
-                    if abs(quat[0] - 1.0) > 1e-3 or np.linalg.norm(quat[1:]) > 1e-3:
-                        print(f"WARNING: robot base quat is not identity: {quat}")
-                        print("  Equivariant pos_xy subtraction assumes identity base orientation.")
+                if abs(quat[0] - 1.0) > 1e-3 or np.linalg.norm(quat[1:]) > 1e-3:
+                    print(f"WARNING: robot base quat is not identity: {quat}")
+                    print("  Equivariant pos_xy subtraction assumes identity base orientation.")
 
-                    _probe_env.close()
-                    return torch.tensor(pos[:2], dtype=torch.float32)
+                bases.append(pos[:2].copy())
+
+            if bases:
+                _probe_env.close()
+                return torch.tensor(np.stack(bases), dtype=torch.float32)
 
         if hasattr(_e, 'env'):
             _e = _e.env

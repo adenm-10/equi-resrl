@@ -22,6 +22,15 @@ ACTION_SCALE = 0.2
 
 TOL = 1e-4               # see docs/EQUIVARIANCE.md, measured tolerances
 
+# Per-arm observation layouts. TWO_ARM is TwoArmBoxCleanup, measured from the env:
+# state is [eef_pos 3, eef_quat 4, gripper_qpos 12] x 2, action [delta_pose 6, hand 6] x 2.
+ONE_ARM = {"n_arms": 1, "gripper_dim": 2, "hand_dof": 1}
+TWO_ARM = {"n_arms": 2, "gripper_dim": 12, "hand_dof": 6}
+
+
+def wrist_keys(n_arms: int) -> tuple[str, ...]:
+    return tuple(f"observation.images.robot{i}_eye_in_hand" for i in range(n_arms))
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -36,6 +45,12 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
+    # The single-arm regression module builds on CPU against CPU-captured goldens.
+    # escnn caches basis tensors per representation, so once a GPU module exists
+    # those caches live on cuda and a later CPU build dies on a device mismatch.
+    # Sorting is stable, so everything else keeps its collection order.
+    items.sort(key=lambda i: 0 if "test_regression_single_arm" in str(i.fspath) else 1)
+
     if config.getoption("--gpu"):
         return
     if torch.cuda.is_available():
@@ -51,8 +66,14 @@ def device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+@pytest.fixture(scope="session", params=[ONE_ARM, TWO_ARM], ids=["1arm", "2arm"])
+def arm_spec(request):
+    """Every equivariance and layout test runs for both arm counts."""
+    return request.param
+
+
 @pytest.fixture(scope="session")
-def obs_enc(device):
+def obs_enc(device, arm_spec):
     """The unified observation encoder, equivariant branch, in eval mode.
 
     eval() matters: it makes CropRandomizer deterministic and switches the
@@ -65,6 +86,7 @@ def obs_enc(device):
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
         equivariant=True, initialize=True,
+        wrist_keys=wrist_keys(arm_spec["n_arms"]), **arm_spec,
     ).to(device)
     enc.eval()
     return enc

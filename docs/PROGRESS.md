@@ -17,6 +17,58 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-09-25 — The encoder goes bimanual, and Square restarts
+
+The `caf83f3` replication reported (both seeds reproduced, first n=2 in the project). Work moved to
+a second single-arm task and the first two-arm task.
+
+**Done**
+
+- **Pinned the single-arm encoder before touching it** (`2611adb`). `tests/test_regression_single_arm.py`
+  fingerprints the actor and critic features with a sum plus a seeded random projection; the
+  projection is what catches a field reordering the sum would miss. Wired into the Tier 1 gate.
+- **Generalised `ResObsEnc` to `n_arms`.** Per arm the state is `[eef_pos 3, eef_quat 4,
+  gripper_qpos G]` and the action `[delta_pose 6, hand H]`. `enc_ih` became a `ModuleList`, one per
+  wrist camera. The regression fingerprint stayed bit-identical throughout, so Can and Square runs
+  before and after remain comparable. `actor.py` and `critic.py` needed no changes — they already
+  derive every offset from `FieldType.size`.
+- **Normalizer, probe and agent followed.** Per-arm normalizer keys sharing one rotation centre;
+  `detect_robot_base_xy` → `detect_robot_bases`, which returns *every* base rather than silently
+  taking the first; `QAgent` now asserts encoder dims against the env instead of ignoring them.
+- **Tests parameterised over arm count.** The `obs_enc` fixture yields both layouts, so all of Tier 2
+  runs twice. Suite 74 → 230 passing.
+- **`preflight.py` generalised.** `image_keys` and `num_episodes` moved into `TASKS`; added
+  `TwoArmBoxCleanup`; cache sizes are now estimated per task and the disk check blocks on the
+  estimate rather than a fixed 40 GB.
+- **Launched Square** (`equi-square-v1` seed 1), and **relaunched it** after the original died.
+- **Started the BoxCleanup ACT BC run**, best 0.64 at 21k.
+
+**Decided**
+
+- **TwoArmBoxCleanup, C8 about the midpoint of the two bases** — as a geometric prior, not an exact
+  symmetry. The task fixes object yaw, and the hands are chiral, so six of the eight group elements
+  are not physical symmetries. Recorded in EQUIVARIANCE.md so no later reader mistakes it for the
+  Can/Square case.
+- **`num_episodes=1000` and `total_timesteps=500_000`** for BoxCleanup, to match the paper and stay
+  consistent with the other runs.
+- **ACT, not diffusion, for the BoxCleanup base policy**, matching the ResFiT authors' own
+  simulation launchers.
+
+**Found**
+
+- **`action_scale` does not bound the residual.** The squash after the actor's final Linear is
+  commented out, so `|mu|` is not ≤ 1 (1.27x measured on two arms). The old
+  `test_actor_respects_action_scale` asserted a bound that held only by luck of initialisation
+  magnitude. The real bound is `equi_clip(..., bound=1.0)`.
+- **`pytest tests/` was a trap on this machine.** escnn caches basis tensors per representation, so
+  once a GPU module exists a later CPU build dies on a device mismatch — and alphabetical collection
+  put the CPU regression module last. Preflight never saw it because it runs Tier 1 in a separate
+  subprocess. `conftest.py` now orders that module first.
+- **The two BoxCleanup arms share their buffer caches.** The cache key has no equivariance term, so
+  the equivariant run costs no extra disk.
+- **`ablate_equi_obs_encoder.py` is imported by nothing** and still references a normalizer key that
+  no longer exists. Left under the freeze; queued for P3.5.
+
 ## 2026-09-16 — The lost run was not lost, and the target was wrong
 
 Started as a session to move the previous session's setup onto a second workstation. Turned into

@@ -7,6 +7,45 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ---
 
+## B — Square and the bimanual task
+
+### B1 — DONE 2026-09-25 `[CS]` `[SC]`
+
+`ResObsEnc` generalised to `n_arms`; normalizer, probe, `QAgent` asserts, config and tests followed.
+Single-arm output verified bit-identical by `tests/test_regression_single_arm.py`, so prior Can and
+Square runs stay comparable. `preflight.py` now carries `image_keys` / `num_episodes` per task and
+estimates cache size per task.
+
+### B2. Record the five undocumented successful runs `[SC]`
+
+`lgc70vgd` (0.86 → **0.98**, 243,800 steps, no overrides), `q1ocx89o` (0.98), `3vl625tv` (0.96),
+`36pfxsww` (0.96), and `zyed0lew` (non-equivariant Can baseline, 0.76 → 0.94). None has an
+EXPERIMENTS.md entry. `lgc70vgd` reached a higher best with `actor_last_layer_init_scale=0.0`, which
+contradicts the premise of R11 — resolve that before running R11.
+**Updates:** EXPERIMENTS.md, then R11.
+
+### B3. Launch the BoxCleanup baseline `[SC]`
+
+Blocked on the ACT BC run finishing and on disk. Needs: `base_policy.wandb_id` set, a pinned id in
+`test_config.py`, a pre-registration, a rewritten `submit.sh`, and ~51 GB free.
+**Updates:** EXPERIMENTS.md, STATUS.md.
+
+### B4. Launch the equivariant BoxCleanup `[SC]`
+
+Blocked on B3 building the shared caches and on a free GPU. Config
+`residual_equi_td3_box_clean_config` already exists. The pre-registration must restate that this
+measures a geometric prior, not an exploited symmetry — see EQUIVARIANCE.md.
+**Updates:** EXPERIMENTS.md, STATUS.md.
+
+### B5. Decide the BoxCleanup schedule `[SC]`
+
+At ~1.5–1.8 s/step, 500k steps is 9–10 days per arm, and only one GPU is free until Square finishes
+around 2026-09-29. Sequential is ~19 days; waiting for Square and running both arms concurrently
+pairs them under identical wall-clock conditions and fits the disk. Aden's call.
+**Updates:** STATUS.md.
+
+---
+
 ## H — Housekeeping
 
 ### H1, H3 — RESOLVED 2026-09-16 `[CS]` `[HI]`
@@ -35,9 +74,9 @@ lost two runs to wandb deletion and this is the one that matters.
 ### H5. The 150 KB doc budget no longer fits, and cannot `[HI]`
 
 Needs a decision from Aden. The budget in CLAUDE.md is 150 KB for `CLAUDE.md` + `docs/*.md` +
-skills + `settings.json`. It is currently **about 152.6 KB, roughly 1.7% over** — this entry
-included — after cutting TODO.md by 5.4 KB, rewriting STATUS.md 3.2 KB shorter, and condensing four
-superseded PROGRESS sections down to pointers in this session.
+skills + `settings.json`. As of 2026-09-25 it is **about 182 KB, roughly 21% over**, after a further
+STATUS.md rewrite that cut 5 KB and the bimanual additions to EQUIVARIANCE.md, ARCHITECTURE.md and
+this file that the work required.
 
 The structural problem: **EXPERIMENTS.md is 40.4 KB, 27% of the budget, and is append-only by
 project rule** — and rule 5.4 requires a pre-registration for every run, plus a correcting entry
@@ -280,6 +319,10 @@ invariance test, since normalization is exactly where equivariance tends to brea
 `ablate_equi_obs_encoder.py`, `field_norm.py`, `rotation_transformer.py`, `rotation_utils.py`. All
 tracked, so deletion is reversible. Check `field_norm.py` against `equi_rl_utils.py`'s `FieldNorm`
 before removing — if the standalone copy is the better one, keep that instead. See H1.
+
+`ablate_equi_obs_encoder.py` is now the most urgent of the four: since the bimanual change it looks
+up the normalizer key `action_gripper`, which no longer exists, so wiring it up would raise. The
+scalar ablation goes through `ResObsEnc(equivariant=False)` instead.
 
 ---
 

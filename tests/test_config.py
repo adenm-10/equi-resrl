@@ -22,6 +22,7 @@ EXPECTED_NAMES = {
     "residual_td3_two_arm_cansort_config",
     "residual_equi_td3_can_config",
     "residual_equi_td3_square_config",
+    "residual_equi_td3_box_clean_config",
 }
 
 # The reproduction target. Values pinned here are the ones the experiment log
@@ -99,6 +100,55 @@ def test_residual_starts_at_exactly_zero():
     cfg = _node(REPRO_CONFIG)
     assert cfg.agent.actor.actor_last_layer_init_scale == 0.0
     assert cfg.eval_first is True
+
+
+def test_equivariant_configs_declare_their_arm_layout():
+    """n_arms / gripper_dim / hand_dof drive every slice in ResObsEnc.
+
+    Wrong values do not crash, they mis-slice state and action into the wrong
+    representations. These are measured from the envs, so pin them.
+    """
+    single = {"n_arms": 1, "gripper_dim": 2, "hand_dof": 1}
+    two = {"n_arms": 2, "gripper_dim": 12, "hand_dof": 6}
+    for name, expected, cameras in (
+        ("residual_equi_td3_can_config", single, 2),
+        ("residual_equi_td3_square_config", single, 2),
+        ("residual_equi_td3_box_clean_config", two, 3),
+    ):
+        cfg = _node(name)
+        for field, value in expected.items():
+            assert getattr(cfg.equivariance, field) == value, f"{name}.{field}"
+        assert len(cfg.rl_camera) == cameras, (
+            f"{name} needs agentview plus one wrist camera per arm"
+        )
+
+
+# Buffer cache keys measured on boce-WS-01. The torchrl / tensordict versions are
+# part of the key, so these are stack-specific by design.
+CACHE_STACK = ("0.7.0", "0.7.0")
+CACHE_HASHES = {
+    "Can": ("8edf618e", "43637c10"),
+    "Square": ("1d31ed9b", "66c46c51"),
+    "TwoArmBoxCleanup": ("514502d0", "5709219c"),
+}
+
+
+def test_buffer_cache_keys_are_stable():
+    """Refactoring preflight.TASKS must not move an existing cache key.
+
+    Square's 22 GB of buffers are addressed by these hashes; moving one orphans
+    them and forces a multi-hour rebuild.
+    """
+    import tensordict
+    import torchrl
+
+    import preflight
+
+    if (torchrl.__version__, tensordict.__version__) != CACHE_STACK:
+        pytest.skip(f"cache keys pinned to torchrl/tensordict {CACHE_STACK}")
+
+    for task, expected in CACHE_HASHES.items():
+        assert preflight.cache_hashes(task) == expected, f"{task} cache key moved"
 
 
 def test_dead_config_fields_are_documented():

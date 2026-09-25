@@ -64,6 +64,7 @@ RLPDDexmgConfig                       (rlpd.py — task, cameras, envs, eval set
     ├── ResidualEquiTD3CanConfig             task=Can,    equivariance=EquivarianceConfig(N=8)
     ├── ResidualEquiTD3SquareConfig          task=Square, equivariance=EquivarianceConfig(N=8)
     ├── ResidualTD3BoxCleanConfig            task=TwoArmBoxCleanup (two-arm, dexmg)
+    │   ├── ResidualEquiTD3BoxCleanConfig    equivariance=EquivarianceConfig(N=8, n_arms=2)
     │   ├── ResidualTD3CoffeeConfig          task=TwoArmCoffee
     │   └── ResidualTD3TwoArmCanSortConfig   task=TwoArmCanSortRandom
 ```
@@ -83,6 +84,7 @@ Registered at [residual_td3.py:338-347](../resfit/rl_finetuning/config/residual_
 | `residual_equi_td3_square_config` | `ResidualEquiTD3SquareConfig` | Square | yes |
 | `residual_td3_dexmg_config` | `ResidualTD3DexmgConfig` | (base) | no |
 | `residual_td3_box_clean_config` | `ResidualTD3BoxCleanConfig` | TwoArmBoxCleanup | no |
+| `residual_equi_td3_box_clean_config` | `ResidualEquiTD3BoxCleanConfig` | TwoArmBoxCleanup | yes |
 | `residual_td3_coffee_config` | `ResidualTD3CoffeeConfig` | TwoArmCoffee | no |
 | `residual_td3_two_arm_cansort_config` | `ResidualTD3TwoArmCanSortConfig` | TwoArmCanSortRandom | no |
 
@@ -163,7 +165,7 @@ One hidden layer, and that batch norm is unconditional (it ignores `use_norms`).
 | `networks/obs_encoder.py` | `ResObsEnc`. Builds field types, encodes images, normalizes and lays out proprioception and base action. Handles both equivariant and scalar paths. | yes |
 | `networks/equi_encoder.py` | `EquivariantResEncoder76Cyclic` — the C_N-equivariant vision backbone for the agentview camera. | yes |
 | `networks/ablate_equi_encoder.py` | `ResEncoder76` (scalar agentview) and `ResEncoder76InHand` (in-hand, used in **both** paths). | yes |
-| `networks/equi_normalizer.py` | `LinearNormalizer`, `build_equivariant_normalizer`, `detect_robot_base_xy`. | yes |
+| `networks/equi_normalizer.py` | `LinearNormalizer`, `build_equivariant_normalizer`, `detect_robot_bases`, and the per-arm field names. | yes |
 | `networks/ablate_equi_obs_encoder.py` | **Unreachable.** Superseded by `obs_encoder.py`. | **no** |
 | `common_utils/crop_randomizer.py` | Random crop 84×84 → 76×76. | yes |
 | `common_utils/module_attr_mixin.py` | Device/dtype helper base class. | yes |
@@ -303,6 +305,30 @@ Everything needed is on disk under `wandb/run-*-<run_id>/files/`:
 - `output.log` — per-step training lines and the evaluation markers, one `✓`/`✗` per episode.
 - `requirements.txt` — the Python environment at run time.
 
+### Observation and action layout per task
+
+`ResObsEnc` reads `observation.state` and `observation.base_action` as `n_arms` contiguous blocks.
+Per arm the state is `[eef_pos 3, eef_quat 4, gripper_qpos G]` and the action is
+`[delta_pos 3, delta_rot 3, hand H]`. Every value below was measured from the environment, not read
+off a config.
+
+| Task | arms | G | H | `observation.state` | action | prop (encoded) | cameras |
+|---|---|---|---|---|---|---|---|
+| Can, Square | 1 | 2 | 1 | 9 | 7 | 11 | agentview + `robot0_eye_in_hand` |
+| TwoArmBoxCleanup | 2 | 12 | 6 | 38 | 24 | 42 | agentview + `robot0/1_eye_in_hand` |
+
+`prop` is wider than `observation.state` because the encoder expands each `eef_quat` (4) into a 6D
+rotation (6). `ResObsEnc.state_dim` is the raw width and `prop_dim` the encoded one; `QAgent`
+asserts the raw width against the env, so mixing the two up fails at construction.
+
+Set by `equivariance.n_arms`, `gripper_dim` and `hand_dof`. Wrong values do not crash — they
+mis-slice state and action into the wrong representations — so `test_config.py` pins them per task.
+
+Three further BoxCleanup facts, all measured: `gripper_qvel` exists in the raw observation but is
+**not** part of `observation.state`; `robot0` is `PandaDexRH` and carries the right hand; the
+horizon is 300. The robot bases are at `(-0.56, -0.25)` and `(-0.56, +0.25)`, both with identity
+orientation, giving a rotation center of `(-0.56, 0.0)`.
+
 ### Task, dataset, and base policy
 
 | Task | Dataset | BC run | Base policy | Cached at |
@@ -337,5 +363,17 @@ Recorded so they are not rediscovered. None are blocking.
 - `QAgent._act_default_equi` calls `actor.forward(feat, std=0)` for evaluation. In
   `Actor.forward`, `std=None` returns the unclipped mean while `std=0` returns a clipped mean.
   Two different code paths for what reads as the same intent.
+- `networks/ablate_equi_obs_encoder.py` is imported by nothing — the scalar ablation goes through
+  `ResObsEnc(equivariant=False)`. It still looks up the pre-bimanual normalizer key
+  `action_gripper`, which no longer exists, so wiring it up would raise. Left in place under the
+  freeze; delete it in the Phase 3 cleanup.
 - `Critic.forward` accepts a `return_logits` keyword and ignores it.
+- **`action_scale` does not bound the residual.** `Actor.forward` computes
+  `scaled_mu = mu * action_scale`, but the squash after the final Linear is commented out
+  ([actor.py:72](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L72)), so `|mu|` is not
+  bounded by 1 and the mean can exceed `action_scale`. Measured at 1.27x on the two-arm actor.
+  The executed action is bounded instead by `equi_clip(..., bound=1.0)`, which is ten times
+  looser than `action_scale=0.1` suggests. Read `residual_l1` / `residual_l2` against 1.0, not
+  against `action_scale`. Surfaced 2026-09-25 by parameterising the equivariance tests over arm
+  count; the single-arm actor happened to stay under the bound, so the old test passed by luck.
 - Two git stashes exist: `stash@{0}` on `aabde0f`, `stash@{1}` on `d9909ce`. Contents unreviewed.

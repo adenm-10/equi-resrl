@@ -66,6 +66,10 @@ class QAgent(torch.nn.Module):
         if isinstance(rl_cameras, str):
             rl_cameras = [rl_cameras]
         assert len(rl_cameras) > 0, "At least one camera must be provided"
+        assert len(rl_cameras) == 1 + equi_cfg.n_arms, (
+            f"expected agentview plus one wrist camera per arm: "
+            f"n_arms={equi_cfg.n_arms}, rl_cameras={rl_cameras}"
+        )
 
         self.rl_cameras = rl_cameras
         self.agent_cfg = agent_cfg
@@ -92,6 +96,15 @@ class QAgent(torch.nn.Module):
         actor_dropout = self.agent_cfg.actor.dropout
         last_layer_scale = self.agent_cfg.actor.actor_last_layer_init_scale
 
+        # Per-arm observation layout; identical for both encoder branches.
+        enc_layout = dict(
+            n_arms=self.equi_cfg.n_arms,
+            gripper_dim=self.equi_cfg.gripper_dim,
+            hand_dof=self.equi_cfg.hand_dof,
+            agentview_key=rl_cameras[0],
+            wrist_keys=tuple(rl_cameras[1:]),
+        )
+
         if self.equivariant:
             self.group = gspaces.no_base_space(CyclicGroup(N))
 
@@ -103,6 +116,7 @@ class QAgent(torch.nn.Module):
                 equivariant=True,
                 group=self.group,
                 initialize=self.equi_cfg.initialize,
+                **enc_layout,
             ).to(self.agent_cfg.device)
 
             self.critic = EquiCritic(
@@ -146,6 +160,7 @@ class QAgent(torch.nn.Module):
                 n_hidden=n_hid,
                 use_norms=use_norms,
                 equivariant=False,
+                **enc_layout,
             ).to(self.agent_cfg.device)
 
             prop_dim = self.enc.prop_dim
@@ -182,6 +197,17 @@ class QAgent(torch.nn.Module):
                 last_layer_scale=last_layer_scale,
                 residual_actor=residual_actor,
             )
+
+        # prop_shape and action_dim come from the env; the encoder derives its own
+        # from equi_cfg. A mismatch would mis-slice every batch without erroring.
+        assert self.enc.state_dim == prop_shape[0], (
+            f"encoder expects a {self.enc.state_dim}-dim observation.state but the env "
+            f"gives {prop_shape[0]}; check equivariance.n_arms / gripper_dim"
+        )
+        assert self.enc.action_dim == action_dim, (
+            f"encoder action is {self.enc.action_dim}-dim but the env gives "
+            f"{action_dim}; check equivariance.n_arms / hand_dof"
+        )
 
         self.to(self.agent_cfg.device)
 

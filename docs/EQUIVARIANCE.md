@@ -210,19 +210,54 @@ world origin but rotate about the base, the symmetry does not hold.
 
 Two matching pieces:
 
-1. `detect_robot_base_xy` ([equi_normalizer.py:460](../resfit/rl_finetuning/equi_off_policy/networks/equi_normalizer.py#L460))
-   spins up one env instance, walks the MuJoCo body list for a name matching `*_base` containing
-   `robot`, and reads its xy position. Cached in `env_probes/<task>.json` so this only happens
-   once. For Can: `[-0.5, -0.1]`.
-2. `ResObsEnc.forward` subtracts that value from `ee_pos[:, 0:2]` before normalizing, and
-   `build_equivariant_normalizer` shifts the `pos_xy` statistics by the same amount so the scale is
-   computed about the right center.
+1. `detect_robot_bases` spins up one env instance, walks the MuJoCo body list for names matching
+   `*_base` containing `robot`, and reads every match's xy position, sorted by body name so the
+   order is stable. Cached in `env_probes/<task>.json`. For Can: `[[-0.5, -0.1]]`.
+2. `get_robot_bases_cached` in `train_residual_td3.py` returns those bases and their **midpoint**,
+   which is the rotation center. With one arm the midpoint is that arm's own base, so single-arm
+   behaviour is unchanged.
+3. `ResObsEnc.forward` subtracts the center from every arm's `ee_pos[:, 0:2]` before normalizing,
+   and `build_equivariant_normalizer` shifts each arm's `pos_xy` statistics by the same amount so
+   the scale is computed about the right center.
 
-Both must agree. If `set_normalizer` is called without `robot_base_xy`, it prints a warning and
+All three must agree. If `set_normalizer` is called without `robot_base_xy`, it prints a warning and
 leaves the center at the world origin — which silently breaks the symmetry rather than raising.
 
-`detect_robot_base_xy` also warns if the base orientation is not the identity quaternion, because
-the subtraction assumes the base frame is aligned with the world frame.
+**Every arm shares one center.** Centering each arm on its own base would make the group act
+differently on different parts of the scene, which is not a rotation of the scene at all. The
+midpoint is the only choice that keeps the action linear across both arms.
+
+`detect_robot_bases` also warns if a base orientation is not the identity quaternion, because the
+subtraction assumes each base frame is aligned with the world frame. Both BoxCleanup bases are
+identity, which is also what makes `irrep(1)` on `action[3:5]` valid — the controller runs in
+`input_ref_frame: "base"`, so a base-frame delta is a world-frame delta only when the two frames
+share an orientation.
+
+### Bimanual: TwoArmBoxCleanup is a prior, not a symmetry
+
+Single-arm Can and Square have a real C8 symmetry: object yaw is drawn from `rotation=None`, i.e.
+uniform over `[0, 2*pi)`, so a rotated scene is a scene the task actually produces.
+
+BoxCleanup is not like that, and the record should say so plainly before any result is read:
+
+- **The two robots are chiral.** `robot0` is `PandaDexRH` with an `InspireRightHand`; `robot1`
+  carries an `InspireLeftHand`. A rotation preserves chirality, so no rotation maps the scene onto
+  a valid scene with the arms exchanged. C2-plus-arm-swap is not exact either.
+- **A reflection would fix the chirality but breaks the objects.** The box sits at `y = -0.15` and
+  the lid at `y = +0.20`, so neither is symmetric about the centerline.
+- **Object yaw is fixed.** Both objects are placed with `rotation=(0.0, 0.0)` and a fixed `y`. The
+  entire task variation is roughly ±5 cm of `x`. There is no rotational variation to be equivariant
+  *to*.
+
+So six of the eight group elements are not physical symmetries of this task. We build it anyway as
+a **geometric prior** — weight sharing that says "a policy for a scene rotated about the midpoint
+should be the rotated policy" — and the experiment measures whether that prior helps, hurts, or does
+nothing when the task itself does not vary that way. That is a legitimate question and the answer is
+not obvious, but it is a different question from the one Can and Square answer, and results must not
+be pooled across the two.
+
+Of the DexMimicGen tasks surveyed, only `two_arm_drawer_cleanup` has full 360-degree object yaw. If
+the BoxCleanup result is ambiguous, that is the task to run next.
 
 ### The successful run did not do any of this — found 2026-09-16
 

@@ -1037,3 +1037,34 @@ is that a recorded commit hash is not self-verifying.
 Seeds 2 and 3 will be launched from a worktree pinned at `b8e1de7`
 (`~/projects/equi-resrl-square`), so the seed group runs one commit throughout while
 HEAD continues to change for the BoxCleanup work.
+
+---
+
+## 2026-09-25 — CORRECTION — `equi-square-v1` seed 1 was restarted at `2611adb`
+
+The run pre-registered and launched as `0prso90n` **is dead**, and the seed-1 arm of
+`equi-square-v1` is now wandb run **`j04yoeui`**, launched 2026-09-25 11:45 EDT.
+
+| | Original | Replacement |
+|---|---|---|
+| wandb | `0prso90n` | **`j04yoeui`** |
+| Launched | 09:17:22 at `b8e1de7` | 11:45 at `2611adb` |
+| Died at | step 6,400 of 300,000 | — |
+| Step-0 | 0.62 | (see the run) |
+
+**Why it died.** It was launched in the foreground of an SSH session, not under tmux. While
+preparing to detach, a multi-line paste landed on its controlling terminal and interrupted it; the
+log ends in `KeyboardInterrupt`. Nothing about the configuration or the machine was implicated.
+
+**Why the commit moved, and why it does not matter scientifically.** `2611adb` touches
+`docs/`, `tests/test_regression_single_arm.py`, `preflight.py`, a BC launcher and
+`env_probes/Square.json`. **No file on the training import path differs between `b8e1de7` and
+`2611adb`**, so the replacement runs the same code as the original. Recorded here rather than by
+editing the pre-registration, per rule 5.6.
+
+**The original's step-0 of 0.62 stands as a measurement.** It is +0.10 against `870ws2c2`'s recorded
+0.52 for the same base policy, which at n=50 episodes is about 1.4 standard errors — within noise.
+It is not the 0.00 anomaly the gate watches for.
+
+**Process note.** Both currently-running jobs are now under tmux. Launching a multi-day run in a
+bare SSH foreground is how this one was lost.

@@ -153,30 +153,39 @@ if "MUJOCO_EGL_DEVICE_ID" in os.environ:
 # -----------------------------------------------------------------------------
 # Robot base XY probe (one-shot, cached) --------------------------------------
 # -----------------------------------------------------------------------------
-def get_robot_base_xy_cached(env_name: str, video_key: str, cache_root: Path) -> torch.Tensor:
-    """Return robot base (x, y) for ``env_name``. Probes the simulator on the
-    first call and caches to ``{cache_root}/env_probes/{env_name}.json`` for
-    all subsequent runs."""
+def get_robot_bases_cached(env_name: str, video_key: str, cache_root: Path):
+    """Return ``(bases, center)`` for ``env_name``: every robot base XY and their
+    midpoint, which is the rotation center. Probes the simulator on the first call
+    and caches to ``{cache_root}/env_probes/{env_name}.json`` for later runs."""
     cache_file = cache_root / "env_probes" / f"{env_name}.json"
 
     if cache_file.exists():
         with open(cache_file) as f:
             data = json.load(f)
-        base_xy = torch.tensor(data["base_xy"], dtype=torch.float32)
-        print(f"[robot_base_xy] Loaded from cache {cache_file}: {base_xy.tolist()}")
-        return base_xy
+        # Probes written before bimanual support stored a single "base_xy".
+        raw = data["bases"] if "bases" in data else [data["base_xy"]]
+        bases = torch.tensor(raw, dtype=torch.float32)
+        center = bases.mean(dim=0)
+        print(f"[robot_bases] Loaded from cache {cache_file}: "
+              f"bases={bases.tolist()} center={center.tolist()}")
+        return bases, center
 
     # Lazy import to avoid pulling robosuite at module import time
-    from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import detect_robot_base_xy
+    from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import detect_robot_bases
 
-    print(f"[robot_base_xy] No cache for '{env_name}'; probing env...")
-    base_xy = detect_robot_base_xy(env_name, video_key)
+    print(f"[robot_bases] No cache for '{env_name}'; probing env...")
+    bases = detect_robot_bases(env_name, video_key)
+    center = bases.mean(dim=0)
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     with open(cache_file, "w") as f:
-        json.dump({"env_name": env_name, "base_xy": base_xy.tolist()}, f, indent=2)
-    print(f"[robot_base_xy] Cached to {cache_file}: {base_xy.tolist()}")
-    return base_xy
+        json.dump(
+            {"env_name": env_name, "bases": bases.tolist(), "center": center.tolist()},
+            f, indent=2,
+        )
+    print(f"[robot_bases] Cached to {cache_file}: "
+          f"bases={bases.tolist()} center={center.tolist()}")
+    return bases, center
 
 def _add_transitions_to_buffer(
     *,
@@ -446,17 +455,25 @@ def main(cfg: ResidualTD3DexmgConfig):
             equivariant=cfg.equivariance.use_equivariant_model,
         )
 
-        # if cfg.equivariance.use_equivariant_model:
-        robot_base_xy = get_robot_base_xy_cached(
+        # Both arms are centred on the same point, so the group acts linearly
+        # on the whole scene. For one arm the midpoint is just its own base.
+        robot_bases, rotation_center = get_robot_bases_cached(
             env_name=cfg.task,
             video_key=cfg.video_key,
             cache_root=_CACHE_ROOT,
         )
+        assert len(robot_bases) == cfg.equivariance.n_arms, (
+            f"probe found {len(robot_bases)} robot bases in {cfg.task}, but "
+            f"equivariance.n_arms={cfg.equivariance.n_arms}"
+        )
         normalizer = build_equivariant_normalizer(
             stats=dataset.meta.stats,
-            robot_base_xy=robot_base_xy,
+            robot_base_xy=rotation_center,
+            n_arms=cfg.equivariance.n_arms,
+            gripper_dim=cfg.equivariance.gripper_dim,
+            hand_dof=cfg.equivariance.hand_dof,
         )
-        agent.enc.set_normalizer(normalizer, robot_base_xy=robot_base_xy)
+        agent.enc.set_normalizer(normalizer, robot_base_xy=rotation_center)
 
         agent.to(device)
         

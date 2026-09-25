@@ -196,14 +196,41 @@ def tier2() -> bool:
 # Tier 3: resources the run needs
 # ---------------------------------------------------------------------------
 
+# image_keys and num_episodes are part of the buffer cache key, so they live
+# per task rather than as module constants. One wrist camera per arm.
+_ONE_ARM_CAMS = ["observation.images.agentview", "observation.images.robot0_eye_in_hand"]
+_TWO_ARM_CAMS = _ONE_ARM_CAMS + ["observation.images.robot1_eye_in_hand"]
+
 TASKS = {
     "Can": dict(dataset="ankile/robomimic-mh-can-image",
-                bc="robomimic-can-bc/xhjdl8a7", horizon=200),
+                bc="robomimic-can-bc/xhjdl8a7", horizon=200,
+                image_keys=_ONE_ARM_CAMS, num_episodes=300),
     "Square": dict(dataset="ankile/robomimic-mh-square-image",
-                   bc="robomimic-square-bc/3hzs5bz1", horizon=300),
+                   bc="robomimic-square-bc/3hzs5bz1", horizon=300,
+                   image_keys=_ONE_ARM_CAMS, num_episodes=300),
+    "TwoArmBoxCleanup": dict(dataset="ankile/dexmg-two-arm-box-cleanup",
+                             bc="dexmg-boxcleanup-bc/xg0w2r0z", horizon=300,
+                             image_keys=_TWO_ARM_CAMS, num_episodes=1_000,
+                             frames=230_700),
 }
 
-IMAGE_KEYS = ["observation.images.agentview", "observation.images.robot0_eye_in_hand"]
+# Frames actually loaded (num_episodes worth), from each dataset's meta/info.json.
+TASKS["Can"]["frames"] = 62_756
+TASKS["Square"]["frames"] = 80_731
+
+# Square's offline cache is 6.4 GB for 80,731 frames x 2 cameras. The same
+# constant predicts Can's recorded 5 GB from 62,756 frames, so it holds twice.
+KB_PER_FRAME_CAMERA = 39.6
+# Measured: Square's online cache is 16 GB for buffer_size=200k x 2 cameras.
+GB_PER_ONLINE_CAMERA = 8.0
+
+
+def cache_size_estimate(task: str) -> tuple[float, float]:
+    """Estimated (offline, online) cache sizes in GB, scaled from Square."""
+    t = TASKS[task]
+    cams = len(t["image_keys"])
+    offline = t["frames"] * cams * KB_PER_FRAME_CAMERA / 1e6
+    return offline, GB_PER_ONLINE_CAMERA * cams
 
 
 def _sha8(d: dict) -> str:
@@ -219,12 +246,12 @@ def cache_hashes(task: str) -> tuple[str, str]:
     import tensordict
     import torchrl
     t = TASKS[task]
-    common = dict(task=task, image_keys=IMAGE_KEYS, n_step=3, gamma=0.99,
+    common = dict(task=task, image_keys=t["image_keys"], n_step=3, gamma=0.99,
                   sampling_strategy="uniform", normalized_actions=True,
                   min_action_range=1e-1, min_state_std=1e-1,
                   torchrl_version=torchrl.__version__,
                   tensordict_version=tensordict.__version__)
-    offline = {**common, "dataset_name": t["dataset"], "num_episodes": 300,
+    offline = {**common, "dataset_name": t["dataset"], "num_episodes": t["num_episodes"],
                "use_base_policy_for_base_actions": True,
                "base_policy_wandb_id": t["bc"], "batch_size": 128}
     online = {**common, "horizon": t["horizon"], "size": 10_000,
@@ -261,12 +288,14 @@ def tier3_resources(task: str, seeds: int) -> None:
         off_h, on_h = cache_hashes(task)
         off = REPO / "offline_buffer_cache" / off_h
         on = REPO / "online_buffer_cache" / on_h
+        off_gb, on_gb = cache_size_estimate(task)
         record(PASS if off.exists() else WARN, f"offline buffer cache {off_h}",
                "hit, loads in minutes" if off.exists()
-               else "MISS: will rebuild from the dataset (slow, and writes ~5 GB)")
+               else f"MISS: will rebuild from the dataset (slow, writes ~{off_gb:.0f} GB)")
         record(PASS if on.exists() else WARN, f"online buffer cache {on_h}",
                "hit, so the 10k-step env warmup is skipped" if on.exists()
-               else "MISS: 10k-step env warmup will run, then write ~16 GB")
+               else f"MISS: 10k-step env warmup will run, then writes ~{on_gb:.0f} GB")
+        need_gb = (0 if off.exists() else off_gb) + (0 if on.exists() else on_gb)
         record(INFO, "cache key assumption",
                "hashes assume default n_step=3 / gamma=0.99 / buffer_size=200k / "
                "learning_starts=10k. Overriding any of those on the CLI changes the "
@@ -278,7 +307,11 @@ def tier3_resources(task: str, seeds: int) -> None:
     # -- env probe ---------------------------------------------------------
     probe = REPO / "env_probes" / f"{task}.json"
     if probe.exists():
-        record(PASS, f"robot base probe {task}.json", json.loads(probe.read_text())["base_xy"].__str__())
+        data = json.loads(probe.read_text())
+        bases = data["bases"] if "bases" in data else [data["base_xy"]]
+        centre = [sum(c) / len(bases) for c in zip(*bases)]
+        record(PASS, f"robot base probe {task}.json",
+               f"{len(bases)} base(s) {bases}, rotation centre {centre}")
     else:
         record(WARN, "robot base probe missing",
                "will be detected by launching a probe env. If it silently fails, pos_xy is "
@@ -303,7 +336,17 @@ def tier3_resources(task: str, seeds: int) -> None:
         record(WARN, "RAM headroom", "could not determine")
 
     free = shutil.disk_usage(REPO).free / 1e9
-    record(PASS if free > 40 else WARN, "disk", f"{free:.0f} GB free")
+    try:
+        need_gb = need_gb * seeds
+    except NameError:
+        need_gb = 0.0
+    if need_gb:
+        # Blocking: filling the disk mid-build corrupts the cache and wastes hours.
+        detail = (f"{free:.0f} GB free, ~{need_gb:.0f} GB of cache to write "
+                  f"= ~{free - need_gb:.0f} GB margin")
+        record(PASS if free - need_gb > 10 else FAIL, "disk", detail)
+    else:
+        record(PASS if free > 40 else WARN, "disk", f"{free:.0f} GB free, all caches hit")
 
 
 # ---------------------------------------------------------------------------

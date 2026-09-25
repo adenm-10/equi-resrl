@@ -11,7 +11,12 @@ from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import (
     ResEncoder76,
     ResEncoder76InHand,
 )
-from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import LinearNormalizer
+from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
+    ACTION_FIELDS,
+    PROP_FIELDS,
+    LinearNormalizer,
+    arm_key,
+)
 
 
 def quaternion_to_rotation_6d(q: torch.Tensor) -> torch.Tensor:
@@ -39,8 +44,13 @@ class ResObsEnc(ModuleAttrMixin):
       - All FieldType / action_layout / action_shape attributes are present but set to None
       - Returns plain torch.Tensor features
 
-    The in-hand encoder (ResEncoder76InHand) is scalar in both modes — the in-hand camera
-    frame rotates with the gripper, so world-frame SO(2) equivariance does not apply there.
+    The in-hand encoders (ResEncoder76InHand, one per arm) are scalar in both modes — an
+    in-hand camera frame rotates with its gripper, so world-frame SO(2) equivariance does
+    not apply there.
+
+    ``n_arms`` generalises the single-arm layout to bimanual tasks. Per arm the state is
+    ``[eef_pos 3, eef_quat 4, gripper_qpos G]`` and the action is ``[delta_pose 6, hand H]``,
+    laid out as contiguous per-arm blocks. See docs/EQUIVARIANCE.md for the representations.
 
     Integer dims (prop_dim, action_dim, enc_out_dim_critic, enc_out_dim_actor) are
     exposed unconditionally in both modes.
@@ -59,11 +69,22 @@ class ResObsEnc(ModuleAttrMixin):
         equivariant: bool = True,
         group=None,            # auto-built from N if None and equivariant=True
         initialize: bool = True,  # ignored when equivariant=False
+        n_arms: int = 1,
+        gripper_dim: int = 2,
+        hand_dof: int = 1,
+        agentview_key: str = "observation.images.agentview",
+        wrist_keys: tuple[str, ...] = ("observation.images.robot0_eye_in_hand",),
     ):
         super().__init__()
 
         if not equivariant and group is not None:
             raise ValueError("`group` should be None when equivariant=False")
+
+        wrist_keys = tuple(wrist_keys)
+        if len(wrist_keys) != n_arms:
+            raise ValueError(
+                f"expected one wrist camera per arm: n_arms={n_arms}, wrist_keys={wrist_keys}"
+            )
 
         self.equivariant = equivariant
         self.obs_channel = obs_shape[0]
@@ -76,8 +97,21 @@ class ResObsEnc(ModuleAttrMixin):
         )
 
         # ----- Common dims and modules -----
-        self.prop_dim = 11
-        self.action_dim = 7
+        self.n_arms = n_arms
+        self.gripper_dim = gripper_dim
+        self.hand_dof = hand_dof
+        self.agentview_key = agentview_key
+        self.wrist_keys = wrist_keys
+
+        # Per-arm block widths in the raw observation and action vectors.
+        self.state_stride  = 7 + gripper_dim   # eef_pos 3, eef_quat 4, gripper_qpos
+        self.action_stride = 6 + hand_dof      # delta pose 6, hand
+
+        # state_dim is the raw observation.state width; prop_dim is the encoded
+        # width, which is larger because quat(4) is expanded to a 6D rotation.
+        self.state_dim  = n_arms * self.state_stride
+        self.prop_dim   = n_arms * (9 + gripper_dim)  # pos_xy 2, rot6d 6, pos_z 1, gripper
+        self.action_dim = n_arms * self.action_stride
         self._normalizers_ready = False
 
         self.crop_randomizer = dmvc.CropRandomizer(
@@ -86,34 +120,39 @@ class ResObsEnc(ModuleAttrMixin):
             crop_width=crop_shape[1],
         )
 
-        # In-hand encoder is scalar in both modes
-        self.enc_ih = ResEncoder76InHand(
-            obs_channel=self.obs_channel,
-            channels=ih_channels,
-            n_out=n_hidden,
-            blocks_per_stage=ih_blocks_per_stage,
-        )
+        # In-hand encoders are scalar in both modes, one per arm
+        self.enc_ih = torch.nn.ModuleList([
+            ResEncoder76InHand(
+                obs_channel=self.obs_channel,
+                channels=ih_channels,
+                n_out=n_hidden,
+                blocks_per_stage=ih_blocks_per_stage,
+            )
+            for _ in range(n_arms)
+        ])
 
         # ----- Branch on equivariance -----
         if equivariant:
             self.group = group if group is not None else gspaces.no_base_space(CyclicGroup(N))
 
-            # Representations
-            self.prop_shape = (
-                4 * [self.group.irrep(1)]        # pos_xy + 3 rotation column pairs
-                + 3 * [self.group.trivial_repr]  # pos_z, ee_q(2)
+            # Representations, one contiguous block per arm
+            arm_prop_shape = (
+                4 * [self.group.irrep(1)]                        # pos_xy + 3 rotation column pairs
+                + (1 + gripper_dim) * [self.group.trivial_repr]  # pos_z, gripper_qpos
             )
-            self.action_shape = [
-                self.group.irrep(1),       # action_xy       (0:2)
-                self.group.trivial_repr,   # action_z        (2:3)
-                self.group.irrep(1),       # action_rx_ry    (3:5)
-                self.group.trivial_repr,   # action_rz       (5:6)
-                self.group.trivial_repr,   # action_gripper  (6:7)
-            ]
+            arm_action_shape = [
+                self.group.irrep(1),       # action_xy      (0:2)
+                self.group.trivial_repr,   # action_z       (2:3)
+                self.group.irrep(1),       # action_rx_ry   (3:5)
+                self.group.trivial_repr,   # action_rz      (5:6)
+            ] + hand_dof * [self.group.trivial_repr]  # action_hand (6:6+H)
+
+            self.prop_shape   = n_arms * arm_prop_shape
+            self.action_shape = n_arms * arm_action_shape
 
             # FieldTypes
             self.vis_type    = enn.FieldType(self.group, n_hidden * [self.group.regular_repr])
-            self.ih_type     = enn.FieldType(self.group, n_hidden * [self.group.trivial_repr])
+            self.ih_type     = enn.FieldType(self.group, n_arms * n_hidden * [self.group.trivial_repr])
             self.prop_type   = enn.FieldType(self.group, self.prop_shape)
             self.action_type = enn.FieldType(self.group, self.action_shape)
             self.vis_ih_type = self.vis_type + self.ih_type
@@ -121,13 +160,13 @@ class ResObsEnc(ModuleAttrMixin):
             self.enc_out_type_critic = enn.FieldType(
                 self.group,
                 n_hidden * [self.group.regular_repr]
-                + n_hidden * [self.group.trivial_repr]
+                + n_arms * n_hidden * [self.group.trivial_repr]
                 + self.prop_shape,
             )
             self.enc_out_type_actor = enn.FieldType(
                 self.group,
                 n_hidden * [self.group.regular_repr]
-                + n_hidden * [self.group.trivial_repr]
+                + n_arms * n_hidden * [self.group.trivial_repr]
                 + self.prop_shape
                 + self.action_shape,
             )
@@ -167,7 +206,7 @@ class ResObsEnc(ModuleAttrMixin):
                 use_norms=use_norms,
             )
 
-            self.enc_out_dim_critic = n_hidden * N + n_hidden + self.prop_dim
+            self.enc_out_dim_critic = n_hidden * N + n_arms * n_hidden + self.prop_dim
             self.enc_out_dim_actor  = self.enc_out_dim_critic + self.action_dim
 
     @staticmethod
@@ -187,8 +226,8 @@ class ResObsEnc(ModuleAttrMixin):
         return layout
 
     def get6DRotation(self, quat):
+        """robosuite stores eef_quat as (x, y, z, w); reorder to (w, x, y, z)."""
         return quaternion_to_rotation_6d(quat[:, [3, 0, 1, 2]])
-        # return quaternion_to_rotation_6d(quat) # i believe its already stored in w, x, y, z from looking at dataset stats
 
     def set_normalizer(
         self,
@@ -196,9 +235,9 @@ class ResObsEnc(ModuleAttrMixin):
         robot_base_xy: torch.Tensor | np.ndarray | list | None = None,
         verbose: bool = False,
     ):
-        """Attach the LinearNormalizer; optionally set robot_base_xy used to
-        center pos_xy at runtime so the irrep(1) normalizer is applied about
-        the rotation center."""
+        """Attach the LinearNormalizer; optionally set robot_base_xy, the rotation
+        center subtracted from every arm's pos_xy at runtime so the irrep(1)
+        normalizer is applied about that center."""
         self.normalizer = normalizer
 
         if robot_base_xy is not None:
@@ -214,86 +253,71 @@ class ResObsEnc(ModuleAttrMixin):
 
         self._normalizers_ready = True
 
-        keys = [
-            "pos_xy", "pos_z", "ee_rot", "ee_q",
-            "action_xy", "action_z", "action_rx_ry", "action_rz", "action_gripper",
-        ]
-        for name in keys:
-            params = self.normalizer[name].params_dict
-            s = params["scale"]
-            o = params["offset"]
-            print(f"{name}: scale={s.detach().cpu().numpy()}, offset={o.detach().cpu().numpy()}")
-            if verbose and "input_stats" in params:
-                inp = params["input_stats"]
-                print(f"  input_stats: min={inp['min'].detach().cpu().numpy()}, "
-                      f"max={inp['max'].detach().cpu().numpy()}")
+        for arm in range(self.n_arms):
+            for field in PROP_FIELDS + ACTION_FIELDS:
+                name = arm_key(field, arm)
+                params = self.normalizer[name].params_dict
+                s = params["scale"]
+                o = params["offset"]
+                print(f"{name}: scale={s.detach().cpu().numpy()}, offset={o.detach().cpu().numpy()}")
+                if verbose and "input_stats" in params:
+                    inp = params["input_stats"]
+                    print(f"  input_stats: min={inp['min'].detach().cpu().numpy()}, "
+                          f"max={inp['max'].detach().cpu().numpy()}")
 
     def forward(self, nobs):
         assert self._normalizers_ready, "Call set_normalizer() before forward()"
 
-        obs         = nobs["observation.images.agentview"]
-        ih          = nobs["observation.images.robot0_eye_in_hand"]
+        obs         = nobs[self.agentview_key]
         base_action = nobs["observation.base_action"]
         state       = nobs["observation.state"]
 
         batch_size = obs.shape[0]
 
         # ----- Images (uint8 [0,255] → float [-1,1]) -----
-        obs = obs.float() / 255.0 * 2.0 - 1.0
-        ih  = ih.float()  / 255.0 * 2.0 - 1.0
+        # In-hand cameras are cropped before agentview; CropRandomizer draws a random
+        # offset per call in train mode, so this order is part of the trained behaviour.
+        ih_out = []
+        for key, enc_ih in zip(self.wrist_keys, self.enc_ih):
+            ih = nobs[key].float() / 255.0 * 2.0 - 1.0
+            ih_out.append(enc_ih(self.crop_randomizer(ih)))
 
-        ih     = self.crop_randomizer(ih)
-        ih_out = self.enc_ih(ih)
-
+        obs     = obs.float() / 255.0 * 2.0 - 1.0
         obs     = self.crop_randomizer(obs)
         enc_raw = self.enc_obs(obs)
         enc_out = (enc_raw.tensor if self.equivariant else enc_raw).reshape(batch_size, -1)
 
-        # ---- Proprioception ----
-        ee_pos  = state[...,  :3]
-        ee_quat = state[..., 3:7]
-        ee_q    = state[..., 7:9]
+        # ---- Proprioception and action, one contiguous block per arm ----
+        prop, action = [], []
+        for arm in range(self.n_arms):
+            s = state[:, arm * self.state_stride : (arm + 1) * self.state_stride]
+            a = base_action[:, arm * self.action_stride : (arm + 1) * self.action_stride]
 
-        pos_xy_centered = ee_pos[:, 0:2] - self.robot_base_xy  # (B, 2), buffer broadcasts
-        pos_xy = self.normalizer["pos_xy"].normalize(pos_xy_centered)
-        pos_z  = self.normalizer["pos_z"].normalize(ee_pos[:, 2:3])
-        ee_rot = self.normalizer["ee_rot"].normalize(self.get6DRotation(ee_quat))
-        ee_q   = self.normalizer["ee_q"].normalize(ee_q)
+            pos_xy_centered = s[:, 0:2] - self.robot_base_xy  # (B, 2), buffer broadcasts
+            pos_xy = self.normalizer[arm_key("pos_xy", arm)].normalize(pos_xy_centered)
+            pos_z  = self.normalizer[arm_key("pos_z", arm)].normalize(s[:, 2:3])
+            ee_rot = self.normalizer[arm_key("ee_rot", arm)].normalize(self.get6DRotation(s[:, 3:7]))
+            ee_q   = self.normalizer[arm_key("ee_q", arm)].normalize(s[:, 7:self.state_stride])
 
-        # ---- Action ----
-        action_xy      = self.normalizer["action_xy"].normalize(base_action[:, 0:2])
-        action_z       = self.normalizer["action_z"].normalize(base_action[:, 2:3])
-        action_rx_ry   = self.normalizer["action_rx_ry"].normalize(base_action[:, 3:5])
-        action_rz      = self.normalizer["action_rz"].normalize(base_action[:, 5:6])
-        action_gripper = self.normalizer["action_gripper"].normalize(base_action[:, 6:7])
-
-        # ----- Concatenate feature vector -----
-        critic_features = torch.cat(
-            [
-                enc_out,
-                ih_out,
+            prop += [
                 pos_xy,
                 ee_rot[:, 0:1], ee_rot[:, 3:4],  # col 0: (R00, R10)
                 ee_rot[:, 1:2], ee_rot[:, 4:5],  # col 1: (R01, R11)
                 ee_rot[:, 2:3], ee_rot[:, 5:6],  # col 2: (R02, R12)
                 pos_z,
                 ee_q,
-            ],
-            dim=1,
-        )
-        actor_features = torch.empty_like(critic_features).copy_(critic_features)
-        actor_features = torch.cat(
-            [
-                actor_features,
+            ]
+            action += [
+                self.normalizer[arm_key("action_xy", arm)].normalize(a[:, 0:2]),
+                self.normalizer[arm_key("action_z", arm)].normalize(a[:, 2:3]),
+                self.normalizer[arm_key("action_rx_ry", arm)].normalize(a[:, 3:5]),
+                self.normalizer[arm_key("action_rz", arm)].normalize(a[:, 5:6]),
+                self.normalizer[arm_key("action_hand", arm)].normalize(a[:, 6:self.action_stride]),
+            ]
 
-                action_xy,        # 0:2  → irrep(1)
-                action_z,         # 2:3  → trivial
-                action_rx_ry,     # 3:5  → irrep(1)
-                action_rz,        # 5:6  → trivial
-                action_gripper,   # 6:7  → trivial
-            ],
-            dim=1,
-        )
+        # ----- Concatenate feature vector -----
+        critic_features = torch.cat([enc_out, *ih_out, *prop], dim=1)
+        actor_features  = torch.cat([critic_features, *action], dim=1)
 
         # Wrap in GeometricTensor for equivariant path
         if self.equivariant:

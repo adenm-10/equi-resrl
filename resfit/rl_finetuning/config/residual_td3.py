@@ -47,6 +47,12 @@ class EquivarianceConfig:
     N: int = 8
     enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
     initialize: bool = True
+
+    # Per-arm observation layout. State is [eef_pos 3, eef_quat 4, gripper_qpos G]
+    # and action is [delta_pose 6, hand H] per arm; one wrist camera per arm.
+    n_arms: int = 1
+    gripper_dim: int = 2
+    hand_dof: int = 1
     use_norms: bool = True
     use_orth_init: bool = True
 
@@ -267,6 +273,25 @@ class ResidualTD3BoxCleanConfig(ResidualTD3DexmgConfig):
 
 
 @dataclass
+class ResidualEquiTD3BoxCleanConfig(ResidualTD3BoxCleanConfig):
+    """Equivariant residual TD3 on the two-arm BoxCleanup task.
+
+    C8 about the midpoint of the two robot bases. The task holds object yaw
+    fixed, so this is a geometric prior, not an exact task symmetry — see
+    docs/EQUIVARIANCE.md."""
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="dexmg-box-clean-equi-residual-td3")
+    )
+
+    equivariance: EquivarianceConfig = field(
+        default_factory=lambda: EquivarianceConfig(
+            N=8, n_arms=2, gripper_dim=12, hand_dof=6,
+        )
+    )
+
+
+@dataclass
 class ResidualTD3CoffeeConfig(ResidualTD3BoxCleanConfig):
     task: str = "TwoArmCoffee"
 
@@ -345,3 +370,4 @@ cs.store(name="residual_td3_two_arm_cansort_config", node=ResidualTD3TwoArmCanSo
 
 cs.store(name="residual_equi_td3_can_config",    node=ResidualEquiTD3CanConfig)
 cs.store(name="residual_equi_td3_square_config", node=ResidualEquiTD3SquareConfig)
+cs.store(name="residual_equi_td3_box_clean_config", node=ResidualEquiTD3BoxCleanConfig)

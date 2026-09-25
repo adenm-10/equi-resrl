@@ -60,38 +60,45 @@ _WIDTHS = {"trivial": 1, "irrep1": 2, "regular": None}  # regular resolved from 
 # between doc and code fails a test rather than silently changing the maths.
 
 
-def action_layout() -> list[tuple[str, int]]:
-    """The 7-dim delta end-effector action (OSC_POSE) plus gripper."""
-    return [
-        ("irrep1", 1),   # 0:2  action_xy
-        ("trivial", 1),  # 2:3  action_z
-        ("irrep1", 1),   # 3:5  action_rx_ry
-        ("trivial", 1),  # 5:6  action_rz
-        ("trivial", 1),  # 6:7  action_gripper
+def action_layout(n_arms: int = 1, hand_dof: int = 1) -> list[tuple[str, int]]:
+    """The delta end-effector action (OSC_POSE) plus hand, one block per arm."""
+    arm = [
+        ("irrep1", 1),          # 0:2    action_xy
+        ("trivial", 1),         # 2:3    action_z
+        ("irrep1", 1),          # 3:5    action_rx_ry
+        ("trivial", 1),         # 5:6    action_rz
+        ("trivial", hand_dof),  # 6:6+H  action_hand
     ]
+    return arm * n_arms
 
 
-def prop_layout() -> list[tuple[str, int]]:
-    """The 11-dim proprioception vector."""
-    return [
-        ("irrep1", 1),   # ee xy, minus robot base xy
-        ("irrep1", 3),   # 3 xy column pairs of the end-effector rotation
-        ("trivial", 1),  # ee z
-        ("trivial", 2),  # gripper state
+def prop_layout(n_arms: int = 1, gripper_dim: int = 2) -> list[tuple[str, int]]:
+    """The proprioception vector, one block per arm."""
+    arm = [
+        ("irrep1", 1),             # ee xy, minus the rotation center
+        ("irrep1", 3),             # 3 xy column pairs of the end-effector rotation
+        ("trivial", 1),            # ee z
+        ("trivial", gripper_dim),  # gripper / hand joint positions
     ]
+    return arm * n_arms
 
 
-def vis_ih_layout(n_hidden: int) -> list[tuple[str, int]]:
-    """Visual features: agentview is regular, in-hand is trivial."""
-    return [("regular", n_hidden), ("trivial", n_hidden)]
+def vis_ih_layout(n_hidden: int, n_arms: int = 1) -> list[tuple[str, int]]:
+    """Visual features: one regular agentview block, one trivial block per wrist."""
+    return [("regular", n_hidden), ("trivial", n_hidden * n_arms)]
 
 
-def enc_out_layout_critic(n_hidden: int) -> list[tuple[str, int]]:
-    return vis_ih_layout(n_hidden) + prop_layout()
+def enc_out_layout_critic(
+    n_hidden: int, n_arms: int = 1, gripper_dim: int = 2,
+) -> list[tuple[str, int]]:
+    return vis_ih_layout(n_hidden, n_arms) + prop_layout(n_arms, gripper_dim)
 
 
-def enc_out_layout_actor(n_hidden: int) -> list[tuple[str, int]]:
-    return enc_out_layout_critic(n_hidden) + action_layout()
+def enc_out_layout_actor(
+    n_hidden: int, n_arms: int = 1, gripper_dim: int = 2, hand_dof: int = 1,
+) -> list[tuple[str, int]]:
+    return (enc_out_layout_critic(n_hidden, n_arms, gripper_dim)
+            + action_layout(n_arms, hand_dof))
 
 
 # ---------------------------------------------------------------------------

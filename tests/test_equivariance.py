@@ -35,6 +35,19 @@ def _feat(obs_enc, layout, device, seed=0):
     return torch.randn(BATCH, w, generator=g).to(device)
 
 
+def _critic_layout(spec):
+    return ga.enc_out_layout_critic(ENC_HIDDEN, spec["n_arms"], spec["gripper_dim"])
+
+
+def _actor_layout(spec):
+    return ga.enc_out_layout_actor(
+        ENC_HIDDEN, spec["n_arms"], spec["gripper_dim"], spec["hand_dof"])
+
+
+def _action_layout(spec):
+    return ga.action_layout(spec["n_arms"], spec["hand_dof"])
+
+
 # ---------------------------------------------------------------------------
 # Vision encoder
 # ---------------------------------------------------------------------------
@@ -97,7 +110,7 @@ def test_vision_encoder_error_at_diagonal_angles(vision_encoder, device, capsys)
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("k", range(N))
-def test_critic_is_invariant(critic, obs_enc, device, k):
+def test_critic_is_invariant(critic, obs_enc, arm_spec, device, k):
     """Q(g.s, g.a) == Q(s, a). A value is a number; it has no direction.
 
     This is the assertion that certifies the GroupPooling head. A critic that
@@ -105,16 +118,17 @@ def test_critic_is_invariant(critic, obs_enc, device, k):
     """
     from escnn import nn as enn
 
-    feat_layout = ga.enc_out_layout_critic(ENC_HIDDEN)
+    feat_layout = _critic_layout(arm_spec)
+    act_layout = _action_layout(arm_spec)
     feat = _feat(obs_enc, feat_layout, device, seed=1)
-    act = _feat(obs_enc, ga.action_layout(), device, seed=2)
+    act = _feat(obs_enc, act_layout, device, seed=2)
 
     with torch.no_grad():
         q_plain = critic(enn.GeometricTensor(feat, obs_enc.enc_out_type_critic), act)
         q_rot = critic(
             enn.GeometricTensor(
                 ga.act_on_layout(feat, feat_layout, k, N), obs_enc.enc_out_type_critic),
-            ga.act_on_layout(act, ga.action_layout(), k, N),
+            ga.act_on_layout(act, act_layout, k, N),
         )
 
     err = _rel_err(q_rot, q_plain)
@@ -126,7 +140,7 @@ def test_critic_is_invariant(critic, obs_enc, device, k):
 
 
 @pytest.mark.gpu
-def test_critic_q_depends_on_action(critic, obs_enc, device):
+def test_critic_q_depends_on_action(critic, obs_enc, arm_spec, device):
     """An invariant critic that ignores its action entirely is also 'invariant'.
 
     This guards against a degenerate pass: the residual-saturation failure mode
@@ -135,10 +149,10 @@ def test_critic_q_depends_on_action(critic, obs_enc, device):
     """
     from escnn import nn as enn
 
-    feat = _feat(obs_enc, ga.enc_out_layout_critic(ENC_HIDDEN), device, seed=3)
+    feat = _feat(obs_enc, _critic_layout(arm_spec), device, seed=3)
     gt = enn.GeometricTensor(feat, obs_enc.enc_out_type_critic)
-    a1 = _feat(obs_enc, ga.action_layout(), device, seed=4)
-    a2 = _feat(obs_enc, ga.action_layout(), device, seed=5)
+    a1 = _feat(obs_enc, _action_layout(arm_spec), device, seed=4)
+    a2 = _feat(obs_enc, _action_layout(arm_spec), device, seed=5)
 
     with torch.no_grad():
         q1, q2 = critic(gt, a1), critic(gt, a2)
@@ -156,16 +170,16 @@ def test_critic_q_depends_on_action(critic, obs_enc, device):
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("k", range(N))
-def test_actor_is_equivariant(actor, obs_enc, device, k):
+def test_actor_is_equivariant(actor, obs_enc, arm_spec, device, k):
     """pi(g.s) == g.pi(s), on the deterministic path with action_scale applied."""
     from escnn import nn as enn
 
-    feat_layout = ga.enc_out_layout_actor(ENC_HIDDEN)
+    feat_layout = _actor_layout(arm_spec)
     feat = _feat(obs_enc, feat_layout, device, seed=6)
 
     with torch.no_grad():
         mu = actor(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
-        mu_then_act = ga.act_on_layout(mu, ga.action_layout(), k, N)
+        mu_then_act = ga.act_on_layout(mu, _action_layout(arm_spec), k, N)
         act_then_mu = actor(
             enn.GeometricTensor(
                 ga.act_on_layout(feat, feat_layout, k, N), obs_enc.enc_out_type_actor),
@@ -177,7 +191,7 @@ def test_actor_is_equivariant(actor, obs_enc, device, k):
 
 
 @pytest.mark.gpu
-def test_actor_output_is_nonzero(actor, obs_enc, device):
+def test_actor_output_is_nonzero(actor, obs_enc, arm_spec, device):
     """Guards against the trivial pass.
 
     With actor_last_layer_init_scale=0.0 -- which is what the reproduction runs
@@ -186,7 +200,7 @@ def test_actor_output_is_nonzero(actor, obs_enc, device):
     """
     from escnn import nn as enn
 
-    feat = _feat(obs_enc, ga.enc_out_layout_actor(ENC_HIDDEN), device, seed=7)
+    feat = _feat(obs_enc, _actor_layout(arm_spec), device, seed=7)
     with torch.no_grad():
         mu = actor(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
     assert mu.abs().max().item() > 1e-8, (
@@ -195,14 +209,30 @@ def test_actor_output_is_nonzero(actor, obs_enc, device):
 
 
 @pytest.mark.gpu
-def test_actor_respects_action_scale(actor, obs_enc, device):
+def test_actor_mean_is_scaled_not_bounded_by_action_scale(actor, obs_enc, arm_spec, device, capsys):
+    """action_scale multiplies the mean; it does not bound it.
+
+    The squash after the final Linear is commented out in actor.py, so |mu| is
+    not <= 1 and the mean can exceed action_scale. What bounds the executed
+    action is equi_clip at bound=1.0 on the std is not None path.
+    """
     from escnn import nn as enn
-    feat = _feat(obs_enc, ga.enc_out_layout_actor(ENC_HIDDEN), device, seed=8)
+
+    gt = enn.GeometricTensor(_feat(obs_enc, _actor_layout(arm_spec), device, seed=8),
+                             obs_enc.enc_out_type_actor)
     with torch.no_grad():
-        mu = actor(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
-    assert mu.abs().max().item() <= actor.action_scale * 1.0 + 1e-6, (
-        "actor output exceeds action_scale before any clipping"
-    )
+        mu = actor(gt, std=None)       # unclipped mean
+        executed = actor(gt, std=0.0)  # eval path: scaled, then equi_clip
+
+    with capsys.disabled():
+        print(f"\n    [actor |mu| / action_scale] {(mu.abs().max() / actor.action_scale):.3f}")
+
+    for sl, kind in obs_enc.action_layout:
+        chunk = executed[..., sl]
+        worst = chunk.abs().max() if kind == "trivial" else chunk.norm(dim=-1).max()
+        assert worst.item() <= 1.0 + 1e-5, (
+            f"{kind} block {sl} exceeds the equi_clip bound on the eval path"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +242,7 @@ def test_actor_respects_action_scale(actor, obs_enc, device):
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("k", range(N))
-def test_equi_clip_commutes_with_the_group(obs_enc, device, k):
+def test_equi_clip_commutes_with_the_group(obs_enc, arm_spec, device, k):
     """clip(g.a) == g.clip(a).
 
     Clamping each dimension onto a box is not rotationally symmetric; equi_clip
@@ -226,10 +256,11 @@ def test_equi_clip_commutes_with_the_group(obs_enc, device, k):
     act = (torch.randn(64, obs_enc.action_type.size, generator=g) * 2.0).to(device)
     layout = obs_enc.action_layout
 
+    act_layout = _action_layout(arm_spec)
     clipped_then_rot = ga.act_on_layout(
-        equi_clip(act, layout, bound=1.0), ga.action_layout(), k, N)
+        equi_clip(act, layout, bound=1.0), act_layout, k, N)
     rot_then_clipped = equi_clip(
-        ga.act_on_layout(act, ga.action_layout(), k, N), layout, bound=1.0)
+        ga.act_on_layout(act, act_layout, k, N), layout, bound=1.0)
 
     err = _rel_err(rot_then_clipped, clipped_then_rot)
     assert err < TOL, f"equi_clip does not commute with the group at k={k}: {err:.2e}"
