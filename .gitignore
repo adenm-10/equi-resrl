@@ -19,3 +19,9 @@ log.txt
 
 # --- Claude Code local overrides ---
 .claude/settings.local.json
+
+# --- personal scratch notes, deliberately local ---
+docs/personal_todo.md
+
+# --- stray debug logs ---
+tea_debug.log
