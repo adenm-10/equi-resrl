@@ -129,7 +129,7 @@ def _write_json(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, indent=2, default=str))
 
 
-def _git_state() -> dict:
+def git_state() -> dict:
     """HEAD plus uncommitted changes, from the checkout this code was imported from.
 
     HEAD alone does not identify the code that ran: z8yoqylh logged 7dae4925 while
@@ -167,7 +167,7 @@ def create_run_package() -> Path:
         "started": started.isoformat(timespec="seconds"),
         "host": socket.gethostname(),
         "argv": sys.argv,
-        "git": _git_state(),
+        "git": git_state(),
     }
     manifest_path = package / "manifest.json"
     if manifest_path.exists():

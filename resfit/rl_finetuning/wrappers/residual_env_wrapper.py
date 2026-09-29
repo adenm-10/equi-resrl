@@ -150,12 +150,17 @@ class BasePolicyVecEnvWrapper:
 
         base_naction = self.action_scaler.scale(base_action)
 
-        # Handle policy reset for terminated environments
+        # Handle policy reset for terminated environments.
+        # - Diffusion resets every env's queues, not just the finished ones: that is
+        #   what every Can and Square run did, so it stays for comparability.
+        # - ACT resets only the finished envs, as upstream ResFiT does.
+        # - Only `terminated` resets the base policy; a timeout (`truncated`) does not.
+        # - The env auto-resets on the same step, and this runs after select_action,
+        #   so a new episode's first base action can still come from the old chunk.
         if terminated.any():
             reset_ids = torch.where(terminated)[0]
             if   self.base_policy.config.name == 'diffusion': self.base_policy.reset()
-            elif self.base_policy.config.name == 'act':       self.base_policy.reset(env_ids=terminated_envs)
-            # self.base_policy.reset(env_ids=reset_ids)
+            elif self.base_policy.config.name == 'act':       self.base_policy.reset(env_ids=reset_ids)
 
         # Augment observations with base action and apply state standardization
         augmented_obs = self._augment_obs(raw_obs, base_naction)
