@@ -25,7 +25,10 @@ blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 | `test_imports.py` | 1 | no | Every module under `resfit/` imports. Catches the `SyntaxError` class of bug that sat undetected in `rl_utils.py` for ~5 months. |
 | `test_config.py` | 1 | no | Hydra configs resolve; the reproduction config still has the hyperparameters the experiment log claims. |
 | `test_regression_single_arm.py` | 1 | no | Fingerprints the single-arm encoder output against goldens captured at `b8e1de7`. Pins Can/Square behaviour across the bimanual generalisation. |
+| `test_regression_agent.py` | 1 | no | Fingerprints the whole equivariant agent at the Square reference config (parameters, actor and critic outputs, one TD3 update) via `tools/agent_fingerprint.py`. Golden captured at `f3e6315`, identical at `b8e1de7`. Makes new-commit Square runs comparable to the reference seeds. |
 | `test_run_package.py` | 1 | no | Run packages persist locally, wandb keeps exactly one best upload (checked against a fake wandb), and a saved residual model reloads to identical actions. |
+| `test_env_wrapper.py` | 1 | no | When the env wrapper resets the base policy: ACT only the finished envs, diffusion all of them, and never on a timeout (a pinned limitation). Guards the TODO B3 fix. |
+| `test_eval_base_policy.py` | 1 | no | The base-rate script's zero-residual stub drives the trainer's real evaluator on a scripted env: same episode counting (in-flight episodes dropped at the last one), residual exactly zero. |
 | `test_layouts.py` | 2 | yes | Declared `FieldType`s match the physics; widths agree at every `GeometricTensor` boundary. |
 | `test_equivariance.py` | 2 | yes | Actor is equivariant, critic is **invariant**, `equi_clip` commutes with the group. |
 | `test_no_ops.py` | 2 | yes | Pins which config fields actually do nothing. |
@@ -36,9 +39,9 @@ blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 The `obs_enc` fixture is parameterised over one-arm (Can, Square) and two-arm (TwoArmBoxCleanup)
 layouts, so every Tier 2 assertion runs twice. Test ids are suffixed `[1arm]` / `[2arm]`.
 
-`test_regression_single_arm.py` builds on **CPU** against CPU-captured goldens. escnn caches basis
+Both `test_regression_*.py` modules build on **CPU** against CPU-captured goldens. escnn caches basis
 tensors per representation, so once a GPU module exists a later CPU build fails on a device
-mismatch. `conftest.py` sorts that module first for this reason; preflight is unaffected because it
+mismatch. `conftest.py` sorts those modules first for this reason; preflight is unaffected because it
 runs Tier 1 in its own subprocess.
 
 ## Two design decisions worth knowing

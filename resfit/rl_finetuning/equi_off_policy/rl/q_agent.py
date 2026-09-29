@@ -276,7 +276,13 @@ class QAgent(torch.nn.Module):
         # to log rl vs bc during evaluation
         self.stats: common_utils.MultiCounter | None = None
 
-        self.critic_target.train(False)
+        # The equivariant target critic runs in train mode, as the actor target
+        # does. In eval mode an escnn layer computes with the weights it expanded
+        # at .train(False), so the target would never see a soft update;
+        # equivariance.frozen_target_critic reproduces that. In train mode a
+        # batch-norm critic normalizes each target batch with its own statistics.
+        self._critic_target_training = self.equivariant and not self.equi_cfg.frozen_target_critic
+        self.critic_target.train(self._critic_target_training)
         self.train(True)
 
     def _combine_actions(self, base_action: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
@@ -302,7 +308,7 @@ class QAgent(torch.nn.Module):
         self.actor.train(training)
         self.critic.train(training)
 
-        assert not self.critic_target.training
+        assert self.critic_target.training == self._critic_target_training
         for bc_policy in self.bc_policies:
             assert not bc_policy.training
 

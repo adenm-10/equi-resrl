@@ -158,8 +158,10 @@ def tier1_pytest() -> bool:
     section("Tier 1 - static tests")
     return _run_pytest(
         ["tests/test_imports.py", "tests/test_config.py",
-         "tests/test_regression_single_arm.py", "tests/test_run_package.py"],
-        "imports + config + single-arm regression + run package",
+         "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
+         "tests/test_run_package.py", "tests/test_env_wrapper.py",
+         "tests/test_eval_base_policy.py"],
+        "imports + config + regression + run package + env wrapper + base-rate eval",
     )
 
 
@@ -260,9 +262,13 @@ def cache_hashes(task: str) -> tuple[str, str]:
     return _sha8(offline), _sha8(online)
 
 
-def tier3_resources(task: str, seeds: int) -> None:
+def tier3_resources(task: str, seeds: int, require_caches: bool = False) -> None:
     section(f"Tier 3 - resources for {task}")
     t = TASKS[task]
+    # The trainer reads caches and probes under CACHE_DIR, which a launch from a
+    # pinned worktree points at the main checkout. Look where it will look.
+    cache_root = pathlib.Path(os.environ.get("CACHE_DIR", REPO)).expanduser().resolve()
+    miss = FAIL if require_caches else WARN
 
     # -- base BC policy ----------------------------------------------------
     cached = list(REPO.glob(f"artifacts/run_{t['bc'].split('/')[-1]}_best*/policy/model.safetensors"))
@@ -286,13 +292,13 @@ def tier3_resources(task: str, seeds: int) -> None:
     # -- buffer caches -----------------------------------------------------
     try:
         off_h, on_h = cache_hashes(task)
-        off = REPO / "offline_buffer_cache" / off_h
-        on = REPO / "online_buffer_cache" / on_h
+        off = cache_root / "offline_buffer_cache" / off_h
+        on = cache_root / "online_buffer_cache" / on_h
         off_gb, on_gb = cache_size_estimate(task)
-        record(PASS if off.exists() else WARN, f"offline buffer cache {off_h}",
+        record(PASS if off.exists() else miss, f"offline buffer cache {off_h}",
                "hit, loads in minutes" if off.exists()
                else f"MISS: will rebuild from the dataset (slow, writes ~{off_gb:.0f} GB)")
-        record(PASS if on.exists() else WARN, f"online buffer cache {on_h}",
+        record(PASS if on.exists() else miss, f"online buffer cache {on_h}",
                "hit, so the 10k-step env warmup is skipped" if on.exists()
                else f"MISS: 10k-step env warmup will run, then writes ~{on_gb:.0f} GB")
         need_gb = (0 if off.exists() else off_gb) + (0 if on.exists() else on_gb)
@@ -305,7 +311,7 @@ def tier3_resources(task: str, seeds: int) -> None:
         record(WARN, "buffer cache hashes", f"could not compute: {exc}")
 
     # -- env probe ---------------------------------------------------------
-    probe = REPO / "env_probes" / f"{task}.json"
+    probe = cache_root / "env_probes" / f"{task}.json"
     if probe.exists():
         data = json.loads(probe.read_text())
         bases = data["bases"] if "bases" in data else [data["base_xy"]]
@@ -359,6 +365,8 @@ def main() -> int:
     ap.add_argument("--concurrent-seeds", type=int, default=1,
                     help="how many runs will share this machine at once")
     ap.add_argument("--skip-tier2", action="store_true", help="skip the GPU suite")
+    ap.add_argument("--require-caches", action="store_true",
+                    help="a buffer-cache miss blocks, instead of warning of a rebuild")
     ap.add_argument("--compose", nargs=argparse.REMAINDER, default=[],
                     help="hydra overrides to dry-run compose; must come last")
     args = ap.parse_args()
@@ -373,7 +381,7 @@ def main() -> int:
         ok = tier2() and ok
     else:
         record(WARN, "Tier 2 skipped", "--skip-tier2 was passed; equivariance is unverified")
-    tier3_resources(args.task, args.concurrent_seeds)
+    tier3_resources(args.task, args.concurrent_seeds, args.require_caches)
 
     fails = [r for r in results if r[0] == FAIL]
     warns = [r for r in results if r[0] == WARN]

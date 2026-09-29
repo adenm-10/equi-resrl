@@ -45,11 +45,11 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    # The single-arm regression module builds on CPU against CPU-captured goldens.
+    # The regression modules build on CPU against CPU-captured goldens.
     # escnn caches basis tensors per representation, so once a GPU module exists
     # those caches live on cuda and a later CPU build dies on a device mismatch.
     # Sorting is stable, so everything else keeps its collection order.
-    items.sort(key=lambda i: 0 if "test_regression_single_arm" in str(i.fspath) else 1)
+    items.sort(key=lambda i: 0 if "test_regression_" in str(i.fspath) else 1)
 
     if config.getoption("--gpu"):
         return

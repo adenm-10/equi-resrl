@@ -123,6 +123,20 @@ def test_equivariant_configs_declare_their_arm_layout():
         )
 
 
+def test_boxcleanup_base_policy_is_pinned():
+    """Both BoxCleanup configs load the backed-up ACT checkpoint, by version.
+
+    `latest` would let a new upload change the base policy under an unchanged
+    config. preflight checks the same run, so the two must agree.
+    """
+    import preflight
+
+    for name in ("residual_td3_box_clean_config", "residual_equi_td3_box_clean_config"):
+        base = _node(name).base_policy
+        assert base.wandb_id == preflight.TASKS["TwoArmBoxCleanup"]["bc"], name
+        assert (base.wt_type, base.wt_version) == ("best", "v7"), name
+
+
 # Buffer cache keys measured on boce-WS-01. The torchrl / tensordict versions are
 # part of the key, so these are stack-specific by design.
 CACHE_STACK = ("0.7.0", "0.7.0")
@@ -164,3 +178,16 @@ def test_dead_config_fields_are_documented():
     for field in ("num_actor_layers", "num_critic_layers", "use_norms", "use_orth_init"):
         assert field in doc, f"{field} missing from the provenance table"
     assert "DEAD" in doc, "provenance table no longer marks any field DEAD"
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_NAMES))
+def test_every_config_writes_caches_by_default(name):
+    """write_buffer_caches is new; True reproduces every earlier run."""
+    assert _node(name).write_buffer_caches is True
+
+
+@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+def test_target_critic_is_not_frozen_by_default(name):
+    """frozen_target_critic=True reproduces the bug in every equivariant run
+    before 2026-09-29. It exists for comparison runs only."""
+    assert _node(name).equivariance.frozen_target_critic is False

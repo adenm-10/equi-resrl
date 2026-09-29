@@ -821,20 +821,23 @@ def main(cfg: ResidualTD3DexmgConfig):
             print(f"Added {added} offline transitions to buffer (size={len(offline_rb)})")
 
             # Save buffer to disk for future runs + upload to Hub ----------------
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            import torchrl.data.replay_buffers.samplers as _samplers
-            print(f"[DEBUG] PrioritizedSampler.dumps = {_samplers.PrioritizedSampler.dumps}")
-            print(f"[DEBUG] sampler instance type = {type(offline_rb._sampler)}")
-            print(f"[DEBUG] sampler instance MRO = {type(offline_rb._sampler).__mro__}")
-            print(f"[DEBUG] sampler.dumps = {offline_rb._sampler.dumps}")
-            # assert False
-            optimized_replay_buffer_dumps(offline_rb, cache_dir)
+            if cfg.write_buffer_caches:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                import torchrl.data.replay_buffers.samplers as _samplers
+                print(f"[DEBUG] PrioritizedSampler.dumps = {_samplers.PrioritizedSampler.dumps}")
+                print(f"[DEBUG] sampler instance type = {type(offline_rb._sampler)}")
+                print(f"[DEBUG] sampler instance MRO = {type(offline_rb._sampler).__mro__}")
+                print(f"[DEBUG] sampler.dumps = {offline_rb._sampler.dumps}")
+                # assert False
+                optimized_replay_buffer_dumps(offline_rb, cache_dir)
 
-            with open(cache_dir / "user_metadata.json", "w") as f:
-                json.dump(offline_cache_meta, f, indent=2)
+                with open(cache_dir / "user_metadata.json", "w") as f:
+                    json.dump(offline_cache_meta, f, indent=2)
 
-            if OFFLINE_HF_REPO is not None:
-                _hf_upload_buffer(OFFLINE_HF_REPO, cache_dir, cache_hash)
+                if OFFLINE_HF_REPO is not None:
+                    _hf_upload_buffer(OFFLINE_HF_REPO, cache_dir, cache_hash)
+            else:
+                print(f"write_buffer_caches=false: offline buffer not written to {cache_dir}")
         else:
             added = len(offline_rb)
     else:
@@ -915,12 +918,15 @@ def main(cfg: ResidualTD3DexmgConfig):
             obs = next_obs  # roll state
 
         # Persist freshly-collected buffer (local + HF) --------------------
-        online_cache_dir.mkdir(parents=True, exist_ok=True)
-        optimized_replay_buffer_dumps(online_rb, online_cache_dir)
-        with open(online_cache_dir / "user_metadata.json", "w") as f:
-            json.dump(online_cache_meta, f, indent=2)
-        if ONLINE_HF_REPO is not None:
-            _hf_upload_buffer(ONLINE_HF_REPO, online_cache_dir, online_cache_hash)
+        if cfg.write_buffer_caches:
+            online_cache_dir.mkdir(parents=True, exist_ok=True)
+            optimized_replay_buffer_dumps(online_rb, online_cache_dir)
+            with open(online_cache_dir / "user_metadata.json", "w") as f:
+                json.dump(online_cache_meta, f, indent=2)
+            if ONLINE_HF_REPO is not None:
+                _hf_upload_buffer(ONLINE_HF_REPO, online_cache_dir, online_cache_hash)
+        else:
+            print(f"write_buffer_caches=false: online buffer not written to {online_cache_dir}")
         print(f"Warm-up done. Online buffer size = {len(online_rb)} transitions")
 
         loaded_online_from_cache = True  # treat as cached going forward

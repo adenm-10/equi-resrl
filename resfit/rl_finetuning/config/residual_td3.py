@@ -56,6 +56,12 @@ class EquivarianceConfig:
     use_norms: bool = True
     use_orth_init: bool = True
 
+    # True reproduces every equivariant run before 2026-09-29: the target critic
+    # sat in eval mode, where escnn layers compute with the weights expanded at
+    # construction, so it never saw its soft updates. EXPERIMENTS.md, 2026-09-29
+    # CORRECTION.
+    frozen_target_critic: bool = False
+
     num_actor_layers: int = 2
     actor_degree_channel: int = 128
     
@@ -148,6 +154,9 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
 
     # Whether to run an evaluation pass before training begins (at step 0)
     eval_first: bool = True
+
+    # False keeps both replay buffers in memory only. Existing caches are still read.
+    write_buffer_caches: bool = True
 
     # Equivariant agent or not
     equivariance: EquivarianceConfig | None = None
@@ -263,11 +272,14 @@ class ResidualTD3BoxCleanConfig(ResidualTD3DexmgConfig):
             num_episodes=1_000,
         )
     )
+    # ACT, chunk 20, step 24k of 50k (eval 0.74, an outlier draw; the policy's
+    # rate is ~0.53-0.61). Pinned to the version, not `latest`, so the config
+    # names the weights. Backed up in ~/equi-resrl-preserve/run_xg0w2r0z_best:v7.
     base_policy: BasePolicyConfig = field(
         default_factory=lambda: BasePolicyConfig(
-            wandb_id="TODO",
+            wandb_id="dexmg-boxcleanup-bc/xg0w2r0z",
             wt_type="best",
-            wt_version="latest",
+            wt_version="v7",
         )
     )
 
