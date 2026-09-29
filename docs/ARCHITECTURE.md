@@ -106,6 +106,7 @@ network that actually trained. Verified by reading HEAD (`caf83f3`).
 | `use_orth_init` | `True` | — | commented out | live | **Partial** — actor only |
 | `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
 | `num_critic_layers` | `2` | — | ignored | — | **DEAD** — critic head is hardcoded |
+| `frozen_target_critic` | `False` | — | target critic's mode | — | **Live** from 2026-09-29. `True` reproduces every earlier equivariant run, whose target critic never changed (EXPERIMENTS.md, 2026-09-29 CORRECTION) |
 
 Also dead: `agent.actor.dropout` and `agent.critic.dropout` are threaded into both modules and
 never used. `agent.critic.loss` reaches the equivariant critic as `loss_cfg`, is stored, and is

@@ -1068,3 +1068,329 @@ It is not the 0.00 anomaly the gate watches for.
 
 **Process note.** Both currently-running jobs are now under tmux. Launching a multi-day run in a
 bare SSH foreground is how this one was lost.
+
+---
+
+## 2026-09-27 — LAUNCHED — `equi-square-v1` seed 2 (`88i0lpc8`)
+
+| Seed | wandb run | GPU | Commit | Launched |
+|---|---|---|---|---|
+| 2 | **`88i0lpc8`** | 1 (`GPU-8d23cc42`) | `b8e1de7` | 2026-09-27 10:19 EDT |
+
+The second seed of the group pre-registered above ("PRE-REGISTERED, NOT YET LAUNCHED (4)"),
+launched as the 2026-09-25 correction said: from the worktree pinned at `b8e1de7`
+(`~/projects/equi-resrl-square`), with `CACHE_DIR=~/projects/equi-resrl`, via that tree's
+`./submit.sh 2 1`, inside tmux session `sq-ref-s2`. Project `robomimic-square-final`, name
+`equi-square-v1-2`, the same overrides as seed 1.
+
+**Gate:** GO from `b8e1de7`'s own `preflight.py`. Tier 1 69 passed, Tier 2 passed on GPU 1, 82 GB
+RAM and 67 GB disk available. Its two warnings, both Square caches missing, were expected: that
+gate looks for caches in the worktree, not under `CACHE_DIR`.
+
+**Startup verified:**
+- `Set random seed to 2`.
+- Both caches hit in the main checkout, with no rebuild: offline `1d31ed9b` (80,429 transitions) and
+  online `66c46c51` (10,000, the warm-up). No "Populating offline buffer" line.
+- `[robot_base_xy] Loaded from cache .../equi-resrl/env_probes/Square.json: [-0.56, 0.0]`.
+- The BC artifact `run_3hzs5bz1_best:latest` resolved to `v9`, the only version on disk.
+- The process sits on `GPU-8d23cc42`.
+- Step-0 eval **0.64** (32/50), against seed 1's 0.62.
+
+**It trains the same agent as seed 1.** `tools/agent_fingerprint.py` builds the whole equivariant
+agent at this config and records its parameters, its actor and critic outputs, and one TD3 update.
+All 22 values are exactly identical at `b8e1de7` and at `f3e6315`. Seed 1 ran `2611adb`, which
+changed no training-path file relative to `b8e1de7`. `tests/test_regression_agent.py` now pins those
+values.
+
+**Config caveats.** As for seed 1: `num_actor_layers` and `num_critic_layers` are logged and dead;
+`initialize`, `use_norms` and `use_orth_init` are partial (ARCHITECTURE.md provenance table).
+`action_scale=0.1` does not bound the residual; `equi_clip(bound=1.0)` does.
+
+---
+
+## 2026-09-27 — CORRECTION — `seed` never reaches the environments
+
+**No run in this project has seeded its env initial states.** `cfg.seed` seeds `random`, numpy and
+torch in the trainer process: network init, exploration noise and replay sampling. Every
+simulated episode, training and eval alike, starts from an initial state drawn from OS entropy.
+
+Why, at every commit that has run (`7dae4925`, `caf83f3`, `b8e1de7`, and HEAD):
+- `create_vectorized_env` builds a gymnasium `AsyncVectorEnv` with `context="spawn"`. Each worker is
+  a fresh interpreter, and numpy seeds its global RNG from OS entropy.
+- robosuite's placement samplers draw object poses from that global RNG
+  (`robosuite/utils/placement_samplers.py`).
+- The trainer's `if hasattr(env, "seed"): env.seed(cfg.seed)` and `eval_env.seed(cfg.seed + 1)`
+  never run, because gymnasium 1.1.1's vector envs have no `seed()`. The wrapped env's own `seed()`
+  and `reset(seed=...)` ignore the seed anyway.
+
+**Measured 2026-09-27.** Two processes, each seeded `random`/numpy/torch = 0, built 2-env Square
+vector envs and reset them. They got different initial states: first env end-effector xy
+`(-0.083, 0.010)` vs `(-0.113, -0.008)`.
+
+**What this changes:**
+- The 2026-09-18 pre-registration's point 2 holds only for the trainer process.
+  `38z4wr9z` reproduced `z8yoqylh`'s network init and noise streams, not its episodes. Its point 3
+  gave `torch_deterministic=False` as the reason runs differ; the unseeded environments are the
+  larger reason, and they would remain with deterministic torch.
+- Step-0 evals of different runs are independent draws, even at the same seed. That makes them
+  poolable as base-rate samples.
+- A run cannot be re-run to the same trajectory, whatever the seed.
+
+Nothing is fixed here. Seeding the workers would change every future run's episodes relative to
+past ones, so it needs its own decision.
+
+---
+
+## 2026-09-27 — CODE — BoxCleanup prep: ACT reset fixed, base policy pinned
+
+Two changes on the BoxCleanup path. **Neither changes a Can or Square run.** No residual run has used
+either path.
+
+**1. The ACT reset crash (TODO B3) is fixed.** `BasePolicyVecEnvWrapper.step` passed an undefined
+`terminated_envs`, so an ACT base policy raised `NameError` on the first successful episode. It now
+passes `reset_ids`, the terminated envs, as upstream ResFiT does. The diffusion branch still resets
+every env's queues on any termination, which every Can and Square run did.
+`tests/test_env_wrapper.py` fails on the old code and passes on the fix. Unchanged, and now pinned by
+a test: a timeout (`truncated`) does not reset the base policy.
+
+**2. `ResidualTD3BoxCleanConfig.base_policy` is pinned** (STANDARDS rule 1.6). It was
+`wandb_id="TODO"`. It is now `dexmg-boxcleanup-bc/xg0w2r0z`, `wt_type="best"`,
+`wt_version="v7"`. The equivariant BoxCleanup config inherits it.
+- **v7 is the step-24,000 checkpoint** (`trainer_state.pt`): ACT, chunk 20, 20 action steps,
+  `n_obs_steps` 1, no temporal ensembling, three cameras. It was created 2026-09-25 17:02 UTC and
+  is the last of eight `best` versions, aliased `best` and `latest`.
+- The version is pinned, not `latest`, so the config determines the weights.
+- sha256 of `policy/model.safetensors`: `e79fc307961e81135440c5eec84b2c592c4886cdac02ad6554809829602c67c9`.
+  The backup `~/equi-resrl-preserve/run_xg0w2r0z_best:v7` matches the download.
+
+---
+
+## 2026-09-29 — RESULTS — `equi-square-v1`, both seeds: the reference config degrades Square
+
+Pre-registered as "PRE-REGISTERED, NOT YET LAUNCHED (4)". Read the target-critic CORRECTION below
+first: both seeds trained against a target critic frozen at initialization.
+
+| | Seed 1 `j04yoeui` | Seed 2 `88i0lpc8` |
+|---|---|---|
+| Commit | `2611adb` | `b8e1de7` (pinned worktree) |
+| Runtime | 47.2 h | 46.6 h |
+| Step-0 | 0.62 | 0.64 |
+| Best | 0.72 at 70k | 0.64 at 0 |
+| Final (300k) | 0.54 | 0.28 |
+| L10 (210k–300k) | **0.52** | **0.39** |
+| Mean of 110k–150k | 0.548 | 0.412 |
+
+- **Eval sequences**, 50 episodes each at 0, 10k, …, 300k, recomputed from `output.log`:
+  - `j04yoeui`: 0.62, 0.56, 0.54, 0.60, 0.54, 0.52, 0.54, 0.72, 0.58, 0.64, 0.56, 0.52, 0.60, 0.54,
+    0.54, 0.54, 0.50, 0.46, 0.44, 0.46, 0.56, 0.54, 0.44, 0.40, 0.50, 0.64, 0.56, 0.50, 0.42, 0.66,
+    0.54.
+  - `88i0lpc8`: 0.64, 0.52, 0.54, 0.56, 0.42, 0.54, 0.50, 0.38, 0.44, 0.44, 0.36, 0.42, 0.36, 0.44,
+    0.44, 0.40, 0.44, 0.34, 0.58, 0.46, 0.38, 0.44, 0.46, 0.46, 0.42, 0.40, 0.32, 0.42, 0.34, 0.40,
+    0.28.
+- **Base rate.** The pooled step-0 of four runs on this base policy (`0prso90n` 0.62, `j04yoeui`
+  0.62, `88i0lpc8` 0.64, `870ws2c2` 0.52) is **0.60 ± 0.035** (200 episodes). Step-0 evals are
+  independent draws (2026-09-27 CORRECTION), so they pool.
+- **Against base:** seed 1 −0.08 (about 2 combined SE), seed 2 −0.21 (about 5). **M_ref = 0.46.**
+- **The residual saturates.** `residual_l1` ended at 0.75–0.79 in both seeds, against `870ws2c2`'s
+  0.085: ResFiT's actor ends in Tanh × `action_scale`, and this one is bounded only by
+  `equi_clip(bound=1.0)`.
+- **Q estimates are far outside the reward range.** `actor_loss_base` (−mean Q) spans −7.9 to +11.5
+  in seed 1 (98% within −2.0 to +5.1), on 0/1 rewards.
+- **The working baseline dips before it learns.** `870ws2c2` went 0.52, then 0.24–0.38 until 70k,
+  rose from 80k, averaged 0.68 over 110k–150k and reached L10 0.83. The equivariant seeds never
+  rose.
+- **Context, not a cause:** the base policy `3hzs5bz1` was still improving when its 50k-step BC budget
+  ran out (10k-window means 0.16, 0.40, 0.49, 0.50, 0.54; best `v9`, 0.60, at 49k). `870ws2c2`
+  lifted this same base to 0.90.
+- **Config caveats:** as in the seed-2 launch entry. Also `num_q=2` and a frozen target critic (both
+  corrections below).
+- **Verdict:** no gain in either seed, a clear loss in one, n=2. Because of the frozen target critic
+  this measures that bug, not the equivariant residual.
+
+---
+
+## 2026-09-29 — CORRECTION — the equivariant target critic never changed from its initialization
+
+**Every equivariant residual run in this project computed its TD targets with the critic as it was
+at initialization.** The target critic's parameters were soft-updated every step, but it never
+computed with them.
+
+**Why:**
+- escnn 1.0.11's `nn.Linear` expands its basis coefficients into a weight matrix on every forward in
+  train mode. In eval mode it computes with a `matrix` buffer, expanded once, when `.train(False)` is
+  called.
+- `QAgent.__init__` put `critic_target` in eval mode once, at construction. Nothing called it again:
+  `QAgent.train()` toggles only the encoder, actor and critic, and `agent.eval()` and
+  `utils.eval_mode(agent)` both go through it.
+- `utils.soft_update_params` copies `parameters()`, which are the basis coefficients, not the expanded
+  buffers.
+- Every layer of the equivariant critic is an escnn `Linear` or `GroupPooling`, so the whole target
+  critic was frozen.
+
+**Scope:**
+- The same code is at every commit that ran. `critic_target.train(False)` dates from `798e237`
+  (2026-01-15), and it and the `train()` override are unchanged at `7dae4925`, at `caf83f3` (`z8yoqylh`,
+  `38z4wr9z`, `sw2qwfs9`) and at `b8e1de7` and `2611adb` (`j04yoeui`, `88i0lpc8`).
+- Unaffected: the actor target stays in train mode and re-expands on every forward, and the ResFiT
+  baseline uses plain PyTorch layers.
+
+**Measured 2026-09-29** on the reference Square agent:
+- The online critic was perturbed and then copied into the target with `tau=1`.
+- The target's outputs on the fixture batch were bit-identical before and after the copy: 0.6126,
+  0.4362, 0.4747, 0.6222.
+- Forcing a re-expansion changed them to about 1,200.
+- `tests/test_regression_agent.py::test_target_critic_computes_with_its_soft_updated_weights`
+  reproduces both behaviours.
+
+**What this changes:**
+- **The critic never bootstrapped.** The TD target in every equivariant run was
+  `r + γ³ · min Q_init(s′, a′)`, where `Q_init` is a fixed, randomly initialized network, not a
+  learned value. So the critic learned an n-step reward plus a fixed random function of the next
+  state and action, and the actor climbed that function's action gradient.
+- **That fits the Square failure,** but only as a reading, not a test: a residual 9× ResFiT's, and Q
+  estimates from −7.9 to +11.5 on 0/1 rewards. The `target-fix` arm of the sweep pre-registered
+  below tests it.
+- **Every equivariant-versus-baseline comparison so far set an agent that could not bootstrap
+  against one that could.** The Can replication (2026-09-25 RESULTS) stands as a measurement of the
+  frozen-target agent, not of the method.
+- **The 2026-09-27 fingerprint could not see this:** an update reads the target before it
+  soft-updates it.
+
+**The fix, from the commit that adds this entry:**
+- The equivariant target critic runs in train mode, as the actor target does, so it re-expands its
+  weights from its current parameters on every forward.
+- The reference critic has no dropout or batch norm, so train mode changes nothing else. A
+  batch-norm critic, which the sweep adds, then normalizes each target batch with its own
+  statistics. Eval mode would read running statistics, which the soft update never copies.
+- **New field `equivariance.frozen_target_critic`, default `False`.** `True` reproduces the old
+  behaviour, for comparison runs.
+- This is a behaviour change at an unchanged config (STANDARDS 1.6): a run config without this field
+  ran frozen.
+- A checkpoint saved before this commit no longer loads with `strict=True`: its target critic holds
+  `matrix` buffers that a train-mode target doesn't have. No run resumes from one.
+
+**Runs affected:** every equivariant run. The agent fingerprint is unchanged, because nothing else
+about the agent changed.
+
+---
+
+## 2026-09-29 — CORRECTION — the critic-head default changed from 10 to 2 on 2026-04-23, unrecorded
+
+- `aabde0f` ("transferring to new compute", 2026-04-23) changed `CriticConfig.num_q` from 10 to 2
+  with no note here, which breaks STANDARDS 1.6.
+- Upstream ResFiT (`6bd9f7c`) defaults to 10, and the paper launchers never override it.
+- **10 heads**, per their wandb configs: the two working baselines, `870ws2c2` (Square) and
+  `msfkjwab` (Can).
+- **2 heads:**
+  - every equivariant run checked: `z8yoqylh`, `38z4wr9z`, `sw2qwfs9`, `j04yoeui` and `88i0lpc8`;
+  - the non-equivariant Can baseline `zyed0lew` (2026-05-15, project `robomimic-can-final`, local
+    `config.yaml`), which improved 0.76 → 0.94 with 2 heads, n=1.
+- **What it changes:** the comparisons against `870ws2c2` and `msfkjwab` differed in the critic
+  ensemble as well as in the network and the target critic. The 2026-09-25 RESULTS line "baseline
+  residual TD3 works" stands, but its Square evidence is at 10 heads.
+- **Not changed:** the default stays 2, because every equivariant run used 2. A run meant to match
+  the paper passes `agent.critic.num_q=10`. The sweep's `q10` arm tests it on Square.
+
+---
+
+## 2026-09-29 — NOTE — `rj70yeid`, a stopped BoxCleanup BC attempt
+
+- A diffusion BC policy on TwoArmBoxCleanup (`train_bc_dexmg --policy diffusion`, 50,000 steps
+  planned), launched 2026-09-25 09:36 at `b8e1de7`. Local `wandb/run-20260925_093615-rj70yeid`.
+- It was stopped at step ~300: the last log line is 09:44:21, loss 0.131. That was when the base
+  policy switched to ACT. Superseded by `xg0w2r0z`, the ACT policy pinned in the 2026-09-27 CODE entry.
+- Nothing was measured. Recorded so that every run directory is accounted for.
+
+---
+
+## 2026-09-29 — PRE-REGISTERED — the Square sweep (`equi-square-sweep-<arm>`)
+
+**Question.** Does fixing the target critic let the equivariant residual improve on Square's base
+policy? And which single further change helps most?
+
+**Stage 1, the screen (this entry):**
+- One seed (seed 1) per arm, stopped at 150k steps (`algo.total_timesteps=150000`).
+- Nothing in training depends on `total_timesteps` before the stop: the stddev schedule is flat at
+  0.05, clipping and LR warm-up are off. These are the first 150k steps of a 300k run.
+- **Verdict:**
+  - An arm **advances** iff the mean of its five evals at 110k–150k (250 episodes) is at least B_sq.
+  - Collapse (three consecutive evals ≤ 0.05) stops a run at any step, and it does not advance.
+  - No other early stop.
+- **B_sq** is the 500-episode base rate that `eval_base_policy` measures at the launch commit
+  before the first arm (10 × 50 episodes, seed 1000; recorded as its own entry). The pooled step-0
+  (0.60 ± 0.035) is only a sanity check on it.
+- **Calibration against B = 0.60:**
+  - the working ResFiT baseline `870ws2c2` would advance (0.68);
+  - both frozen-target reference seeds would not (0.548 and 0.412).
+- **What it can detect:** only large effects. The two reference seeds differ by 0.14 in this window.
+  "Does not advance" rules out a large gain at n=1, and nothing more. **No stage-1 number is a
+  comparison** (STANDARDS 5.3).
+
+**Stage 2, pre-registered separately when an arm advances:**
+- Seeds 1 and 2 at 300k. `target-fix` is judged against B_sq and against the frozen reference
+  M_ref = 0.46. Every other arm is judged against `target-fix` at the same seeds.
+- Promotion needs all three of:
+  - M_arm − B_sq > 0.055;
+  - M_arm at least its comparison's M plus 0.10;
+  - both seeds' L10 above its comparison's M.
+- Promoted arms get a 3-seed confirmation.
+
+**Arms.**
+- Every arm is `residual_equi_td3_square_config` plus `algo.prefetch_batches=4`,
+  `algo.total_timesteps=150000`, init scale 1e-4 unless stated, and the overrides below.
+- **Every arm includes the target-critic fix** (the default from this entry's commit). The
+  reference seeds did not.
+- Each arm's case in `submit.sh` holds exactly these overrides, and lands in the commit that adds
+  its field.
+
+| Arm | Overrides | Question |
+|---|---|---|
+| `target-fix` | none | Does the fix alone make the residual improve on base? The reference for every other arm |
+| `critic-ln` | `equivariance.critic_norm=field_norm` | ResFiT's critic has LayerNorm after every hidden layer; ours has no normalization. `FieldNorm` (per-field layer norm) at the three hidden sites: visual projection, trunk, head |
+| `critic-iid` | `equivariance.critic_norm=iid_bn` | Batch norm (`IIDBatchNorm1d`) in the critic at the same sites |
+| `actor-ln` | `equivariance.actor_norm=field_norm` | `FieldNorm` instead of `IIDBatchNorm1d` at the actor's three sites |
+| `actor-none` | `equivariance.actor_norm=none` | Does the actor's batch norm hurt? |
+| `enc-inner` | `equivariance.encoder_norm=inner_bn` | `InnerBatchNorm` after each agentview conv (the sites commented out today); biases stay off |
+| `q10` | `agent.critic.num_q=10` | Upstream's 10 critic heads |
+| `squash` | `equivariance.residual_squash=true` | Bound the residual by `action_scale`, as ResFiT's Tanh does: tanh of each rotating pair's norm and of each scalar, then × `action_scale` |
+| `matched` | `agent.critic.num_q=10 equivariance.residual_squash=true equivariance.actor_norm=field_norm equivariance.critic_norm=field_norm equivariance.critic_orth_init=true`, init scale 0.0 | ResFiT's settings, wherever they have an equivariant counterpart |
+| `clipq` | `agent.clip_q_target_to_reward_range=true` | TD targets clamped to [0, 1] |
+| `l2` | `agent.actor.action_l2_reg_weight=0.1` | An L2 penalty pulling the residual towards zero |
+| `orth-critic` | `equivariance.critic_orth_init=true` | Delta-orthonormal init in the critic too (it is He today) |
+| `critic-last` | `equivariance.critic_last_layer_init_scale=1e-3` | Each critic head's final layer scaled down at init, so Q starts near 0 |
+| `he-all` | `equivariance.use_orth_init=false` | He init in the actor too (He is escnn's default) |
+| `orth-enc` | `equivariance.encoder_orth_init=true` | Delta-orthonormal init in the agentview encoder |
+| `one-proj` | `equivariance.use_visual_proj=false` | Do the actor and critic need both a visual projection and a trunk projection? |
+| `critic-deep` | `equivariance.num_critic_layers=2` | Two hidden layers per critic head, as ResFiT has. The field is dead today, and its wired default is 1, what ran |
+| `narrow` | `equivariance.enc_degree_channel=16 equivariance.actor_degree_channel=64 equivariance.critic_degree_channel=64` | Is capacity the limit? The wrist features stay at 32 through a new `equivariance.ih_out_channel` (default 32) |
+
+**Order.** Aden asked for the normalization arms by Friday 2026-10-02, so those go first:
+- **GPU 0:** `target-fix`, `actor-ln`, `enc-inner`, `q10`, `matched`, `clipq`, `orth-critic`,
+  `critic-last`, `orth-enc`, `critic-deep`.
+- **GPU 1, after the BoxCleanup smoke run:** `critic-ln`, `critic-iid`, `actor-none`, `squash`, `l2`,
+  `he-all`, `one-proj`, `narrow`.
+- A queue item whose code isn't committed when its GPU frees is skipped until it is. The queue
+  order may change; each LAUNCHED entry records when the arm ran.
+
+**Held fixed:**
+- Everything not overridden: n_step 3, gamma 0.99, buffer 200k, learning_starts 10k, critic warm-up
+  10k; `action_scale` 0.1, stddev 0.05, actor LR 1e-6, critic LR 1e-4, 300 demo episodes.
+- 50-episode evals every 10k.
+- BC `run_3hzs5bz1_best:v9`, and the Square caches `1d31ed9b` and `66c46c51`.
+- `boce-WS-01`, with torch 2.6.0, torchrl 0.7.0 and escnn 1.0.11. Env initial states unseeded.
+
+**Not held fixed:**
+- **The commit.** The arms launch from up to three commits as their code lands, and each LAUNCHED
+  entry names its commit. `tests/test_regression_agent.py` must pass unchanged at each of them: the
+  defaults then build the same agent, bit for bit, as at `f3e6315` and `b8e1de7`, apart from the
+  target critic.
+- **Against the reference seeds:** the target-critic fix, and the commit.
+- **Load:** the BoxCleanup smoke run shares the machine with the first arm for a few hours.
+
+**Resources.**
+- About 23.5 h per arm at 0.56 s/step; `q10` and `matched` about 28 h (+22% per update, measured).
+- Two arms at a time: 40.3 GiB each, measured.
+- 18 arms is about 9 days on both GPUs.
+
+**Records.** A LAUNCHED entry per commit's batch of arms, and a RESULTS entry per finished arm: its
+eval sequence, the 110k–150k mean and its verdict.
