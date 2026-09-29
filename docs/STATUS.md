@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-09-29 · **Last verified commit:** the commit that adds this line (see git log)
+**Last updated:** 2026-09-29 · **Last verified commit:** `1e33b8f` (sweep options), plus its doc pass
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -8,112 +8,121 @@ This file describes what is true right now. Rewrite it in place; do not append. 
 ## Where the project is
 
 **Every equivariant run so far trained against a frozen target critic** (EXPERIMENTS.md,
-2026-09-29 CORRECTION). escnn layers in eval mode compute with weights expanded once, and the
-target critic sat in eval mode from construction, so it never saw a soft update: the critic never
-bootstrapped. Fixed from 2026-09-29, with `equivariance.frozen_target_critic` to reproduce the old
-behaviour. The Can replication and the Square reference below measure the frozen-target agent,
-not the method.
+2026-09-29 CORRECTION and NOTE). escnn layers in eval mode compute with weights expanded once, and
+the target critic sat in eval mode from construction, so it never saw a soft update and the critic
+never bootstrapped its own values. It is fixed from `93a8ad4`: the target critic runs in train mode,
+as the actor target does. `equivariance.frozen_target_critic=True` reproduces the old behaviour.
 
-**The Square reference degraded its base policy**, n=2: L10 0.52 and 0.39 against a base rate of
-about 0.60. The Square sweep, pre-registered 2026-09-29, starts with `target-fix` (the fix alone),
-then the normalization arms.
+So the earlier results measure the frozen-target agent, not the method:
+- **Can replication** (2026-09-25 RESULTS): n=2, no collapse. `38z4wr9z` 0.82 → 0.96 carries it;
+  `sw2qwfs9` drew a 0.94 base policy.
+- **Square reference `equi-square-v1`** (2026-09-29 RESULTS): both seeds degraded the base policy,
+  with L10 0.52 and 0.39.
 
-**The replication succeeded, and the project now has its first multi-seed result.** Both
-`equi-repro-caf83f3` seeds ran the full 300k steps without collapsing and both ended above their
-step-0 baseline: `38z4wr9z` 0.82 → 0.96, `sw2qwfs9` 0.94 → 0.96. Details in
-[EXPERIMENTS.md](EXPERIMENTS.md), 2026-09-25 RESULTS.
+**The Square sweep is running** (pre-registered and amended 2026-09-29). It has 18 arms, one seed
+each, stopped at 150k steps. An arm advances if its 110k–150k mean reaches **B_sq = 0.508**, the
+Square base rate measured over 500 episodes.
+- First comes `target-fix`, the reference config with only the fix: does the fix alone make the
+  residual help?
+- Then the normalization arms, which Aden asked for by 2026-10-02, then the rest.
+- Every arm has the fix.
 
-Read that result carefully. `38z4wr9z` is the load-bearing arm — same seed as `z8yoqylh`, same 0.82
-step-0, **+0.14**. `sw2qwfs9` drew a 0.94 base policy and gained only +0.02, so its headline number
-is mostly a favourable draw. **n=2 for "does it reproduce", much weaker for "how much does it
-help".**
-
-The work has moved on to two new fronts: a second single-arm task (Square) and the first bimanual
-task (TwoArmBoxCleanup).
-
-**Runs now keep everything locally and upload only their best.** From `503a9a3`, each run writes a
-persisted package under `outputs/runs/<project>/<run_id>/` and uploads one wandb artifact, the best
-model plus its eval video, replaced in place. Only saving and uploading changed: the training step
-and every logged metric name are identical to the pre-change runs `j04yoeui` and `xg0w2r0z`. Layout
-and rules in ARCHITECTURE.md, "Run packages". The running Square seed and anything launched from
-the pinned worktrees keep the old behaviour — a video upload per eval, and the local folder deleted
-when the run completes.
+**BoxCleanup** has had a smoke run only, so far.
 
 ## Running now
 
-The Square sweep's queue, from worktrees pinned per commit (`~/projects/equi-resrl-<commit>`),
-one runner per GPU in tmux. See EXPERIMENTS.md, 2026-09-29 PRE-REGISTERED, and the LAUNCHED
-entries after it. Queue files live in `~/queues/`, launch logs in `outputs/queue/`.
+| What | wandb | GPU | Started | Notes |
+|---|---|---|---|---|
+| Square sweep `target-fix` seed 1 | `0rehtuoq` | 0 | 2026-09-29 17:58 | From `~/projects/equi-resrl-ce96bb5`; ends ~09-30 18:00 |
+| BoxCleanup smoke run | `f6n0jtv9` (`equi-resrl-smoke`) | 1 | 2026-09-29 17:46 | 3k steps, capped at 8 h; a tooling check (PROGRESS) |
 
-**Both `equi-square-v1` seeds finished:** `j04yoeui` (seed 1, L10 0.52) and `88i0lpc8` (seed 2, L10
-0.39). EXPERIMENTS.md, 2026-09-29 RESULTS.
+**The queue.**
+- A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
+  `~/queues/gpu{0,1}.txt`, one `<commit> <arm> <seed>` per line. Each launch runs from the worktree
+  pinned to its commit.
+- GPU 1's runner starts when the smoke run ends.
+- Every other arm is queued at `1e33b8f` (`~/projects/equi-resrl-1e33b8f`).
+- Logs: `outputs/queue/gpu{0,1}.log` records every launch, and each launch's console goes to its own
+  file beside it.
+
+| GPU | Order (about 23.5 h each; `q10` and `matched` about 28 h) |
+|---|---|
+| 0 | `target-fix` → `actor-ln` → `enc-inner` → `q10` → `matched` → `clipq` → `orth-critic` → `critic-last` → `orth-enc` → `critic-deep` |
+| 1 | smoke → `critic-ln` → `critic-iid` → `actor-none` → `squash` → `l2` → `he-all` → `one-proj` → `narrow` |
+
+- **By Friday 2026-10-02 noon:** `target-fix`, `critic-ln`, `actor-ln` and `critic-iid`.
+- **Later on Friday:** `enc-inner` (~18:00) and `actor-none` (~23:00).
+- **The whole queue:** about 2026-10-09.
+
+**RAM:** two Square runs at 40.3 GiB each fit; a third does not. The smoke run and one Square run
+together use about 95 GiB of 125.
 
 ## What is established
 
-- **The equivariant agent reproduces on Can**, n=2, no collapse, **with a frozen target critic**:
-  a measurement of that agent, not of the method (2026-09-29 CORRECTION).
-- **Baseline residual TD3 works.** Square 0.52 → 0.90 (`870ws2c2`), Can 0.92 → 1.00 (`msfkjwab`).
-  Both single-seed.
-- **The equivariant implementation is correct, now for one and two arms.** 244 tests: declared
-  representations match independently-derived physics at all 8 group elements, actor equivariant and
-  critic invariant to `< 1e-4`, for both arm counts.
-- **Single-arm behaviour is pinned.** `tests/test_regression_single_arm.py` fingerprints the encoder
-  output; it stayed bit-identical through the bimanual generalisation, so Can and Square runs before
-  and after remain comparable.
+- **The target-critic bug and its fix.** `tests/test_regression_agent.py` shows the old target
+  never changing and the new one following its soft updates. The frozen reference's logged TD
+  target barely moved during warm-up; `target-fix`'s moves.
+- **Baseline residual TD3 works.** Square 0.52 → 0.90 (`870ws2c2`), Can 0.92 → 1.00 (`msfkjwab`),
+  both single-seed and both with 10 critic heads. The equivariant default is 2 heads (2026-09-29
+  CORRECTION).
+- **The equivariant implementation is correct**, for one and two arms and for every sweep option:
+  - the declared representations match independently derived physics;
+  - the actor is equivariant and the critic invariant to < 1e-4, in train and eval mode;
+  - 404 tests in Tiers 1–2.
+- **The whole agent is pinned.** At the config defaults, `tests/test_regression_agent.py` gives the
+  same parameters, outputs and update, bit for bit, as `f3e6315` and `b8e1de7`. So sweep arms at
+  newer commits are comparable to the reference seeds, apart from the target-critic fix.
 - **The BoxCleanup base policy is at about the paper's bar, not above it.** ACT, final 0.53. The
-  stretch the `best` checkpoint comes from averages **0.61** against the paper's ≈0.6. Read the
-  caveat below before quoting its peak.
+  stretch the `best` checkpoint comes from averages **0.61**, against the paper's ≈0.6. Its recorded
+  0.74 at 24k is an outlier draw. The checkpoint is `run_xg0w2r0z_best:v7`, pinned by version and
+  backed up.
 
 ## What is not
 
-- **No Square run has had a working target critic, and no BoxCleanup residual run has run.** Both
-  Square reference seeds finished, frozen-target; every claim about either task is provisional.
-- **Five successful runs are still undocumented.** `lgc70vgd` (0.86 → **0.98**, 243,800 steps, no
-  overrides), `q1ocx89o` (0.98), `3vl625tv` (0.96), `36pfxsww` (0.96) and `zyed0lew` (the
-  non-equivariant Can baseline, 0.76 → 0.94) beat their step-0 and appear in no EXPERIMENTS.md
-  entry. `lgc70vgd` also reached a *higher* best with `actor_last_layer_init_scale=0.0`, which
-  undercuts TODO R11's premise.
-- **`action_scale` does not bound the residual.** The squash after the actor's final Linear is
-  commented out, so `|mu|` is not ≤ 1 — measured 1.27x on the two-arm actor. The real bound is
-  `equi_clip(..., bound=1.0)`. Read `residual_l1` / `residual_l2` against 1.0, not against
-  `action_scale`. See ARCHITECTURE.md rough edges.
-- **TwoArmBoxCleanup has no exact spatial symmetry.** Chiral hands, asymmetric object placement, and
-  `rotation=(0.0, 0.0)` means object yaw never varies. The equivariant arm there tests a *geometric
-  prior*, not an exploited symmetry. Results must not be pooled with Can/Square. Full argument in
+- **The base rate is uncertain.** The base-rate script gave 0.508 ± 0.022, while the four runs'
+  step-0 evals pooled to 0.60 ± 0.035; that is about 2.5 SE apart, and no systematic cause was found.
+  The sweep uses 0.508, as pre-registered. At that bar, the screen would have passed frozen-target
+  seed 1. Each arm's step-0 adds a check.
+- **Five successful runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
+  `36pfxsww` and `zyed0lew`. All are frozen-target, except `zyed0lew`, which is non-equivariant.
+- **`action_scale` bounds the residual only with `residual_squash=True`,** the sweep's `squash` and
+  `matched` arms. Otherwise the bound is `equi_clip(..., bound=1.0)`, so read `residual_l1` and
+  `residual_l2` against 1.0.
+- **TwoArmBoxCleanup has no exact spatial symmetry.** Chiral hands and asymmetric object placement,
+  and `rotation=(0.0, 0.0)` means object yaw never varies. The equivariant arm there tests a
+  *geometric prior*, not an exploited symmetry, and must not be pooled with Can or Square. See
   [EQUIVARIANCE.md](EQUIVARIANCE.md).
-- **The BoxCleanup BC policy's peak is not its rate, and it drifted down late.** 50 evals of 100
-  episodes, oscillating ±0.15 throughout. Averages over ten evals each: **0.61** for 21k–30k, 0.54
-  for 31k–40k, 0.51 for 41k–50k; final 0.53. The earlier reading of "true rate ≈0.65" came from the
-  31k mark and does not hold. The **best of 0.74 at 24k is an outlier draw**, and it is the
-  checkpoint `wt_type="best"` loads, so the residual run's step-0 should come in near 0.6, not 0.74 —
-  regression to the mean, not a pipeline fault. Read step-0 as the base rate. The checkpoint is
-  `run_xg0w2r0z_best:v7`, pinned by version in the BoxCleanup configs and backed up locally.
-- **The ACT reset crash (TODO B3) is fixed** as of 2026-09-27, so an ACT base policy no longer
-  crashes the residual env wrapper. No BoxCleanup residual run has launched yet.
-- **`seed` does not reach the environments.** Every episode's initial state, training and eval, is
-  drawn from OS entropy in every run so far. A seed fixes network init and noise, not episodes.
-  EXPERIMENTS.md, 2026-09-27 CORRECTION.
-- **The Can buffer caches are gone.** `8edf618e` and `43637c10` are no longer on disk, and no doc
-  records their deletion; the next Can run rebuilds them.
-- **The scalar ablation is still not usable as a control.** STANDARDS.md rule 3.3, TODO P4.
-- **The gate cannot validate the commit it launches.** TODO R14.
+- **`seed` does not reach the environments.** Every episode's initial state is drawn from OS entropy,
+  in every run so far, and the decision is to keep it that way (TODO B8).
+- **The Can buffer caches are gone** (TODO H7), and Can needs a fixed-target re-run anyway (TODO B6).
+- **The gate's RAM estimate is 21 GB per run against a measured 40.3 GiB** (TODO B7, S10). It does
+  not count running trainers either.
+- **The scalar ablation is still not usable as a control** (STANDARDS 3.3, TODO P4). **The gate cannot
+  validate the commit it launches** (TODO R14).
 
 ## The plan, and why
 
-**The Square sweep first** (pre-registered 2026-09-29): one seed per arm, a 150k-step screen, an
-arm advances if its 110k–150k mean reaches the base rate. `target-fix` asks whether the target-critic
-fix alone is enough; the normalization arms follow, as Aden asked for them by 2026-10-02.
+**The Square sweep, in its queue order.**
+- The target-critic fix is the most likely single cause of the Square failure, so `target-fix` runs
+  first and every other arm is read against it.
+- The normalization arms follow, since the critic has none and ResFiT's has LayerNorm throughout.
+  Aden asked for them first.
+- An arm that advances gets a pre-registered stage 2: seeds 1 and 2 at 300k.
 
-**BoxCleanup after that, one arm at a time, without writing caches** (`write_buffer_caches=false`).
-A full run needs about 76 GiB of RAM (estimated), so it can't share the machine with a Square run,
-and the two arms can't share caches: the cache key doesn't record the normalization path. A short
-smoke run measures RAM and speed first. The earlier plan to run both arms concurrently on shared
-caches (2026-09-25) is superseded.
+**BoxCleanup after the sweep, one arm at a time, without writing caches.**
+- A full run needs about 76 GiB of RAM (estimated; the smoke run measures it), so it can't share the
+  machine with a Square run.
+- The two arms can't share caches: the cache key doesn't record the normalization path.
+- The launcher, pre-registration and base rate are TODO B7.
 
 ## Do not delete
 
-`z8yoqylh` exists only as `wandb/run-20260522_083555-z8yoqylh` and a backup in
-`~/equi-resrl-preserve/`; it is not in wandb. `msfkjwab` survives only as
-`ZXP-S-works:wandb/run-20260226_143630-msfkjwab/`. The BoxCleanup base policy is backed up as
-`~/equi-resrl-preserve/run_xg0w2r0z_best:v7`; its sha256 is in EXPERIMENTS.md, 2026-09-27 CODE. Three runs have already been lost this way.
-TODO H4 would restore `z8yoqylh` with `wandb sync`.
+- `z8yoqylh` exists only as `wandb/run-20260522_083555-z8yoqylh` and a backup in
+  `~/equi-resrl-preserve/`; it is not in wandb. TODO H4 would restore it with `wandb sync`.
+- `msfkjwab` survives only as `ZXP-S-works:wandb/run-20260226_143630-msfkjwab/`.
+- The BoxCleanup base policy is backed up as `~/equi-resrl-preserve/run_xg0w2r0z_best:v7`; its
+  sha256 is in EXPERIMENTS.md, 2026-09-27 CODE.
+- The pinned worktrees `~/projects/equi-resrl-{ce96bb5,1e33b8f}` while any queued launch still names
+  them. They also hold those runs' `wandb/` folders.
+
+Three runs have already been lost to deletions.

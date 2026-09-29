@@ -17,6 +17,74 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-09-29 — The target critic never updated; the Square sweep launched
+
+**Done**
+
+- **Every equivariant run's target critic was frozen at initialization.**
+  - escnn layers in eval mode compute with weights expanded at `.train(False)`, and the target critic
+    sat in eval mode from construction.
+  - Fixed in `93a8ad4`: it now runs in train mode, as the actor target does.
+    `equivariance.frozen_target_critic=True` reproduces the bug.
+  - A test copies the critic into the target with tau=1 and checks both behaviours.
+  - Warm-up confirms it: the frozen reference's mean TD target stayed at −0.150 to −0.164 over
+    10k critic updates, while `target-fix`'s moved from −0.138 to −0.005.
+  - EXPERIMENTS.md, 2026-09-29 CORRECTION.
+- **Records:**
+  - both `equi-square-v1` seeds' RESULTS (L10 0.52 and 0.39);
+  - the `num_q` 10 → 2 default change (CORRECTION);
+  - a note on `rj70yeid`;
+  - the Square base rate, **B_sq = 0.508 ± 0.022** over 500 episodes, about 2.5 SE below the pooled
+    step-0 of 0.60, with no systematic cause found.
+- **The sweep's code** (`718de4d`):
+  - per-network norm fields, with a new `RegularLayerNorm` (ResFiT's LayerNorm, made equivariant);
+  - critic and encoder orth init, and the critic's last-layer scale;
+  - `use_visual_proj`, and `residual_squash` with `equi_tanh`;
+  - `ih_out_channel`, and `num_critic_layers` wired (default 2 → 1, what ran).
+  - The agent fingerprint is unchanged at the defaults. Tier 2 grew from 154 to 285 tests: every
+    option's symmetry in both modes, and every arm built and updated.
+- **Launch tooling** (`93a8ad4`):
+  - `submit.sh <arm> <seed> [gpu]`;
+  - `tools/gpu_queue.sh`, with a per-GPU queue of `<commit> <arm> <seed>`, each launched from a
+    worktree pinned to its commit (`~/projects/equi-resrl-<commit>`);
+  - `write_buffer_caches`;
+  - the gate looks under `CACHE_DIR`, and `--require-caches` makes a miss block.
+- **Launched:**
+  - `target-fix` (`0rehtuoq`, GPU 0, `ce96bb5`, 17:58), queued behind the base-rate eval;
+  - the BoxCleanup smoke run (`f6n0jtv9`, GPU 1, `ce96bb5`), after which GPU 1's queue starts.
+  - Its robot-base probe matched the env, bases (−0.56, ∓0.25), and is committed (`1e33b8f`).
+
+**Decided**
+
+- **Aden:** the normalization arms first, finished by 2026-10-02; the rest on Claude's judgement. No
+  `c4`, no dropout or weight-decay arm, no actor-LR arm.
+- **Every sweep arm carries the target-critic fix.** `target-fix`, the fix alone, is both the first
+  arm and the reference for the rest.
+- **The LayerNorm arms use `RegularLayerNorm`, not `FieldNorm`.** Recorded as an amendment before
+  either launched.
+- **B_sq stays 0.508, as pre-registered,** which makes the screen looser than its calibration.
+- **Worktrees are pinned per commit, never moved.** A running trainer can spawn processes that
+  import from its tree, so moving a tree under it could mix commits in one run.
+- **From the 2026-09-29 non-sweep plan:**
+  - A2: the BoxCleanup pair runs one arm at a time, after the sweep or scheduled against it, once
+    the smoke run has measured RAM;
+  - A3: env seeding stays off;
+  - A4: `docs/plans/` stays untracked;
+  - A1, the doc budget, is still Aden's (TODO H5).
+
+## 2026-09-27 — Pinning the whole agent, and BoxCleanup prep
+
+**Done**
+
+- **`tools/agent_fingerprint.py` and `tests/test_regression_agent.py`.** They pin the whole
+  equivariant agent (parameters, outputs, one TD3 update), identical at `f3e6315` and `b8e1de7`, which
+  keeps new-commit Square runs comparable to the reference.
+- **The ACT reset crash (B3) is fixed, with a test.** The BoxCleanup BC checkpoint
+  `run_xg0w2r0z_best:v7` is backed up and pinned.
+- **`scripts/eval_base_policy.py`** measures base rates through the trainer's eval path.
+- **Launched `equi-square-v1` seed 2 (`88i0lpc8`)** from the worktree pinned at `b8e1de7`.
+- **CORRECTION:** `seed` never reaches the environments.
+
 ## 2026-09-25 — Run packages: keep everything locally, upload only the best
 
 Closed Aden's "stop sending giant files to wandb" item. No training-path change.

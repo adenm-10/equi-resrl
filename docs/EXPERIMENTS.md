@@ -1482,3 +1482,27 @@ New `EquivarianceConfig` fields.
 - `agent.actor.dropout`, `agent.critic.dropout` and `agent.critic.loss` stay dead on the equivariant
   path.
 - `initialize` reaches only the encoder.
+
+---
+
+## 2026-09-29 — NOTE — what the frozen target critic still saw, with evidence from the runs
+
+A precision on the target-critic CORRECTION above:
+- **The frozen part was the critic's layers, not its inputs.** The target Q reads next-state features
+  from the online encoder (`self.enc(next_obs)` under `no_grad`), and that encoder trains on the
+  critic loss.
+- So the TD target was `r + γ³ · min Q_init(φ(s′), a′)`: a fixed random critic applied to learnt
+  features, and still no bootstrapping of the critic's own values.
+
+**The runs show it.** Here is the logged batch mean of the TD target (`train/critic_qt`) during the
+10k critic-only warm-up updates, when the actor is fixed:
+
+| Run | 1k | 5k | 8.7k | 9.9k |
+|---|---|---|---|---|
+| `j04yoeui` (frozen) | −0.150 | −0.158 | −0.162 | −0.164 |
+| `88i0lpc8` (frozen) | 0.083 | −0.034 | −0.055 | −0.053 |
+| `0rehtuoq`, `target-fix` (fixed) | −0.138 | −0.052 | −0.005 | — |
+
+- `j04yoeui`'s target barely moves. `88i0lpc8`'s settles by 5k, as its encoder does.
+- `target-fix`'s keeps rising towards the reward's scale as the target learns.
+- These are single runs, so this illustrates the fix and doesn't test it.

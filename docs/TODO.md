@@ -9,6 +9,24 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
+### B0. The Square sweep — IN FLIGHT from 2026-09-29 `[SC]`
+
+Pre-registered in EXPERIMENTS.md, 2026-09-29, and amended the same day. Eighteen arms, one seed
+each, 150k steps; an arm advances if its 110k–150k mean reaches B_sq = 0.508.
+- **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
+  reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
+- **As each arm finishes:**
+  - append a RESULTS entry: the eval sequence, step-0, the 110k–150k mean against 0.508 and 0.60,
+    and the verdict;
+  - pool its step-0 into the running base-rate check (the MEASUREMENT entry explains why).
+- **When an arm advances,** pre-register its stage 2: seeds 1 and 2 at 300k, judged against
+  `target-fix`.
+- **Once a day:** `nvidia-smi`, `free -g`, `df -h`, `tmux ls`, and the tail of `outputs/queue/gpu*.log`.
+- **Adding or reordering arms:** edit the queue files, which are outside the repo. A new arm needs
+  its case in `submit.sh`, a commit, a worktree at that commit (`~/projects/equi-resrl-<commit>`,
+  with the `artifacts` symlink), and a pre-registration first.
+**Updates:** EXPERIMENTS.md, STATUS.md.
+
 ### B1 — DONE 2026-09-25 `[CS]` `[SC]`
 
 `ResObsEnc` generalised to `n_arms`; normalizer, probe, `QAgent` asserts, config and tests followed.
@@ -25,6 +43,14 @@ contradicts the premise of R11 — resolve that before running R11.
 **Updates:** EXPERIMENTS.md, then R11.
 
 ### B3. Launch the BoxCleanup baseline `[SC]`
+
+**Progress 2026-09-27/29.**
+- Done: the ACT reset crash is fixed (`f428c19`, with a test), and the BC checkpoint
+  `run_xg0w2r0z_best:v7` is backed up and pinned in both configs and in `preflight.TASKS` (`93a8ad4`).
+- `write_buffer_caches=false` exists, and the gate can require caches.
+- The smoke run (PROGRESS 2026-09-29) measures RAM and speed.
+- Still open: the launch itself, which follows the Square sweep (B5, superseded, below).
+- The rest of this item is the original text.
 
 Blocked on Square finishing (B5) and on **a crash in the residual env wrapper**:
 `BasePolicyVecEnvWrapper.step` resets an ACT base policy with `env_ids=terminated_envs`, an undefined
@@ -49,7 +75,14 @@ Blocked on B3 building the shared caches and on a free GPU. Config
 measures a geometric prior, not an exploited symmetry — see EQUIVARIANCE.md.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
-### B5 — DECIDED 2026-09-25 `[SC]`
+### B5 — SUPERSEDED 2026-09-29 `[SC]`
+
+The two BoxCleanup arms can't share caches: the cache key doesn't record the normalization path,
+and the baseline's data is normalized differently. A full run also needs about 76 GiB of RAM
+(estimated; the smoke run measures it). So they run **one at a time, without writing caches**,
+after the Square sweep, or scheduled against it. The original decision follows.
+
+### B5 (original) — DECIDED 2026-09-25 `[SC]`
 
 **Wait for Square, then run both BoxCleanup arms concurrently.** Square finishes around 2026-09-29
 and frees 22.4 GB plus GPU 1. Sequential would have been ~19 days and would have launched into a
@@ -57,6 +90,39 @@ and frees 22.4 GB plus GPU 1. Sequential would have been ~19 days and would have
 caches regardless. Cost is ~3.5 days of an idle GPU 1.
 
 ---
+
+### B6. Re-run the Can replication with the target-critic fix `[SC]`
+
+Every Can result, the replication included, trained against a frozen target critic (EXPERIMENTS.md,
+2026-09-29 CORRECTION). After the Square sweep, re-run the Can reference config at a fixed-target
+commit, over 3 seeds, before any Can claim is repeated. The Can caches are gone (H7), so the first
+run rebuilds them.
+**Updates:** EXPERIMENTS.md, STATUS.md.
+
+### B7. The rest of the 2026-09-29 non-sweep plan `[SC]` `[CS]`
+
+From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Square and S8 are done.
+- **S9, the cache key.** Record the normalization path (raw vs dataset-normalized), the base
+  policy's version, and the baseline's `action_scale` in both keys. Migrate the two Square caches
+  by renaming, leaving symlinks, and check that older commits still load through them. The gate
+  then derives its disk need from `write_buffer_caches`.
+- **S10, the RAM gate.** Per-task RAM estimates from measured PSS, counting running trainers.
+  `RAM_PER_RUN_GB = 21` is half the measured 40.3 GiB.
+- **S11, `tools/eval_report.py`.** Parse evals from `output.log`, and implement the stop rule as a
+  parameter, with golden and calibration tests. That makes the sweep's verdicts mechanical.
+- **S12, the records.** Enter the BoxCleanup base rate (E1-box, still to measure: about 1–2 h, 25 GiB).
+  Correct the Can replication's headline, now also for the frozen target (B6).
+- **S13, the bimanual pilot prep.** A launcher, its pre-registration and a launch checklist, with
+  `num_q=10` and the paper's settings, using the smoke run's measurements.
+**Updates:** TODO.md, EXPERIMENTS.md, ARCHITECTURE.md.
+
+### B8. Env seeding, and the Square BC `[SC]`
+
+- Env initial states are unseeded in every run (2026-09-27 CORRECTION). **Decision: leave them
+  unseeded** for comparability with every earlier run. The trainer's dead
+  `if hasattr(env, "seed")` branches should then go, with a comment.
+- Whether to train the Square BC policy longer: `3hzs5bz1` was still improving at its 50k budget.
+  This is for later, and blocks nothing: `870ws2c2` lifted this base to 0.90.
 
 ## H — Housekeeping
 
@@ -269,6 +335,10 @@ Do not start before the reproduction completes. See the freeze in STATUS.md.
 
 ### P3.1 Wire or remove every dead config field `[CS]` `[SC]`
 
+**Progress 2026-09-29:** `num_critic_layers` is wired (default 1); `use_norms` is replaced on the
+equivariant path by `actor_norm`/`critic_norm`/`encoder_norm`; the critic and encoder have their own
+orth-init fields. Still to do: `num_actor_layers`, `dropout`, `initialize`, `loss_cfg`, `return_logits`.
+
 Make `use_norms`, `use_orth_init`, `num_actor_layers`, `num_critic_layers`, `dropout`, and
 `initialize` either actually branch or not exist. Use P2.3's bit-identity tests to prove the
 cleanup did not move behavior. Only after this do these become real, ablatable knobs.
@@ -289,6 +359,10 @@ implement it or make the config reject it.
 ---
 
 ### P3.4 Restore normalization to the critic head, using `TrivialLayerNorm` `[CS]`
+
+**2026-09-29:** the sweep's `critic-ln` and `critic-iid` arms add normalization before the
+pooling (`RegularLayerNorm`, `IIDBatchNorm1d`). `TrivialLayerNorm`, after the pooling, stays
+untested.
 
 **Scope note added 2026-09-16:** this describes the critic head **at HEAD / `caf83f3`**, where every
 normalization layer is commented out and `use_norms` does nothing. At `7dae4925`, where the only
