@@ -46,6 +46,9 @@ class EquivarianceConfig:
 
     N: int = 8
     enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
+    # Width of each wrist camera's feature vector (scalar channels). Until
+    # 2026-09-29 it was tied to enc_degree_channel; 32 matches the default.
+    ih_out_channel: int = 32
     initialize: bool = True
 
     # Per-arm observation layout. State is [eef_pos 3, eef_quat 4, gripper_qpos G]
@@ -53,8 +56,32 @@ class EquivarianceConfig:
     n_arms: int = 1
     gripper_dim: int = 2
     hand_dof: int = 1
+    # Read only by the scalar ablation; the equivariant networks use the three
+    # fields below.
     use_norms: bool = True
+    # Delta-orthonormal init in the actor; escnn's default, which the critic and
+    # encoder keep unless their fields below say otherwise, is He.
     use_orth_init: bool = True
+
+    # Normalization after each hidden Linear of the actor and critic: "none",
+    # "iid_bn" (escnn IIDBatchNorm1d), "layer_norm" (RegularLayerNorm, which
+    # normalizes by all channels at once, as ResFiT's LayerNorm does) or
+    # "field_norm" (FieldNorm, each field by its own statistics). The encoder
+    # takes "none" or "inner_bn" (escnn InnerBatchNorm after every conv). The
+    # defaults are what every run before 2026-09-29 had.
+    actor_norm: str = "iid_bn"
+    critic_norm: str = "none"
+    encoder_norm: str = "none"
+    critic_orth_init: bool = False
+    encoder_orth_init: bool = False
+    # Scales each critic head's final Linear at init; None keeps escnn's init.
+    critic_last_layer_init_scale: float | None = None
+    # False skips the actor's and critic's visual projection: the trunk takes
+    # the encoder's features directly.
+    use_visual_proj: bool = True
+    # True bounds the actor's mean by action_scale, as ResFiT's Tanh does:
+    # equi_tanh on each irrep(1) pair's norm and each trivial component.
+    residual_squash: bool = False
 
     # True reproduces every equivariant run before 2026-09-29: the target critic
     # sat in eval mode, where escnn layers compute with the weights expanded at
@@ -65,7 +92,9 @@ class EquivarianceConfig:
     num_actor_layers: int = 2
     actor_degree_channel: int = 128
     
-    num_critic_layers: int = 2
+    # Hidden layers in each critic head, before GroupPooling. Logged as 2 until
+    # 2026-09-29, while the field was dead and every critic had 1.
+    num_critic_layers: int = 1
     critic_degree_channel: int = 128
 
 

@@ -50,7 +50,7 @@ def _encoder():
     torch.manual_seed(0)
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N,
-        n_hidden=ENC_HIDDEN, equivariant=True, initialize=True,
+        n_hidden=ENC_HIDDEN, ih_out_channel=ENC_HIDDEN, equivariant=True, initialize=True,
     )
     normalizer = build_equivariant_normalizer(
         stats={"observation.state": _stats(9), "action": _stats(7)},

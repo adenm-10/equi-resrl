@@ -191,3 +191,19 @@ def test_target_critic_is_not_frozen_by_default(name):
     """frozen_target_critic=True reproduces the bug in every equivariant run
     before 2026-09-29. It exists for comparison runs only."""
     assert _node(name).equivariance.frozen_target_critic is False
+
+
+@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+def test_equivariant_defaults_build_the_reference_network(name):
+    """Every field added for the 2026-09-29 sweep defaults to what earlier runs had.
+
+    num_critic_layers was dead and logged as 2; every critic had 1 hidden layer
+    per head, which is now its wired default.
+    """
+    eq = _node(name).equivariance
+    assert (eq.actor_norm, eq.critic_norm, eq.encoder_norm) == ("iid_bn", "none", "none")
+    assert eq.critic_orth_init is False and eq.encoder_orth_init is False
+    assert eq.critic_last_layer_init_scale is None
+    assert eq.use_visual_proj is True and eq.residual_squash is False
+    assert eq.num_critic_layers == 1
+    assert eq.ih_out_channel == eq.enc_degree_channel == 32

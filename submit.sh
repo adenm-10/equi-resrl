@@ -66,6 +66,31 @@ case "$ARM" in
     l2)         ARM_OVERRIDES=(agent.actor.action_l2_reg_weight=0.1) ;;
     # He init in the actor as well, so every network keeps escnn's default.
     he-all)     ARM_OVERRIDES=(equivariance.use_orth_init=false) ;;
+    # Normalization, per network (the reference: batch norm in the actor only).
+    critic-ln)  ARM_OVERRIDES=(equivariance.critic_norm=layer_norm) ;;
+    critic-iid) ARM_OVERRIDES=(equivariance.critic_norm=iid_bn) ;;
+    actor-ln)   ARM_OVERRIDES=(equivariance.actor_norm=layer_norm) ;;
+    actor-none) ARM_OVERRIDES=(equivariance.actor_norm=none) ;;
+    enc-inner)  ARM_OVERRIDES=(equivariance.encoder_norm=inner_bn) ;;
+    # The residual's mean bounded by action_scale, as ResFiT's Tanh bounds it.
+    squash)     ARM_OVERRIDES=(equivariance.residual_squash=true) ;;
+    # Delta-orthonormal init where the reference has He, and a small critic output layer.
+    orth-critic) ARM_OVERRIDES=(equivariance.critic_orth_init=true) ;;
+    orth-enc)   ARM_OVERRIDES=(equivariance.encoder_orth_init=true) ;;
+    critic-last) ARM_OVERRIDES=(equivariance.critic_last_layer_init_scale=1e-3) ;;
+    # Architecture: no visual projection, two hidden layers per critic head, half widths.
+    one-proj)   ARM_OVERRIDES=(equivariance.use_visual_proj=false) ;;
+    critic-deep) ARM_OVERRIDES=(equivariance.num_critic_layers=2) ;;
+    narrow)     ARM_OVERRIDES=(equivariance.enc_degree_channel=16
+                               equivariance.actor_degree_channel=64
+                               equivariance.critic_degree_channel=64) ;;
+    # ResFiT's settings wherever they have an equivariant counterpart.
+    matched)    INIT=0.0
+                ARM_OVERRIDES=(agent.critic.num_q=10
+                               equivariance.residual_squash=true
+                               equivariance.actor_norm=layer_norm
+                               equivariance.critic_norm=layer_norm
+                               equivariance.critic_orth_init=true) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2

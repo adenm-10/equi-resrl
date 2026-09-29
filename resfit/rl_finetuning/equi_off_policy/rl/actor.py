@@ -7,6 +7,14 @@ from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import *
 
 
 class Actor(torch.nn.Module):
+    """The equivariant residual actor: pi(g.s) = g.pi(s).
+
+    visual projection -> trunk projection -> one hidden layer -> Linear to the
+    action representation, each hidden layer followed by `norm` and a ReLU.
+    Every Linear maps between escnn field types, which is what makes the map
+    equivariant; `norm` (HIDDEN_NORMS) and equi_tanh preserve it.
+    """
+
     def __init__(self,
                  group,
                  vis_ih_type: nn.FieldType,
@@ -17,10 +25,12 @@ class Actor(torch.nn.Module):
                  action_shape,
                  num_layers: int,
                  dropout: float,
-                 use_norms: bool,
+                 norm: str,
                  use_orth_init: bool,
                  last_layer_scale,
                  action_scale: float,
+                 use_visual_proj: bool,
+                 residual_squash: bool,
                  residual_actor: bool = True):
         super().__init__()
         assert residual_actor, "Non-residual mode dropped — actor is residual-only"
@@ -33,57 +43,43 @@ class Actor(torch.nn.Module):
         self.action_layout = action_layout
 
         self.dropout          = dropout
-        self.use_norms        = use_norms
         self.use_orth_init    = use_orth_init
         self.last_layer_scale = last_layer_scale
         self.action_scale     = action_scale
+        self.residual_squash  = residual_squash
 
-        # delta-ortho overrides escnn's default init; otherwise let escnn init.
-        # escnn_init = not use_orth_init
-        escnn_init = True
-
-        # ---- Visual projection ----
-        self.vp_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
-        vp_layers = [nn.Linear(vis_ih_type, self.vp_type, initialize=escnn_init)]
-        if use_norms:
-            vp_layers.append(nn.IIDBatchNorm1d(self.vp_type, track_running_stats=True))
-        vp_layers.append(nn.ReLU(self.vp_type))
-        self.visual_proj = torch.nn.Sequential(*vp_layers)
+        # ---- Visual projection; Identity feeds the encoder features straight to the trunk ----
+        if use_visual_proj:
+            self.vp_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
+            self.visual_proj = torch.nn.Sequential(
+                nn.Linear(vis_ih_type, self.vp_type, initialize=True),
+                *hidden_norm(norm, self.vp_type),
+                nn.ReLU(self.vp_type),
+            )
+        else:
+            self.vp_type = vis_ih_type
+            self.visual_proj = torch.nn.Identity()
 
         # ---- Trunk: (vp + prop + base_action) ----
         trunk_in_type        = self.vp_type + prop_type + action_type
         self.trunk_proj_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
-        ip_layers = [nn.Linear(trunk_in_type, self.trunk_proj_type, initialize=escnn_init)]
-        if use_norms:
-            ip_layers.append(nn.IIDBatchNorm1d(self.trunk_proj_type, track_running_stats=True))
-        ip_layers.append(nn.ReLU(self.trunk_proj_type))
-        self.input_proj = torch.nn.Sequential(*ip_layers)
+        self.input_proj = torch.nn.Sequential(
+            nn.Linear(trunk_in_type, self.trunk_proj_type, initialize=True),
+            *hidden_norm(norm, self.trunk_proj_type),
+            nn.ReLU(self.trunk_proj_type),
+        )
 
-        # ---- Policy MLP (trunk_out + prop + base_action) ----
+        # ---- Policy MLP (trunk_out + prop + base_action), one hidden layer ----
+        # num_layers is not read: equivariance.num_actor_layers is dead (ARCHITECTURE.md).
         pol_in_type     = self.trunk_proj_type + prop_type + action_type
         pol_hidden_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
         pol_out_type    = nn.FieldType(group, action_shape)
-        current_in = pol_in_type
-        
-        layers = []
-        layers.append(nn.Linear(current_in, pol_hidden_type, initialize=escnn_init))
-        layers.append(nn.IIDBatchNorm1d(pol_hidden_type, track_running_stats=True))
-        layers.append(nn.ReLU(pol_hidden_type, inplace=False))
-        layers.append(nn.Linear(pol_hidden_type, pol_out_type, initialize=escnn_init))
-        # layers.append(nn.NormNonLinearity(pol_out_type, function='squash', bias=False))
-
-        # layers = []
-        # for _ in range(num_layers):
-        #     layers.append(nn.Linear(current_in, pol_hidden_type, initialize=escnn_init))
-        #     if use_norms:
-        #         layers.append(nn.IIDBatchNorm1d(pol_hidden_type, track_running_stats=True))
-        #     if dropout > 0:
-        #         layers.append(nn.FieldDropout(pol_hidden_type, p=dropout))
-        #     layers.append(nn.ReLU(pol_hidden_type, inplace=True))
-        #     current_in = pol_hidden_type
-        # layers.append(nn.Linear(current_in, pol_out_type, initialize=escnn_init))
-        
-        self.policy = torch.nn.Sequential(*layers)
+        self.policy = torch.nn.Sequential(
+            nn.Linear(pol_in_type, pol_hidden_type, initialize=True),
+            *hidden_norm(norm, pol_hidden_type),
+            nn.ReLU(pol_hidden_type, inplace=False),
+            nn.Linear(pol_hidden_type, pol_out_type, initialize=True),
+        )
         self._initialize_weights()
 
     def _initialize_weights(self):
@@ -113,6 +109,8 @@ class Actor(torch.nn.Module):
         policy_in = cat_gts([z, prop, base_action])
 
         mu: torch.Tensor = self.policy(policy_in).tensor
+        if self.residual_squash:
+            mu = equi_tanh(mu, self.action_layout)
         scaled_mu = mu * self.action_scale
 
         if std is None:

@@ -21,7 +21,7 @@ import pytest
 import torch
 
 from tests import group_action as ga
-from tests.conftest import ENC_HIDDEN, N
+from tests.conftest import ENC_HIDDEN, IH_OUT, N
 
 
 def _layouts(spec):
@@ -30,9 +30,9 @@ def _layouts(spec):
     return {
         "action": ga.action_layout(n, h),
         "prop": ga.prop_layout(n, g),
-        "vis_ih": ga.vis_ih_layout(ENC_HIDDEN, n),
-        "critic": ga.enc_out_layout_critic(ENC_HIDDEN, n, g),
-        "actor": ga.enc_out_layout_actor(ENC_HIDDEN, n, g, h),
+        "vis_ih": ga.vis_ih_layout(ENC_HIDDEN, IH_OUT, n),
+        "critic": ga.enc_out_layout_critic(ENC_HIDDEN, IH_OUT, n, g),
+        "actor": ga.enc_out_layout_actor(ENC_HIDDEN, IH_OUT, n, g, h),
     }
 
 
@@ -161,9 +161,23 @@ def test_raw_widths_match_the_environments(task, state_dim, action_dim):
 
     spec = ONE_ARM if task == "Can/Square" else TWO_ARM
     enc = ResObsEnc(
-        N=N, n_hidden=ENC_HIDDEN, equivariant=True, initialize=False,
+        N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, equivariant=True, initialize=False,
         wrist_keys=wrist_keys(spec["n_arms"]), **spec,
     )
     assert enc.state_dim == state_dim
     assert enc.action_dim == action_dim
     assert enc.prop_dim == state_dim + 2 * spec["n_arms"]
+
+
+def test_ih_out_channel_sets_the_wrist_width():
+    """The wrist feature width is its own field; the agentview width does not move."""
+    from tests.conftest import TWO_ARM, wrist_keys
+    from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
+
+    widths = {}
+    for ih_out in (8, IH_OUT):
+        enc = ResObsEnc(N=N, n_hidden=ENC_HIDDEN, ih_out_channel=ih_out, equivariant=True,
+                        initialize=False, wrist_keys=wrist_keys(2), **TWO_ARM)
+        assert enc.ih_type.size == 2 * ih_out
+        widths[ih_out] = enc.vis_type.size
+    assert widths[8] == widths[IH_OUT] == ENC_HIDDEN * N

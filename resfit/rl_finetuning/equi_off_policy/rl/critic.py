@@ -9,71 +9,56 @@ from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import *
 
 
 class EquiHeadMLP(torch.nn.Module):
-    def __init__(self,
-                 group,
-                 in_type,
-                 hidden_type,
-                 out_type,
-                 num_layers: int,
-                 use_norms: bool,
-                 dropout: float,
-                 escnn_init: bool):
+    """One Q head: hidden Linears on regular fields, GroupPooling, Linear to Q.
+
+    GroupPooling (a max over each field's channels) is what makes Q invariant
+    rather than equivariant (STANDARDS 2.2). Each hidden Linear is followed by
+    `norm`, and every hidden layer but the last by a ReLU: with one hidden layer,
+    as every run before 2026-09-29 had, the pooling's max is the only
+    nonlinearity.
+    """
+
+    def __init__(self, in_type, hidden_type, out_type, num_layers: int, norm: str):
         super().__init__()
+        assert num_layers >= 1, f"a Q head needs a hidden layer, got num_layers={num_layers}"
 
         layers = []
-        
-        layers.append(nn.Linear(in_type, hidden_type, initialize=escnn_init))
-        # if use_norms:
-            # layers.append(nn.IIDBatchNorm1d(hidden_type, track_running_stats=True))
-        # layers.append(nn.ReLU(hidden_type, inplace=False))
-
-        # layers.append(nn.Linear(hidden_type, hidden_type, initialize=escnn_init))
-        # if use_norms:
-            # layers.append(nn.IIDBatchNorm1d(hidden_type, track_running_stats=True))
-        # layers.append(nn.ReLU(hidden_type, inplace=False))
+        current = in_type
+        for i in range(num_layers):
+            layers.append(nn.Linear(current, hidden_type, initialize=True))
+            layers += hidden_norm(norm, hidden_type)
+            if i < num_layers - 1:
+                layers.append(nn.ReLU(hidden_type, inplace=False))
+            current = hidden_type
 
         gpool = nn.GroupPooling(hidden_type)
         layers.append(gpool)
-        layers.append(nn.Linear(gpool.out_type, out_type, initialize=escnn_init))
+        layers.append(nn.Linear(gpool.out_type, out_type, initialize=True))
         self.net = torch.nn.Sequential(*layers)
 
-        # with torch.no_grad():
-        #     # after building the head, scale down the final trivial→trivial layer
-        #     final = self.net[-1]  # the nn.Linear after GroupPooling
-        #     final.weights.mul_(1e-3)  # escnn stores basis coeffs in .weights
-        
     def forward(self, feat):
         return self.net(feat)
 
 
 class EquiQEnsemble(torch.nn.Module):
-    def __init__(self,
-                 group,
-                 in_type,
-                 hidden_type,
-                 out_type,
-                 num_layers: int,
-                 num_heads: int,
-                 use_norms: bool,
-                 dropout: float,
-                 use_orth_init: bool,
-                 escnn_init: bool):
+    def __init__(self, in_type, hidden_type, out_type, num_layers: int, num_heads: int, norm: str):
         super().__init__()
-        
         self.heads = torch.nn.ModuleList([
-            EquiHeadMLP(group, in_type, hidden_type, out_type, num_layers, use_norms, dropout, escnn_init) 
+            EquiHeadMLP(in_type, hidden_type, out_type, num_layers, norm)
             for _ in range(num_heads)
         ])
-
-        # if use_orth_init:
-        #     for head in self.heads:
-        #         apply_deltaortho_init(head.net, exclude_final_layer=False)
 
     def forward(self, feat):
         return torch.stack([head(feat).tensor for head in self.heads], dim=0)
 
 
 class Critic(torch.nn.Module):
+    """The invariant critic: Q(g.s, g.a) = Q(s, a).
+
+    visual projection -> trunk projection -> an ensemble of num_q heads, each
+    hidden layer followed by `norm` (HIDDEN_NORMS).
+    """
+
     def __init__(self,
                  group,
                  vis_ih_type: nn.FieldType,
@@ -83,8 +68,10 @@ class Critic(torch.nn.Module):
                  num_layers: int,
                  num_q: int,
                  dropout: float,
-                 use_norms: bool,
-                 use_orth_init: bool,
+                 norm: str,
+                 orth_init: bool,
+                 last_layer_init_scale: float | None,
+                 use_visual_proj: bool,
                  loss_cfg,
                  min_q_heads: int,
                  policy_gradient_type: str):
@@ -98,48 +85,51 @@ class Critic(torch.nn.Module):
         self.min_q_heads          = min_q_heads
         self.policy_gradient_type = policy_gradient_type
 
-        escnn_init = True
-
-        # ---- Visual projection ----
-        self.vp_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
-        vp_layers = [nn.Linear(vis_ih_type, self.vp_type, initialize=escnn_init)]
-        # if use_norms:
-        #     vp_layers.append(nn.IIDBatchNorm1d(self.vp_type, track_running_stats=True))
-        vp_layers.append(nn.ReLU(self.vp_type))
-        self.visual_proj = torch.nn.Sequential(*vp_layers)
+        # ---- Visual projection; Identity feeds the encoder features straight to the trunk ----
+        if use_visual_proj:
+            self.vp_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
+            self.visual_proj = torch.nn.Sequential(
+                nn.Linear(vis_ih_type, self.vp_type, initialize=True),
+                *hidden_norm(norm, self.vp_type),
+                nn.ReLU(self.vp_type),
+            )
+        else:
+            self.vp_type = vis_ih_type
+            self.visual_proj = torch.nn.Identity()
 
         # ---- Trunk (visual_proj_out + prop + action) ----
         trunk_in_type        = self.vp_type + prop_type + action_type
         self.trunk_proj_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
-        ip_layers = [nn.Linear(trunk_in_type, self.trunk_proj_type, initialize=escnn_init)]
-        # if use_norms:
-        #     ip_layers.append(nn.IIDBatchNorm1d(self.trunk_proj_type, track_running_stats=True))
-        ip_layers.append(nn.ReLU(self.trunk_proj_type))
-        self.input_proj = torch.nn.Sequential(*ip_layers)
+        self.input_proj = torch.nn.Sequential(
+            nn.Linear(trunk_in_type, self.trunk_proj_type, initialize=True),
+            *hidden_norm(norm, self.trunk_proj_type),
+            nn.ReLU(self.trunk_proj_type),
+        )
 
         # ---- Q-ensemble: heads see (trunk_out + prop + action) via skip ----
         head_in_type     = self.trunk_proj_type + prop_type + action_type
         head_hidden_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
-
-        output_dim    = 1
-        head_out_type = nn.FieldType(group, output_dim * [group.trivial_repr])
+        head_out_type    = nn.FieldType(group, [group.trivial_repr])
 
         self.q_ensemble = EquiQEnsemble(
-            group         = group,
-            in_type       = head_in_type,
-            hidden_type   = head_hidden_type,
-            out_type      = head_out_type,
-            num_layers    = num_layers,
-            num_heads     = num_q,
-            use_norms     = use_norms,
-            dropout       = dropout,
-            use_orth_init = use_orth_init,
-            escnn_init    = escnn_init,
+            in_type     = head_in_type,
+            hidden_type = head_hidden_type,
+            out_type    = head_out_type,
+            num_layers  = num_layers,
+            num_heads   = num_q,
+            norm        = norm,
         )
 
-        # if use_orth_init:
-        #     apply_deltaortho_init(self.visual_proj, exclude_final_layer=False)
-        #     apply_deltaortho_init(self.input_proj,  exclude_final_layer=False)
+        # Delta-orthonormal init draws from numpy's global RNG, so turning it on
+        # also moves every later draw, including the actor's init.
+        if orth_init:
+            apply_deltaortho_init(self.visual_proj, exclude_final_layer=False)
+            apply_deltaortho_init(self.input_proj,  exclude_final_layer=False)
+            for head in self.q_ensemble.heads:
+                apply_deltaortho_init(head.net, exclude_final_layer=False)
+        if last_layer_init_scale is not None:
+            for head in self.q_ensemble.heads:
+                scale_final_equi_layer(head.net, last_layer_init_scale)
 
     @staticmethod
     def _logits_to_q(probs, support):

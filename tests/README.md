@@ -15,7 +15,7 @@ python -m pytest tests/ -q          # just the tests
 python -m pytest tests/ -q -s       # with measured equivariance errors printed
 ```
 
-`./submit.sh <seed>` runs `preflight.py` automatically and refuses to launch if a
+`./submit.sh <arm> <seed> [gpu]` runs `preflight.py` automatically and refuses to launch if a
 blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 
 ## What each file does
@@ -25,13 +25,14 @@ blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 | `test_imports.py` | 1 | no | Every module under `resfit/` imports. Catches the `SyntaxError` class of bug that sat undetected in `rl_utils.py` for ~5 months. |
 | `test_config.py` | 1 | no | Hydra configs resolve; the reproduction config still has the hyperparameters the experiment log claims. |
 | `test_regression_single_arm.py` | 1 | no | Fingerprints the single-arm encoder output against goldens captured at `b8e1de7`. Pins Can/Square behaviour across the bimanual generalisation. |
-| `test_regression_agent.py` | 1 | no | Fingerprints the whole equivariant agent at the Square reference config (parameters, actor and critic outputs, one TD3 update) via `tools/agent_fingerprint.py`. Golden captured at `f3e6315`, identical at `b8e1de7`. Makes new-commit Square runs comparable to the reference seeds. |
+| `test_regression_agent.py` | 1 | no | Fingerprints the whole equivariant agent at the Square reference config (parameters, actor and critic outputs, one TD3 update) via `tools/agent_fingerprint.py`. Golden captured at `f3e6315`, identical at `b8e1de7`. Makes new-commit Square runs comparable to the reference seeds. Also checks that the target critic computes with its soft-updated weights (the 2026-09-29 fix), and that `frozen_target_critic` reproduces the old bug. |
 | `test_run_package.py` | 1 | no | Run packages persist locally, wandb keeps exactly one best upload (checked against a fake wandb), and a saved residual model reloads to identical actions. |
 | `test_env_wrapper.py` | 1 | no | When the env wrapper resets the base policy: ACT only the finished envs, diffusion all of them, and never on a timeout (a pinned limitation). Guards the TODO B3 fix. |
 | `test_eval_base_policy.py` | 1 | no | The base-rate script's zero-residual stub drives the trainer's real evaluator on a scripted env: same episode counting (in-flight episodes dropped at the last one), residual exactly zero. |
 | `test_layouts.py` | 2 | yes | Declared `FieldType`s match the physics; widths agree at every `GeometricTensor` boundary. |
-| `test_equivariance.py` | 2 | yes | Actor is equivariant, critic is **invariant**, `equi_clip` commutes with the group. |
-| `test_no_ops.py` | 2 | yes | Pins which config fields actually do nothing. |
+| `test_equivariance.py` | 2 | yes | Actor is equivariant, critic is **invariant**, `equi_clip` and `equi_tanh` commute with the group. Every sweep option (each norm, squash, no visual projection, deeper heads, the inits) keeps the symmetry in train and eval mode. |
+| `test_no_ops.py` | 2 | yes | Pins which config fields actually do nothing, and which sites each live one reaches. |
+| `test_sweep_arms.py` | 2 | partly | Every arm in `submit.sh` is a pre-registered one, composes through Hydra with valid options, and (on the GPU) builds its agent and runs one TD3 update. |
 | `group_action.py` | — | — | Independent implementation of the C_N action. Not a test file. |
 
 ## Arm count

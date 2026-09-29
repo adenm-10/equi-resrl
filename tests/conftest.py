@@ -13,6 +13,7 @@ import torch
 # behaviour (enc_degree_channel) so the gate stays fast on CPU.
 N = 8
 ENC_HIDDEN = 16          # equivariance.enc_degree_channel
+IH_OUT = ENC_HIDDEN      # equivariance.ih_out_channel; equal here, as it was before it existed
 ACTOR_HIDDEN = 128       # equivariance.actor_degree_channel
 CRITIC_HIDDEN = 128      # equivariance.critic_degree_channel
 OBS_SHAPE = (3, 84, 84)
@@ -85,7 +86,7 @@ def obs_enc(device, arm_spec):
 
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
-        equivariant=True, initialize=True,
+        ih_out_channel=IH_OUT, equivariant=True, initialize=True,
         wrist_keys=wrist_keys(arm_spec["n_arms"]), **arm_spec,
     ).to(device)
     enc.eval()
@@ -103,41 +104,43 @@ def vision_encoder(device):
     )
 
     enc = EquivariantResEncoder76Cyclic(
-        obs_channel=OBS_SHAPE[0], n_out=ENC_HIDDEN, N=N, initialize=True, use_norms=True,
+        obs_channel=OBS_SHAPE[0], n_out=ENC_HIDDEN, N=N, initialize=True,
     ).to(device)
     enc.eval()
     return enc
 
 
-@pytest.fixture(scope="session")
-def critic(obs_enc, device):
+def build_critic(obs_enc, device, **kw):
+    """The equivariant critic at the reference config; `kw` overrides arguments."""
     from resfit.rl_finetuning.config.rlpd import CriticLossCfg
     from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic
 
-    c = Critic(
+    opts = dict(
         group=obs_enc.group,
         vis_ih_type=obs_enc.vis_ih_type,
         prop_type=obs_enc.prop_type,
         action_type=obs_enc.action_type,
         hidden_dim=CRITIC_HIDDEN,
-        num_layers=2,
+        num_layers=1,
         num_q=2,
         dropout=0.0,
-        use_norms=True,
-        use_orth_init=True,
+        norm="none",
+        orth_init=False,
+        last_layer_init_scale=None,
+        use_visual_proj=True,
         loss_cfg=CriticLossCfg(),
         min_q_heads=2,
         policy_gradient_type="ensemble_mean",
-    ).to(device)
-    c.eval()
-    return c
+    )
+    opts.update(kw)
+    return Critic(**opts).to(device)
 
 
-@pytest.fixture(scope="session")
-def actor(obs_enc, device):
+def build_actor(obs_enc, device, **kw):
+    """The equivariant actor at the reference config; `kw` overrides arguments."""
     from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
 
-    a = Actor(
+    opts = dict(
         group=obs_enc.group,
         vis_ih_type=obs_enc.vis_ih_type,
         prop_type=obs_enc.prop_type,
@@ -147,13 +150,29 @@ def actor(obs_enc, device):
         action_shape=obs_enc.action_shape,
         num_layers=2,
         dropout=0.0,
-        use_norms=True,
+        norm="iid_bn",
         use_orth_init=True,
         last_layer_scale=None,   # None, not 0.0: a zeroed final layer makes
                                  # every equivariance test pass trivially
         action_scale=ACTION_SCALE,
+        use_visual_proj=True,
+        residual_squash=False,
         residual_actor=True,
-    ).to(device)
+    )
+    opts.update(kw)
+    return Actor(**opts).to(device)
+
+
+@pytest.fixture(scope="session")
+def critic(obs_enc, device):
+    c = build_critic(obs_enc, device)
+    c.eval()
+    return c
+
+
+@pytest.fixture(scope="session")
+def actor(obs_enc, device):
+    a = build_actor(obs_enc, device)
     a.eval()
     return a
 

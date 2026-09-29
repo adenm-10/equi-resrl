@@ -83,21 +83,21 @@ def prop_layout(n_arms: int = 1, gripper_dim: int = 2) -> list[tuple[str, int]]:
     return arm * n_arms
 
 
-def vis_ih_layout(n_hidden: int, n_arms: int = 1) -> list[tuple[str, int]]:
+def vis_ih_layout(n_hidden: int, ih_out: int, n_arms: int = 1) -> list[tuple[str, int]]:
     """Visual features: one regular agentview block, one trivial block per wrist."""
-    return [("regular", n_hidden), ("trivial", n_hidden * n_arms)]
+    return [("regular", n_hidden), ("trivial", ih_out * n_arms)]
 
 
 def enc_out_layout_critic(
-    n_hidden: int, n_arms: int = 1, gripper_dim: int = 2,
+    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2,
 ) -> list[tuple[str, int]]:
-    return vis_ih_layout(n_hidden, n_arms) + prop_layout(n_arms, gripper_dim)
+    return vis_ih_layout(n_hidden, ih_out, n_arms) + prop_layout(n_arms, gripper_dim)
 
 
 def enc_out_layout_actor(
-    n_hidden: int, n_arms: int = 1, gripper_dim: int = 2, hand_dof: int = 1,
+    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2, hand_dof: int = 1,
 ) -> list[tuple[str, int]]:
-    return (enc_out_layout_critic(n_hidden, n_arms, gripper_dim)
+    return (enc_out_layout_critic(n_hidden, ih_out, n_arms, gripper_dim)
             + action_layout(n_arms, hand_dof))
 
 

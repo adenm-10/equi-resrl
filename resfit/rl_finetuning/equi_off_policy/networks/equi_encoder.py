@@ -1,8 +1,28 @@
 import torch
 from escnn import gspaces, nn
 
+from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import apply_deltaortho_init
+
+ENCODER_NORMS = ("none", "inner_bn")
+
+
+def conv_norm(kind: str, field_type: nn.FieldType) -> list[torch.nn.Module]:
+    """The normalization after a conv, as a list to splice into a Sequential.
+
+    Empty for "none", so the encoder every run before 2026-09-29 used keeps its
+    module indices. InnerBatchNorm normalizes each regular field with statistics
+    shared by its channels, so it is equivariant.
+    """
+    if kind == "none":
+        return []
+    if kind == "inner_bn":
+        return [nn.InnerBatchNorm(field_type, affine=True, track_running_stats=True)]
+    raise ValueError(f"unknown encoder norm {kind!r}; expected one of {ENCODER_NORMS}")
+
 
 class EquiResBlock(torch.nn.Module):
+    """relu(norm(conv2(relu(norm(conv1(x))))) + skip(x)); every conv is bias-free."""
+
     def __init__(
         self,
         group: gspaces.GSpace2D,
@@ -11,11 +31,10 @@ class EquiResBlock(torch.nn.Module):
         kernel_size: int = 3,
         stride: int = 1,
         initialize: bool = True,
-        use_norms: bool = True,
+        norm: str = "none",
     ):
         super(EquiResBlock, self).__init__()
         self.group = group
-        self.use_norms = use_norms
         rep = self.group.regular_repr
 
         feat_type_in = nn.FieldType(self.group, input_channels * [rep])
@@ -32,9 +51,7 @@ class EquiResBlock(torch.nn.Module):
             bias=False,
             initialize=initialize,
         )
-        # self.bn1 = nn.InnerBatchNorm(feat_type_hid, affine=True, track_running_stats=True)
-
-        # self.bn2 = nn.InnerBatchNorm(feat_type_hid, affine=True, track_running_stats=True)
+        self.bn1 = torch.nn.Sequential(*conv_norm(norm, feat_type_hid))
         self.conv2 = nn.R2Conv(
             feat_type_hid,
             feat_type_hid,
@@ -43,6 +60,7 @@ class EquiResBlock(torch.nn.Module):
             bias=False,
             initialize=initialize,
         )
+        self.bn2 = torch.nn.Sequential(*conv_norm(norm, feat_type_hid))
 
         self.skip = None
         if input_channels != hidden_dim or stride != 1:
@@ -55,28 +73,28 @@ class EquiResBlock(torch.nn.Module):
                     bias=False,
                     initialize=initialize,
                 ),
-                # nn.InnerBatchNorm(feat_type_hid, affine=True, track_running_stats=True)
+                *conv_norm(norm, feat_type_hid),
             )
         else:
             self.skip = torch.nn.Identity()
 
     def forward(self, xx):
-        # identity = xx if self.skip is None else self.skip(xx)   # always from xx
-        # out = self.relu1(self.bn1(self.conv1(xx)))
-        # out = self.bn2(self.conv2(out))
-        # out = out + identity
-        # return self.relu2(out)
-
-        out = self.relu(self.conv1(xx))
-        out = self.conv2(out)
+        out = self.relu(self.bn1(self.conv1(xx)))
+        out = self.bn2(self.conv2(out))
         return self.relu(out + self.skip(xx))
 
 
 class EquivariantResEncoder76Cyclic(torch.nn.Module):
-    def __init__(self, obs_channel: int = 2, n_out: int = 128, initialize: bool = True, N=8, use_norms: bool = True):
+    """The C_N-equivariant agentview encoder, 76x76 in, a 1x1 map of n_out regular fields out.
+
+    Every conv is bias-free, as in every run so far, and followed by `norm`
+    (ENCODER_NORMS). orth_init replaces escnn's He init with delta-orthonormal.
+    """
+
+    def __init__(self, obs_channel: int = 2, n_out: int = 128, initialize: bool = True, N=8,
+                 norm: str = "none", orth_init: bool = False):
         super().__init__()
         self.obs_channel = obs_channel
-        self.use_norms = use_norms
         self.group = gspaces.rot2dOnR2(N)
 
         layers = [
@@ -90,28 +108,25 @@ class EquivariantResEncoder76Cyclic(torch.nn.Module):
                 initialize=initialize,
             ),
             # 72x72
-            # nn.InnerBatchNorm(
-            #     nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr]),
-            #     affine=True, track_running_stats=True,
-            # ),
+            *conv_norm(norm, nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr])),
             nn.ReLU(nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr])),
         ]
 
         layers += [
-            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=initialize, use_norms=use_norms),
-            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=initialize, use_norms=use_norms),
+            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=initialize, norm=norm),
+            EquiResBlock(self.group, n_out // 8, n_out // 8, initialize=initialize, norm=norm),
             nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 8 * [self.group.regular_repr]), 2),
             # 36x36
-            EquiResBlock(self.group, n_out // 8, n_out // 4, initialize=initialize, use_norms=use_norms),
-            EquiResBlock(self.group, n_out // 4, n_out // 4, initialize=initialize, use_norms=use_norms),
+            EquiResBlock(self.group, n_out // 8, n_out // 4, initialize=initialize, norm=norm),
+            EquiResBlock(self.group, n_out // 4, n_out // 4, initialize=initialize, norm=norm),
             nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 4 * [self.group.regular_repr]), 2),
             # 18x18
-            EquiResBlock(self.group, n_out // 4, n_out // 2, initialize=initialize, use_norms=use_norms),
-            EquiResBlock(self.group, n_out // 2, n_out // 2, initialize=initialize, use_norms=use_norms),
+            EquiResBlock(self.group, n_out // 4, n_out // 2, initialize=initialize, norm=norm),
+            EquiResBlock(self.group, n_out // 2, n_out // 2, initialize=initialize, norm=norm),
             nn.PointwiseMaxPool(nn.FieldType(self.group, n_out // 2 * [self.group.regular_repr]), 2),
             # 9x9
-            EquiResBlock(self.group, n_out // 2, n_out, initialize=initialize, use_norms=use_norms),
-            EquiResBlock(self.group, n_out, n_out, initialize=initialize, use_norms=use_norms),
+            EquiResBlock(self.group, n_out // 2, n_out, initialize=initialize, norm=norm),
+            EquiResBlock(self.group, n_out, n_out, initialize=initialize, norm=norm),
             nn.PointwiseMaxPool(nn.FieldType(self.group, n_out * [self.group.regular_repr]), 3),
             # 3x3
         ]
@@ -122,18 +137,17 @@ class EquivariantResEncoder76Cyclic(torch.nn.Module):
                 nn.FieldType(self.group, n_out * [self.group.regular_repr]),
                 kernel_size=3,
                 padding=0,
-                bias=not use_norms,
+                bias=False,
                 initialize=initialize,
             ),
-            # nn.InnerBatchNorm(
-            #     nn.FieldType(self.group, n_out * [self.group.regular_repr]),
-            #     affine=True, track_running_stats=True,
-            # ),
+            *conv_norm(norm, nn.FieldType(self.group, n_out * [self.group.regular_repr])),
             nn.ReLU(nn.FieldType(self.group, n_out * [self.group.regular_repr]), inplace=True),
             # 1x1
         ]
 
         self.conv = torch.nn.Sequential(*layers)
+        if orth_init:
+            apply_deltaortho_init(self.conv, exclude_final_layer=False)
 
     def forward(self, x) -> nn.GeometricTensor:
         if type(x) is torch.Tensor:

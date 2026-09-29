@@ -25,6 +25,13 @@ from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_actor import Actor as S
 from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_critic import Critic as ScalarCritic
 
 
+# EquivarianceConfig fields that only the equivariant networks read.
+EQUIVARIANT_ONLY_FIELDS = (
+    "actor_norm", "critic_norm", "encoder_norm", "critic_orth_init", "encoder_orth_init",
+    "critic_last_layer_init_scale", "use_visual_proj", "residual_squash", "frozen_target_critic",
+)
+
+
 class QAgent(torch.nn.Module):
     def __init__(
         self,
@@ -103,6 +110,7 @@ class QAgent(torch.nn.Module):
             hand_dof=self.equi_cfg.hand_dof,
             agentview_key=rl_cameras[0],
             wrist_keys=tuple(rl_cameras[1:]),
+            ih_out_channel=self.equi_cfg.ih_out_channel,
         )
 
         if self.equivariant:
@@ -112,10 +120,11 @@ class QAgent(torch.nn.Module):
                 obs_shape=obs_shape,
                 N=N,
                 n_hidden=n_hid,
-                use_norms=use_norms,                           # was: use_layer_norm=use_norms (no-op)
                 equivariant=True,
                 group=self.group,
                 initialize=self.equi_cfg.initialize,
+                encoder_norm=self.equi_cfg.encoder_norm,
+                encoder_orth_init=self.equi_cfg.encoder_orth_init,
                 **enc_layout,
             ).to(self.agent_cfg.device)
 
@@ -128,8 +137,10 @@ class QAgent(torch.nn.Module):
                 num_layers=critic_num_layers,
                 loss_cfg=loss,
                 num_q=num_q,
-                use_norms=use_norms,
-                use_orth_init=use_orth_init,
+                norm=self.equi_cfg.critic_norm,
+                orth_init=self.equi_cfg.critic_orth_init,
+                last_layer_init_scale=self.equi_cfg.critic_last_layer_init_scale,
+                use_visual_proj=self.equi_cfg.use_visual_proj,
                 dropout=critic_dropout,
                 min_q_heads=min_q_heads,
                 policy_gradient_type=policy_gradient_type,
@@ -145,14 +156,22 @@ class QAgent(torch.nn.Module):
                 action_shape=self.enc.action_shape,
                 num_layers=actor_num_layers,
                 dropout=actor_dropout,
-                use_norms=use_norms,
+                norm=self.equi_cfg.actor_norm,
                 use_orth_init=use_orth_init,
                 action_scale=action_scale,
                 last_layer_scale=last_layer_scale,
+                use_visual_proj=self.equi_cfg.use_visual_proj,
+                residual_squash=self.equi_cfg.residual_squash,
                 residual_actor=residual_actor,
             )
         else:
             self.group = None
+            # The scalar ablation reads use_norms, and none of the equivariant-only fields.
+            defaults = EquivarianceConfig()
+            changed = [f for f in EQUIVARIANT_ONLY_FIELDS
+                       if getattr(self.equi_cfg, f) != getattr(defaults, f)]
+            if changed:
+                raise ValueError(f"the scalar ablation ignores {changed}; leave them at their defaults")
 
             self.enc = ResObsEnc(
                 obs_shape=obs_shape,

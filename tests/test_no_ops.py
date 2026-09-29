@@ -1,20 +1,16 @@
-"""Tier 2: pin down which config fields actually do nothing.
+"""Tier 2: pin down which config fields do nothing, and what the live ones reach.
 
-The provenance table in docs/ARCHITECTURE.md claims several EquivarianceConfig
-fields are accepted, logged to wandb, and ignored. That claim came from reading
-code. These tests make it executable, which does two jobs:
+The provenance table in docs/ARCHITECTURE.md says which EquivarianceConfig
+fields are accepted, logged to wandb and ignored. That claim came from reading
+code; these tests make it executable. A run launched with `num_actor_layers=3`
+had a 1-layer actor, and the log can say so because a test here proves it.
 
-  1. Experiment records can be read correctly *now* -- a run launched with
-     `num_actor_layers=3` had a 1-layer actor, and the log says so because this
-     test proves it.
-  2. They are the regression baseline for TODO P3.1. When the dead fields get
-     wired up after the reproduction, these tests flip from passing to failing,
-     which is the signal that behaviour changed on purpose.
-
-`use_norms` gets a four-way treatment because it is NOT a clean no-op: the norm
-layers are commented out but the flag still drives `bias=not use_norms` in the
-encoder. A flag that half-survives a commenting-out is more dangerous than one
-fully dead, because it looks inert and is not. See STANDARDS.md rule 1.3.
+On 2026-09-29 the dead `num_critic_layers` was wired up, and `use_norms`, which
+reached two of the actor's three norm sites and the encoder's conv biases, was
+replaced on the equivariant path by `actor_norm`, `critic_norm` and
+`encoder_norm`. The tests that pinned the old behaviour now pin the new one.
+The defaults still build the networks every earlier run had, bit for bit:
+tests/test_regression_agent.py checks that.
 """
 
 from __future__ import annotations
@@ -22,7 +18,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from tests.conftest import ACTION_SCALE, ACTOR_HIDDEN, CRITIC_HIDDEN, ENC_HIDDEN, N
+from tests.conftest import ENC_HIDDEN, IH_OUT, N
+from tests.conftest import build_actor as _build_actor
+from tests.conftest import build_critic as _build_critic
 
 
 def _state_signature(module) -> list[tuple[str, tuple, float]]:
@@ -37,60 +35,35 @@ def _shapes_only(module) -> list[tuple[str, tuple]]:
     return [(n, s) for n, s, _ in _state_signature(module)]
 
 
+def _count(module, cls) -> int:
+    return sum(isinstance(m, cls) for m in module.modules())
+
+
 def _build_obs_enc(device, **kw):
     from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
     opts = dict(obs_shape=(3, 84, 84), crop_shape=(76, 76), N=N,
-                n_hidden=ENC_HIDDEN, equivariant=True, initialize=True)
+                n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, equivariant=True, initialize=True)
     opts.update(kw)
     return ResObsEnc(**opts).to(device)
 
 
-def _build_critic(obs_enc, device, **kw):
-    from resfit.rl_finetuning.config.rlpd import CriticLossCfg
-    from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic
-    opts = dict(group=obs_enc.group, vis_ih_type=obs_enc.vis_ih_type,
-                prop_type=obs_enc.prop_type, action_type=obs_enc.action_type,
-                hidden_dim=CRITIC_HIDDEN, num_layers=2, num_q=2, dropout=0.0,
-                use_norms=True, use_orth_init=True, loss_cfg=CriticLossCfg(),
-                min_q_heads=2, policy_gradient_type="ensemble_mean")
-    opts.update(kw)
-    return Critic(**opts).to(device)
+def _norm_class(kind):
+    from escnn import nn as enn
 
-
-def _build_actor(obs_enc, device, **kw):
-    from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
-    opts = dict(group=obs_enc.group, vis_ih_type=obs_enc.vis_ih_type,
-                prop_type=obs_enc.prop_type, action_type=obs_enc.action_type,
-                action_layout=obs_enc.action_layout, hidden_dim=ACTOR_HIDDEN,
-                action_shape=obs_enc.action_shape, num_layers=2, dropout=0.0,
-                use_norms=True, use_orth_init=True, last_layer_scale=None,
-                action_scale=ACTION_SCALE, residual_actor=True)
-    opts.update(kw)
-    return Actor(**opts).to(device)
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import FieldNorm, RegularLayerNorm
+    return {"iid_bn": enn.IIDBatchNorm1d, "layer_norm": RegularLayerNorm,
+            "field_norm": FieldNorm}[kind]
 
 
 # ---------------------------------------------------------------------------
-# Clean no-ops: architecture must be identical
+# Still dead: architecture must be identical
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.gpu
-@pytest.mark.parametrize("value", [1, 2, 3, 4])
-def test_num_critic_layers_is_dead(obs_enc, device, value):
-    """critic.py:30-33 is commented out, so the head is fixed regardless."""
-    ref = _shapes_only(_build_critic(obs_enc, device, num_layers=2))
-    got = _shapes_only(_build_critic(obs_enc, device, num_layers=value))
-    assert got == ref, (
-        f"num_critic_layers={value} changed the critic architecture. If this was "
-        "intentional (TODO P3.1), update the provenance table in ARCHITECTURE.md "
-        "and this test together."
-    )
 
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("value", [1, 2, 3, 4])
 def test_num_actor_layers_is_dead(obs_enc, device, value):
-    """actor.py:75-84 is commented out; the policy head is hardcoded to 1 hidden layer."""
+    """The policy head is hardcoded to 1 hidden layer."""
     ref = _shapes_only(_build_actor(obs_enc, device, num_layers=2))
     got = _shapes_only(_build_actor(obs_enc, device, num_layers=value))
     assert got == ref, (
@@ -110,21 +83,22 @@ def test_dropout_is_dead_in_both(obs_enc, device, value):
 
 
 @pytest.mark.gpu
-def test_use_orth_init_is_dead_in_the_critic(obs_enc, device):
-    """critic.py:68-70 and 140-142 are commented out.
+def test_initialize_is_dead_in_actor_and_critic(obs_enc, device):
+    """Both hardcode escnn's init; only the encoder honours the flag."""
+    torch.manual_seed(0)
+    c_on = _state_signature(_build_critic(obs_enc, device))
+    torch.manual_seed(0)
+    c_off = _state_signature(_build_critic(obs_enc, device))
+    assert c_on == c_off, "critic construction is not deterministic under a fixed seed"
 
-    Compares checksums, not just shapes: an init change moves values, not shapes.
-    """
-    torch.manual_seed(0)
-    a = _state_signature(_build_critic(obs_enc, device, use_orth_init=True))
-    torch.manual_seed(0)
-    b = _state_signature(_build_critic(obs_enc, device, use_orth_init=False))
-    assert a == b, "use_orth_init now affects the critic; update ARCHITECTURE.md"
+
+# ---------------------------------------------------------------------------
+# Init
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.gpu
 def test_use_orth_init_is_live_in_the_actor(obs_enc, device):
-    """The counterpart: the actor DOES honour it, via _initialize_weights."""
     torch.manual_seed(0)
     a = _state_signature(_build_actor(obs_enc, device, use_orth_init=True))
     torch.manual_seed(0)
@@ -135,66 +109,120 @@ def test_use_orth_init_is_live_in_the_actor(obs_enc, device):
     )
 
 
+@pytest.mark.gpu
+def test_critic_orth_init_and_last_layer_scale_change_values_only(obs_enc, device):
+    torch.manual_seed(0)
+    ref = _state_signature(_build_critic(obs_enc, device))
+    for kw in (dict(orth_init=True), dict(last_layer_init_scale=1e-3)):
+        torch.manual_seed(0)
+        got = _state_signature(_build_critic(obs_enc, device, **kw))
+        assert [s[:2] for s in got] == [s[:2] for s in ref], f"{kw} changed the architecture"
+        assert got != ref, f"{kw} changed no weight"
+
+
+@pytest.mark.gpu
+def test_encoder_orth_init_changes_values_only(device):
+    torch.manual_seed(0)
+    ref = _state_signature(_build_obs_enc(device).enc_obs)
+    torch.manual_seed(0)
+    got = _state_signature(_build_obs_enc(device, encoder_orth_init=True).enc_obs)
+    assert [s[:2] for s in got] == [s[:2] for s in ref]
+    assert got != ref
+
+
 # ---------------------------------------------------------------------------
-# use_norms: the four-way split
+# Normalization: which sites each field reaches
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.gpu
-def test_use_norms_is_dead_in_the_critic(obs_enc, device):
-    assert _shapes_only(_build_critic(obs_enc, device, use_norms=True)) == \
-           _shapes_only(_build_critic(obs_enc, device, use_norms=False)), \
-        "use_norms now affects the critic; update ARCHITECTURE.md and P3.1"
+@pytest.mark.parametrize("kind", ["iid_bn", "layer_norm", "field_norm"])
+def test_actor_norm_reaches_all_three_sites(obs_enc, device, kind):
+    """Visual projection, trunk and the policy's hidden layer.
+
+    The reference, "iid_bn", is what every run had: use_norms=True put batch
+    norm at the first two sites, and the third was unconditional.
+    """
+    actor = _build_actor(obs_enc, device, norm=kind)
+    assert _count(actor, _norm_class(kind)) == 3
+    assert _shapes_only(_build_actor(obs_enc, device, norm="none")) != _shapes_only(actor)
 
 
 @pytest.mark.gpu
-def test_use_norms_is_live_in_the_actor(obs_enc, device):
-    """Two of the actor's three norm sites are conditional, so shapes differ."""
-    on = _shapes_only(_build_actor(obs_enc, device, use_norms=True))
-    off = _shapes_only(_build_actor(obs_enc, device, use_norms=False))
-    assert on != off, "use_norms no longer affects the actor"
+def test_actor_without_norm_has_none(obs_enc, device):
+    from escnn import nn as enn
+    assert _count(_build_actor(obs_enc, device, norm="none"), enn.IIDBatchNorm1d) == 0
 
 
 @pytest.mark.gpu
-def test_actor_has_one_unconditional_norm(obs_enc, device):
-    """actor.py:70 adds IIDBatchNorm1d regardless of use_norms.
+@pytest.mark.parametrize("kind", ["iid_bn", "layer_norm", "field_norm"])
+@pytest.mark.parametrize("num_layers", [1, 2])
+def test_critic_norm_reaches_every_hidden_layer(obs_enc, device, kind, num_layers):
+    """Visual projection, trunk, and each hidden layer of each head, never after pooling."""
+    critic = _build_critic(obs_enc, device, norm=kind, num_layers=num_layers, num_q=3)
+    assert _count(critic, _norm_class(kind)) == 2 + 3 * num_layers
 
-    Documented so nobody 'fixes' the config field without noticing that one
-    site ignores it. Run qe2by47h was launched with use_norms=False and still
-    had this layer.
+
+@pytest.mark.gpu
+def test_reference_critic_has_no_norm(obs_enc, device):
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import FieldNorm, RegularLayerNorm
+    critic = _build_critic(obs_enc, device)
+    for cls in (enn.IIDBatchNorm1d, RegularLayerNorm, FieldNorm):
+        assert _count(critic, cls) == 0
+
+
+@pytest.mark.gpu
+def test_encoder_is_bias_free_with_or_without_norm(device):
+    """Every agentview conv is bias-free, as in every run so far.
+
+    Before 2026-09-29 the last conv's bias was `not use_norms`, so use_norms=True
+    gave a bias-free layer with no normalization after it (STANDARDS 1.3). The
+    bias is now always off, and use_norms no longer reaches this encoder.
     """
     from escnn import nn as enn
-    a = _build_actor(obs_enc, device, use_norms=False)
-    norms = [m for m in a.policy.modules() if isinstance(m, enn.IIDBatchNorm1d)]
-    assert len(norms) == 1, (
-        f"expected exactly 1 unconditional batch norm in the actor policy head, "
-        f"found {len(norms)}"
-    )
+    for kw in (dict(), dict(encoder_norm="inner_bn"), dict(use_norms=False)):
+        enc = _build_obs_enc(device, **kw).enc_obs
+        convs = [m for m in enc.modules() if isinstance(m, enn.R2Conv)]
+        assert convs and all(m.bias is None for m in convs), kw
+    assert _shapes_only(_build_obs_enc(device, use_norms=False)) == \
+           _shapes_only(_build_obs_enc(device, use_norms=True))
 
 
 @pytest.mark.gpu
-def test_use_norms_changes_the_encoder_via_bias_coupling(device):
-    """The subtle one.
+def test_encoder_norm_follows_every_conv(device):
+    from escnn import nn as enn
+    enc = _build_obs_enc(device, encoder_norm="inner_bn").enc_obs
+    convs = sum(isinstance(m, enn.R2Conv) for m in enc.modules())
+    assert _count(enc, enn.InnerBatchNorm) == convs
+    assert _count(_build_obs_enc(device).enc_obs, enn.InnerBatchNorm) == 0
 
-    Every InnerBatchNorm in equi_encoder.py is commented out, but line 125 still
-    sets `bias=not use_norms`. So use_norms=True gives a bias-free layer with no
-    normalisation following it -- almost certainly not what was intended, and
-    invisible if you only grep for the norm layers.
+
+# ---------------------------------------------------------------------------
+# Architecture
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("num_layers", [1, 2, 3])
+def test_num_critic_layers_sets_the_head_depth(obs_enc, device, num_layers):
+    """Hidden Linears per head, then GroupPooling and the output Linear.
+
+    1 is the head every run before 2026-09-29 had, whatever the logged value.
     """
-    on = _shapes_only(_build_obs_enc(device, use_norms=True))
-    off = _shapes_only(_build_obs_enc(device, use_norms=False))
-    assert on != off, (
-        "use_norms no longer changes the encoder. Either the bias coupling at "
-        "equi_encoder.py:125 was removed or the norms were restored; either way "
-        "ARCHITECTURE.md's provenance table needs updating."
-    )
+    from escnn import nn as enn
+    head = _build_critic(obs_enc, device, num_layers=num_layers).q_ensemble.heads[0].net
+    kinds = [type(m) for m in head]
+    assert kinds.count(enn.Linear) == num_layers + 1
+    assert kinds.count(enn.ReLU) == num_layers - 1
+    assert kinds[-2:] == [enn.GroupPooling, enn.Linear]
 
 
 @pytest.mark.gpu
-def test_initialize_is_dead_in_actor_and_critic(obs_enc, device):
-    """Both hardcode `escnn_init = True`; only the encoder honours the flag."""
-    torch.manual_seed(0)
-    c_on = _state_signature(_build_critic(obs_enc, device))
-    torch.manual_seed(0)
-    c_off = _state_signature(_build_critic(obs_enc, device))
-    assert c_on == c_off, "critic construction is not deterministic under a fixed seed"
+def test_visual_proj_off_removes_both_projections(obs_enc, device):
+    for build in (_build_actor, _build_critic):
+        on, off = build(obs_enc, device), build(obs_enc, device, use_visual_proj=False)
+        assert isinstance(off.visual_proj, torch.nn.Identity)
+        assert not isinstance(on.visual_proj, torch.nn.Identity)
+        assert off.input_proj[0].in_type.size < on.input_proj[0].in_type.size

@@ -679,6 +679,59 @@ class FieldNorm(EquivariantModule):
     def export(self):
         raise NotImplementedError()
 
+class RegularLayerNorm(torch.nn.Module):
+    """LayerNorm for flat GeometricTensors of regular fields.
+
+    The equivariant counterpart of the torch.nn.LayerNorm that ResFiT puts after
+    every hidden layer. The group acts on a regular field by permuting its
+    channels, so a sample's mean and variance over all its channels are
+    invariant, and normalizing by them is equivariant. The learnt scale and
+    shift are shared by a field's channels, which keeps them equivariant too;
+    torch's per-channel affine would not be. FieldNorm differs: it normalizes
+    each field by that field's own statistics.
+    """
+
+    def __init__(self, in_type: enn.FieldType, eps: float = 1e-5):
+        super().__init__()
+        reps = in_type.representations
+        assert reps and all(r.name == "regular" for r in reps), (
+            f"RegularLayerNorm needs regular fields only, got {in_type}")
+        self.in_type = self.out_type = in_type
+        self.n_fields = len(reps)
+        self.field_size = reps[0].size
+        self.eps = eps
+        self.weight = Parameter(torch.ones(self.n_fields, 1))
+        self.bias = Parameter(torch.zeros(self.n_fields, 1))
+
+    def forward(self, x: GeometricTensor) -> GeometricTensor:
+        assert x.type == self.in_type
+        t = x.tensor
+        assert t.dim() == 2, f"flat [B, C] features only, got shape {tuple(t.shape)}"
+        t = torch.nn.functional.layer_norm(t, (t.shape[1],), eps=self.eps)
+        t = t.view(-1, self.n_fields, self.field_size) * self.weight + self.bias
+        return GeometricTensor(t.reshape(x.tensor.shape), self.out_type, x.coords)
+
+
+HIDDEN_NORMS = ("none", "iid_bn", "layer_norm", "field_norm")
+
+
+def hidden_norm(kind: str, field_type: FieldType) -> list[torch.nn.Module]:
+    """The normalization after a hidden Linear of the actor or critic.
+
+    A list to splice into a Sequential, empty for "none", so that a network
+    without normalization keeps the module indices it always had.
+    """
+    if kind == "none":
+        return []
+    if kind == "iid_bn":
+        return [enn.IIDBatchNorm1d(field_type, track_running_stats=True)]
+    if kind == "layer_norm":
+        return [RegularLayerNorm(field_type)]
+    if kind == "field_norm":
+        return [FieldNorm(field_type)]
+    raise ValueError(f"unknown hidden norm {kind!r}; expected one of {HIDDEN_NORMS}")
+
+
 """Equivariant initialization utilities.
 
 Drop-in replacement for the non-equivariant `utils.orth_weight_init` /
@@ -688,19 +741,19 @@ equivariant basis-coefficient space instead of raw weight matrices.
 
 
 def apply_deltaortho_init(network, *, exclude_final_layer: bool = False):
-    """Apply deltaorthonormal_init to every escnn.nn.Linear in *network*.
+    """Apply deltaorthonormal_init to every escnn Linear and R2Conv in *network*.
 
     Args:
-        network: an nn.Module (or nn.Sequential) containing escnn.nn.Linear layers.
-        exclude_final_layer: if True, skip the last escnn.nn.Linear found
+        network: an nn.Module (or nn.Sequential) containing escnn layers.
+        exclude_final_layer: if True, skip the last layer found
                              (useful when the final layer gets its own scaling).
     """
-    linears = [m for m in network.modules() if isinstance(m, enn.Linear)]
+    layers = [m for m in network.modules() if isinstance(m, (enn.Linear, enn.R2Conv))]
 
-    if not linears:
+    if not layers:
         return
 
-    targets = linears[:-1] if exclude_final_layer else linears
+    targets = layers[:-1] if exclude_final_layer else layers
 
     for module in targets:
         deltaorthonormal_init(module.weights.data, module.basisexpansion)
@@ -893,7 +946,28 @@ def equi_clip(x: torch.Tensor, layout, bound: float = 1.0) -> torch.Tensor:
     return out
 
 
+def equi_tanh(x: torch.Tensor, layout) -> torch.Tensor:
+    """Per-irrep equivariant tanh, which bounds every block by 1.
 
+    For each (slice, kind) entry in layout:
+      - "trivial": tanh per component;
+      - "irrep1":  v -> tanh(|v|) v / |v|, the pair rescaled to norm tanh(|v|).
 
-
-
+    |v| is invariant under the SO(2)/C_N action, so the irrep(1) map commutes
+    with it, as equi_clip's projection does. Near v = 0 the factor tanh(r)/r is
+    replaced by its series 1 - r^2/3: the map then has gradient 1 at the origin,
+    where a zero-initialized residual starts, instead of a 0/0.
+    """
+    out = torch.empty_like(x)
+    for sl, kind in layout:
+        chunk = x[..., sl]
+        if kind == "trivial":
+            out[..., sl] = torch.tanh(chunk)
+        elif kind == "irrep1":
+            r2 = chunk.pow(2).sum(dim=-1, keepdim=True)
+            small = r2 < 1e-8
+            r = torch.where(small, torch.ones_like(r2), r2).sqrt()
+            out[..., sl] = chunk * torch.where(small, 1 - r2 / 3, torch.tanh(r) / r)
+        else:
+            raise ValueError(f"Unknown rep kind in layout: {kind!r}")
+    return out

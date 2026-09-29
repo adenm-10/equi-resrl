@@ -54,6 +54,13 @@ class ResObsEnc(ModuleAttrMixin):
 
     Integer dims (prop_dim, action_dim, enc_out_dim_critic, enc_out_dim_actor) are
     exposed unconditionally in both modes.
+
+    ``ih_out_channel`` is each wrist camera's feature width. It is required, so no
+    caller keeps its old coupling to ``n_hidden`` by accident: before 2026-09-29
+    the wrist width was ``n_hidden``, i.e. equivariance.enc_degree_channel.
+    ``encoder_norm`` and
+    ``encoder_orth_init`` configure the equivariant agentview encoder;
+    ``use_norms`` is read only by the scalar one.
     """
 
     def __init__(
@@ -74,11 +81,16 @@ class ResObsEnc(ModuleAttrMixin):
         hand_dof: int = 1,
         agentview_key: str = "observation.images.agentview",
         wrist_keys: tuple[str, ...] = ("observation.images.robot0_eye_in_hand",),
+        ih_out_channel: int,
+        encoder_norm: str = "none",
+        encoder_orth_init: bool = False,
     ):
         super().__init__()
 
         if not equivariant and group is not None:
             raise ValueError("`group` should be None when equivariant=False")
+        if not equivariant and (encoder_norm != "none" or encoder_orth_init):
+            raise ValueError("encoder_norm and encoder_orth_init configure the equivariant encoder only")
 
         wrist_keys = tuple(wrist_keys)
         if len(wrist_keys) != n_arms:
@@ -89,6 +101,7 @@ class ResObsEnc(ModuleAttrMixin):
         self.equivariant = equivariant
         self.obs_channel = obs_shape[0]
         self.n_hidden = n_hidden
+        self.ih_out_channel = ih_out_channel
         self.N = N
 
         self.register_buffer(
@@ -125,7 +138,7 @@ class ResObsEnc(ModuleAttrMixin):
             ResEncoder76InHand(
                 obs_channel=self.obs_channel,
                 channels=ih_channels,
-                n_out=n_hidden,
+                n_out=ih_out_channel,
                 blocks_per_stage=ih_blocks_per_stage,
             )
             for _ in range(n_arms)
@@ -152,7 +165,7 @@ class ResObsEnc(ModuleAttrMixin):
 
             # FieldTypes
             self.vis_type    = enn.FieldType(self.group, n_hidden * [self.group.regular_repr])
-            self.ih_type     = enn.FieldType(self.group, n_arms * n_hidden * [self.group.trivial_repr])
+            self.ih_type     = enn.FieldType(self.group, n_arms * ih_out_channel * [self.group.trivial_repr])
             self.prop_type   = enn.FieldType(self.group, self.prop_shape)
             self.action_type = enn.FieldType(self.group, self.action_shape)
             self.vis_ih_type = self.vis_type + self.ih_type
@@ -160,13 +173,13 @@ class ResObsEnc(ModuleAttrMixin):
             self.enc_out_type_critic = enn.FieldType(
                 self.group,
                 n_hidden * [self.group.regular_repr]
-                + n_arms * n_hidden * [self.group.trivial_repr]
+                + n_arms * ih_out_channel * [self.group.trivial_repr]
                 + self.prop_shape,
             )
             self.enc_out_type_actor = enn.FieldType(
                 self.group,
                 n_hidden * [self.group.regular_repr]
-                + n_arms * n_hidden * [self.group.trivial_repr]
+                + n_arms * ih_out_channel * [self.group.trivial_repr]
                 + self.prop_shape
                 + self.action_shape,
             )
@@ -176,7 +189,8 @@ class ResObsEnc(ModuleAttrMixin):
                 n_out=n_hidden,
                 N=N,
                 initialize=initialize,
-                use_norms=use_norms,   # NOTE: encoder kwarg is singular
+                norm=encoder_norm,
+                orth_init=encoder_orth_init,
             )
 
             self.action_layout = self._build_action_layout(self.action_shape, self.group)
@@ -206,7 +220,7 @@ class ResObsEnc(ModuleAttrMixin):
                 use_norms=use_norms,
             )
 
-            self.enc_out_dim_critic = n_hidden * N + n_arms * n_hidden + self.prop_dim
+            self.enc_out_dim_critic = n_hidden * N + n_arms * ih_out_channel + self.prop_dim
             self.enc_out_dim_actor  = self.enc_out_dim_critic + self.action_dim
 
     @staticmethod
