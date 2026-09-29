@@ -90,66 +90,79 @@ Registered at [residual_td3.py:338-347](../resfit/rl_finetuning/config/residual_
 
 ## Config field provenance
 
-**This is the most important table in this document.** Several `EquivarianceConfig` fields are
-accepted, logged to wandb, and then ignored. A run's wandb config therefore does not describe the
-network that actually trained. Verified by reading HEAD (`caf83f3`).
+**This is the most important table in this document.** Several `EquivarianceConfig` fields have
+been accepted, logged to wandb, and then ignored. A run's wandb config then does not describe the
+network that trained. Verified by reading the code at the 2026-09-29 sweep commit; `tests/test_no_ops.py`
+makes each row executable.
 
 | Field | Default | Encoder | Critic | Actor | Verdict |
 |---|---|---|---|---|---|
 | `use_equivariant_model` | `True` | — | — | — | **Live** — picks equi vs. scalar-ablation stack |
 | `N` | `8` | used | used (via group) | used (via group) | **Live** |
 | `enc_degree_channel` | `32` | `n_out` | — | — | **Live** (last run overrode to 16) |
+| `ih_out_channel` | `32` | wrist width | — | — | **Live** from 2026-09-29. Before, the wrist width was `enc_degree_channel` |
 | `actor_degree_channel` | `128` | — | — | `hidden_dim` | **Live** |
 | `critic_degree_channel` | `128` | — | `hidden_dim` | — | **Live** |
 | `initialize` | `True` | passed through | hardcoded `True` | hardcoded `True` | **Partial** — only reaches the encoder |
-| `use_norms` | `True` | commented out | commented out | 2 of 3 sites | **Partial** — see below |
-| `use_orth_init` | `True` | — | commented out | live | **Partial** — actor only |
-| `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
-| `num_critic_layers` | `2` | — | ignored | — | **DEAD** — critic head is hardcoded |
+| `use_norms` | `True` | — | — | — | **Scalar ablation only** from 2026-09-29. Before, it reached two of the actor's three norm sites and set the encoder's last conv to `bias=not use_norms` |
+| `actor_norm` | `iid_bn` | — | — | all 3 sites | **Live** from 2026-09-29. The default is what every run had |
+| `critic_norm` | `none` | — | every hidden layer | — | **Live** from 2026-09-29 |
+| `encoder_norm` | `none` | every agentview conv | — | — | **Live** from 2026-09-29. Every conv is bias-free whatever its value |
+| `use_orth_init` | `True` | — | — | live | **Live**, actor only |
+| `critic_orth_init` | `False` | — | live | — | **Live** from 2026-09-29 |
+| `encoder_orth_init` | `False` | agentview only | — | — | **Live** from 2026-09-29 |
+| `critic_last_layer_init_scale` | `None` | — | each head's output Linear | — | **Live** from 2026-09-29 |
+| `use_visual_proj` | `True` | — | live | live | **Live** from 2026-09-29 |
+| `residual_squash` | `False` | — | — | live | **Live** from 2026-09-29 |
 | `frozen_target_critic` | `False` | — | target critic's mode | — | **Live** from 2026-09-29. `True` reproduces every earlier equivariant run, whose target critic never changed (EXPERIMENTS.md, 2026-09-29 CORRECTION) |
+| `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
+| `num_critic_layers` | `1` | — | hidden layers per head | — | **Live** from 2026-09-29. Before, it was dead with default `2`, and every head had 1 hidden layer |
+
+A field added on 2026-09-29 is absent from earlier runs' configs; read it at its default, except
+`frozen_target_critic`, which those runs had in effect as `True`.
 
 Also dead: `agent.actor.dropout` and `agent.critic.dropout` are threaded into both modules and
 never used. `agent.critic.loss` reaches the equivariant critic as `loss_cfg`, is stored, and is
 never read — so the distributional critic (C51 / HL-Gauss) is unreachable on the equivariant path
-even though it is still settable in config.
+even though it is still settable in config. `Critic.forward`'s `return_logits` is accepted and
+ignored.
 
-Where the dead code is:
+The scalar ablation (`use_equivariant_model=False`) raises at construction if any field that only
+the equivariant networks read is off its default.
 
-- `num_critic_layers` — [critic.py:30-33](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L30) commented out.
-- `num_actor_layers` — [actor.py:75-84](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L75) commented out.
-- `use_norms` in the critic — [critic.py:26,31,106,115](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L26) all commented out.
-- `use_norms` in the encoder — [equi_encoder.py:35,37,58,93,128](../resfit/rl_finetuning/equi_off_policy/networks/equi_encoder.py#L35) commented out. The flag still controls `bias=not use_norms`, so the encoder is currently bias-free with no normalization following it.
-- `use_orth_init` in the critic — [critic.py:68-70,140-142](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L68) commented out.
-
-**Do not fix these yet.** See the freeze note in [STATUS.md](STATUS.md). They are documented here
-so that experiment records can be read correctly in the meantime, and they are scheduled for
-cleanup in Phase 3 behind bit-identity regression tests.
-
-### What the networks actually are at HEAD
+### What the networks actually are at HEAD, at the defaults
 
 Critic Q-head, per ensemble member
 ([EquiHeadMLP](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L11)):
 
 ```
-Linear(in → hidden, regular repr) → GroupPooling → Linear(pooled → 1, trivial repr)
+[Linear(→ hidden, regular repr) → critic_norm → ReLU] × (num_critic_layers − 1)
+→ Linear(→ hidden, regular repr) → critic_norm → GroupPooling → Linear(pooled → 1, trivial repr)
 ```
 
-No activation between the first Linear and the pooling — the ReLU on line 28 is commented out.
-`GroupPooling` (a max over the group channels of each field) is itself nonlinear, so the head is
-not purely linear, but it is shallower and has fewer nonlinearities than the config implies.
-This `GroupPooling` layer is what makes the Q output invariant rather than equivariant, and must be
-preserved. **Note this head is HEAD's, not the successful run's** — at `7dae4925`, where `z8yoqylh`
-ran, `FieldNorm` and the ReLUs were still active here. Why that matters, and why the earlier
-"`FieldNorm` broke the critic" reasoning no longer holds, is in
+At the default (one hidden layer, no norm) that is `Linear → GroupPooling → Linear`, with no
+activation before the pooling. `GroupPooling` (a max over the group channels of each field) is
+itself nonlinear, so the head is not purely linear. This `GroupPooling` layer is what makes the Q
+output invariant rather than equivariant, and must be preserved. **This head is not the one
+`7dae4925` had**: there `FieldNorm` and the ReLUs were still active. Why that matters, and why the
+earlier "`FieldNorm` broke the critic" reasoning no longer holds, is in
 [EQUIVARIANCE.md](EQUIVARIANCE.md), "What actually changed".
 
-Actor policy head ([actor.py:68-72](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L68)):
+Actor policy head ([actor.py](../resfit/rl_finetuning/equi_off_policy/rl/actor.py)):
 
 ```
-Linear(in → hidden) → IIDBatchNorm1d → ReLU → Linear(hidden → action reps)
+Linear(in → hidden) → actor_norm → ReLU → Linear(hidden → action reps) [→ equi_tanh] → × action_scale
 ```
 
-One hidden layer, and that batch norm is unconditional (it ignores `use_norms`).
+One hidden layer. `actor_norm` also follows the visual and trunk projections, so the default puts
+`IIDBatchNorm1d` at all three sites, as every run had. `equi_tanh` is there only with
+`residual_squash=True`; without it the mean is not bounded by `action_scale`.
+
+Normalization options (`equi_rl_utils.hidden_norm`): `iid_bn` is escnn's `IIDBatchNorm1d`;
+`layer_norm` is `RegularLayerNorm`, one mean and variance over all of a sample's channels, as
+ResFiT's LayerNorm, with a scale and shift shared by each field's channels; `field_norm` is
+`FieldNorm`, which normalizes each field by its own statistics. The encoder's `inner_bn` is escnn's
+`InnerBatchNorm`. The ResFiT baseline has LayerNorm after every hidden layer of its actor and critic.
 
 ## Module map
 
@@ -405,10 +418,10 @@ Recorded so they are not rediscovered. None are blocking.
   `action_gripper`, which no longer exists, so wiring it up would raise. Left in place under the
   freeze; delete it in the Phase 3 cleanup.
 - `Critic.forward` accepts a `return_logits` keyword and ignores it.
-- **`action_scale` does not bound the residual.** `Actor.forward` computes
-  `scaled_mu = mu * action_scale`, but the squash after the final Linear is commented out
-  ([actor.py:72](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L72)), so `|mu|` is not
-  bounded by 1 and the mean can exceed `action_scale`. Measured at 1.27x on the two-arm actor.
+- **`action_scale` does not bound the residual** unless `equivariance.residual_squash=True`
+  (added 2026-09-29, off by default, as every earlier run had it). `Actor.forward` computes
+  `scaled_mu = mu * action_scale`, and without the squash `|mu|` is not bounded by 1, so the mean
+  can exceed `action_scale`. Measured at 1.27x on the two-arm actor.
   The executed action is bounded instead by `equi_clip(..., bound=1.0)`, which is ten times
   looser than `action_scale=0.1` suggests. Read `residual_l1` / `residual_l2` against 1.0, not
   against `action_scale`. Surfaced 2026-09-25 by parameterising the equivariance tests over arm

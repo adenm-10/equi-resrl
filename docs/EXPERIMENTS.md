@@ -1394,3 +1394,91 @@ policy? And which single further change helps most?
 
 **Records.** A LAUNCHED entry per commit's batch of arms, and a RESULTS entry per finished arm: its
 eval sequence, the 110k–150k mean and its verdict.
+
+---
+
+## 2026-09-29 — MEASUREMENT — Square base rate B_sq = 0.508 ± 0.022
+
+- `eval_base_policy --config-name residual_equi_td3_square_config --num-evals 10 --seed 1000`, at
+  `ce96bb5` from its pinned worktree, on `boce-WS-01`, GPU 0, 17:46–17:58.
+  Record: `outputs/base_rates/Square__3hzs5bz1_best_latest__seed1000.json`.
+- BC `run_3hzs5bz1_best:latest`, which resolves to `v9`, the only version on disk and the one every
+  Square run loaded. 8 eval envs, as in the trainer. Env initial states are unseeded.
+- **Per-eval rates:** 0.52, 0.52, 0.38, 0.46, 0.48, 0.56, 0.58, 0.48, 0.60, 0.50.
+  **Mean 0.508 ± 0.022** (binomial SE, 500 episodes). The spread between evals matches 50-episode
+  binomial noise.
+- **It disagrees with the pooled step-0.** The four runs' step-0 evals gave 0.60 ± 0.035 (200
+  episodes), and a 50-episode check with this script on 2026-09-27 gave 0.44. The script's 550
+  episodes against the step-0 200 give z ≈ 2.5. Nothing systematic was found:
+  - the script builds the trainer's eval env, with the same env count, wrapper, identity normalizers
+    and `run_dexmg_evaluation`;
+  - it loads the policy the same way;
+  - its residual is exactly zero, where the reference runs' step-0 residual was ~1e-4.
+  So B_sq stands as pre-registered. Every sweep arm's own step-0 eval adds 50 episodes from the
+  trainer's path, and the RESULTS entries pool them as a running check.
+- **What it does to the screen:** see the amendment below.
+
+---
+
+## 2026-09-29 — AMENDMENT — Square sweep pre-registration, before any affected arm launched
+
+Two changes to "2026-09-29 — PRE-REGISTERED — the Square sweep". Only `target-fix` had launched
+when this was written, and neither change touches it.
+
+**1. `critic-ln`, `actor-ln` and `matched` use `layer_norm`, not `field_norm`.**
+- `field_norm` (`FieldNorm`) normalizes each 8-channel field by its own statistics. ResFiT's
+  LayerNorm normalizes by one mean and variance over all a layer's channels.
+- The new `RegularLayerNorm` (`equivariance.*_norm=layer_norm`) does exactly that, with a scale
+  and shift shared by each field's channels so that it stays equivariant. At its initial scale and
+  shift it equals `torch.nn.functional.layer_norm`, per a test.
+- It is the faithful counterpart of what the arms ask about, so the arms use it.
+- `field_norm` stays available, and tested, but no arm uses it.
+- Overrides now: `critic-ln` `equivariance.critic_norm=layer_norm`, `actor-ln`
+  `equivariance.actor_norm=layer_norm`, and `matched` with `layer_norm` for both.
+
+**2. The calibration, at the measured B_sq = 0.508 instead of the assumed 0.60.**
+- `870ws2c2` (0.68) still advances, and frozen-target seed 2 (0.412) still does not.
+- **Frozen-target seed 1 (0.548) would now advance.** At this bar the screen passes an arm that
+  merely holds the base rate, so it is looser than the entry's calibration said.
+- The verdict rule is unchanged, as pre-registered. Stage 2 does the discriminating: it requires
+  +0.055 over B_sq and +0.10 over `target-fix`.
+- Every RESULTS entry reports the arm's 110k–150k mean against both 0.508 and 0.60, so a reader can
+  apply either.
+
+---
+
+## 2026-09-29 — CODE — the sweep's options, with defaults that build the reference agent
+
+New `EquivarianceConfig` fields.
+- **Normalization:** `actor_norm` (default `iid_bn`), `critic_norm` (`none`) and `encoder_norm`
+  (`none`). They replace `use_norms` on the equivariant path, and `use_norms` is now read only by
+  the scalar ablation. The actor's norm now reaches all three of its sites. Before, one site
+  ignored `use_norms`, so a run with `use_norms=False` (`qe2by47h`) still had one batch norm.
+- **Init:** `critic_orth_init` and `encoder_orth_init` (both `False`), and
+  `critic_last_layer_init_scale` (`None`). `use_orth_init` stays the actor's.
+- **Architecture:**
+  - `use_visual_proj` (`True`);
+  - `residual_squash` (`False`), with the new equivariant `equi_tanh`;
+  - `ih_out_channel` (32), the wrist-feature width, until now tied to `enc_degree_channel`.
+- **`num_critic_layers` is wired**, and its default changes from 2 to 1 (STANDARDS 1.6). While dead
+  it logged 2, and every critic head had one hidden layer, which the default still builds.
+
+**Held fixed:**
+- At the defaults, `tests/test_regression_agent.py` passes unchanged: the whole agent (parameters,
+  outputs and one update) is identical to `f3e6315` and `b8e1de7`.
+- `tests/test_regression_single_arm.py` passes too.
+- The encoder stays bias-free whatever `encoder_norm` is. Its old `bias=not use_norms` coupling
+  (STANDARDS 1.3) is gone.
+
+**Tests.**
+- Every option keeps the symmetry, in train and eval mode.
+- Every sweep arm in `submit.sh` composes, and builds and updates on the GPU (`tests/test_sweep_arms.py`).
+- `test_no_ops.py` pins which sites each field reaches.
+- On the GPU, cuDNN's TF32 convolutions put about 1e-3 of relative noise on the encoder. The new
+  encoder tests turn TF32 off and assert 1e-4.
+
+**Config caveats for runs from this commit:**
+- `num_actor_layers` stays dead.
+- `agent.actor.dropout`, `agent.critic.dropout` and `agent.critic.loss` stay dead on the equivariant
+  path.
+- `initialize` reaches only the encoder.

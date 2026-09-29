@@ -44,10 +44,10 @@ bit-identity tests in P2.3.
 A worse case than a fully dead flag. When norm layers are commented out but the flag still feeds
 something else, the flag looks inert and is not.
 
-Anti-pattern, live in the code: `use_norms` in the encoder. Every `InnerBatchNorm` is commented
-out, but [equi_encoder.py:125](../resfit/rl_finetuning/equi_off_policy/networks/equi_encoder.py#L125)
-still sets `bias=not use_norms`. So `use_norms=True` gives a bias-free layer with no normalization
-after it — the worst of both, and almost certainly not what was intended.
+Anti-pattern, in the code until 2026-09-29: `use_norms` in the encoder. Every `InnerBatchNorm` was
+commented out, but `equi_encoder.py` still set `bias=not use_norms`, so `use_norms=True` gave a
+bias-free layer with no normalization after it — the worst of both, and almost certainly not what
+was intended. `encoder_norm` replaced it; every conv stays bias-free, as in every earlier run.
 
 When commenting out a layer, audit every other use of its flag in the same file.
 
