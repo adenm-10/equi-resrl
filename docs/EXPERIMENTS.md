@@ -1535,3 +1535,31 @@ A precision on the target-critic CORRECTION above:
   - `use_norms` is partial, as for the reference seeds.
   - `action_scale` does not bound the residual.
 - **Shares the machine** with the BoxCleanup smoke run for about its first 2.5 h.
+
+---
+
+## 2026-09-29 — LAUNCHED — Square sweep `critic-ln` seed 1 (`qlaonpv4`)
+
+| Arm | Seed | wandb | GPU | Commit | Launched |
+|---|---|---|---|---|---|
+| `critic-ln` | 1 | **`qlaonpv4`** | 1 (`GPU-8d23cc42`) | `1e33b8f` | 2026-09-29 18:58 EDT |
+
+- **How:** `tools/gpu_queue.sh 1 ~/queues/gpu1.txt` in tmux `gpu1`. It started as soon as the
+  BoxCleanup smoke run ended, and ran `./submit.sh critic-ln 1 1` in the worktree pinned at
+  `1e33b8f` (`~/projects/equi-resrl-1e33b8f`), with `CACHE_DIR=~/projects/equi-resrl`. Name
+  `equi-square-sweep-critic-ln-1`.
+- **Overrides:** the pre-registered ones, as amended: `equivariance.critic_norm=layer_norm`, init
+  scale 1e-4, 150k steps.
+- **Gate:** GO. Tier 1 and Tier 2 passed; Tier 2 included building this arm's agent and running one
+  update.
+- **Startup verified:**
+  - `Set random seed to 1`;
+  - offline `1d31ed9b` (80,429) and online `66c46c51` found on disk, with no rebuild;
+  - the probe centre is (−0.56, 0.0);
+  - the resolved config has `critic_norm: layer_norm`, `actor_norm: iid_bn` and
+    `frozen_target_critic: False`;
+  - the process sits on `GPU-8d23cc42`.
+- **Step-0 eval 0.44** (22/50). The trainer-path step-0 pool is now 172/300 = 0.573; the base-rate
+  script gave 273/550 = 0.496.
+- **Config caveats:** `num_actor_layers` stays dead. The critic's `layer_norm` follows its visual
+  projection, trunk and each head's hidden layer (`test_no_ops.py`).

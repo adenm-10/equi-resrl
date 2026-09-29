@@ -53,6 +53,20 @@ other four docs, with a pointer from here.
   - `target-fix` (`0rehtuoq`, GPU 0, `ce96bb5`, 17:58), queued behind the base-rate eval;
   - the BoxCleanup smoke run (`f6n0jtv9`, GPU 1, `ce96bb5`), after which GPU 1's queue starts.
   - Its robot-base probe matched the env, bases (−0.56, ∓0.25), and is committed (`1e33b8f`).
+- **The BoxCleanup smoke run passed as a tooling check.** It ran 3k steps at the paper's settings:
+  `num_q=10`, `action_scale` 0.2, actor LR 5e-6, init 1e-4, `write_buffer_caches=false`.
+  - The ACT reset path survived real successes, with no `NameError`.
+  - 229,712 offline transitions were labelled in about 20 min, and no cache was written.
+  - **Memory: 59.8 GiB** (PSS) with the online buffer at 10k of 200k: main 35.1, and 9 workers at
+    about 2.75 each. A full run projects to about 82 GiB, so it can't share the machine with a
+    Square run.
+  - **Speed: about 0.69 s/step,** plus about 3.5 min per 50-episode eval. So 500k steps is about
+    4 days, not the 9–10 estimated earlier.
+  - Evals: 0.72 at step 0, then 0.08, 0.72 and 0.62 at 1k, 2k and 3k. `residual_l1` rose 0.30 → 0.56,
+    well past `action_scale` 0.2, since the residual is unbounded. A tooling check, not a result,
+    but a reason to settle `residual_squash` before the pilot.
+  - wandb `f6n0jtv9` in `equi-resrl-smoke`, left in place; its package is
+    `outputs/runs/equi-resrl-smoke/f6n0jtv9/`.
 
 **Decided**
 

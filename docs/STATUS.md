@@ -27,20 +27,22 @@ Square base rate measured over 500 episodes.
 - Then the normalization arms, which Aden asked for by 2026-10-02, then the rest.
 - Every arm has the fix.
 
-**BoxCleanup** has had a smoke run only, so far.
+**BoxCleanup** has had a smoke run only. It passed as a tooling check and measured what the pilot needs:
+59.8 GiB at the start, projecting to about 82 GiB for a full run, and 0.69 s/step, so 500k steps
+is about 4 days.
 
 ## Running now
 
 | What | wandb | GPU | Started | Notes |
 |---|---|---|---|---|
 | Square sweep `target-fix` seed 1 | `0rehtuoq` | 0 | 2026-09-29 17:58 | From `~/projects/equi-resrl-ce96bb5`; ends ~09-30 18:00 |
-| BoxCleanup smoke run | `f6n0jtv9` (`equi-resrl-smoke`) | 1 | 2026-09-29 17:46 | 3k steps, capped at 8 h; a tooling check (PROGRESS) |
+| Square sweep `critic-ln` seed 1 | `qlaonpv4` | 1 | 2026-09-29 18:58 | From `~/projects/equi-resrl-1e33b8f`; ends ~09-30 19:00 |
 
 **The queue.**
 - A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
   `~/queues/gpu{0,1}.txt`, one `<commit> <arm> <seed>` per line. Each launch runs from the worktree
   pinned to its commit.
-- GPU 1's runner starts when the smoke run ends.
+- The BoxCleanup smoke run finished at 18:58 and passed (PROGRESS 2026-09-29); GPU 1's runner then started.
 - Every other arm is queued at `1e33b8f` (`~/projects/equi-resrl-1e33b8f`).
 - Logs: `outputs/queue/gpu{0,1}.log` records every launch, and each launch's console goes to its own
   file beside it.
@@ -54,8 +56,7 @@ Square base rate measured over 500 episodes.
 - **Later on Friday:** `enc-inner` (~18:00) and `actor-none` (~23:00).
 - **The whole queue:** about 2026-10-08 on GPU 1 and 2026-10-09 on GPU 0 (`critic-deep` moved to GPU 1 to balance them).
 
-**RAM:** two Square runs at 40.3 GiB each fit; a third does not. The smoke run and one Square run
-together use about 95 GiB of 125.
+**RAM:** two Square runs at 40.3 GiB each fit; a third does not.
 
 ## What is established
 
@@ -79,8 +80,9 @@ together use about 95 GiB of 125.
 
 ## What is not
 
-- **The base rate is uncertain.** The base-rate script gave 0.508 ± 0.022, while the four runs'
-  step-0 evals pooled to 0.60 ± 0.035; that is about 2.5 SE apart, and no systematic cause was found.
+- **The base rate is uncertain.** The base-rate script gave 0.508 ± 0.022 (500 episodes). The
+  trainer-path step-0 evals pool to 0.573 (172/300, including both sweep arms so far). No
+  systematic cause was found.
   The sweep uses 0.508, as pre-registered. At that bar, the screen would have passed frozen-target
   seed 1. Each arm's step-0 adds a check.
 - **Five successful runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
@@ -110,8 +112,8 @@ together use about 95 GiB of 125.
 - An arm that advances gets a pre-registered stage 2: seeds 1 and 2 at 300k.
 
 **BoxCleanup after the sweep, one arm at a time, without writing caches.**
-- A full run needs about 76 GiB of RAM (estimated; the smoke run measures it), so it can't share the
-  machine with a Square run.
+- A full run needs about 82 GiB of RAM (projected from the smoke run's measured 59.8), so it can't
+  share the machine with a Square run. At 0.69 s/step, an arm takes about 4 days.
 - The two arms can't share caches: the cache key doesn't record the normalization path.
 - The launcher, pre-registration and base rate are TODO B7.
 

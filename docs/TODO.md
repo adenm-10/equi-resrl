@@ -80,9 +80,10 @@ measures a geometric prior, not an exploited symmetry — see EQUIVARIANCE.md.
 ### B5 — SUPERSEDED 2026-09-29 `[SC]`
 
 The two BoxCleanup arms can't share caches: the cache key doesn't record the normalization path,
-and the baseline's data is normalized differently. A full run also needs about 76 GiB of RAM
-(estimated; the smoke run measures it). So they run **one at a time, without writing caches**,
-after the Square sweep, or scheduled against it. The original decision follows.
+and the baseline's data is normalized differently. A full run also needs about 82 GiB of RAM
+(projected from the 2026-09-29 smoke run's measured 59.8 GiB), and takes about 4 days at 0.69
+s/step. So they run **one at a time, without writing caches**, after the Square sweep or
+scheduled against it. The original decision follows.
 
 ### B5 (original) — DECIDED 2026-09-25 `[SC]`
 
