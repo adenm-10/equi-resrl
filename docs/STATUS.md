@@ -47,12 +47,12 @@ Square base rate measured over 500 episodes.
 
 | GPU | Order (about 23.5 h each; `q10` and `matched` about 28 h) |
 |---|---|
-| 0 | `target-fix` → `actor-ln` → `enc-inner` → `q10` → `matched` → `clipq` → `orth-critic` → `critic-last` → `orth-enc` → `critic-deep` |
-| 1 | smoke → `critic-ln` → `critic-iid` → `actor-none` → `squash` → `l2` → `he-all` → `one-proj` → `narrow` |
+| 0 | `target-fix` → `actor-ln` → `enc-inner` → `q10` → `matched` → `clipq` → `orth-critic` → `critic-last` → `orth-enc` |
+| 1 | smoke → `critic-ln` → `critic-iid` → `actor-none` → `squash` → `l2` → `he-all` → `one-proj` → `narrow` → `critic-deep` |
 
 - **By Friday 2026-10-02 noon:** `target-fix`, `critic-ln`, `actor-ln` and `critic-iid`.
 - **Later on Friday:** `enc-inner` (~18:00) and `actor-none` (~23:00).
-- **The whole queue:** about 2026-10-09.
+- **The whole queue:** about 2026-10-08 on GPU 1 and 2026-10-09 on GPU 0 (`critic-deep` moved to GPU 1 to balance them).
 
 **RAM:** two Square runs at 40.3 GiB each fit; a third does not. The smoke run and one Square run
 together use about 95 GiB of 125.

@@ -1506,3 +1506,32 @@ A precision on the target-critic CORRECTION above:
 - `j04yoeui`'s target barely moves. `88i0lpc8`'s settles by 5k, as its encoder does.
 - `target-fix`'s keeps rising towards the reward's scale as the target learns.
 - These are single runs, so this illustrates the fix and doesn't test it.
+
+---
+
+## 2026-09-29 — LAUNCHED — Square sweep `target-fix` seed 1 (`0rehtuoq`)
+
+| Arm | Seed | wandb | GPU | Commit | Launched |
+|---|---|---|---|---|---|
+| `target-fix` | 1 | **`0rehtuoq`** | 0 (`GPU-ca9f06b8`) | `ce96bb5` | 2026-09-29 17:58 EDT |
+
+- **How:** `tools/gpu_queue.sh 0 ~/queues/gpu0.txt` in tmux `gpu0`, from the worktree pinned at
+  `ce96bb5` (`~/projects/equi-resrl-ce96bb5`), with `CACHE_DIR=~/projects/equi-resrl`, after the
+  base-rate measurement on the same GPU. Name `equi-square-sweep-target-fix-1`, project
+  `robomimic-square-final`.
+- **Gate:** GO. Tier 1: 116 passed. Tier 2: 154 passed. Both caches found under `CACHE_DIR`, which
+  `--require-caches` made blocking.
+- **Startup verified:**
+  - `Set random seed to 1`;
+  - offline `1d31ed9b` (80,429) and online `66c46c51` found on disk, with no rebuild;
+  - the probe centre is (−0.56, 0.0);
+  - the resolved config has `num_q: 2` and `frozen_target_critic: False`;
+  - the process sits on `GPU-ca9f06b8`.
+- **Step-0 eval 0.60** (30/50). The trainer-path step-0 pool is now 150/250 = 0.60, against the
+  base-rate script's 0.508 (MEASUREMENT above).
+- **Config caveats:**
+  - `num_actor_layers` and `num_critic_layers` are logged and dead at this commit. The critic has
+    one hidden layer per head.
+  - `use_norms` is partial, as for the reference seeds.
+  - `action_scale` does not bound the residual.
+- **Shares the machine** with the BoxCleanup smoke run for about its first 2.5 h.

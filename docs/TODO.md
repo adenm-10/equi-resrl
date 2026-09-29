@@ -15,6 +15,8 @@ Pre-registered in EXPERIMENTS.md, 2026-09-29, and amended the same day. Eighteen
 each, 150k steps; an arm advances if its 110k–150k mean reaches B_sq = 0.508.
 - **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
   reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
+- **As the runner starts each arm,** append a LAUNCHED entry: wandb id, commit, GPU and step-0,
+  from its launch log in `outputs/queue/`. The runner launches unattended, so these lag.
 - **As each arm finishes:**
   - append a RESULTS entry: the eval sequence, step-0, the 110k–150k mean against 0.508 and 0.60,
     and the verdict;
