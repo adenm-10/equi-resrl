@@ -1,4 +1,4 @@
-"""The Square sweep's arms, exactly as submit.sh launches them.
+"""The Square ablations' arms, exactly as submit.sh launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
 submit.sh's case table is checked here first:
@@ -9,7 +9,7 @@ submit.sh's case table is checked here first:
           losses.
 
 The arm list itself is pinned to the pre-registration (EXPERIMENTS.md,
-2026-09-29 PRE-REGISTERED, as amended).
+2026-09-30 PRE-REGISTERED). The 2026-09-29 sweep's arms were replaced by it.
 """
 
 from __future__ import annotations
@@ -25,11 +25,23 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-PREREGISTERED = {
-    "target-fix", "critic-ln", "critic-iid", "actor-ln", "actor-none", "enc-inner", "q10",
-    "squash", "matched", "clipq", "l2", "orth-critic", "critic-last", "he-all", "orth-enc",
-    "one-proj", "critic-deep", "narrow",
+# Each change an arm can make, by the name it has in the arm names. An arm's name is its
+# changes joined by "-", in this order; actor-none, the reference, makes none.
+CHANGES = {
+    "critic-fn": "equivariance.critic_norm=field_norm",
+    "clipq": "agent.clip_q_target_to_reward_range=true",
+    "squash": "equivariance.residual_squash=true",
+    "depth": "equivariance.num_critic_layers=2",
 }
+PREREGISTERED = {
+    "actor-none", "critic-fn", "clipq",
+    "squash", "depth", "critic-fn-squash", "critic-fn-depth", "clipq-squash", "clipq-depth",
+    "critic-fn-clipq-squash", "critic-fn-clipq-depth",
+}
+# What every arm's launch sets, besides its own changes.
+SHARED = {"--config-name", "algo.prefetch_batches", "algo.total_timesteps",
+          "agent.actor.actor_last_layer_init_scale", "equivariance.actor_norm",
+          "wandb.name", "wandb.notes", "seed", "debug"}
 
 
 def _arms() -> list[str]:
@@ -84,23 +96,30 @@ def test_arm_composes(arm, tmp_path):
     assert cfg.task == "Square"
     assert cfg.algo.total_timesteps == 150_000
     assert cfg.seed == 1
-    assert cfg.wandb.group == f"equi-square-sweep-{arm}"
+    # One project and group for every Square equivariant run; the name tells runs apart.
+    assert (cfg.wandb.project, cfg.wandb.group) == ("robomimic-square-final", "equi-residual-rl")
+    assert cfg.wandb.name == f"equi-residual-rl-{arm}-1"
     assert "," not in cfg.wandb.notes, "hydra splits on commas"
     eq = cfg.equivariance
-    assert eq.actor_norm in HIDDEN_NORMS and eq.critic_norm in HIDDEN_NORMS
-    assert eq.encoder_norm in ENCODER_NORMS
-    assert eq.frozen_target_critic is False, "every sweep arm has the target-critic fix"
-    expected_init = 0.0 if arm == "matched" else 1e-4
-    assert cfg.agent.actor.actor_last_layer_init_scale == expected_init
+    assert eq.actor_norm == "none", "every arm is at the actor default from 2026-09-30"
+    assert eq.critic_norm in HIDDEN_NORMS and eq.encoder_norm in ENCODER_NORMS
+    assert eq.frozen_target_critic is False, "every arm has the target-critic fix"
+    assert cfg.agent.actor.actor_last_layer_init_scale == 1e-4
 
 
-def test_target_fix_is_the_reference_config(tmp_path):
+def test_actor_none_is_the_reference_config(tmp_path):
     """The arm every other arm is judged against overrides nothing else."""
-    overrides = _overrides("target-fix", tmp_path)
-    shared = {"--config-name", "algo.prefetch_batches", "algo.total_timesteps",
-              "agent.actor.actor_last_layer_init_scale", "wandb.project", "wandb.name",
-              "wandb.group", "wandb.notes", "seed", "debug"}
-    assert {o.split("=", 1)[0] for o in overrides} == shared
+    overrides = _overrides("actor-none", tmp_path)
+    assert {o.split("=", 1)[0] for o in overrides} == SHARED
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_arm_name_lists_its_changes(arm, tmp_path):
+    """critic-fn-clipq-squash makes exactly those three changes, and nothing else."""
+    parts = [name for name in CHANGES if name in arm]
+    assert arm == "actor-none" or "-".join(parts) == arm, f"{arm} is not a join of {list(CHANGES)}"
+    own = {o for o in _overrides(arm, tmp_path) if o.split("=", 1)[0] not in SHARED}
+    assert own == {CHANGES[name] for name in parts}
 
 
 @pytest.mark.gpu

@@ -2,25 +2,29 @@
 # Rewritable submission script. Overwrite this in place for each new experiment.
 # The durable record is docs/EXPERIMENTS.md plus the resolved config in wandb.
 #
-#   ./submit.sh <arm> <seed> [gpu]      # e.g. ./submit.sh target-fix 1 0
-#   DRY_RUN=1 ./submit.sh q10 1         # run the gate for that arm, then stop
+#   ./submit.sh <arm> <seed> [gpu]      # e.g. ./submit.sh actor-none 1 0
+#   DRY_RUN=1 ./submit.sh clipq 1       # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...    # escape hatch, discouraged
 #
-# Currently configured for: the Square sweep, seed-groups equi-square-sweep-<arm>.
-# Pre-registered in docs/EXPERIMENTS.md, "2026-09-29 — PRE-REGISTERED — Square
-# sweep". Launch it inside tmux from a worktree pinned to a commit, with
+# Currently configured for: the Square ablations of 2026-09-30, pre-registered in
+# docs/EXPERIMENTS.md, "2026-09-30 — PRE-REGISTERED — Square: the actor-none gate, then
+# four ablations". Launch it inside tmux from a worktree pinned to a commit, with
 # CACHE_DIR pointing at the checkout that holds the buffer caches;
 # tools/gpu_queue.sh does all three.
 #
 # WHAT EVERY ARM SHARES
 # ---------------------
-# The equi-square-v1 reference config, stopped at 150k steps: the screen reads
-# its verdict from the 110k-150k evals. Nothing in training depends on
+# The Square reference config at the new default, stopped at 150k steps: the
+# verdict comes from the 110k-150k evals. Nothing in training depends on
 # total_timesteps before the stop (the stddev and clipping schedules are flat),
 # so these are the first 150k steps of a 300k run.
 #
-# The last-layer init scale is set once per arm. The reference ran at 1e-4
-# (submit.sh at b8e1de7); the config default is 0.0.
+# Every arm has no normalization in the actor. That is the default from
+# 2026-09-30, and is set explicitly so that a later default change cannot alter
+# these arms. The last-layer init scale is 1e-4, as the reference ran.
+#
+# The wandb project and group come from the config: every Square equivariant
+# run sits in one group, equi-residual-rl. The run name says which arm and seed.
 #
 # n_step, gamma, buffer_size and learning_starts are part of the replay-buffer
 # cache key, so no arm overrides them: every arm reads the same Square caches,
@@ -53,62 +57,57 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     exit 1
 fi
 
-INIT=1e-4
 case "$ARM" in
-    # The reference config at this commit, whose only change is the target-critic
-    # fix (EXPERIMENTS.md, 2026-09-29 CORRECTION). Every other arm has it too.
-    target-fix) ARM_OVERRIDES=() ;;
-    # Upstream ResFiT's 10 critic heads. The default went from 10 to 2 in aabde0f.
-    q10)        ARM_OVERRIDES=(agent.critic.num_q=10) ;;
+    # The reference: the target-critic fix, no actor normalization, nothing else.
+    # It runs first, and gates the rest (see the pre-registration).
+    actor-none) ARM_OVERRIDES=() ;;
+    # FieldNorm, each field normalized by its own statistics, at the critic's
+    # visual projection, trunk and head.
+    critic-fn)  ARM_OVERRIDES=(equivariance.critic_norm=field_norm) ;;
     # TD targets clamped to [0, 1], the range of a sparse 0/1 return.
     clipq)      ARM_OVERRIDES=(agent.clip_q_target_to_reward_range=true) ;;
-    # An L2 penalty pulling the residual towards zero.
-    l2)         ARM_OVERRIDES=(agent.actor.action_l2_reg_weight=0.1) ;;
-    # He init in the actor as well, so every network keeps escnn's default.
-    he-all)     ARM_OVERRIDES=(equivariance.use_orth_init=false) ;;
-    # Normalization, per network (the reference: batch norm in the actor only).
-    critic-ln)  ARM_OVERRIDES=(equivariance.critic_norm=layer_norm) ;;
-    critic-iid) ARM_OVERRIDES=(equivariance.critic_norm=iid_bn) ;;
-    actor-ln)   ARM_OVERRIDES=(equivariance.actor_norm=layer_norm) ;;
-    actor-none) ARM_OVERRIDES=(equivariance.actor_norm=none) ;;
-    enc-inner)  ARM_OVERRIDES=(equivariance.encoder_norm=inner_bn) ;;
-    # The residual's mean bounded by action_scale, as ResFiT's Tanh bounds it.
+    # squash (the residual's mean bounded by action_scale, as ResFiT's Tanh bounds
+    # it) and depth (two hidden layers per critic head, as ResFiT has), each on
+    # whichever of critic-fn and clipq passed: neither, either, or both.
     squash)     ARM_OVERRIDES=(equivariance.residual_squash=true) ;;
-    # Delta-orthonormal init where the reference has He, and a small critic output layer.
-    orth-critic) ARM_OVERRIDES=(equivariance.critic_orth_init=true) ;;
-    orth-enc)   ARM_OVERRIDES=(equivariance.encoder_orth_init=true) ;;
-    critic-last) ARM_OVERRIDES=(equivariance.critic_last_layer_init_scale=1e-3) ;;
-    # Architecture: no visual projection, two hidden layers per critic head, half widths.
-    one-proj)   ARM_OVERRIDES=(equivariance.use_visual_proj=false) ;;
-    critic-deep) ARM_OVERRIDES=(equivariance.num_critic_layers=2) ;;
-    narrow)     ARM_OVERRIDES=(equivariance.enc_degree_channel=16
-                               equivariance.actor_degree_channel=64
-                               equivariance.critic_degree_channel=64) ;;
-    # ResFiT's settings wherever they have an equivariant counterpart.
-    matched)    INIT=0.0
-                ARM_OVERRIDES=(agent.critic.num_q=10
-                               equivariance.residual_squash=true
-                               equivariance.actor_norm=layer_norm
-                               equivariance.critic_norm=layer_norm
-                               equivariance.critic_orth_init=true) ;;
+    depth)      ARM_OVERRIDES=(equivariance.num_critic_layers=2) ;;
+    critic-fn-squash)
+                ARM_OVERRIDES=(equivariance.critic_norm=field_norm
+                               equivariance.residual_squash=true) ;;
+    critic-fn-depth)
+                ARM_OVERRIDES=(equivariance.critic_norm=field_norm
+                               equivariance.num_critic_layers=2) ;;
+    clipq-squash)
+                ARM_OVERRIDES=(agent.clip_q_target_to_reward_range=true
+                               equivariance.residual_squash=true) ;;
+    clipq-depth)
+                ARM_OVERRIDES=(agent.clip_q_target_to_reward_range=true
+                               equivariance.num_critic_layers=2) ;;
+    critic-fn-clipq-squash)
+                ARM_OVERRIDES=(equivariance.critic_norm=field_norm
+                               agent.clip_q_target_to_reward_range=true
+                               equivariance.residual_squash=true) ;;
+    critic-fn-clipq-depth)
+                ARM_OVERRIDES=(equivariance.critic_norm=field_norm
+                               agent.clip_q_target_to_reward_range=true
+                               equivariance.num_critic_layers=2) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
         ;;
 esac
 
-GROUP="equi-square-sweep-${ARM}"
+NAME="equi-residual-rl-${ARM}-${SEED}"
 
 OVERRIDES=(
     --config-name=residual_equi_td3_square_config
     algo.prefetch_batches=4
     algo.total_timesteps=150000
-    "agent.actor.actor_last_layer_init_scale=${INIT}"
+    agent.actor.actor_last_layer_init_scale=1e-4
+    equivariance.actor_norm=none
     "${ARM_OVERRIDES[@]}"
-    wandb.project=robomimic-square-final
-    "wandb.name=${GROUP}-${SEED}"
-    "wandb.group=${GROUP}"
-    "wandb.notes=square-sweep/${ARM}/seed${SEED}"
+    "wandb.name=${NAME}"
+    "wandb.notes=square-ablations-0930/${ARM}/seed${SEED}"
     "seed=${SEED}"
     debug=false
 )
@@ -122,13 +121,13 @@ else
 fi
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo "DRY_RUN=1: would launch ${GROUP}-${SEED} on GPU ${GPU} with:"
+    echo "DRY_RUN=1: would launch ${NAME} on GPU ${GPU} with:"
     printf '    %s\n' "${OVERRIDES[@]}"
     exit 0
 fi
 
 echo
-echo "Launching ${GROUP}-${SEED} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
+echo "Launching ${NAME} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
 echo
 
 "$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 "${OVERRIDES[@]}"
