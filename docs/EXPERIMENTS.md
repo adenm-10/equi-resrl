@@ -1780,3 +1780,33 @@ without the actor's batch norm.
 
 **Records.** A LAUNCHED entry per launch. A RESULTS entry per finished run: its eval sequence, its
 110k–150k mean, and its verdict. The gate's outcome goes in `actor-none`'s RESULTS entry.
+
+---
+
+## 2026-09-30 — LAUNCHED — `actor-none` (`ekb6181b`) and `critic-fn` (`24y42etk`), seed 1
+
+| Arm | Seed | wandb | GPU | Commit | Launched |
+|---|---|---|---|---|---|
+| `actor-none`, the gate | 1 | **`ekb6181b`** | 0 | `a95b3a3` | 2026-09-30 14:16 EDT (training 14:29) |
+| `critic-fn` | 1 | **`24y42etk`** | 1 | `a95b3a3` | 2026-09-30 14:16 EDT (training 14:29) |
+
+- **How:** queue lines `a95b3a3 <arm> 1` for `tools/gpu_queue.sh` in tmux `gpu0` and `gpu1`, run
+  from the worktree `~/projects/equi-resrl-a95b3a3` with `CACHE_DIR=~/projects/equi-resrl`.
+  Project `robomimic-square-final`, group `equi-residual-rl`, names
+  `equi-residual-rl-<arm>-1`, notes `square-ablations-0930/<arm>/seed1`.
+- **Gate:** GO for both. Tier 1 and Tier 2 passed, and both caches were found under `CACHE_DIR`.
+- **Startup verified:**
+  - `Set random seed to 1`;
+  - offline `1d31ed9b` (80,429) and online `66c46c51` found on disk, with no rebuild;
+  - the probe centre is (−0.56, 0.0);
+  - the resolved configs have `actor_norm: none`, `num_q: 2`, `frozen_target_critic: False`, init
+    scale 1e-4 and 150k steps. `critic-fn` has `critic_norm: field_norm`, and `actor-none` has
+    `none`.
+- **Step-0 eval: 0.52 for both** (26/50 each). The trainer-path step-0 pool is now 224/400 = 0.56.
+- **Speed, as the CODE entry predicted:** 0.329 s/step (`actor-none`) and 0.337 (`critic-fn`) over
+  their first 3k steps, against about 0.56 at `ce96bb5` and `1e33b8f`, so 1.7× end to end. The 10k
+  critic warm-up updates took 12 min. Updates are 86% of the time. Each run should finish around
+  2026-10-01 05:00.
+- **Memory:** 41–42 GiB PSS each, with the online buffer near its 10k start.
+- **Config caveats:** `num_actor_layers` stays dead. `action_scale` does not bound the residual
+  without `residual_squash`.

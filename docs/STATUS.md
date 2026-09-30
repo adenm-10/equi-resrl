@@ -46,10 +46,12 @@ is about 4 days.
 
 ## Running now
 
-| What | GPU | Started | Ends (est.) |
-|---|---|---|---|
-| `actor-none` seed 1, the gate | 0 | 2026-09-30, see LAUNCHED | ~14 h later |
-| `critic-fn` seed 1 | 1 | 2026-09-30, see LAUNCHED | ~14 h later |
+| What | wandb | GPU | Started | Ends (est.) |
+|---|---|---|---|---|
+| `actor-none` seed 1, the gate | `ekb6181b` | 0 | 2026-09-30 14:29 | 2026-10-01 ~05:00 |
+| `critic-fn` seed 1 | `24y42etk` | 1 | 2026-09-30 14:29 | 2026-10-01 ~05:00 |
+
+Both from `~/projects/equi-resrl-a95b3a3`; step-0 0.52 each; 0.33 s/step (EXPERIMENTS.md, LAUNCHED).
 
 **The queue.**
 - A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
