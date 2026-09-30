@@ -384,9 +384,10 @@ mind if the equivariant advantage turns out smaller than the SO(2) paper's.
 - At its default the critic head has no activation before pooling, and `GroupPooling` is doing
   double duty as the head's only nonlinearity. `num_critic_layers=2` adds a ReLU'd hidden layer;
   the sweep's `critic-deep` arm tests it.
-- At its default the critic has **no normalization at all**, while the actor has active batch norm.
-  `critic_norm` (2026-09-29) adds it after every hidden layer, before the pooling; the sweep's
-  `critic-ln` and `critic-iid` arms test it.
+- At its default the critic has **no normalization at all**. Every run before 2026-09-30 had batch
+  norm in the actor; from then on the actor's default has none either, as in the SO(2) equivariant
+  RL code. `critic_norm` (2026-09-29) adds it after every hidden layer, before the pooling; the
+  sweep's `critic-ln` and `critic-iid` arms test it.
   `TrivialLayerNorm` — written by Aden, never run, preserved in TODO P3.4 — is the correct layer for
   the all-trivial features that `GroupPooling` produces, since escnn's `FieldNorm` would zero them.
   Restoring critic normalization is scheduled for P3.4, gated on the reproduction.

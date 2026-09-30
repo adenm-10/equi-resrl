@@ -306,3 +306,20 @@ to wandb as before.
 Why: per-eval videos and per-step model uploads filled wandb storage, while the end-of-run cleanup
 deleted the only local copy — backwards for a project that has already lost runs to wandb deletion.
 A new file a run should keep goes into the package, not into a new upload.
+
+### 6.5 No host syncs in the update path `[CS]`
+
+A host sync makes the CPU wait until the GPU has finished all the work queued so far. The update
+runs four times per env step, so one sync there is paid on every step. Before 2026-09-30 there
+were 487 per env step, and they roughly doubled its time (ARCHITECTURE.md, "Why the update used to
+stall").
+
+- Compute a value that is only logged under `compute_metrics` in `QAgent.update`, and behind the
+  same condition in the trainer.
+- Three syncs hide in code that looks free:
+  - a GPU scalar used as a Python number, such as a slice bound `x[:, idx[0]:idx[1]]`;
+  - a copy from ordinary host memory, such as `torch.arange(n).to(device)`. Build the tensor on
+    the device, or pin it and copy with `non_blocking=True`;
+  - `.item()` inside an `assert`, or a GPU tensor in an `if`.
+- `tests/test_sync_free.py` runs every config in `tools/agent_fingerprint.py`'s `CANDIDATES`
+  under `torch.cuda.set_sync_debug_mode("error")`. A config that becomes a default stays there.

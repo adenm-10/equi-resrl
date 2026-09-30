@@ -1563,3 +1563,90 @@ A precision on the target-critic CORRECTION above:
   script gave 273/550 = 0.496.
 - **Config caveats:** `num_actor_layers` stays dead. The critic's `layer_norm` follows its visual
   projection, trunk and each head's hidden layer (`test_no_ops.py`).
+
+---
+
+## 2026-09-30 — CODE — `actor_norm` defaults to `none`, and the update no longer waits for the GPU
+
+**The default change (STANDARDS 1.6): `equivariance.actor_norm`, `iid_bn` → `none`.**
+- Every run before this commit had escnn's `IIDBatchNorm1d` at all three of the actor's sites. No
+  run ever compared it against `none`, and the SO(2) equivariant RL code this project follows has
+  no normalization anywhere.
+- **A run from this commit that does not set `actor_norm` has no normalization in the actor.**
+  That includes `submit.sh`'s arms, which are unchanged. At this commit `target-fix` builds what the
+  pre-registered `actor-none` arm is, and every other arm differs from its pre-registered config in
+  the actor too.
+- So a run from this commit that changes one field differs from `target-fix` (`0rehtuoq`, at
+  `ce96bb5`, `iid_bn`) in two. A reference at the new default, the `actor-none` arm, is the
+  one-change comparison (TODO B9).
+- `tests/test_regression_agent.py` pins both. The reference, now with `iid_bn` set explicitly, keeps
+  its golden from `f3e6315`. A second golden pins `actor_norm=none`, and `1e33b8f` gives the same
+  22 values.
+
+**The speed-up: no trained number changes.** An env step's learning (one `act()` and four updates,
+the last with the actor) made 487 host syncs, each one a point where the CPU waits for the GPU to
+finish all the work queued so far. It now makes none. ARCHITECTURE.md, "Why the update used to
+stall", has the breakdown.
+- **escnn fixes**, in the new `equi_off_policy/common_utils/escnn_fixes.py`: escnn's basis-expansion
+  modules hash by identity instead of comparing their sampled bases, and the critic's
+  `GroupPooling` slices with Python ints instead of GPU scalars. Both are specific to escnn 1.0.11,
+  which the environment pins.
+- **Metrics only on the logged update.** `QAgent.update`, `update_critic` and `update_actor` take
+  `compute_metrics`. The trainer passes `True` only to the last update before each logging step,
+  whose metrics are the ones it logs, and `data/batch_terminal_R` and `data/terminal_share` follow
+  it. Warm-up computes them every 100 updates, where it prints them. The `q_base_only` critic
+  forward still runs on every actor update, since skipping it would change the running statistics
+  of an `iid_bn` critic and the random draw of `min_random_pair`. `_td_errors` stays on the GPU.
+- **Crops and rotation.** The random-crop offsets are drawn from the same CPU generator in the same
+  order, scaled and range-checked on the CPU, and copied to the GPU from pinned memory.
+  `get6DRotation` reorders the quaternion by slicing.
+- **A startup assert:** `log_freq` must be a multiple of `algo.update_every_n_steps`, so every
+  logging step has updates. It is 100 and 1 in every config.
+
+**The evidence that it trains identically.** Every comparison is exact, with no tolerance:
+- **Fingerprint** (`tools/agent_fingerprint.py --compare`): all 22 values identical to `ce96bb5`,
+  where `target-fix` runs, and to `1e33b8f`.
+- **Deep check, CPU** (`--deep`, new): 8 updates on a batch carrying the replay buffer's importance
+  weights, every 4th with the actor, then one `act()` with exploration noise. It compares every
+  tensor in the state dict, the three optimizers' state, the action and the last update's metrics,
+  602 to 734 values per config. It is identical to `1e33b8f` for all 14 configs in
+  `tools/agent_fingerprint.py`'s `CANDIDATES`: `target-fix` as it ran; and `critic-fn`, `clipq`,
+  both, and neither, each alone, with `squash` and with `depth`, plus all four, at the new default.
+  It is identical to `ce96bb5` for `target-fix`, the only one of them that tree can build.
+- **Deep check, GPU,** in PyTorch's deterministic mode with TF32 on: `1e33b8f` was first exactly
+  identical to itself. The branch is then identical to it for `target-fix`, `default`, `critic-fn`
+  and `all-four`. Training runs don't use deterministic mode, so this shows the same computation,
+  not the same run-to-run noise.
+- **`compute_metrics=False`** on 7 of 8 updates leaves every tensor identical to computing metrics
+  on all 8, for `target-fix` and `all-four` (`tests/test_regression_agent.py`).
+- **No host syncs:** `tests/test_sync_free.py` runs an update without the actor, one with it, and
+  an `act()` under `torch.cuda.set_sync_debug_mode("error")`. It passes for the 13 new-default
+  `CANDIDATES` and for the two-arm layout. The same check, run by hand, raises on `target-fix` and
+  on an update with metrics on, so it can fail.
+- **The trainer, end to end:** a 600-step run with `debug=true`, 5 offline episodes, 200 warm-up
+  updates and 2-episode evals. It logged every 100 steps with every metric present, its evals at 0,
+  300 and 600 ran and saved a best model, and `Time%` read grad 72–81%, env 5–7%.
+- **Tests:** 430 passed, 2 skipped, the whole suite with the GPU.
+
+**Speed** (`tools/bench_update.py`, an env step's learning at batch 256, the two trees alternated
+twice on GPU 0 while `target-fix` trained there):
+
+| Config | `1e33b8f` | This commit | Ratio |
+|---|---|---|---|
+| `default` | 769, 754 ms | 396, 397 ms | 1.92× |
+| `all-four` | 821, 794 ms | 405, 403 ms | 2.00× |
+
+- The GPU's busy time is 350–400 ms per env step on both trees, and now equals the wall time: the
+  loop is GPU-bound. On an unshared GPU both numbers would be lower.
+- The env steps and evals don't speed up. The first run from this commit measures the end-to-end
+  s/step, against 0.56 at `1e33b8f`.
+
+**What the logs show differently:**
+- `timing/*`, `training/SPS` and `timing/aggregate_steps_per_second` change value. The trainer now
+  calls `torch.cuda.synchronize()` once per env step, at the end of the last update's
+  `gradient_update` timer, so the GPU's time stays under `gradient_update` rather than moving to
+  `env_step`.
+- Every other metric keeps its value and meaning, and is logged at the same steps.
+
+**Still syncing, and not used by any planned run:** `actor_norm=iid_bn` (30 syncs per env step,
+escnn's own asserts) and `encoder_norm=inner_bn`. They train correctly, only slower (TODO H8).

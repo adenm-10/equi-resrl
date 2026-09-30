@@ -13,6 +13,11 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 Pre-registered in EXPERIMENTS.md, 2026-09-29, and amended the same day. Eighteen arms, one seed
 each, 150k steps; an arm advances if its 110k–150k mean reaches B_sq = 0.508.
+- **Queues paused 2026-09-30 11:23.** The 16 arms not yet launched were taken out of
+  `~/queues/gpu{0,1}.txt` and kept in `~/queues/gpu{0,1}.txt.bak-20260930`; `target-fix` and
+  `critic-ln` run to the end. The runners are still up, and launch whatever is written into the
+  queue files next. The four runs of the revised schedule (`critic-fn`, `clipq`, `squash`,
+  `depth`) are to launch from the sync-free commit (EXPERIMENTS.md, 2026-09-30 CODE). See B9.
 - **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
   reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
 - **As the runner starts each arm,** append a LAUNCHED entry: wandb id, commit, GPU and step-0,
@@ -127,6 +132,16 @@ From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Sq
 - Whether to train the Square BC policy longer: `3hzs5bz1` was still improving at its 50k budget.
   This is for later, and blocks nothing: `870ws2c2` lifted this base to 0.90.
 
+### B9. A reference at the new actor default `[SC]`
+
+From 2026-09-30 `actor_norm` defaults to `none`; `target-fix` (`0rehtuoq`, `ce96bb5`) had `iid_bn`.
+So a run from then on that changes one field still differs from `target-fix` in two. A reference
+run at the new default is the one-change comparison for all of them. It is the pre-registered
+`actor-none` arm, whose overrides are the new default. `submit.sh`'s other arms also build
+`actor_norm=none` from that commit unless they set it, so none of them would still be the
+pre-registered arm there.
+**Updates:** EXPERIMENTS.md.
+
 ## H — Housekeeping
 
 ### H1, H3 — RESOLVED 2026-09-16 `[CS]` `[HI]`
@@ -174,6 +189,22 @@ Three options:
    and the next cuts would trade correctness for size, which the session-end skill forbids.
 
 **Updates:** CLAUDE.md.
+
+### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
+
+From `docs/plans/2026-09-30-sync-free-update.md` (untracked).
+- **The normalizer's gradients accumulate.** `set_normalizer` attaches it after `QAgent` builds its
+  optimizers, so its scale and offset collect gradients that no optimizer steps and no `zero_grad`
+  clears. Training is unaffected, but `debug/enc_normalizer_grad_norm` is a running sum, not a
+  per-update norm. `requires_grad_(False)` fixes it, is exact for training, and changes that metric,
+  so it needs its own CODE entry.
+- **Still syncing, and not in `CANDIDATES`:** `actor_norm=iid_bn` (escnn's `IIDBatchNorm1d` asserts
+  on its running stats, 30 syncs per env step) and `encoder_norm=inner_bn` (`InnerBatchNorm` slices
+  with GPU scalars, as `GroupPooling` did). Fix them the same way before either runs again.
+- **The ResFiT baseline's `VitEncoder`** calls `torch.cuda.synchronize()` twice per forward. Check it
+  before B3.
+- **bf16 autocast and `channels_last` on the encoders:** about 2× more, measured in scratch, but they
+  change the numbers. A separate, pre-registered change.
 
 ### H6 — DONE 2026-09-25: stop sending large files to wandb `[SC]` `[HI]`
 

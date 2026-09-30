@@ -105,7 +105,7 @@ makes each row executable.
 | `critic_degree_channel` | `128` | — | `hidden_dim` | — | **Live** |
 | `initialize` | `True` | passed through | hardcoded `True` | hardcoded `True` | **Partial** — only reaches the encoder |
 | `use_norms` | `True` | — | — | — | **Scalar ablation only** from 2026-09-29. Before, it reached two of the actor's three norm sites and set the encoder's last conv to `bias=not use_norms` |
-| `actor_norm` | `iid_bn` | — | — | all 3 sites | **Live** from 2026-09-29. The default is what every run had |
+| `actor_norm` | `none` | — | — | all 3 sites | **Live** from 2026-09-29. Every run before 2026-09-30 had `iid_bn`, the default until then |
 | `critic_norm` | `none` | — | every hidden layer | — | **Live** from 2026-09-29 |
 | `encoder_norm` | `none` | every agentview conv | — | — | **Live** from 2026-09-29. Every conv is bias-free whatever its value |
 | `use_orth_init` | `True` | — | — | live | **Live**, actor only |
@@ -119,7 +119,8 @@ makes each row executable.
 | `num_critic_layers` | `1` | — | hidden layers per head | — | **Live** from 2026-09-29. Before, it was dead with default `2`, and every head had 1 hidden layer |
 
 A field added on 2026-09-29 is absent from earlier runs' configs; read it at its default, except
-`frozen_target_critic`, which those runs had in effect as `True`.
+`frozen_target_critic`, which those runs had in effect as `True`, and `actor_norm`, which every run
+before 2026-09-30 had as `iid_bn` (EXPERIMENTS.md, 2026-09-30 CODE).
 
 Also dead: `agent.actor.dropout` and `agent.critic.dropout` are threaded into both modules and
 never used. `agent.critic.loss` reaches the equivariant critic as `loss_cfg`, is stored, and is
@@ -154,8 +155,9 @@ Actor policy head ([actor.py](../resfit/rl_finetuning/equi_off_policy/rl/actor.p
 Linear(in → hidden) → actor_norm → ReLU → Linear(hidden → action reps) [→ equi_tanh] → × action_scale
 ```
 
-One hidden layer. `actor_norm` also follows the visual and trunk projections, so the default puts
-`IIDBatchNorm1d` at all three sites, as every run had. `equi_tanh` is there only with
+One hidden layer. `actor_norm` also follows the visual and trunk projections. Its default, `none`
+since 2026-09-30, normalizes at none of the three sites, as in the SO(2) equivariant RL code this
+project follows. Every run before then had `IIDBatchNorm1d` at all three. `equi_tanh` is there only with
 `residual_squash=True`; without it the mean is not bounded by `action_scale`.
 
 Normalization options (`equi_rl_utils.hidden_norm`): `iid_bn` is escnn's `IIDBatchNorm1d`;
@@ -182,6 +184,7 @@ ResFiT's LayerNorm, with a scale and shift shared by each field's channels; `fie
 | `networks/equi_normalizer.py` | `LinearNormalizer`, `build_equivariant_normalizer`, `detect_robot_bases`, and the per-arm field names. | yes |
 | `networks/ablate_equi_obs_encoder.py` | **Unreachable.** Superseded by `obs_encoder.py`. | **no** |
 | `common_utils/crop_randomizer.py` | Random crop 84×84 → 76×76. | yes |
+| `common_utils/escnn_fixes.py` | Two fixes to escnn 1.0.11 that remove its host syncs, exact to its outputs: basis expansions hash by identity, and a `GroupPooling` that slices with Python ints. See "Why the update used to stall". | yes |
 | `common_utils/module_attr_mixin.py` | Device/dtype helper base class. | yes |
 | `common_utils/tensor_util.py` | Tensor helpers used by the crop randomizer. | yes |
 | `common_utils/field_norm.py` | **Unreachable.** `FieldNorm` also exists in `equi_rl_utils.py`. | **no** |
@@ -257,6 +260,46 @@ QAgent._combine_actions(base, residual)
 
 Note the skip connections: proprioception and action are re-concatenated at every stage rather
 than only entering at the input. Both actor and critic do this.
+
+### Metrics only on the update that is logged
+
+The trainer logs every `log_freq` env steps, and reads the metrics of the last update before it:
+one update in 400 at the defaults. So `QAgent.update(..., compute_metrics=False)` skips every value
+that is only logged, and the trainer passes `True` on that one update. The update itself is the same
+bit for bit either way (`tests/test_regression_agent.py`). `_td_errors`, which prioritized replay
+reads, is always returned, and stays on the GPU. The ResFiT agent takes no such argument, and
+computes its metrics on every update, as upstream does.
+
+**`timing/*` and `Time%`.** Without metrics nothing in the update reads a GPU value, so the CPU
+queues all four updates and moves on. The GPU wait would then be timed under `env_step`, whose
+`act()` is the next thing to read a GPU value. One `torch.cuda.synchronize()` at the end of the
+last update's `gradient_update` timer puts it back, so `timing/gradient_update_*` still measures
+the updates. It costs one sync per env step, which `act()` would have made anyway.
+
+### Why the update used to stall
+
+The CPU queues GPU work and moves on, so while the GPU runs one layer the CPU can already queue the
+next. A *host sync* breaks that: anything that needs a GPU value on the CPU makes the CPU wait until
+the GPU has finished everything queued so far. Before 2026-09-30 one env step's learning (one
+`act()` and four updates, the last with the actor) made 487 of them, counted with
+`torch.cuda.set_sync_debug_mode` at `target-fix`'s config on `1e33b8f`:
+
+| Where | Syncs | Fix |
+|---|---|---|
+| escnn basis expansions' `__hash__`/`__eq__`, which compare sampled bases with `.cpu()` and `allclose`. torch hashes modules on every walk: `parameters()`, `train()`, `modules()` | 177 | `escnn_fixes`: hash by identity |
+| random crop: offsets and index grids built on the CPU and copied from pageable memory, and range asserts on the GPU | 128 | offsets drawn and checked on the CPU, copied from pinned memory |
+| critic `GroupPooling`: GPU scalars as slice bounds | 80 | `escnn_fixes.GroupPooling` |
+| `.item()` and `.cpu()` on metrics | 65 | computed only on the logged update (above) |
+| actor `IIDBatchNorm1d`: escnn asserts on its own running stats | 30 | not fixed: `actor_norm` defaults to `none` from 2026-09-30 |
+| `get6DRotation`: indexing with a Python list | 9 | slicing |
+
+The hashing was also slow in itself: 24 ms per `enc.parameters()`, 12 ms per critic soft update,
+and 21 ms for the train/eval switch around each `act()`.
+
+After the fixes the loop is GPU-bound, and the rest of the gap to ResFiT is compute: the
+equivariant encoder does about 10× the FLOPs of ResFiT's per sample. `tests/test_sync_free.py`
+keeps every config in `tools/agent_fingerprint.py`'s `CANDIDATES` sync-free (STANDARDS 6.5), and
+`tools/bench_update.py` times an env step's learning.
 
 ## Normalization lives in two different places
 

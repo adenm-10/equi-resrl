@@ -17,6 +17,37 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-09-30 — The update no longer waits for the GPU; the actor's default is no normalization
+
+**Done**
+
+- **Why the equivariant run was about 4× slower than ResFiT per env step.** Two causes:
+  - host syncs: 487 per env step, where the CPU waited for the GPU instead of queueing ahead;
+  - compute: the equivariant encoder does about 10× ResFiT's FLOPs per sample.
+  - Running more runs in parallel doesn't help: RAM fits two Square runs, and one run now fills a
+    GPU.
+- **The syncs are gone, with bit-identical training.** In `escnn_fixes.py`, escnn's basis
+  expansions hash by identity and `GroupPooling` slices with ints. Metrics are computed only on the
+  logged update (`compute_metrics`). The crop offsets are drawn and checked on the CPU, and the
+  quaternion is reordered by slicing.
+  - Checks: the fingerprint against `ce96bb5` and `1e33b8f`, and a new deep check (every tensor
+    after 8 updates and an `act()`) for 14 configs on CPU and 4 on GPU. Everything is identical.
+  - Speed: 1.9–2.0× per env step's learning. EXPERIMENTS.md, 2026-09-30 CODE.
+- **`actor_norm` defaults to `none`** (Aden's decision). No run had tested `iid_bn` against it, and
+  the SO(2) code has no normalization. TODO B9 records what that does to comparisons with
+  `target-fix`.
+- **New:** `tests/test_sync_free.py`; `tools/agent_fingerprint.py --deep`, with `CANDIDATES`, the
+  configs the revised schedule can launch; `tools/bench_update.py`; STANDARDS rule 6.5.
+- **Queues paused** at 11:23 for the revised schedule (TODO B0).
+
+**Decided**
+- One `torch.cuda.synchronize()` per env step, so `timing/gradient_update` still measures the GPU's
+  time in the updates.
+- Not in this change: the normalizer's accumulating gradients, bf16, and the `iid_bn` and `inner_bn`
+  syncs (TODO H8).
+
+---
+
 ## 2026-09-29 — The target critic never updated; the Square sweep launched
 
 **Done**
