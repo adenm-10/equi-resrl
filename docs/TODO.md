@@ -9,27 +9,21 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B0. The Square sweep — IN FLIGHT from 2026-09-29 `[SC]`
+### B0. The Square ablations — IN FLIGHT from 2026-09-30 `[SC]`
 
-Pre-registered in EXPERIMENTS.md, 2026-09-29, and amended the same day. Eighteen arms, one seed
-each, 150k steps; an arm advances if its 110k–150k mean reaches B_sq = 0.508.
-- **Queues paused 2026-09-30 11:23.** The 16 arms not yet launched were taken out of
-  `~/queues/gpu{0,1}.txt` and kept in `~/queues/gpu{0,1}.txt.bak-20260930`; `target-fix` and
-  `critic-ln` run to the end. The runners are still up, and launch whatever is written into the
-  queue files next. The four runs of the revised schedule (`critic-fn`, `clipq`, `squash`,
-  `depth`) are to launch from the sync-free commit (EXPERIMENTS.md, 2026-09-30 CODE). See B9.
+Pre-registered in EXPERIMENTS.md, 2026-09-30. It replaces the 2026-09-29 sweep, which was stopped
+with no verdicts. One seed, 150k steps; a run advances if its 110k–150k mean reaches B_sq = 0.508.
 - **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
   reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
-- **As the runner starts each arm,** append a LAUNCHED entry: wandb id, commit, GPU and step-0,
-  from its launch log in `outputs/queue/`. The runner launches unattended, so these lag.
-- **As each arm finishes:**
-  - append a RESULTS entry: the eval sequence, step-0, the 110k–150k mean against 0.508 and 0.60,
-    and the verdict;
-  - pool its step-0 into the running base-rate check (the MEASUREMENT entry explains why).
-- **When an arm advances,** pre-register its stage 2: seeds 1 and 2 at 300k, judged against
-  `target-fix`.
-- **Once a day:** `nvidia-smi`, `free -g`, `df -h`, `tmux ls`, and the tail of `outputs/queue/gpu*.log`.
-- **Adding or reordering arms:** edit the queue files, which are outside the repo. A new arm needs
+- **When `actor-none` and `critic-fn` finish** (about 14 h after launch):
+  - append a RESULTS entry for each: the eval sequence, step-0, the 110k–150k mean against 0.508,
+    and the verdict. The gate's outcome goes in `actor-none`'s.
+  - **If `actor-none` advanced,** queue `clipq` seed 1 at the same commit.
+  - **If it did not,** queue nothing, and plan the rework of the implementation.
+- **When `clipq` finishes:** its RESULTS entry, then queue `squash` and `depth` on the base the
+  pre-registration's table gives. Their cases are already in `submit.sh`.
+- **One GPU has nothing pre-registered while `clipq` runs.** Decide beforehand whether to use it.
+- **Adding or reordering runs:** edit the queue files, which are outside the repo. A new arm needs
   its case in `submit.sh`, a commit, a worktree at that commit (`~/projects/equi-resrl-<commit>`,
   with the `artifacts` symlink), and a pre-registration first.
 **Updates:** EXPERIMENTS.md, STATUS.md.
@@ -132,15 +126,10 @@ From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Sq
 - Whether to train the Square BC policy longer: `3hzs5bz1` was still improving at its 50k budget.
   This is for later, and blocks nothing: `870ws2c2` lifted this base to 0.90.
 
-### B9. A reference at the new actor default `[SC]`
+### B9 — RESOLVED 2026-09-30: a reference at the new actor default `[SC]`
 
-From 2026-09-30 `actor_norm` defaults to `none`; `target-fix` (`0rehtuoq`, `ce96bb5`) had `iid_bn`.
-So a run from then on that changes one field still differs from `target-fix` in two. A reference
-run at the new default is the one-change comparison for all of them. It is the pre-registered
-`actor-none` arm, whose overrides are the new default. `submit.sh`'s other arms also build
-`actor_norm=none` from that commit unless they set it, so none of them would still be the
-pre-registered arm there.
-**Updates:** EXPERIMENTS.md.
+`actor-none` is that reference, and runs first as the gate (EXPERIMENTS.md, 2026-09-30
+PRE-REGISTERED).
 
 ## H — Housekeeping
 

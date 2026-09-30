@@ -233,6 +233,12 @@ wandb metadata.
 `wandb.name`, `group`, and `notes` must identify variant, task, seed, and what changed relative to
 the comparison.
 
+Since 2026-09-30 the group is the task and the method, never the experiment (Aden's decision). The
+config puts every Square equivariant RL run in `equi-residual-rl`, and `train_bc_dexmg.py` puts
+every Square BC run in `robomimic-square-bc`. So the run name carries the variant and seed, and
+the notes carry the experiment: `equi-residual-rl-<arm>-<seed>` and
+`<seed-group id>/<arm>/seed<seed>`.
+
 Anti-pattern: every run to date is `name=residual-rl`, `group=residual-rl`,
 `notes=paper_runs/square/yet_to_come` — equivariant and baseline, Can and Square alike. Variants
 can only be told apart by parsing `--config-name` out of `wandb-metadata.json`. Three seeds under

@@ -20,19 +20,25 @@ So the earlier results measure the frozen-target agent, not the method:
 - **Square reference `equi-square-v1`** (2026-09-29 RESULTS): both seeds degraded the base policy,
   with L10 0.52 and 0.39.
 
-**The Square sweep's first two arms are running** (pre-registered and amended 2026-09-29). An arm
-advances if its 110k–150k mean reaches **B_sq = 0.508**, the Square base rate measured over 500
-episodes. `target-fix` is the reference config with only the fix: does the fix alone make the
-residual help? The other 16 arms are out of the queue: Aden revised the schedule on 2026-09-30 to
-four runs, `critic-fn`, `clipq`, then `squash` and `depth`, to launch from the sync-free commit.
+**The Square sweep is closed.** Aden stopped `target-fix` and `critic-ln` on 2026-09-30 before
+their verdicts (EXPERIMENTS.md, STOPPED), and its other 16 arms never ran.
+
+**Its replacement is running: the actor-none gate, then four ablations** (2026-09-30
+PRE-REGISTERED). A run advances if its 110k–150k mean reaches **B_sq = 0.508**, the base policy's
+success rate over 500 episodes.
+- `actor-none` is the reference at the new defaults: the target-critic fix, no normalization in
+  the actor. If it doesn't advance, nothing more is queued and the implementation gets reworked.
+- `critic-fn` runs alongside it. `clipq` follows if the gate passes, then `squash` and `depth` on
+  whichever of `critic-fn` and `clipq` advanced.
 
 **From 2026-09-30 the update is about 2× faster, and `actor_norm` defaults to `none`**
 (EXPERIMENTS.md, 2026-09-30 CODE).
 - The update no longer waits for the GPU: 487 host syncs per env step became 0, and an env step's
   learning went from about 760 to 400 ms on a shared GPU. Bit-identical training, checked on CPU
   and GPU against `ce96bb5` and `1e33b8f`.
-- Every earlier run had batch norm in the actor. So a run from this commit that changes one field
-  differs from `target-fix` in two, and needs a reference at the new default (TODO B9).
+- Every earlier run had batch norm in the actor. `actor-none` is the reference at the new default.
+- **wandb:** every Square equivariant run is now in group `equi-residual-rl`, and every Square BC
+  run in `robomimic-square-bc`; past runs were regrouped (2026-09-30 CODE).
 
 **BoxCleanup** has had a smoke run only. It passed as a tooling check and measured what the pilot needs:
 59.8 GiB at the start, projecting to about 82 GiB for a full run, and 0.69 s/step, so 500k steps
@@ -40,17 +46,17 @@ is about 4 days.
 
 ## Running now
 
-| What | wandb | GPU | Started | Notes |
-|---|---|---|---|---|
-| Square sweep `target-fix` seed 1 | `0rehtuoq` | 0 | 2026-09-29 17:58 | From `~/projects/equi-resrl-ce96bb5`; ends ~09-30 18:00 |
-| Square sweep `critic-ln` seed 1 | `qlaonpv4` | 1 | 2026-09-29 18:58 | From `~/projects/equi-resrl-1e33b8f`; ends ~09-30 19:00 |
+| What | GPU | Started | Ends (est.) |
+|---|---|---|---|
+| `actor-none` seed 1, the gate | 0 | 2026-09-30, see LAUNCHED | ~14 h later |
+| `critic-fn` seed 1 | 1 | 2026-09-30, see LAUNCHED | ~14 h later |
 
-**The queue is paused** (2026-09-30 11:23), and holds nothing.
+**The queue.**
 - A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
   `~/queues/gpu{0,1}.txt`, one `<commit> <arm> <seed>` per line, every minute. Each launch runs from
-  the worktree pinned to its commit. The runners are still up, so a line written there launches.
-- The 16 arms taken out are in `~/queues/gpu{0,1}.txt.bak-20260930`.
-- A GPU idles once its arm ends, until the next runs' lines are written.
+  the worktree pinned to its commit.
+- Nothing is queued behind the two runs: the next lines depend on the gate's verdict.
+- The sweep's 16 unlaunched arms are kept in `~/queues/gpu{0,1}.txt.bak-20260930`.
 - Logs: `outputs/queue/gpu{0,1}.log` records every launch, and each launch's console goes to its own
   file beside it.
 
@@ -106,15 +112,14 @@ is about 4 days.
 
 ## The plan, and why
 
-**The Square sweep, revised 2026-09-30.**
-- The target-critic fix is the most likely single cause of the Square failure, so `target-fix` ran
-  first and every other arm is read against it.
-- Next, from the sync-free commit: `critic-fn` (FieldNorm in the critic) and `clipq` (the TD target
-  clipped to the reward range), one per GPU. Then `squash` and `depth`, built on whichever of the
-  two passed. Their `submit.sh` cases, pre-registration and queue lines are still to write.
+**The Square ablations of 2026-09-30, gated on `actor-none`.**
+- `actor-none` checks that the fixed agent at the new defaults can at least match vanilla BC. If
+  it can't, more ablations would measure a broken baseline, so the implementation comes first.
+- `critic-fn` (FieldNorm in the critic) runs alongside it; `clipq` (the TD target clipped to the
+  reward range) follows the gate. Then `squash` and `depth`, built on whichever of the two passed.
 - If FieldNorm and clipping both pass, nothing tests them together alone, so `squash` and `depth`
   on top of both would lack a one-change reference.
-- An arm that advances gets a pre-registered stage 2: seeds 1 and 2 at 300k.
+- An arm that advances gets a pre-registered stage 2: seeds 1 and 2 at 300k, against `actor-none`.
 
 **BoxCleanup after the sweep, one arm at a time, without writing caches.**
 - A full run needs about 82 GiB of RAM (projected from the smoke run's measured 59.8), so it can't

@@ -1650,3 +1650,133 @@ twice on GPU 0 while `target-fix` trained there):
 
 **Still syncing, and not used by any planned run:** `actor_norm=iid_bn` (30 syncs per env step,
 escnn's own asserts) and `encoder_norm=inner_bn`. They train correctly, only slower (TODO H8).
+
+---
+
+## 2026-09-30 — STOPPED — `target-fix` (`0rehtuoq`) and `critic-ln` (`qlaonpv4`), without verdicts
+
+Stopped at 14:07 EDT with SIGINT, by Aden's decision, before their 150k verdicts. They did not
+look like they would succeed, and the GPUs were wanted for the runs pre-registered below. The
+sweep's pre-registration allows no early stop but a collapse, so **neither run has a verdict**,
+and neither counts as not advancing.
+
+| Arm | wandb | Commit | Stopped at | Evals from step 0, every 10k |
+|---|---|---|---|---|
+| `target-fix` | `0rehtuoq` | `ce96bb5` | 124,400 | 0.60 0.70 0.48 0.48 0.68 0.52 0.48 0.62 0.62 0.46 0.48 0.46 0.62 (to 120k) |
+| `critic-ln` | `qlaonpv4` | `1e33b8f` | 115,500 | 0.44 0.58 0.50 0.48 0.56 0.54 0.58 0.54 0.54 0.62 0.42 0.34 (to 110k) |
+
+- In the verdict window, `target-fix` had two of five evals, 0.46 and 0.62 (mean 0.54, 100
+  episodes); `critic-ln` had one, 0.34. Neither collapsed.
+- wandb shows both as killed. Their packages were finalized by hand
+  (`finalize_run_package`), so each holds wandb's record in
+  `outputs/runs/robomimic-square-final/<id>/wandb_logs/`.
+- **The sweep is closed.** Its other 16 arms never launched. The pre-registration below replaces
+  them.
+
+---
+
+## 2026-09-30 — CODE — one wandb group per task and method, and run names that differ
+
+Aden's decision: wandb groups no longer separate experiments.
+- **Square equivariant RL.** The config's defaults are now project `robomimic-square-final` and
+  group `equi-residual-rl`, the group name the Can reproduction established. `submit.sh` no longer
+  sets either. It names runs `equi-residual-rl-<arm>-<seed>`, and the trainer still appends the
+  start time, the hyperparameter string and the seed. The experiment goes in `wandb.notes`. This is
+  a default change (STANDARDS 1.6), but only to logging: nothing trained changes.
+- **BC.** `train_bc_dexmg.py` puts each run in a group named after its project, so
+  `robomimic-square-bc` holds every Square BC run. It names runs
+  `<policy>_<dataset>__<start time>__seed<seed>`. Before, every run of one policy on one dataset
+  had the same name, and no group.
+- **Past runs, regrouped in wandb** through the API. Only the group changed; ids, names and data
+  are untouched.
+
+| Project | Runs | Old group | New group |
+|---|---|---|---|
+| `robomimic-square-final` | `0prso90n`, `j04yoeui`, `88i0lpc8` | `equi-square-v1` | `equi-residual-rl` |
+| `robomimic-square-final` | `0rehtuoq` | `equi-square-sweep-target-fix` | `equi-residual-rl` |
+| `robomimic-square-final` | `qlaonpv4` | `equi-square-sweep-critic-ln` | `equi-residual-rl` |
+| `robomimic-square-bc` | `3hzs5bz1` | none | `robomimic-square-bc` |
+
+- The ResFiT baseline runs in `robomimic-square-final` (`870ws2c2` and four failed ones) were
+  already together in group `residual-rl`, and keep it. Other tasks are unchanged.
+
+---
+
+## 2026-09-30 — PRE-REGISTERED — Square: the actor-none gate, then four ablations
+
+**Question.** At the new defaults does the equivariant residual improve on Square's base policy?
+The new defaults are the target-critic fix and no normalization in the actor, at the sync-free
+commit. If it does, which of four changes help: FieldNorm in the critic, a clipped TD target, a
+bounded residual, and a deeper critic head?
+
+**Seed-group id: `square-ablations-0930`** (in each run's `wandb.notes`). Project
+`robomimic-square-final`, group `equi-residual-rl`, names `equi-residual-rl-<arm>-<seed>`.
+
+**Each run's verdict (stage 1)** is the 2026-09-29 sweep's rule, unchanged:
+- One seed (seed 1), stopped at 150k steps.
+- A run **advances** iff the mean of its five evals at 110k–150k (250 episodes) is at least
+  **B_sq = 0.508**. That is vanilla BC performance: the Square base policy's success rate over 500
+  episodes (2026-09-29 MEASUREMENT).
+- A collapse (three consecutive evals ≤ 0.05) stops a run, and it does not advance. There is no
+  other early stop.
+- Each run is judged against B_sq, not against another run. So, as for the sweep, "does not
+  advance" rules out a large gain at n=1, and nothing more. **No stage-1 number is a comparison**
+  (STANDARDS 5.3).
+
+**The gate: `actor-none` runs first.** It is the reference for every other arm, and Aden's rule
+is that if it cannot at least match vanilla BC, the implementation is reworked before any further
+ablation runs.
+- `actor-none` and `critic-fn` launch together, one per GPU.
+- **If `actor-none` does not advance:** nothing further is queued. `critic-fn` finishes and is
+  recorded, but its verdict decides nothing. The next step is a new plan for the implementation.
+- If `actor-none` collapses before 150k, `critic-fn` is stopped as well.
+- **If `actor-none` advances:** `clipq` is queued. Once `critic-fn`'s and `clipq`'s verdicts are
+  both in, `squash` and `depth` are queued on the base made of those that advanced:
+
+| `critic-fn` | `clipq` | Then run |
+|---|---|---|
+| no | no | `squash`, `depth` |
+| yes | no | `critic-fn-squash`, `critic-fn-depth` |
+| no | yes | `clipq-squash`, `clipq-depth` |
+| yes | yes | `critic-fn-clipq-squash`, `critic-fn-clipq-depth` |
+
+- **Known gap:** if both advance, `critic-fn` and `clipq` together never run on their own, so the
+  last pair has no one-change reference.
+
+**Arms.** Every arm is `residual_equi_td3_square_config` plus `algo.prefetch_batches=4`,
+`algo.total_timesteps=150000`, `agent.actor.actor_last_layer_init_scale=1e-4`,
+`equivariance.actor_norm=none`, and these overrides. Each is one case in `submit.sh`.
+
+| Arm | Overrides | Question |
+|---|---|---|
+| `actor-none` | none | Does the fixed agent, without the actor's batch norm, at least match vanilla BC? |
+| `critic-fn` | `equivariance.critic_norm=field_norm` | FieldNorm at the critic's three hidden sites: visual projection, trunk, head |
+| `clipq` | `agent.clip_q_target_to_reward_range=true` | TD targets clamped to [0, 1] |
+| `squash` (and on each base) | `equivariance.residual_squash=true` | The residual bounded by `action_scale`, as ResFiT's Tanh bounds it |
+| `depth` (and on each base) | `equivariance.num_critic_layers=2` | Two hidden layers per critic head, as ResFiT has |
+
+**Stage 2, pre-registered separately when an arm advances.** Seeds 1 and 2 at 300k, judged against
+`actor-none` at the same seeds, not against `target-fix`, which had the actor's batch norm. The
+promotion criteria are the sweep's three.
+
+**Held fixed:**
+- Everything not overridden: n_step 3, gamma 0.99, buffer 200k, learning_starts 10k, critic warm-up
+  10k; `action_scale` 0.1, stddev 0.05, actor LR 1e-6, critic LR 1e-4, 300 demo episodes.
+- 50-episode evals every 10k.
+- BC `run_3hzs5bz1_best:v9`, and the Square caches `1d31ed9b` and `66c46c51`.
+- `boce-WS-01`, torch 2.6.0, torchrl 0.7.0, escnn 1.0.11. Env initial states unseeded.
+- **The commit:** every arm launches from the commit that adds this entry. Apart from the wandb
+  names, its code is `8407c27`'s (2026-09-30 CODE). Every arm here is one of
+  `tools/agent_fingerprint.py`'s `CANDIDATES`, each shown to train bit for bit as at `1e33b8f`.
+
+**Against earlier runs.** Against `target-fix` (`0rehtuoq`), `actor-none` differs in the actor's
+batch norm only. The sweep's `clipq`, `squash` and `critic-deep` never ran; these arms are them
+without the actor's batch norm.
+
+**Resources.**
+- About 14 h per run, estimated: `target-fix` spent 87.6% of its time in the updates, which are
+  now 1.9× faster, so about 0.33 s/step. The first LAUNCHED entry measures it.
+- Two runs at a time, 40.3 GiB each (measured for the sweep).
+
+**Records.** A LAUNCHED entry per launch. A RESULTS entry per finished run: its eval sequence, its
+110k–150k mean, and its verdict. The gate's outcome goes in `actor-none`'s RESULTS entry.

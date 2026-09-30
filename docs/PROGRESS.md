@@ -39,6 +39,15 @@ other four docs, with a pointer from here.
 - **New:** `tests/test_sync_free.py`; `tools/agent_fingerprint.py --deep`, with `CANDIDATES`, the
   configs the revised schedule can launch; `tools/bench_update.py`; STANDARDS rule 6.5.
 - **Queues paused** at 11:23 for the revised schedule (TODO B0).
+- **The sweep was stopped and replaced** (afternoon, Aden's decisions):
+  - `target-fix` and `critic-ln` stopped before their verdicts, and recorded as STOPPED;
+  - a new pre-registration: `actor-none` first as a gate (it must at least match vanilla BC,
+    0.508), `critic-fn` alongside it, then `clipq`, then `squash` and `depth` on whichever passed.
+    150k steps and the sweep's rule;
+  - `submit.sh` rewritten for these 11 arms, and `tests/test_sweep_arms.py` pinned to them.
+- **wandb naming** (Aden's decision): one group per task and method. `equi-residual-rl` holds every
+  Square equivariant run, and `robomimic-square-bc` every Square BC run. Runs are named for arm
+  and seed, and six past runs were regrouped. STANDARDS 5.2 says so.
 
 **Decided**
 - One `torch.cuda.synchronize()` per env step, so `timing/gradient_update` still measures the GPU's
