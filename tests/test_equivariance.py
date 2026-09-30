@@ -293,7 +293,7 @@ def test_equi_clip_actually_clips(obs_enc, device):
 # uses running statistics instead. The target critic runs in train mode.
 
 ACTOR_OPTIONS = {
-    "no-norm": dict(norm="none"),
+    "iid-bn": dict(norm="iid_bn"),
     "layer-norm": dict(norm="layer_norm"),
     "field-norm": dict(norm="field_norm"),
     "squash": dict(residual_squash=True),

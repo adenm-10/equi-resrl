@@ -140,8 +140,9 @@ def test_encoder_orth_init_changes_values_only(device):
 def test_actor_norm_reaches_all_three_sites(obs_enc, device, kind):
     """Visual projection, trunk and the policy's hidden layer.
 
-    The reference, "iid_bn", is what every run had: use_norms=True put batch
-    norm at the first two sites, and the third was unconditional.
+    "iid_bn" is what every run before 2026-09-30 had: use_norms=True put batch
+    norm at the first two sites, and the third was unconditional. The default
+    is now "none".
     """
     actor = _build_actor(obs_enc, device, norm=kind)
     assert _count(actor, _norm_class(kind)) == 3
@@ -210,13 +211,17 @@ def test_num_critic_layers_sets_the_head_depth(obs_enc, device, num_layers):
     """Hidden Linears per head, then GroupPooling and the output Linear.
 
     1 is the head every run before 2026-09-29 had, whatever the logged value.
+    The pooling is the project's subclass of escnn's (escnn_fixes.py), so it
+    is compared by exact type.
     """
     from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.common_utils.escnn_fixes import GroupPooling
     head = _build_critic(obs_enc, device, num_layers=num_layers).q_ensemble.heads[0].net
     kinds = [type(m) for m in head]
     assert kinds.count(enn.Linear) == num_layers + 1
     assert kinds.count(enn.ReLU) == num_layers - 1
-    assert kinds[-2:] == [enn.GroupPooling, enn.Linear]
+    assert kinds[-2:] == [GroupPooling, enn.Linear]
 
 
 @pytest.mark.gpu

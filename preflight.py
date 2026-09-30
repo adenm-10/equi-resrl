@@ -4,7 +4,7 @@
 Three tiers, cheapest first:
 
   Tier 1  static      seconds, no GPU   imports, configs, git state, env
-  Tier 2  construct   ~2 min, GPU       layouts, equivariance, no-op pins
+  Tier 2  construct   ~2 min, GPU       layouts, equivariance, no-op pins, host syncs
   Tier 3  resources   seconds           artifacts, buffer caches, RAM, disk
 
 Exits non-zero if anything blocking fails, so submit.sh can gate on it.
@@ -187,11 +187,11 @@ def _run_pytest(paths: list[str], label: str) -> bool:
 
 
 def tier2() -> bool:
-    section("Tier 2 - layouts, equivariance, no-op pins (GPU)")
+    section("Tier 2 - layouts, equivariance, no-op pins, host syncs (GPU)")
     return _run_pytest(
         ["tests/test_layouts.py", "tests/test_equivariance.py", "tests/test_no_ops.py",
-         "tests/test_sweep_arms.py"],
-        "equivariance suite + sweep arms",
+         "tests/test_sweep_arms.py", "tests/test_sync_free.py"],
+        "equivariance suite + sweep arms + sync-free update",
     )
 
 

@@ -195,13 +195,16 @@ def test_target_critic_is_not_frozen_by_default(name):
 
 @pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
 def test_equivariant_defaults_build_the_reference_network(name):
-    """Every field added for the 2026-09-29 sweep defaults to what earlier runs had.
+    """Every field added for the 2026-09-29 sweep defaults to what earlier runs had,
+    except actor_norm.
 
     num_critic_layers was dead and logged as 2; every critic had 1 hidden layer
-    per head, which is now its wired default.
+    per head, which is now its wired default. actor_norm was "iid_bn" in every
+    run before 2026-09-30 and defaults to "none" from then on (EXPERIMENTS.md,
+    2026-09-30 CODE).
     """
     eq = _node(name).equivariance
-    assert (eq.actor_norm, eq.critic_norm, eq.encoder_norm) == ("iid_bn", "none", "none")
+    assert (eq.actor_norm, eq.critic_norm, eq.encoder_norm) == ("none", "none", "none")
     assert eq.critic_orth_init is False and eq.encoder_orth_init is False
     assert eq.critic_last_layer_init_scale is None
     assert eq.use_visual_proj is True and eq.residual_squash is False

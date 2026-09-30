@@ -8,6 +8,12 @@ by tools/agent_fingerprint.py.
 The Square screen's arms run at a newer commit than its reference seeds
 (j04yoeui at 2611adb, 88i0lpc8 at b8e1de7). This test passing is what makes
 the two comparable, in place of the freeze on equi_off_policy/.
+
+The reference has batch norm in the actor, as every run before 2026-09-30 had.
+A second golden pins the same agent at the actor_norm default from then on,
+"none". This module also checks that skipping the metrics of an update that
+will not be logged (QAgent.update's compute_metrics) changes nothing. Those
+builds are on CPU, so they belong here: see the ordering note in conftest.py.
 """
 
 from __future__ import annotations
@@ -16,9 +22,16 @@ import pytest
 import torch
 
 from tools.agent_fingerprint import (
+    CANDIDATES,
+    DEEP_UPDATES,
     MODULES,
+    OPTIMIZERS,
     STDDEV,
+    UPDATE_SEED,
+    _leaves,
+    _seed,
     build_reference_agent,
+    compare_deep,
     fingerprint,
     fixed_batch,
     flatten,
@@ -47,6 +60,28 @@ GOLDEN = {
         "critic_delta": [0.26120524681743973, 0.04731270367694712],
     },
 }
+# The same agent with actor_norm="none". Captured on 2026-09-30 at the commit that
+# made it the default; 1e33b8f gives the same 22 values, exactly.
+GOLDEN_ACTOR_NONE = {
+    "params": {
+        "enc": [18.81238356381943, -27.68563702049253],
+        "actor": [-21.73847971166923, 45.70448979202473],
+        "critic": [131.18920593832468, -42.17377269175855],
+    },
+    "forward": {
+        "actor_feat": [1182.7750322069514, 37.444658355090624],
+        "critic_feat": [1186.0099155451644, -88.07476794682242],
+        "actor": [-1.3796414187972061e-05, -2.2014305518294043e-05],
+        "critic": [4.699684351682663, 0.9916826388925024],
+    },
+    "update": {
+        "critic_loss": 0.2806415557861328,
+        "actor_loss_base": -0.6309517025947571,
+        "enc_delta": [-1.7308486234004405, -0.00774491479315881],
+        "actor_delta": [0.0008693588376185168, 2.473117622748681e-05],
+        "critic_delta": [0.2612024769986192, 0.04731162629106193],
+    },
+}
 RTOL = 1e-6
 
 
@@ -57,6 +92,41 @@ def measured():
 
 def test_agent_fingerprint_unchanged(measured):
     assert flatten(measured) == pytest.approx(flatten(GOLDEN), rel=RTOL)
+
+
+def test_default_actor_fingerprint_unchanged():
+    """The agent the runs from 2026-09-30 on train: the reference, minus the
+    actor's batch norm."""
+    measured = fingerprint(build_reference_agent(actor_norm="none"))
+    assert flatten(measured) == pytest.approx(flatten(GOLDEN_ACTOR_NONE), rel=RTOL)
+
+
+def _train(candidate: str, metrics_on_every_update: bool) -> dict:
+    """The deep check's 8 updates, computing metrics on every update or on the
+    last only, as the trainer does. Returns every tensor the agent holds, and
+    the last update's metrics."""
+    agent = build_reference_agent(overrides=CANDIDATES[candidate])
+    agent.train(True)
+    _seed(UPDATE_SEED)
+    for k in range(DEEP_UPDATES):
+        metrics = agent.update(
+            fixed_batch(weights=True), stddev=STDDEV, update_actor=(k + 1) % 4 == 0,
+            compute_metrics=metrics_on_every_update or k == DEEP_UPDATES - 1)
+    out = _leaves("state_dict", agent.state_dict())
+    for name in OPTIMIZERS:
+        out.update(_leaves(name, getattr(agent, name).state_dict()))
+    out.update(_leaves("metrics", metrics))
+    return out
+
+
+@pytest.mark.parametrize("candidate", ["target-fix", "all-four"])
+def test_skipping_metrics_changes_nothing(candidate):
+    """compute_metrics=False skips only values that are logged, bit for bit.
+
+    target-fix has the actor's batch norm, whose running statistics any
+    skipped forward pass would leave behind. all-four has every change of the
+    2026-09-30 schedule at once, so every branch the metrics sit in runs."""
+    assert compare_deep(_train(candidate, True), _train(candidate, False)) == []
 
 
 def test_fingerprint_is_not_vacuous(measured):

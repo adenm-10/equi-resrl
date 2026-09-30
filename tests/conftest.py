@@ -137,7 +137,11 @@ def build_critic(obs_enc, device, **kw):
 
 
 def build_actor(obs_enc, device, **kw):
-    """The equivariant actor at the reference config; `kw` overrides arguments."""
+    """The equivariant actor at the default config; `kw` overrides arguments.
+
+    norm="none" is the default from 2026-09-30. Every run before then had
+    "iid_bn", which test_equivariance.py's ACTOR_OPTIONS still covers.
+    """
     from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
 
     opts = dict(
@@ -150,7 +154,7 @@ def build_actor(obs_enc, device, **kw):
         action_shape=obs_enc.action_shape,
         num_layers=2,
         dropout=0.0,
-        norm="iid_bn",
+        norm="none",
         use_orth_init=True,
         last_layer_scale=None,   # None, not 0.0: a zeroed final layer makes
                                  # every equivariance test pass trivially
