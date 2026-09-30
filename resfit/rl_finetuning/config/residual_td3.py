@@ -274,7 +274,12 @@ class ResidualEquiTD3SquareConfig(ResidualTD3DexmgConfig):
         )
     )
 
-    wandb: WandBConfig = field(default_factory=lambda: WandBConfig(project="robomimic-square-residual-td3"))
+    # Every Square equivariant run goes to one project and one group, whatever the experiment;
+    # each run's own name says what it is. The group name is the one the Can reproduction
+    # established. Before 2026-09-30 submit.sh set these per experiment instead.
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-square-final", group="equi-residual-rl")
+    )
 
     equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
 

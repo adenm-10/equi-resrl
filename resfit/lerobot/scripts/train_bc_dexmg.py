@@ -620,7 +620,13 @@ def main(cfg: argparse.Namespace):
             project=cfg.wandb_project,
             entity=cfg.wandb_entity,
             config=extra_cfg,
-            name=f"{cfg.policy}_{Path(cfg.dataset).name}",
+            # One group per project, so every BC run of a task sits together
+            # (robomimic-square-bc holds every Square BC run). The start time and seed make
+            # each run's name unique; a resumed run keeps the name it has.
+            group=cfg.wandb_project,
+            name=None if wandb_run_id else (
+                f"{cfg.policy}_{Path(cfg.dataset).name}__{run_start_time}__seed{cfg.seed}"
+            ),
             id=wandb_run_id,
             resume="must" if wandb_run_id else None,
         )
