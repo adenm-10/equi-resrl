@@ -240,8 +240,12 @@ class ResObsEnc(ModuleAttrMixin):
         return layout
 
     def get6DRotation(self, quat):
-        """robosuite stores eef_quat as (x, y, z, w); reorder to (w, x, y, z)."""
-        return quaternion_to_rotation_6d(quat[:, [3, 0, 1, 2]])
+        """robosuite stores eef_quat as (x, y, z, w); reorder to (w, x, y, z).
+
+        By slicing: indexing with a Python list, quat[:, [3, 0, 1, 2]], copies the index to the
+        GPU, and that copy waits for all the image-encoder work queued before it.
+        """
+        return quaternion_to_rotation_6d(torch.cat([quat[:, 3:4], quat[:, 0:3]], dim=1))
 
     def set_normalizer(
         self,

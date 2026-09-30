@@ -145,7 +145,9 @@ def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
             @images argument. Each index specifies the top left of the crop.
             Values must be in range [0, H - CH - 1] x [0, W - CW - 1] where
             H and W are the height and width of @images and CH and CW are
-            @crop_height and @crop_width.
+            @crop_height and @crop_width. The range is not checked here: on the GPU
+            that check would make the CPU wait for all queued work. The caller checks
+            it, as sample_random_image_crops does on the CPU.
 
         crop_height (int): height of crop to take
 
@@ -174,19 +176,14 @@ def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
     image_c, image_h, image_w = images.shape[-3:]
     num_crops = crop_indices.shape[-2]
 
-    # make sure @crop_indices are in valid range
-    assert (crop_indices[..., 0] >= 0).all().item()
-    assert (crop_indices[..., 0] < (image_h - crop_height)).all().item()
-    assert (crop_indices[..., 1] >= 0).all().item()
-    assert (crop_indices[..., 1] < (image_w - crop_width)).all().item()
-
     # convert each crop index (ch, cw) into a list of pixel indices that correspond to the entire window.
 
-    # 2D index array with columns [0, 1, ..., CH - 1] and shape [CH, CW]
-    crop_ind_grid_h = torch.arange(crop_height).to(device)
+    # 2D index array with columns [0, 1, ..., CH - 1] and shape [CH, CW]. Built on the images'
+    # device directly: building it on the CPU and copying it over makes the CPU wait for the GPU.
+    crop_ind_grid_h = torch.arange(crop_height, device=device)
     crop_ind_grid_h = tu.unsqueeze_expand_at(crop_ind_grid_h, size=crop_width, dim=-1)
     # 2D index array with rows [0, 1, ..., CW - 1] and shape [CH, CW]
-    crop_ind_grid_w = torch.arange(crop_width).to(device)
+    crop_ind_grid_w = torch.arange(crop_width, device=device)
     crop_ind_grid_w = tu.unsqueeze_expand_at(crop_ind_grid_w, size=crop_height, dim=0)
     # combine into shape [CH, CW, 2]
     crop_in_grid = torch.cat((crop_ind_grid_h.unsqueeze(-1), crop_ind_grid_w.unsqueeze(-1)), dim=-1)
@@ -274,9 +271,23 @@ def sample_random_image_crops(images, crop_height, crop_width, num_crops, pos_en
     # or possibly no leading dimension.
     #
     # Trick: sample in [0, 1) with rand, then re-scale to [0, M) and convert to long to get sampled ints
-    crop_inds_h = (max_sample_h * torch.rand(*source_im.shape[:-3], num_crops).to(device)).long()
-    crop_inds_w = (max_sample_w * torch.rand(*source_im.shape[:-3], num_crops).to(device)).long()
+    #
+    # All of this happens on the CPU, and only the finished indices go to the images' device.
+    # These are the same draws from the same CPU generator as when the multiply ran on the GPU,
+    # and a single float32 multiply rounds the same on both, so the crops are unchanged. The
+    # difference is that nothing here waits for the GPU: the range check below runs on CPU
+    # tensors, and the copy is from pinned memory, so it can run in the background.
+    crop_inds_h = (max_sample_h * torch.rand(*source_im.shape[:-3], num_crops)).long()
+    crop_inds_w = (max_sample_w * torch.rand(*source_im.shape[:-3], num_crops)).long()
     crop_inds = torch.cat((crop_inds_h.unsqueeze(-1), crop_inds_w.unsqueeze(-1)), dim=-1) # shape [..., N, 2]
+
+    # rand is in [0, 1), so every index lies in [0, max_sample - 1]: each crop fits in its image.
+    assert (crop_inds >= 0).all()
+    assert (crop_inds_h < max_sample_h).all() and (crop_inds_w < max_sample_w).all()
+
+    if device.type == "cuda":
+        crop_inds = crop_inds.pin_memory()
+    crop_inds = crop_inds.to(device, non_blocking=True)
 
     crops = crop_image_from_indices(
         images=source_im, 
