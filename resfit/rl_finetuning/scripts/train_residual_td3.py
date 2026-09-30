@@ -254,6 +254,14 @@ def _add_transitions_to_buffer(
 # Main training loop -----------------------------------------------------------
 # -----------------------------------------------------------------------------
 def main(cfg: ResidualTD3DexmgConfig):
+    # The metrics of an update are computed only when they will be logged: on the last update
+    # before a logging step (see compute_metrics in the training loop). So every logging step
+    # must be a step with updates.
+    assert cfg.log_freq % cfg.algo.update_every_n_steps == 0, (
+        f"log_freq={cfg.log_freq} must be a multiple of "
+        f"algo.update_every_n_steps={cfg.algo.update_every_n_steps}"
+    )
+
     device_str = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device_str)
 
@@ -484,7 +492,16 @@ def main(cfg: ResidualTD3DexmgConfig):
         agent.enc.set_normalizer(normalizer, robot_base_xy=rotation_center)
 
         agent.to(device)
-        
+
+    def agent_update(batch, stddev, update_actor, compute_metrics):
+        """One gradient update. compute_metrics=False lets the equivariant agent skip the
+        metrics that will not be logged (see its QAgent.update). The ResFiT agent computes
+        them on every update, as upstream does."""
+        if equivariant_run:
+            return agent.update(batch, stddev, update_actor, bc_batch=None, ref_agent=agent,
+                                compute_metrics=compute_metrics)
+        return agent.update(batch, stddev, update_actor, bc_batch=None, ref_agent=agent)
+
     horizon = env.vec_env.metadata["horizon"]
 
     # Set up actor learning rate warmup
@@ -1024,9 +1041,10 @@ def main(cfg: ResidualTD3DexmgConfig):
                     # Online-only training
                     batch = online_batch
 
-            # Only update critic during warmup (update_actor=False)
+            # Only update critic during warmup (update_actor=False). Metrics are needed only
+            # for the progress line printed every 100 updates.
             with training_timer.time("gradient_update"):
-                metrics = agent.update(batch, stddev=0.0, update_actor=False, bc_batch=None, ref_agent=agent)
+                metrics = agent_update(batch, stddev=0.0, update_actor=False, compute_metrics=(i % 100 == 0))
 
             # Update priorities for prioritized experience replay
             if cfg.algo.sampling_strategy == "prioritized_replay" and "_td_errors" in metrics:
@@ -1175,6 +1193,8 @@ def main(cfg: ResidualTD3DexmgConfig):
                     upload_best(run_dir, best_files, step=global_step, success_rate=current_success_rate)
 
         global_step += cfg.num_envs
+        # The logging block (6) below runs at this step, and reads the metrics of the last update.
+        log_step = global_step % cfg.log_freq == 0
 
         # ------------------------------------------------------------------
         # (4) Updates -------------------------------------------------------
@@ -1184,6 +1204,11 @@ def main(cfg: ResidualTD3DexmgConfig):
             actor_update_cadence = cfg.algo.num_updates_per_iteration // cfg.algo.actor_updates_per_iteration
             # Normal training loop - critic is already warmed up
             while i < cfg.algo.num_updates_per_iteration:
+                last_update = i == cfg.algo.num_updates_per_iteration - 1
+                # Only the metrics that block (6) will log are computed. Each one is a GPU->CPU
+                # copy that stalls the CPU until the GPU catches up.
+                compute_metrics = log_step and last_update
+
                 # --------------------------------------------------------------
                 # Sample mixed online/offline batch
                 # --------------------------------------------------------------
@@ -1216,7 +1241,14 @@ def main(cfg: ResidualTD3DexmgConfig):
                     actor_updates += 1
 
                 with training_timer.time("gradient_update"):
-                    metrics = agent.update(batch, stddev, update_actor, bc_batch=None, ref_agent=agent)
+                    metrics = agent_update(batch, stddev, update_actor, compute_metrics)
+                    # Without metrics the equivariant update never waits for the GPU, so the
+                    # timer would record only the time to queue the work. The wait would land in
+                    # env_step instead, the next place that reads a GPU result, and Time% would
+                    # misreport where the time goes. One sync per update block keeps
+                    # timing/gradient_update meaning "time spent on the updates".
+                    if last_update and device.type == "cuda":
+                        torch.cuda.synchronize()
 
                 # Update priorities for prioritized experience replay
                 if cfg.algo.sampling_strategy == "prioritized_replay" and "_td_errors" in metrics:
@@ -1241,8 +1273,10 @@ def main(cfg: ResidualTD3DexmgConfig):
                         # Online-only training - update only online buffer
                         online_rb.update_tensordict_priority(batch)
 
-                metrics["data/batch_terminal_R"] = batch["next"]["reward"][~batch["nonterminal"]].mean()
-                metrics["data/terminal_share"] = (~batch["nonterminal"]).float().mean()
+                if compute_metrics:
+                    # Boolean-mask indexing has a data-dependent size, so it too waits for the GPU.
+                    metrics["data/batch_terminal_R"] = batch["next"]["reward"][~batch["nonterminal"]].mean()
+                    metrics["data/terminal_share"] = (~batch["nonterminal"]).float().mean()
 
                 i += 1
 

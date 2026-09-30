@@ -67,9 +67,13 @@ class EquivarianceConfig:
     # "iid_bn" (escnn IIDBatchNorm1d), "layer_norm" (RegularLayerNorm, which
     # normalizes by all channels at once, as ResFiT's LayerNorm does) or
     # "field_norm" (FieldNorm, each field by its own statistics). The encoder
-    # takes "none" or "inner_bn" (escnn InnerBatchNorm after every conv). The
-    # defaults are what every run before 2026-09-29 had.
-    actor_norm: str = "iid_bn"
+    # takes "none" or "inner_bn" (escnn InnerBatchNorm after every conv).
+    # critic_norm and encoder_norm default to what every run before 2026-09-29
+    # had. actor_norm defaults to "none" from 2026-09-30: every run before then
+    # had "iid_bn", no run ever tested it against "none", and the SO(2)
+    # equivariant RL code this project follows has no normalization anywhere.
+    # EXPERIMENTS.md, 2026-09-30 CODE.
+    actor_norm: str = "none"
     critic_norm: str = "none"
     encoder_norm: str = "none"
     critic_orth_init: bool = False

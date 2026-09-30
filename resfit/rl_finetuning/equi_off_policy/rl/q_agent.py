@@ -424,7 +424,10 @@ class QAgent(torch.nn.Module):
         next_obs: dict[str, torch.Tensor],
         stddev: float,
         importance_weights: torch.Tensor | None = None,
+        *,
+        compute_metrics: bool = True,
     ):
+        """One critic and encoder step. `compute_metrics` is explained in `update`."""
         with torch.no_grad():
             # use train mode as we use actor dropout
             assert self.actor_target.training
@@ -447,23 +450,19 @@ class QAgent(torch.nn.Module):
                 next_action = next_residual_action
 
             # Compute target Q using min over a random subset of 2 heads
-            # target_all = self.critic_target.q_value(next_obs["feat"], next_obs["observation.state"], next_action)
             target_all = self.critic_target.q_value(next_obs["critic_feat"], next_action)
             target_q_min = target_all.squeeze(-1)  # [B]
             target_q = (reward + (discount * target_q_min)).detach()
-            # print(f"debug/target_q mean = {target_q.mean()}, debug/target_all mean = {target_all.mean()}")
 
         if self.agent_cfg.clip_q_target_to_reward_range:
             target_q = torch.clamp(target_q, min=0, max=1)  # Sparse rewards are in {0, 1}
 
-        td_errors = None
-
-        # q_all = self.critic(obs["feat"], obs["observation.state"], action).squeeze(-1)  # [K,B]
         q_all = self.critic(obs["critic_feat"], action).squeeze(-1)  # [K,B]
         # Compute TD errors for prioritized experience replay (before taking mean)
         td_errors = torch.abs(q_all - target_q.unsqueeze(0)).mean(dim=0)  # [B] - mean across heads
 
-        # Apply importance sampling weights if provided (for prioritized experience replay)
+        # Apply importance sampling weights if provided. The replay buffers always provide them;
+        # with uniform sampling they are all 1.
         if importance_weights is not None:
             # Weight the squared TD errors by importance sampling weights
             weighted_td_errors = td_errors**2 * importance_weights
@@ -472,51 +471,41 @@ class QAgent(torch.nn.Module):
             # Mean squared error across heads and batch (uniform sampling)
             critic_loss = (td_errors**2).mean()
 
-        metrics = {}
-        metrics["train/critic_qt"] = target_q.mean().item()
-        metrics["train/critic_loss"] = critic_loss.item()
+        # Prioritized replay reads the TD errors after every update, so they are always returned.
+        # They stay on the GPU: copying them to the CPU would make the CPU wait for the update.
+        metrics = {"_td_errors": td_errors.detach()}
 
-        # Store target_q for potential logging (calculated only when needed)
-        metrics["_target_q"] = target_q.detach().cpu()
-        
-        # Store TD errors for prioritized experience replay
-        if td_errors is not None:
-            metrics["_td_errors"] = td_errors.detach().cpu()
-        
-        # Log importance sampling weights for monitoring PER behavior
-        if importance_weights is not None:
-            metrics["train/importance_weights_mean"] = importance_weights.mean().item()
-            metrics["train/importance_weights_std"] = importance_weights.std().item()
-            metrics["train/importance_weights_min"] = importance_weights.min().item()
-            metrics["train/importance_weights_max"] = importance_weights.max().item()
+        if compute_metrics:
+            metrics["train/critic_qt"] = target_q.mean().item()
+            metrics["train/critic_loss"] = critic_loss.item()
+            # Store target_q for the Q-value histogram
+            metrics["_target_q"] = target_q.detach().cpu()
+            # Log importance sampling weights for monitoring PER behavior
+            if importance_weights is not None:
+                metrics["train/importance_weights_mean"] = importance_weights.mean().item()
+                metrics["train/importance_weights_std"] = importance_weights.std().item()
+                metrics["train/importance_weights_min"] = importance_weights.min().item()
+                metrics["train/importance_weights_max"] = importance_weights.max().item()
 
         # Zero gradients
         self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
 
-
         critic_loss.backward()
 
         # Gradient clipping
-        encoder_grad_norm = torch.nn.utils.clip_grad_norm_(self._enc_params, self.agent_cfg.critic_grad_clip_norm)
-        critic_grad_norm = torch.nn.utils.clip_grad_norm_(self._critic_params, self.agent_cfg.critic_grad_clip_norm)
+        torch.nn.utils.clip_grad_norm_(self._enc_params, self.agent_cfg.critic_grad_clip_norm)
+        torch.nn.utils.clip_grad_norm_(self._critic_params, self.agent_cfg.critic_grad_clip_norm)
 
-        # Store gradient norms for logging
-        # Generic per-submodule encoder grad logging — works for any encoder shape.
-        # Uses max_norm=inf so we only compute the norm, not actually clip.
-        for child_name, child_module in self.enc.named_children():
-            params_with_grad = [p for p in child_module.parameters() if p.grad is not None]
-            if params_with_grad:
-                sub_grad_norm = torch.nn.utils.clip_grad_norm_(params_with_grad, float("inf"))
-                metrics[f"debug/enc_{child_name}_grad_norm"] = sub_grad_norm.item()
-
-        # # Diagnostic: which submodule contributes to encoder grad?
-        # enc_obs_norm = torch.nn.utils.clip_grad_norm_(
-        #     self.enc.enc_obs.parameters(), float('inf'))
-        # enc_ih_norm = torch.nn.utils.clip_grad_norm_(
-        #     self.enc.enc_ih.parameters(), float('inf'))
-        # metrics["debug/enc_obs_grad_norm"] = enc_obs_norm.item()
-        # metrics["debug/enc_ih_grad_norm"] = enc_ih_norm.item()
+        if compute_metrics:
+            # Per-submodule encoder gradient norms, logging only. With max_norm=inf,
+            # clip_grad_norm_ measures the norm and scales the gradients by exactly 1.0, so
+            # skipping it on updates that are not logged changes nothing.
+            for child_name, child_module in self.enc.named_children():
+                params_with_grad = [p for p in child_module.parameters() if p.grad is not None]
+                if params_with_grad:
+                    sub_grad_norm = torch.nn.utils.clip_grad_norm_(params_with_grad, float("inf"))
+                    metrics[f"debug/enc_{child_name}_grad_norm"] = sub_grad_norm.item()
 
         self.encoder_opt.step()
         self.critic_opt.step()
@@ -573,7 +562,8 @@ class QAgent(torch.nn.Module):
         loss = loss.sum(1).mean(0)
         return loss  # noqa: RET504
 
-    def update_actor(self, obs: dict[str, torch.Tensor], stddev: float):
+    def update_actor(self, obs: dict[str, torch.Tensor], stddev: float, *, compute_metrics: bool = True):
+        """One actor step. `compute_metrics` is explained in `update`."""
         metrics = {}
 
         (
@@ -584,56 +574,62 @@ class QAgent(torch.nn.Module):
             action_l2_penalty,
         ) = self._compute_actor_loss(obs, stddev)
 
-        metrics["train/actor_loss_base"] = actor_loss_base.item()
-        metrics["train/actor_loss_total"] = actor_loss_total.item()
-        # Store residual actions for logging (the actual residual component we want to monitor)
-        metrics["_actions"] = action_pred.detach().cpu()
-        # Also store combined actions if needed for other purposes
-        metrics["_combined_actions"] = combined_action.detach().cpu()
+        if compute_metrics:
+            metrics["train/actor_loss_base"] = actor_loss_base.item()
+            metrics["train/actor_loss_total"] = actor_loss_total.item()
+            # Store residual actions for logging (the actual residual component we want to monitor)
+            metrics["_actions"] = action_pred.detach().cpu()
+            # Also store combined actions if needed for other purposes
+            metrics["_combined_actions"] = combined_action.detach().cpu()
 
-        # Log L2 regularization penalty if applied
-        if self.agent_cfg.actor.action_l2_reg_weight > 0:
-            metrics["train/actor_l2_penalty"] = action_l2_penalty.item()
+            # Log L2 regularization penalty if applied
+            if self.agent_cfg.actor.action_l2_reg_weight > 0:
+                metrics["train/actor_l2_penalty"] = action_l2_penalty.item()
 
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss_total.backward()
 
         # ---- Diagnostic logging ----
 
-        # 1) ∇_a Q: does the critic provide a gradient signal w.r.t. actions?
-        #    If this is near zero, the critic landscape is flat — either the
-        #    critic isn't seeing the residual or ensemble pessimism is canceling gradients.
-        if combined_action.grad is not None:
-            metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
-            metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
-        else:
-            metrics["debug/dQ_da_norm"] = 0.0
+        if compute_metrics:
+            # 1) ∇_a Q: does the critic provide a gradient signal w.r.t. actions?
+            #    If this is near zero, the critic landscape is flat — either the
+            #    critic isn't seeing the residual or ensemble pessimism is canceling gradients.
+            if combined_action.grad is not None:
+                metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
+                metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+            else:
+                metrics["debug/dQ_da_norm"] = 0.0
 
-        # 2) Residual action magnitude: is the actor outputting anything?
-        with torch.no_grad():
-            metrics["debug/residual_norm"] = action_pred.norm(dim=-1).mean().item()
-            metrics["debug/residual_mean_abs"] = action_pred.abs().mean().item()
-            metrics["debug/residual_max_abs"] = action_pred.abs().max().item()
+            # 2) Residual action magnitude: is the actor outputting anything?
+            with torch.no_grad():
+                metrics["debug/residual_norm"] = action_pred.norm(dim=-1).mean().item()
+                metrics["debug/residual_mean_abs"] = action_pred.abs().mean().item()
+                metrics["debug/residual_max_abs"] = action_pred.abs().max().item()
 
-            metrics["debug/combined_act_norm"] = combined_action.norm(dim=-1).mean().item()
-            metrics["debug/combined_act_mean_abs"] = combined_action.abs().mean().item()
-            metrics["debug/combined_act_max_abs"] = combined_action.abs().max().item()
-
+                metrics["debug/combined_act_norm"] = combined_action.norm(dim=-1).mean().item()
+                metrics["debug/combined_act_mean_abs"] = combined_action.abs().mean().item()
+                metrics["debug/combined_act_max_abs"] = combined_action.abs().max().item()
 
         # 3) Q sensitivity: does the critic value differ between combined and base-only?
         #    If these are nearly equal, the critic is blind to the residual.
         if self.residual_actor:
             with torch.no_grad():
+                # Run on every actor update, logged or not. With critic_norm="iid_bn" this
+                # forward updates the critic's running statistics, and with
+                # policy_gradient_type="min_random_pair" it draws random numbers, so skipping it
+                # would change the run. It costs one critic forward.
                 q_base_only = self.critic.q_value_for_policy(obs["critic_feat"], obs["observation.base_action"])
-                metrics["debug/q_combined_mean"] = (-actor_loss_base).item()  # same as q.mean()
-                metrics["debug/q_base_only_mean"] = q_base_only.mean().item()
-                metrics["debug/q_advantage"] = metrics["debug/q_combined_mean"] - metrics["debug/q_base_only_mean"]
-                metrics["debug/q_advantage_ratio"] = metrics["debug/q_advantage"] / metrics["debug/q_combined_mean"]
-
+                if compute_metrics:
+                    metrics["debug/q_combined_mean"] = (-actor_loss_base).item()  # same as q.mean()
+                    metrics["debug/q_base_only_mean"] = q_base_only.mean().item()
+                    metrics["debug/q_advantage"] = metrics["debug/q_combined_mean"] - metrics["debug/q_base_only_mean"]
+                    metrics["debug/q_advantage_ratio"] = metrics["debug/q_advantage"] / metrics["debug/q_combined_mean"]
 
         # Gradient clipping
         actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.agent_cfg.actor_grad_clip_norm)
-        metrics["train/actor_grad_norm"] = actor_grad_norm.item()
+        if compute_metrics:
+            metrics["train/actor_grad_norm"] = actor_grad_norm.item()
 
         self.actor_opt.step()
 
@@ -737,11 +733,18 @@ class QAgent(torch.nn.Module):
         update_actor,
         bc_batch=None,
         ref_agent: QAgent | None = None,
+        *,
+        compute_metrics: bool = True,
     ):
+        """One TD3 update: critic and encoder, then the actor if `update_actor`.
 
-        import time
-        start = time.time()
-
+        `compute_metrics=False` skips every value that is only logged. Each one is a `.item()`
+        or `.cpu()`, which makes the CPU wait until the GPU has finished all the work queued so
+        far, and the trainer reads the metrics of only the last update before each logging
+        step: one update in 400 at the defaults. The update itself is the same either way, bit
+        for bit (tests/test_regression_agent.py). The one returned value that is not a metric,
+        "_td_errors", is always there, for prioritized replay.
+        """
         obs: dict[str, torch.Tensor] = batch["obs"]
         action: torch.Tensor = batch["action"]
         reward: torch.Tensor = batch[("next", "reward")]
@@ -749,35 +752,21 @@ class QAgent(torch.nn.Module):
         next_nonterminal: torch.Tensor = batch["nonterminal"]
         next_obs: dict[str, torch.Tensor] = batch[("next", "obs")]
 
-        # print(f"obs.shape: {obs.shape}")
-        # print(f"obs = {obs}")
-        # assert False
-
         # To not bootstrap on terminal states we zero out the discount factor for terminal next states
         effective_discount = discount * next_nonterminal
-        
-        # print(f"setup time: {time.time() - start}")
 
         assert "feat" not in obs
         obs["actor_feat"], obs["critic_feat"] = self.enc(obs)
-        # print(f"obs[actor_feat].size() = {obs['actor_feat'].size()}")
-        # print(f"obs[critic_feat].size() = {obs['critic_feat'].size()}")
-        # assert False
 
         with torch.no_grad():
             next_obs["actor_feat"], next_obs["critic_feat"] = self.enc(next_obs)
 
-        # print(f"2x enc time: {time.time() - start}")
-
         metrics = {}
-        metrics["data/batch_R"] = reward.mean().item()
+        if compute_metrics:
+            metrics["data/batch_R"] = reward.mean().item()
 
         # Extract importance sampling weights if available (for prioritized experience replay)
         importance_weights = batch.get("_weight", None)
-
-        # import time
-        # start = time.time()
-        # print(f"sample time: {time.time() - start}")
 
         critic_metric = self.update_critic(
             obs=obs,
@@ -787,14 +776,11 @@ class QAgent(torch.nn.Module):
             next_obs=next_obs,
             stddev=stddev,
             importance_weights=importance_weights,
+            compute_metrics=compute_metrics,
         )
-
-        # print(f"critic update time: {time.time() - start}")
 
         utils.soft_update_params(self.critic, self.critic_target, self.agent_cfg.critic_target_tau)
         metrics.update(critic_metric)
-
-        # print(f"other update time: {time.time()-start}\n")
 
         if not update_actor:
             return metrics
@@ -804,12 +790,10 @@ class QAgent(torch.nn.Module):
         obs["critic_feat"] = self._detach_feat(obs["critic_feat"])
 
         if bc_batch is None:
-            actor_metric = self.update_actor(obs, stddev)
+            actor_metric = self.update_actor(obs, stddev, compute_metrics=compute_metrics)
         else:
             assert ref_agent is not None
             actor_metric = self.update_actor_rft(obs, stddev, bc_batch, ref_agent)
-
-        # print(f"actor update time: {time.time() - start}\n")
 
         utils.soft_update_params(self.actor, self.actor_target, self.agent_cfg.critic_target_tau)
         metrics.update(actor_metric)
