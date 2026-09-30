@@ -17,6 +17,11 @@ from abc import ABC, abstractmethod
 from typing import Dict, Callable, List, Tuple, Any, Union
 import numpy as np
 
+# Imported for its side effect: from here on escnn's basis-expansion modules hash by identity,
+# in every escnn network this process builds. The encoder, actor and critic all import this
+# module, so none can be built without it. See escnn_fixes.py.
+from resfit.rl_finetuning.equi_off_policy.common_utils import escnn_fixes  # noqa: F401
+
 
 
 class HLGaussLoss(tnn.Module):

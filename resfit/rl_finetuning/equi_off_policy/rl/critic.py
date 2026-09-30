@@ -6,6 +6,8 @@ from escnn import nn
 from resfit.rl_finetuning.config.rlpd import CriticConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
 from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import *
+# After the star import, so nothing it brings in can shadow it.
+from resfit.rl_finetuning.equi_off_policy.common_utils.escnn_fixes import GroupPooling
 
 
 class EquiHeadMLP(torch.nn.Module):
@@ -31,7 +33,8 @@ class EquiHeadMLP(torch.nn.Module):
                 layers.append(nn.ReLU(hidden_type, inplace=False))
             current = hidden_type
 
-        gpool = nn.GroupPooling(hidden_type)
+        # escnn's GroupPooling, minus its GPU-scalar slicing: escnn_fixes.py.
+        gpool = GroupPooling(hidden_type)
         layers.append(gpool)
         layers.append(nn.Linear(gpool.out_type, out_type, initialize=True))
         self.net = torch.nn.Sequential(*layers)
