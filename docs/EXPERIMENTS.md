@@ -1873,3 +1873,34 @@ without the actor's batch norm.
   deep check of all 11 arms at `iid_bn` is identical to `1e33b8f`, tensor for tensor.
 - **Speed:** `iid_bn` keeps escnn's 30 host syncs per env step (TODO H8), so these runs are slower
   than the 0.33 s/step of 2026-09-30. The LAUNCHED entry measures it.
+
+---
+
+## 2026-10-01 — LAUNCHED — `critic-fn` (`konwqk6l`) and `clipq` (`63k595oa`), actor BN, seed 1
+
+| Arm | Seed | wandb | GPU | Commit | Launched |
+|---|---|---|---|---|---|
+| `critic-fn` | 1 | **`konwqk6l`** | 0 (`GPU-ca9f06b8`) | `b39a376` | 2026-10-01 07:50 EDT (wandb 08:03) |
+| `clipq` | 1 | **`63k595oa`** | 1 (`GPU-8d23cc42`) | `b39a376` | 2026-10-01 07:51 EDT (wandb 08:03) |
+
+- **How:** queue lines `b39a376 <arm> 1` for `tools/gpu_queue.sh` in tmux `gpu0` and `gpu1`, run
+  from the worktree `~/projects/equi-resrl-b39a376` with `CACHE_DIR=~/projects/equi-resrl`. Names
+  `equi-residual-rl-actor-bn-<arm>-1`, notes `square-ablations-1001/<arm>/seed1`, project
+  `robomimic-square-final`, group `equi-residual-rl`. Consoles in
+  `outputs/queue/20261001-075052_critic-fn-1_gpu0.log` and `20261001-075117_clipq-1_gpu1.log`.
+- **Gate:** GO for both. Tier 1 and Tier 2 passed, and both caches were found under `CACHE_DIR`.
+- **Startup verified:**
+  - `Set random seed to 1`;
+  - offline `1d31ed9b` (80,429) and online `66c46c51` loaded from disk, with no rebuild;
+  - the probe centre is (−0.56, 0.0);
+  - the resolved configs in wandb have `actor_norm: iid_bn`, init scale 1e-4 and 150k steps;
+    `critic-fn` has `critic_norm: field_norm`, and `clipq` has `clip_q_target_to_reward_range: True`.
+- **Step-0 eval:** `critic-fn` 0.64 (32/50), `clipq` 0.50 (25/50). The trainer-path step-0 pool is
+  now 281/500 = 0.562.
+- **Speed:** 0.422 s/step (`critic-fn`) and 0.418 (`clipq`) over their first 3k steps, against
+  0.33 without the actor's batch norm (2026-09-30), so `iid_bn`'s host syncs cost about 27%.
+  Updates are 88% of the time. The 10k critic warm-up took 15 min. At this rate 150k ends around
+  2026-10-02 02:30, and 100k would end around 2026-10-01 20:30.
+- **Memory:** 41–42 GiB PSS each, with the online buffer near its 10k start.
+- **Config caveats:** `num_actor_layers` stays dead. `action_scale` does not bound the residual
+  without `residual_squash`.

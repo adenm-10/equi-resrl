@@ -49,8 +49,8 @@ is about 4 days.
 
 | What | wandb | GPU | Started | Ends (est.) |
 |---|---|---|---|---|
-| `critic-fn` seed 1, actor BN | see LAUNCHED 2026-10-01 | 0 | 2026-10-01 | ~16 h later |
-| `clipq` seed 1, actor BN | see LAUNCHED 2026-10-01 | 1 | 2026-10-01 | ~16 h later |
+| `critic-fn` seed 1, actor BN | `konwqk6l` | 0 | 2026-10-01 07:50 | 2026-10-02 ~02:30 (150k) |
+| `clipq` seed 1, actor BN | `63k595oa` | 1 | 2026-10-01 07:51 | 2026-10-02 ~02:30 (150k) |
 
 **The queue.**
 - A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
