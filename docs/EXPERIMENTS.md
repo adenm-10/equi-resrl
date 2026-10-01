@@ -1904,3 +1904,108 @@ without the actor's batch norm.
 - **Memory:** 41–42 GiB PSS each, with the online buffer near its 10k start.
 - **Config caveats:** `num_actor_layers` stays dead. `action_scale` does not bound the residual
   without `residual_squash`.
+
+---
+
+## 2026-10-01 — AMENDMENT — stop at 100k, judge by the training trend, and three normalization arms
+
+Aden's decisions (2026-10-01, ~09:00). Written before either running arm's 10k eval: nothing from
+`konwqk6l` or `63k595oa` after their step-0 evals has been looked at. Seed-group id unchanged,
+`square-ablations-1001`.
+
+**1. Every run in this group stops at 100k.**
+- New launches set `algo.total_timesteps=100000`. `critic-fn` and `clipq` launched at 150k, so
+  `tools/run_watch.py` stops them (SIGINT) after their 100k eval.
+- Nothing in training depends on `total_timesteps` before the stop, so these are the first 100k
+  steps of the earlier 150k and 300k runs.
+
+**2. The verdict is the training trend, not the eval level.**
+- **Why** (Aden's observation, checked on the eight Square runs with data to 100k). The training
+  episodes of runs that learned improve from early on; those of runs that hold BC are flat. The eval
+  level at 100k gets it backwards:
+
+| Run | Training success, slope per 100k over 10k–100k (z) | Episode length, slope per 100k | Eval mean, 60k–100k |
+|---|---|---|---|
+| `870ws2c2`, ResFiT, learned (0.68 at 110k–150k) | +0.49 ± 0.10 (+5.1) | −73 ± 13 | 0.492 |
+| `gkxw355f`, ResFiT, learned (0.76 by 90k) | +0.38 ± 0.09 (+4.0) | −73 ± 14 | 0.648 |
+| `j04yoeui`, frozen target, seed 1 | +0.01 ± 0.10 | −3 ± 10 | 0.608 |
+| `88i0lpc8`, frozen target, seed 2 | +0.04 ± 0.10 | −4 ± 10 | 0.424 |
+| `0rehtuoq`, `target-fix` | −0.13 ± 0.10 | +7 ± 10 | 0.532 |
+| `qlaonpv4`, `critic-ln` | −0.08 ± 0.10 | −1 ± 10 | 0.540 |
+| `ekb6181b`, `actor-none` (collapsed) | −0.02 ± 0.01 | +1 ± 1 | 0.000 |
+| `24y42etk`, `critic-fn` without actor BN (collapsed) | −0.01 ± 0.03 | +1 ± 2 | 0.000 |
+
+  A "60k–100k eval mean ≥ B_sq" rule would fail `870ws2c2`, whose evals sat at 0.24–0.38 until
+  80k, and pass three runs that never learned.
+- **The data.** `training/episode_return`, one row per finished training episode (`num_envs` = 1),
+  at the step the episode ended. The reward is 1 on success and 0 otherwise, so the row is γ^steps
+  on success and 0 on failure; **success = return > 0**. These episodes carry the exploration noise
+  (stddev 0.05).
+- **A run advances iff all three hold:**
+  - (a) the least-squares slope of success on step, over episodes ending in (10k, 100k], is at
+    least 2 standard errors above zero (the usual OLS standard error, from the residual variance);
+  - (b) the success fraction of episodes ending in (70k, 100k] is greater than that of episodes
+    ending in [0, 10k]: the run's own start, under the same noise. So climbing out of a dip back to
+    where it started does not count;
+  - (c) it did not collapse (three consecutive evals ≤ 0.05; unchanged).
+- **Reported for every run, deciding nothing:** the episode-length slope; the eval mean at
+  60k–100k against B_sq = 0.508 and 0.60; the eval sequence.
+- **Caveats.** The rule was chosen after seeing the eight runs above, so they calibrate it and do not
+  test it. Only two runs learned, both the non-equivariant baseline. A learner half as fast
+  (+0.2 per 100k) would sit near z = 2, so a slow learner can be missed.
+- `tools/square_verdict.py` computes (a)–(c) and the reported numbers; every RESULTS entry from here
+  on uses it.
+
+**3. The reference.** `target-fix` (`0rehtuoq`) has data to 120k, so the rule applies to it, with
+its data seen before the rule was chosen: slope −0.13 ± 0.10, **does not advance**. The reference
+holds BC and does not learn. `critic-ln` (`qlaonpv4`, the sweep's critic LayerNorm): slope
+−0.08 ± 0.10, does not advance, flagged the same way.
+
+**4. Three normalization arms, each one change off `target-fix`, plus its second seed.**
+
+| Arm | Overrides | Question |
+|---|---|---|
+| `actor-fn` | `equivariance.actor_norm=field_norm` | FieldNorm instead of IID batch norm at the actor's three sites: each sample normalized on its own, no batch statistics, the same in train and eval |
+| `actor-inner` | `equivariance.actor_norm=inner_bn` | InnerBatchNorm at the actor's three sites: standard batch norm, statistics pooled over the batch and each field's 8 channels, with gradients through them (escnn's `IIDBatchNorm1d` detaches both) |
+| `enc-inner` | `equivariance.encoder_norm=inner_bn` | InnerBatchNorm after each agentview conv (the sweep's `enc-inner`); the actor keeps IID batch norm |
+| `target-fix`, seed 2 | none | The reference's second seed, for any stage-2 comparison |
+
+- **Not tested, and why:**
+  - batch norm in the critic: the critic normalizes three differently distributed batches, each with
+    its own statistics (stored (s, a); the target's (s′, π(s′)), in train mode; the actor loss's
+    (s, π(s))), so one input gets a different Q depending on its batch;
+  - FieldNorm in the encoder: it would normalize every pixel's 8-channel field to unit size,
+    background included.
+- **Predictions, measured at init** (same weights, 512 demo observations): vision drives 97.3%
+  (FieldNorm) and 98.7% (InnerBatchNorm) of the actor trunk's variance, against 99.3% with IID
+  batch norm and 58.7% with none. If the collapse comes from the actor attending to proprioception
+  and the base action (PROGRESS 2026-10-01), neither actor arm collapses.
+- **`inner_bn` is one new module** for the actor and the encoder: torch batch norm per field, over
+  the batch, the field's 8 channels and any spatial positions. That is escnn's InnerBatchNorm's
+  computation, which cannot take the actor's flat features and makes host syncs. It replaces escnn's
+  module in the encoder option, which no run has used.
+
+**5. Order.** One queue per GPU; each run starts when the one before ends.
+
+| GPU | Runs |
+|---|---|
+| 0 | `critic-fn` (running) → `actor-fn` → `enc-inner` → the depth arm |
+| 1 | `clipq` (running) → `actor-inner` → the squash arm → `target-fix` seed 2 |
+
+- The squash and depth arms are the 2026-09-30 table's, from `critic-fn`'s and `clipq`'s verdicts
+  under this rule. They are written into the queues automatically once both runs have stopped.
+- **Resources:** about 10–12 h per run, two at a time; everything ends around 2026-10-03 morning.
+
+**6. Automation.** `tools/run_watch.py` runs in tmux beside the queue runners. It stops a run after
+its 100k eval, stops one that collapses, and finalizes each stopped run's package. Every action it
+takes is logged in `outputs/queue/watch.log`, and the LAUNCHED and RESULTS entries cite it.
+
+**7. Names.** `equi-residual-rl-actor-bn-<arm>-<seed>` where the actor has IID batch norm
+(`enc-inner`, `target-fix` and the squash and depth arms); `equi-residual-rl-<arm>-<seed>` for
+`actor-fn` and `actor-inner`. Notes `square-ablations-1001/<arm>/seed<seed>`.
+
+**8. Commit.** The new arms launch from the commit that adds their code, named in their LAUNCHED
+entries. The arms that already existed must train there bit for bit as at `b39a376` (the deep
+check, on CPU).
+
+**Stage 2:** unchanged, pre-registered separately when an arm advances.
