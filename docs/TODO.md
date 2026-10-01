@@ -9,24 +9,28 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B0. The Square ablations — IN FLIGHT from 2026-09-30 `[SC]`
+### B0. The Square ablations, with the actor's batch norm — IN FLIGHT from 2026-10-01 `[SC]`
 
-Pre-registered in EXPERIMENTS.md, 2026-09-30. It replaces the 2026-09-29 sweep, which was stopped
-with no verdicts. One seed, 150k steps; a run advances if its 110k–150k mean reaches B_sq = 0.508.
+Pre-registered 2026-09-30 and amended 2026-10-01 after the gate failed. Every arm has
+`actor_norm=iid_bn`. One seed, 150k steps; a run advances if its 110k–150k mean reaches 0.508.
 - **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
   reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
-- **When `actor-none` and `critic-fn` finish** (about 14 h after launch):
-  - append a RESULTS entry for each: the eval sequence, step-0, the 110k–150k mean against 0.508,
-    and the verdict. The gate's outcome goes in `actor-none`'s.
-  - **If `actor-none` advanced,** queue `clipq` seed 1 at the same commit.
-  - **If it did not,** queue nothing, and plan the rework of the implementation.
-- **When `clipq` finishes:** its RESULTS entry, then queue `squash` and `depth` on the base the
-  pre-registration's table gives. Their cases are already in `submit.sh`.
-- **One GPU has nothing pre-registered while `clipq` runs.** Decide beforehand whether to use it.
+- **Watch for collapse** (three consecutive evals ≤ 0.05). Nothing stops a run automatically, so
+  stop it by hand, as the pre-registration says.
+- **When `critic-fn` and `clipq` finish:** a RESULTS entry for each, then queue `squash` and `depth`
+  on the base the 2026-09-30 table gives. Their cases are in `submit.sh`.
 - **Adding or reordering runs:** edit the queue files, which are outside the repo. A new arm needs
   its case in `submit.sh`, a commit, a worktree at that commit (`~/projects/equi-resrl-<commit>`,
   with the `artifacts` symlink), and a pre-registration first.
 **Updates:** EXPERIMENTS.md, STATUS.md.
+
+### B10. Why the actor collapses without batch norm `[SC]` `[CS]`
+
+Both runs without the actor's batch norm went from 0.52 to 0.00–0.02 by 10k (2026-10-01 RESULTS).
+Ruled out: a larger residual, and batch norm muting the residual at eval. Open hypotheses and their
+tests are in PROGRESS 2026-10-01. Until this is understood, `actor_norm=none` must not be used, and
+it is still the config default: decide whether to set it back to `iid_bn` (STANDARDS 1.6).
+**Updates:** EXPERIMENTS.md, ARCHITECTURE.md.
 
 ### B1 — DONE 2026-09-25 `[CS]` `[SC]`
 

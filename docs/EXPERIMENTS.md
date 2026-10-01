@@ -1810,3 +1810,66 @@ without the actor's batch norm.
 - **Memory:** 41–42 GiB PSS each, with the online buffer near its 10k start.
 - **Config caveats:** `num_actor_layers` stays dead. `action_scale` does not bound the residual
   without `residual_squash`.
+
+---
+
+## 2026-10-01 — RESULTS — the gate failed: `actor-none` and `critic-fn` both collapsed by 10k
+
+| Arm | wandb | Evals from step 0, every 10k | 110k–150k mean | Verdict |
+|---|---|---|---|---|
+| `actor-none` | `ekb6181b` | 0.52 0.02 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 | 0.000 | collapse at 30k; does not advance |
+| `critic-fn` | `24y42etk` | 0.52 0.00 0.00 0.00 0.02 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 | 0.000 | collapse at 30k; does not advance |
+
+- **The gate failed.** `actor-none` cannot match vanilla BC (0.508); it scores 0.00 from 20k on.
+- **A deviation:** a collapse should have stopped both runs at 30k. Nothing enforces that rule and no
+  one was watching, so both ran to 150k (exit 0 at 04:58 and 05:21). No run was waiting, so only
+  GPU time was lost.
+- **Against `target-fix`,** n=1 each, so an observation, not a stage-1 claim. The same config with
+  the actor's batch norm did not collapse: 0.70 at 10k, then 0.46–0.70 to 120k (STOPPED entry). Both
+  runs without batch norm collapsed, each with a different critic.
+- **What the logs rule out:**
+  - **A larger residual.** The residual that training logs is smaller without batch norm at every
+    step: `train/residual_l1_magnitude` is 0.00011 against 0.00098 at step 100, and 0.10 against
+    0.24 at 10k. At 10k, when the no-BN runs already scored 0.02 and 0.00, the BN run scored 0.70.
+  - **Batch norm muting the residual at eval.** On 512 demo observations, `target-fix`'s 10k
+    checkpoint executes in eval mode (running statistics) what training sees (batch statistics):
+    mean |residual| 0.213 against 0.216, with per-sample cosine similarity 0.99998.
+- **What batch norm was doing**, from that checkpoint's running statistics:
+  - at the visual projection, the input variance averages 0.021, so batch norm scaled the visual
+    features up by about 7×;
+  - at the trunk and the policy's hidden layer, it subtracted means (0.76 and 1.22 on average)
+    about as large as their standard deviations (0.75 and 1.07).
+- **The cause of the collapse is not established.** The analysis and the candidate fixes are in
+  PROGRESS 2026-10-01 and TODO.
+
+---
+
+## 2026-10-01 — AMENDMENT — the four ablations run with the actor's batch norm
+
+- **The gate failed** (RESULTS above). The pre-registration said nothing further would be queued
+  until the implementation was reworked.
+- **Aden's decision (2026-10-01):** run the four ablations now with `actor_norm=iid_bn`, the
+  actor normalization every run before 2026-09-30 had, while the collapse without it is analysed.
+  The decision was made after seeing both collapsed runs and `target-fix`'s partial sequence.
+- **Arms:**
+  - the same 11 cases in `submit.sh`, with `equivariance.actor_norm=iid_bn` in place of `none` in
+    every arm;
+  - the reference is `target-fix` again, overriding nothing else;
+  - names `equi-residual-rl-actor-bn-<arm>-<seed>`, notes `square-ablations-1001/<arm>/seed<seed>`;
+  - **seed-group id `square-ablations-1001`**.
+- **Order:** `critic-fn` and `clipq` now, one per GPU. Then `squash` and `depth` on the base the
+  2026-09-30 table gives. There is no gate.
+- **Verdict:** unchanged. A run advances iff its 110k–150k mean is at least B_sq = 0.508. A
+  collapse stops it.
+- **These are mostly the 2026-09-29 sweep's configs:**
+  - `clipq` and `squash` exactly, and `depth` is the sweep's `critic-deep`;
+  - `critic-fn` is the sweep's `critic-ln` as first registered, before its amendment made it
+    `layer_norm`;
+  - the combinations are new.
+- **The reference has no verdict.** `target-fix` (`0rehtuoq`) is these arms' base config, but it was
+  stopped at 124k. Stage-1 verdicts are against B_sq, so they don't need it. A stage-2 comparison
+  needs `target-fix` re-run at the same seeds.
+- **The commit:** the commit that adds this entry. Its training code is `8407c27`'s. On CPU, the
+  deep check of all 11 arms at `iid_bn` is identical to `1e33b8f`, tensor for tensor.
+- **Speed:** `iid_bn` keeps escnn's 30 host syncs per env step (TODO H8), so these runs are slower
+  than the 0.33 s/step of 2026-09-30. The LAUNCHED entry measures it.

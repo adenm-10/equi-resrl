@@ -17,6 +17,40 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-01 — The actor collapses without batch norm; the ablations restart with it
+
+**Done**
+
+- **The gate failed.** `actor-none` and `critic-fn` went from 0.52 to 0.00–0.02 by 10k and stayed
+  there (EXPERIMENTS.md, RESULTS). With the actor's batch norm, `target-fix` held 0.46–0.70.
+- **Ruled out,** from the logs and from `target-fix`'s 10k checkpoint:
+  - a larger residual: the no-BN residual was smaller at every step;
+  - batch norm muting the residual at eval: eval and train residuals agree to 1%.
+- **The ablations restarted with `actor_norm=iid_bn`** (AMENDMENT): `critic-fn` and `clipq` first.
+  The 11 arms at `iid_bn` are bit-identical to `1e33b8f` on CPU.
+
+**Open: why the actor collapses without batch norm** (TODO B10). The hypotheses, each with a test:
+1. **Scale.** Batch norm scaled the visual features up about 7× (input variance 0.021). Without it,
+   the trunk weighs proprioception and the base action far more than vision.
+   Test: each input block's share of the trunk's pre-activations, in a no-BN actor.
+2. **ReLU operating point.** Batch norm re-centred the trunk and policy layers (means about one
+   standard deviation). Without it most units stay active, so the actor is nearly affine in its
+   inputs, and the critic is too flat in the action to correct it (dQ/da ≈ 8e-5).
+   Test: the fraction of active units, and how much of the residual is a linear function of the
+   base action.
+3. **One damaging direction.** The collapse comes while the mean residual is only 0.1, so it is
+   probably one dimension or one systematic push, the gripper being the likeliest.
+   Test: per-dimension residuals at eval; evals with single residual dimensions zeroed.
+
+**Candidate fixes**, besides keeping `iid_bn`:
+- `layer_norm` in the actor: ResFiT's actor has LayerNorm after every hidden layer, and it is
+  per-sample, so there are no running statistics;
+- `field_norm` in the actor;
+- a norm only at the visual projection, which tests hypothesis 1 directly;
+- bounding the residual (`residual_squash`), which limits the harm but not the cause.
+
+---
+
 ## 2026-09-30 — The update no longer waits for the GPU; the actor's default is no normalization
 
 **Done**
