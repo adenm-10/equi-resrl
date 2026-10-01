@@ -9,7 +9,8 @@ submit.sh's case table is checked here first:
           losses.
 
 The arm list itself is pinned to the pre-registration (EXPERIMENTS.md,
-2026-09-30 PRE-REGISTERED). The 2026-09-29 sweep's arms were replaced by it.
+2026-09-30 PRE-REGISTERED, as amended 2026-10-01: every arm has the actor's
+batch norm, and target-fix is the reference again).
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
 # Each change an arm can make, by the name it has in the arm names. An arm's name is its
-# changes joined by "-", in this order; actor-none, the reference, makes none.
+# changes joined by "-", in this order; target-fix, the reference, makes none.
 CHANGES = {
     "critic-fn": "equivariance.critic_norm=field_norm",
     "clipq": "agent.clip_q_target_to_reward_range=true",
@@ -34,7 +35,7 @@ CHANGES = {
     "depth": "equivariance.num_critic_layers=2",
 }
 PREREGISTERED = {
-    "actor-none", "critic-fn", "clipq",
+    "target-fix", "critic-fn", "clipq",
     "squash", "depth", "critic-fn-squash", "critic-fn-depth", "clipq-squash", "clipq-depth",
     "critic-fn-clipq-squash", "critic-fn-clipq-depth",
 }
@@ -98,18 +99,18 @@ def test_arm_composes(arm, tmp_path):
     assert cfg.seed == 1
     # One project and group for every Square equivariant run; the name tells runs apart.
     assert (cfg.wandb.project, cfg.wandb.group) == ("robomimic-square-final", "equi-residual-rl")
-    assert cfg.wandb.name == f"equi-residual-rl-{arm}-1"
+    assert cfg.wandb.name == f"equi-residual-rl-actor-bn-{arm}-1"
     assert "," not in cfg.wandb.notes, "hydra splits on commas"
     eq = cfg.equivariance
-    assert eq.actor_norm == "none", "every arm is at the actor default from 2026-09-30"
+    assert eq.actor_norm == "iid_bn", "every arm has the actor's batch norm (2026-10-01 AMENDMENT)"
     assert eq.critic_norm in HIDDEN_NORMS and eq.encoder_norm in ENCODER_NORMS
     assert eq.frozen_target_critic is False, "every arm has the target-critic fix"
     assert cfg.agent.actor.actor_last_layer_init_scale == 1e-4
 
 
-def test_actor_none_is_the_reference_config(tmp_path):
+def test_target_fix_is_the_reference_config(tmp_path):
     """The arm every other arm is judged against overrides nothing else."""
-    overrides = _overrides("actor-none", tmp_path)
+    overrides = _overrides("target-fix", tmp_path)
     assert {o.split("=", 1)[0] for o in overrides} == SHARED
 
 
@@ -117,7 +118,7 @@ def test_actor_none_is_the_reference_config(tmp_path):
 def test_arm_name_lists_its_changes(arm, tmp_path):
     """critic-fn-clipq-squash makes exactly those three changes, and nothing else."""
     parts = [name for name in CHANGES if name in arm]
-    assert arm == "actor-none" or "-".join(parts) == arm, f"{arm} is not a join of {list(CHANGES)}"
+    assert arm == "target-fix" or "-".join(parts) == arm, f"{arm} is not a join of {list(CHANGES)}"
     own = {o for o in _overrides(arm, tmp_path) if o.split("=", 1)[0] not in SHARED}
     assert own == {CHANGES[name] for name in parts}
 
