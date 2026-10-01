@@ -160,7 +160,7 @@ def tier1_pytest() -> bool:
         ["tests/test_imports.py", "tests/test_config.py",
          "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
          "tests/test_run_package.py", "tests/test_env_wrapper.py",
-         "tests/test_eval_base_policy.py"],
+         "tests/test_eval_base_policy.py", "tests/test_square_verdict.py"],
         "imports + config + regression + run package + env wrapper + base-rate eval",
     )
 

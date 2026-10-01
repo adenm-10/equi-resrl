@@ -11,14 +11,19 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ### B0. The Square ablations, with the actor's batch norm — IN FLIGHT from 2026-10-01 `[SC]`
 
-Pre-registered 2026-09-30 and amended 2026-10-01 after the gate failed. Every arm has
-`actor_norm=iid_bn`. One seed, 150k steps; a run advances if its 110k–150k mean reaches 0.508.
-- **The queue.** One runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`),
-  reading `~/queues/gpu{0,1}.txt`. Launch logs are in `outputs/queue/`.
-- **Watch for collapse** (three consecutive evals ≤ 0.05). Nothing stops a run automatically, so
-  stop it by hand, as the pre-registration says.
-- **When `critic-fn` and `clipq` finish:** a RESULTS entry for each, then queue `squash` and `depth`
-  on the base the 2026-09-30 table gives. Their cases are in `submit.sh`.
+Pre-registered 2026-09-30, amended twice on 2026-10-01: the actor keeps `iid_bn` unless an arm
+replaces it, every run stops at 100k, and a run advances on its training trend
+(`tools/square_verdict.py`). Three normalization arms were added. One seed each.
+- **It runs unattended.** One runner per GPU in tmux `gpu0` and `gpu1` (`tools/gpu_queue.sh`,
+  queues `~/queues/gpu{0,1}.txt`), and the watcher in tmux `watch` (`tools/run_watch.py`). The
+  watcher stops runs at 100k and on collapse, finalizes their packages, and queues the squash and
+  depth arms once `critic-fn`'s and `clipq`'s verdicts are in. Logs: `outputs/queue/`.
+- **Check `outputs/queue/watch.log`** for `TOPS NOT QUEUED` or `READ FAILED`: either means a human
+  has to step in.
+- **Then write up:** a LAUNCHED entry per launch (from `gpu{0,1}.log` and wandb) and a RESULTS entry
+  per finished run, from `tools/square_verdict.py`.
+- **GPU 1's last slot** is `target-fix` seed 2. To run the no-BN diagnostic there instead (B10),
+  edit the queue before that slot starts, about 2026-10-02 19:00, after pre-registering it.
 - **Adding or reordering runs:** edit the queue files, which are outside the repo. A new arm needs
   its case in `submit.sh`, a commit, a worktree at that commit (`~/projects/equi-resrl-<commit>`,
   with the `artifacts` symlink), and a pre-registration first.
@@ -28,8 +33,11 @@ Pre-registered 2026-09-30 and amended 2026-10-01 after the gate failed. Every ar
 
 Both runs without the actor's batch norm went from 0.52 to 0.00–0.02 by 10k (2026-10-01 RESULTS).
 Ruled out: a larger residual, and batch norm muting the residual at eval. Open hypotheses and their
-tests are in PROGRESS 2026-10-01. Until this is understood, `actor_norm=none` must not be used, and
-it is still the config default: decide whether to set it back to `iid_bn` (STANDARDS 1.6).
+tests are in PROGRESS 2026-10-01. Measured since: with batch norm, vision drives 99% of the actor
+trunk's variance, against 59% without; FieldNorm and InnerBatchNorm give 97% and 99%. `actor-fn` and
+`actor-inner` (B0) test those two in place of `iid_bn`. Until this is understood, `actor_norm=none`
+must not be used, and it is still the config default: decide whether to set it back to `iid_bn`,
+or to whichever of the two does better (STANDARDS 1.6).
 **Updates:** EXPERIMENTS.md, ARCHITECTURE.md.
 
 ### B1 — DONE 2026-09-25 `[CS]` `[SC]`
@@ -191,9 +199,9 @@ From `docs/plans/2026-09-30-sync-free-update.md` (untracked).
   clears. Training is unaffected, but `debug/enc_normalizer_grad_norm` is a running sum, not a
   per-update norm. `requires_grad_(False)` fixes it, is exact for training, and changes that metric,
   so it needs its own CODE entry.
-- **Still syncing, and not in `CANDIDATES`:** `actor_norm=iid_bn` (escnn's `IIDBatchNorm1d` asserts
-  on its running stats, 30 syncs per env step) and `encoder_norm=inner_bn` (`InnerBatchNorm` slices
-  with GPU scalars, as `GroupPooling` did). Fix them the same way before either runs again.
+- **Still syncing:** `actor_norm=iid_bn` (escnn's `IIDBatchNorm1d` asserts on its running stats,
+  30 syncs per env step, which make a run about 27% slower). `encoder_norm=inner_bn` no longer
+  syncs: from 2026-10-01 it is `RegularInnerBatchNorm`, not escnn's `InnerBatchNorm`.
 - **The ResFiT baseline's `VitEncoder`** calls `torch.cuda.synchronize()` twice per forward. Check it
   before B3.
 - **bf16 autocast and `channels_last` on the encoders:** about 2× more, measured in scratch, but they

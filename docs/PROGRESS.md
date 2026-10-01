@@ -17,6 +17,44 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-01 (later) — Stop at 100k and judge the trend; three normalization arms; the queue runs itself
+
+**Done**
+
+- **What the actor's batch norm changes, measured** on 512 demo observations, with the same weights
+  for each norm:
+  - **Vision's share of the actor trunk's pre-activation variance:** 99.3% with IID batch norm at
+    init (99.5% at `target-fix`'s 10k), 58.7% with none, 97.3% with FieldNorm, and 98.7% with
+    InnerBatchNorm. Hypothesis 1 of the entry below stands.
+  - **About half the ReLU units are active without batch norm,** so the no-BN actor is not nearly
+    affine; hypothesis 2's mechanism is out.
+  - **InnerBatchNorm is not IID batch norm under another name.** On Square a field's 8 channels have
+    different batch means: 35–85% of the pooled variance at 10k, by site. So InnerBatchNorm's outputs
+    are 0.39–0.81× IID's (medians by site), and its gradients pass through its statistics, which
+    escnn's `IIDBatchNorm1d` detaches (iid.py, lines 191 and 202).
+- **The verdict moved from the eval level to the training trend, at 100k** (EXPERIMENTS.md,
+  AMENDMENT). This was Aden's observation, checked on eight Square runs: the two that learned
+  raised their training-episode success by 0.4–0.5 per 100k (z 4–5); every run that held BC was
+  flat. An eval-level cut at 100k would have failed `870ws2c2` and passed three runs that never
+  learned. Pre-registered before the running pair's 10k eval.
+- **Code** (EXPERIMENTS.md, CODE): `RegularInnerBatchNorm` for the actor and the encoder; the arms
+  `actor-fn`, `actor-inner` and `enc-inner`; `tools/square_verdict.py`; `tools/run_watch.py`.
+- **The queue runs unattended until about 2026-10-03:** see STATUS.
+
+**Decided**
+
+- **Norms are tested one location at a time** against `target-fix`: the actor with FieldNorm and
+  InnerBatchNorm, the encoder with InnerBatchNorm, and the critic with FieldNorm (`critic-fn`,
+  running) and LayerNorm (`critic-ln`, which has data to 110k).
+- **Not tested:**
+  - batch norm in the critic, which would normalize the stored, target and actor-loss batches each
+    with their own statistics;
+  - FieldNorm in the encoder, which would scale every pixel's field to unit size.
+- **GPU 1's free last slot runs `target-fix` seed 2,** which needs no new code; the no-BN diagnostic
+  can replace it.
+
+---
+
 ## 2026-10-01 — The actor collapses without batch norm; the ablations restart with it
 
 **Done**

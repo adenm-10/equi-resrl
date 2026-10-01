@@ -75,6 +75,10 @@ def _candidates() -> dict[str, dict[str, object]]:
     four bases appears alone, with squash and with depth; "all-four" has every
     change at once. All are at the actor_norm default from that date, "none".
     "target-fix" is the reference as it ran, with the actor's batch norm.
+
+    The normalization arms of 2026-10-01 are each one change off target-fix:
+    the actor's IID batch norm replaced by FieldNorm or InnerBatchNorm, or
+    InnerBatchNorm added after the encoder's convs.
     """
     fn = {"equivariance.critic_norm": "field_norm"}
     clipq = {"agent.clip_q_target_to_reward_range": True}
@@ -90,6 +94,9 @@ def _candidates() -> dict[str, dict[str, object]]:
             name = top_name if base_name == "default" else f"{base_name}+{top_name}"
             out[name] = {**new_default, **base, **top}
     out["all-four"] = {**new_default, **fn, **clipq, **squash, **depth}
+    out["actor-fn"] = {"equivariance.actor_norm": "field_norm"}
+    out["actor-inner"] = {"equivariance.actor_norm": "inner_bn"}
+    out["enc-inner"] = {"equivariance.encoder_norm": "inner_bn"}
     return out
 
 

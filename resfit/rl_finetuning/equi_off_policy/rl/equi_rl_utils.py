@@ -717,7 +717,39 @@ class RegularLayerNorm(torch.nn.Module):
         return GeometricTensor(t.reshape(x.tensor.shape), self.out_type, x.coords)
 
 
-HIDDEN_NORMS = ("none", "iid_bn", "layer_norm", "field_norm")
+class RegularInnerBatchNorm(torch.nn.Module):
+    """escnn's InnerBatchNorm for regular fields, flat or spatial, without host syncs.
+
+    Standard batch norm with each field as one channel: one mean and one variance per
+    field, over the batch, the field's channels and any spatial positions, with gradients
+    through both and running statistics for eval mode. The group permutes a regular
+    field's channels, so the statistics are invariant and the map is equivariant; the
+    learnt scale and shift are per field. IIDBatchNorm1d differs twice: its variance is
+    the mean of each channel's own variance, so it leaves out how far the channels' means
+    sit apart, and it detaches its statistics.
+
+    escnn's own InnerBatchNorm computes the same thing but cannot take flat [B, C]
+    features, and slices with GPU index buffers, which makes the CPU wait (STANDARDS 6.5).
+    tests/test_equivariance.py checks that the two agree.
+    """
+
+    def __init__(self, in_type: enn.FieldType, eps: float = 1e-5, momentum: float = 0.1):
+        super().__init__()
+        reps = in_type.representations
+        assert reps and all(r.name == "regular" for r in reps), (
+            f"RegularInnerBatchNorm needs regular fields only, got {in_type}")
+        self.in_type = self.out_type = in_type
+        self.n_fields = len(reps)
+        self.bn = torch.nn.BatchNorm1d(self.n_fields, eps=eps, momentum=momentum)
+
+    def forward(self, x: GeometricTensor) -> GeometricTensor:
+        assert x.type == self.in_type
+        t = x.tensor
+        out = self.bn(t.reshape(t.shape[0], self.n_fields, -1))
+        return GeometricTensor(out.view(t.shape), self.out_type, x.coords)
+
+
+HIDDEN_NORMS = ("none", "iid_bn", "inner_bn", "layer_norm", "field_norm")
 
 
 def hidden_norm(kind: str, field_type: FieldType) -> list[torch.nn.Module]:
@@ -730,6 +762,8 @@ def hidden_norm(kind: str, field_type: FieldType) -> list[torch.nn.Module]:
         return []
     if kind == "iid_bn":
         return [enn.IIDBatchNorm1d(field_type, track_running_stats=True)]
+    if kind == "inner_bn":
+        return [RegularInnerBatchNorm(field_type)]
     if kind == "layer_norm":
         return [RegularLayerNorm(field_type)]
     if kind == "field_norm":

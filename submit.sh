@@ -6,29 +6,31 @@
 #   DRY_RUN=1 ./submit.sh clipq 1       # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...    # escape hatch, discouraged
 #
-# Currently configured for: the Square ablations with the actor's batch norm, pre-registered
-# in docs/EXPERIMENTS.md, "2026-09-30 — PRE-REGISTERED — Square: the actor-none gate, then
-# four ablations", as amended on 2026-10-01 after the gate failed: "2026-10-01 — AMENDMENT
-# — the four ablations run with the actor's batch norm". Launch it inside tmux from a
-# worktree pinned to a commit, with
-# CACHE_DIR pointing at the checkout that holds the buffer caches;
-# tools/gpu_queue.sh does all three.
+# Currently configured for: the Square ablations, pre-registered in docs/EXPERIMENTS.md,
+# "2026-09-30 — PRE-REGISTERED — Square: the actor-none gate, then four ablations", as
+# amended twice on 2026-10-01: "the four ablations run with the actor's batch norm", and
+# "stop at 100k, judge by the training trend, and three normalization arms". Launch it
+# inside tmux from a worktree pinned to a commit, with CACHE_DIR pointing at the checkout
+# that holds the buffer caches; tools/gpu_queue.sh does all three.
 #
 # WHAT EVERY ARM SHARES
 # ---------------------
-# The Square reference config at the new default, stopped at 150k steps: the
-# verdict comes from the 110k-150k evals. Nothing in training depends on
-# total_timesteps before the stop (the stddev and clipping schedules are flat),
-# so these are the first 150k steps of a 300k run.
+# The Square reference config at the new default, stopped at 100k steps: the
+# verdict comes from the training episodes' trend over 10k-100k
+# (tools/square_verdict.py). Nothing in training depends on total_timesteps
+# before the stop (the stddev and clipping schedules are flat), so these are the
+# first 100k steps of a 300k run.
 #
-# Every arm has batch norm (iid_bn) at the actor's three sites, as every run before
-# 2026-09-30 had. Without it both runs of 2026-09-30 collapsed by 10k steps. The
-# default is "none", so it is set explicitly here. The last-layer init scale is
-# 1e-4, as the reference ran.
+# Every arm but actor-fn and actor-inner has batch norm (iid_bn) at the actor's
+# three sites, as every run before 2026-09-30 had. Without it both runs of
+# 2026-09-30 collapsed by 10k steps. The default is "none", so it is set
+# explicitly here; those two arms set another norm in its place. The last-layer
+# init scale is 1e-4, as the reference ran.
 #
 # The wandb project and group come from the config: every Square equivariant
-# run sits in one group, equi-residual-rl. The run name says which arm and seed,
-# and "actor-bn" tells these runs from the 2026-09-30 ones without batch norm.
+# run sits in one group, equi-residual-rl. The run name says which arm and seed.
+# "actor-bn" tells the arms with the actor's IID batch norm from the 2026-09-30
+# runs without it; actor-fn and actor-inner are named for their own norm.
 #
 # n_step, gamma, buffer_size and learning_starts are part of the replay-buffer
 # cache key, so no arm overrides them: every arm reads the same Square caches,
@@ -61,10 +63,20 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     exit 1
 fi
 
+ACTOR_NORM=iid_bn
 case "$ARM" in
     # The reference: the target-critic fix and the actor's batch norm, nothing else.
-    # It ran on 2026-09-29 (0rehtuoq) and was stopped at 124k without a verdict.
+    # Seed 1 ran on 2026-09-29 (0rehtuoq) and was stopped at 124k.
     target-fix) ARM_OVERRIDES=() ;;
+    # The 2026-10-01 normalization arms, each one change off target-fix.
+    # FieldNorm in place of the actor's IID batch norm: each sample's fields
+    # normalized on their own, no batch statistics.
+    actor-fn)   ACTOR_NORM=field_norm; ARM_OVERRIDES=() ;;
+    # InnerBatchNorm in place of the actor's IID batch norm: standard batch norm,
+    # one mean and variance per field, with gradients through them.
+    actor-inner) ACTOR_NORM=inner_bn; ARM_OVERRIDES=() ;;
+    # InnerBatchNorm after each agentview conv; the actor keeps its IID batch norm.
+    enc-inner)  ARM_OVERRIDES=(equivariance.encoder_norm=inner_bn) ;;
     # FieldNorm, each field normalized by its own statistics, at the critic's
     # visual projection, trunk and head.
     critic-fn)  ARM_OVERRIDES=(equivariance.critic_norm=field_norm) ;;
@@ -101,14 +113,18 @@ case "$ARM" in
         ;;
 esac
 
-NAME="equi-residual-rl-actor-bn-${ARM}-${SEED}"
+if [[ "$ACTOR_NORM" == iid_bn ]]; then
+    NAME="equi-residual-rl-actor-bn-${ARM}-${SEED}"
+else
+    NAME="equi-residual-rl-${ARM}-${SEED}"
+fi
 
 OVERRIDES=(
     --config-name=residual_equi_td3_square_config
     algo.prefetch_batches=4
-    algo.total_timesteps=150000
+    algo.total_timesteps=100000
     agent.actor.actor_last_layer_init_scale=1e-4
-    equivariance.actor_norm=iid_bn
+    "equivariance.actor_norm=${ACTOR_NORM}"
     "${ARM_OVERRIDES[@]}"
     "wandb.name=${NAME}"
     "wandb.notes=square-ablations-1001/${ARM}/seed${SEED}"

@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-09-30 · **Last verified commit:** the sync-free update (EXPERIMENTS.md,
-2026-09-30 CODE), on top of `7612801`
+**Last updated:** 2026-10-01 · **Last verified commit:** the normalization arms and the watcher
+(EXPERIMENTS.md, 2026-10-01 CODE)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -28,9 +28,16 @@ their verdicts (EXPERIMENTS.md, STOPPED), and its other 16 arms never ran.
 `target-fix` held 0.46–0.70 to 120k. Why is not established: the residual was smaller without
 batch norm, and the BN actor executes at eval what training sees.
 
-**So the four ablations run with the actor's batch norm** (2026-10-01 AMENDMENT): `critic-fn` and
-`clipq` now, then `squash` and `depth` on whichever of the two advances. A run advances if its
-110k–150k mean reaches **B_sq = 0.508**.
+**So the ablations run with the actor's batch norm, stop at 100k, and are judged by the training
+trend** (the two 2026-10-01 AMENDMENTs).
+- **The verdict:** a run advances iff the slope of its training-episode success over 10k–100k is at
+  least 2 standard errors above zero, its success over 70k–100k beats its own over 0–10k, and it did
+  not collapse. `tools/square_verdict.py` computes it. The eval level at 100k was dropped because
+  it fails the one run that learned Square (`870ws2c2`) and passes three that did not.
+- **The reference does not learn:** `target-fix` (`0rehtuoq`) has slope −0.13 ± 0.10, holding BC.
+- **The arms:** `critic-fn` and `clipq` (running); then the normalization arms `actor-fn` (FieldNorm
+  in the actor), `actor-inner` (InnerBatchNorm in the actor) and `enc-inner` (InnerBatchNorm in the
+  encoder); `squash` and `depth` on the base the two verdicts give; `target-fix` seed 2.
 
 **From 2026-09-30 the update is about 2× faster, and `actor_norm` defaults to `none`**
 (EXPERIMENTS.md, 2026-09-30 CODE).
@@ -52,11 +59,23 @@ is about 4 days.
 | `critic-fn` seed 1, actor BN | `konwqk6l` | 0 | 2026-10-01 07:50 | 2026-10-01 ~20:30 (stopped at 100k) |
 | `clipq` seed 1, actor BN | `63k595oa` | 1 | 2026-10-01 07:51 | 2026-10-01 ~20:30 (stopped at 100k) |
 
-**The queue.**
+**The queue runs itself.**
 - A runner per GPU in tmux sessions `gpu0` and `gpu1` (`tools/gpu_queue.sh`) reads
-  `~/queues/gpu{0,1}.txt`, one `<commit> <arm> <seed>` per line, every minute. Each launch runs from
-  the worktree pinned to its commit.
-- Nothing is queued behind the two runs: `squash` and `depth` wait for both verdicts.
+  `~/queues/gpu{0,1}.txt`, one `<commit> <arm> <seed>` per line, and launches the next line when a
+  run ends. Each launch runs from the worktree pinned to its commit.
+- Queued (about 10–12 h each at 100k):
+
+| GPU | After the running run |
+|---|---|
+| 0 | `actor-fn` → `enc-inner` → the depth arm |
+| 1 | `actor-inner` → the squash arm → `target-fix` seed 2 |
+
+- **The watcher** (`tools/run_watch.py`, tmux session `watch`) stops `critic-fn` and `clipq` after
+  their 100k evals, stops any run that collapses, finalizes stopped runs' packages, and, once both
+  verdicts are in, queues the squash and depth arms the 2026-09-30 table gives. Its log is
+  `outputs/queue/watch.log`.
+- Everything should finish around 2026-10-03 morning. The LAUNCHED and RESULTS entries are written
+  afterwards, from the queue and watch logs.
 - The sweep's 16 unlaunched arms are kept in `~/queues/gpu{0,1}.txt.bak-20260930`.
 - Logs: `outputs/queue/gpu{0,1}.log` records every launch, and each launch's console goes to its own
   file beside it.

@@ -34,10 +34,12 @@ from tools.agent_fingerprint import (
     fixed_batch,
 )
 
-# target-fix has the actor's IIDBatchNorm1d, the actor_norm default before 2026-09-30. escnn's
-# forward asserts on its own running statistics, which syncs 6 times per actor forward. No run
-# from that date on uses it, so it is not fixed, and it is left out of the census.
-SYNC_FREE = [name for name in CANDIDATES if name != "target-fix"]
+# target-fix and enc-inner keep the actor's IIDBatchNorm1d, the actor_norm default before
+# 2026-09-30, which build_reference_agent builds unless a candidate overrides it. escnn's forward
+# asserts on its own running statistics, which syncs 6 times per actor forward. It is not fixed
+# (TODO H8), so those candidates are left out of the census.
+SYNC_FREE = [name for name, overrides in CANDIDATES.items()
+             if overrides.get("equivariance.actor_norm", "iid_bn") != "iid_bn"]
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +218,15 @@ def _assert_no_host_sync(agent, make_batch):
 @pytest.mark.parametrize("candidate", SYNC_FREE)
 def test_candidate_update_makes_no_host_sync(candidate, device):
     agent = build_reference_agent(str(device), overrides=CANDIDATES[candidate])
+    _assert_no_host_sync(agent, lambda: fixed_batch(weights=True).to(device))
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+def test_encoder_inner_bn_makes_no_host_sync(device):
+    """enc-inner is out of the census for its actor's IIDBatchNorm1d; its encoder norm is not."""
+    overrides = {**CANDIDATES["enc-inner"], "equivariance.actor_norm": "none"}
+    agent = build_reference_agent(str(device), overrides=overrides)
     _assert_no_host_sync(agent, lambda: fixed_batch(weights=True).to(device))
 
 

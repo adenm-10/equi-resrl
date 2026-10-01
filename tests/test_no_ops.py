@@ -50,9 +50,13 @@ def _build_obs_enc(device, **kw):
 def _norm_class(kind):
     from escnn import nn as enn
 
-    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import FieldNorm, RegularLayerNorm
-    return {"iid_bn": enn.IIDBatchNorm1d, "layer_norm": RegularLayerNorm,
-            "field_norm": FieldNorm}[kind]
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import (
+        FieldNorm,
+        RegularInnerBatchNorm,
+        RegularLayerNorm,
+    )
+    return {"iid_bn": enn.IIDBatchNorm1d, "inner_bn": RegularInnerBatchNorm,
+            "layer_norm": RegularLayerNorm, "field_norm": FieldNorm}[kind]
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +140,7 @@ def test_encoder_orth_init_changes_values_only(device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("kind", ["iid_bn", "layer_norm", "field_norm"])
+@pytest.mark.parametrize("kind", ["iid_bn", "inner_bn", "layer_norm", "field_norm"])
 def test_actor_norm_reaches_all_three_sites(obs_enc, device, kind):
     """Visual projection, trunk and the policy's hidden layer.
 
@@ -156,7 +160,7 @@ def test_actor_without_norm_has_none(obs_enc, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("kind", ["iid_bn", "layer_norm", "field_norm"])
+@pytest.mark.parametrize("kind", ["iid_bn", "inner_bn", "layer_norm", "field_norm"])
 @pytest.mark.parametrize("num_layers", [1, 2])
 def test_critic_norm_reaches_every_hidden_layer(obs_enc, device, kind, num_layers):
     """Visual projection, trunk, and each hidden layer of each head, never after pooling."""
@@ -168,9 +172,13 @@ def test_critic_norm_reaches_every_hidden_layer(obs_enc, device, kind, num_layer
 def test_reference_critic_has_no_norm(obs_enc, device):
     from escnn import nn as enn
 
-    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import FieldNorm, RegularLayerNorm
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import (
+        FieldNorm,
+        RegularInnerBatchNorm,
+        RegularLayerNorm,
+    )
     critic = _build_critic(obs_enc, device)
-    for cls in (enn.IIDBatchNorm1d, RegularLayerNorm, FieldNorm):
+    for cls in (enn.IIDBatchNorm1d, RegularInnerBatchNorm, RegularLayerNorm, FieldNorm):
         assert _count(critic, cls) == 0
 
 
@@ -194,10 +202,13 @@ def test_encoder_is_bias_free_with_or_without_norm(device):
 @pytest.mark.gpu
 def test_encoder_norm_follows_every_conv(device):
     from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import RegularInnerBatchNorm
     enc = _build_obs_enc(device, encoder_norm="inner_bn").enc_obs
     convs = sum(isinstance(m, enn.R2Conv) for m in enc.modules())
-    assert _count(enc, enn.InnerBatchNorm) == convs
-    assert _count(_build_obs_enc(device).enc_obs, enn.InnerBatchNorm) == 0
+    assert _count(enc, RegularInnerBatchNorm) == convs
+    assert _count(enc, enn.InnerBatchNorm) == 0, "escnn's syncs; the encoder uses the sync-free one"
+    assert _count(_build_obs_enc(device).enc_obs, RegularInnerBatchNorm) == 0
 
 
 # ---------------------------------------------------------------------------

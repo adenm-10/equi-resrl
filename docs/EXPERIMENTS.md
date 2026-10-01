@@ -2009,3 +2009,34 @@ entries. The arms that already existed must train there bit for bit as at `b39a3
 check, on CPU).
 
 **Stage 2:** unchanged, pre-registered separately when an arm advances.
+
+---
+
+## 2026-10-01 — CODE — InnerBatchNorm for the actor and the encoder; the verdict script and the watcher
+
+For the AMENDMENT above ("stop at 100k, judge by the training trend, and three normalization arms").
+
+- **`RegularInnerBatchNorm`** (`equi_rl_utils.py`): torch's `BatchNorm1d` with each regular field as
+  one channel, over the batch, the field's 8 channels and any spatial positions.
+  - It gives escnn's `InnerBatchNorm`'s train outputs, input gradients, running statistics and eval
+    outputs, flat and on 5×5 maps, to 1e-5 (`test_equivariance.py`). It is equivariant in train and
+    eval mode as an actor, critic and encoder option, and makes no host sync (`test_sync_free.py`).
+  - escnn's module cannot take the actor's flat features (its no-base-space path builds a
+    `BatchNorm2d` over a 3D view) and slices with GPU index buffers, which syncs.
+  - **New option** `actor_norm=inner_bn` (and `critic_norm=inner_bn`, which no arm uses).
+  - **`encoder_norm=inner_bn` now builds it** in place of escnn's `InnerBatchNorm`. No run has used
+    that option, so no comparison is affected; its state-dict keys differ from escnn's.
+- **Unchanged for every existing arm:** the deep check of the 11 arms at `iid_bn` (8 updates and one
+  act() on CPU) is identical to `b39a376`'s, tensor for tensor, 668–800 values per arm. The
+  regression goldens pass.
+- **`submit.sh`:** `algo.total_timesteps=100000`; the cases `actor-fn`, `actor-inner` and
+  `enc-inner`; an arm can set the actor's norm. Names as the AMENDMENT says. `CANDIDATES` gains the
+  three arms; the sync census covers those without the actor's IID batch norm, and the encoder's
+  InnerBatchNorm on its own.
+- **`tools/square_verdict.py`** computes the AMENDMENT's rule from a run's local wandb record. On
+  the finished runs it gives the AMENDMENT's numbers (`0rehtuoq` −0.13 ± 0.10, `qlaonpv4`
+  −0.08 ± 0.10; `ekb6181b` and `24y42etk` collapsed at 30k).
+- **`tools/run_watch.py`** stops a run after its 100k eval if it was launched past 100k, stops any
+  collapse, finalizes stopped packages, and queues the squash and depth arms once both verdicts are
+  in. `tests/test_square_verdict.py` (Tier 1, in preflight) checks both tools' decisions on runs
+  built to sit either side of each rule.

@@ -9,8 +9,9 @@ submit.sh's case table is checked here first:
           losses.
 
 The arm list itself is pinned to the pre-registration (EXPERIMENTS.md,
-2026-09-30 PRE-REGISTERED, as amended 2026-10-01: every arm has the actor's
-batch norm, and target-fix is the reference again).
+2026-09-30 PRE-REGISTERED, as amended twice on 2026-10-01: the arms keep the
+actor's batch norm with target-fix as the reference, every run stops at 100k,
+and three normalization arms are added).
 """
 
 from __future__ import annotations
@@ -26,19 +27,26 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-# Each change an arm can make, by the name it has in the arm names. An arm's name is its
-# changes joined by "-", in this order; target-fix, the reference, makes none.
+# Each change an arm can make against target-fix, by the name it has in the arm names. An
+# arm's name is its changes joined by "-", in this order; target-fix, the reference, makes
+# none. actor-fn and actor-inner replace the actor's batch norm rather than add an override.
 CHANGES = {
     "critic-fn": "equivariance.critic_norm=field_norm",
     "clipq": "agent.clip_q_target_to_reward_range=true",
     "squash": "equivariance.residual_squash=true",
     "depth": "equivariance.num_critic_layers=2",
+    "actor-fn": "equivariance.actor_norm=field_norm",
+    "actor-inner": "equivariance.actor_norm=inner_bn",
+    "enc-inner": "equivariance.encoder_norm=inner_bn",
 }
 PREREGISTERED = {
     "target-fix", "critic-fn", "clipq",
     "squash", "depth", "critic-fn-squash", "critic-fn-depth", "clipq-squash", "clipq-depth",
     "critic-fn-clipq-squash", "critic-fn-clipq-depth",
+    "actor-fn", "actor-inner", "enc-inner",
 }
+# The arms whose actor has no IID batch norm, and the norm it has instead.
+ACTOR_NORMS = {"actor-fn": "field_norm", "actor-inner": "inner_bn"}
 # What every arm's launch sets, besides its own changes.
 SHARED = {"--config-name", "algo.prefetch_batches", "algo.total_timesteps",
           "agent.actor.actor_last_layer_init_scale", "equivariance.actor_norm",
@@ -95,14 +103,15 @@ def test_arm_composes(arm, tmp_path):
 
     cfg = _compose(overrides)
     assert cfg.task == "Square"
-    assert cfg.algo.total_timesteps == 150_000
+    assert cfg.algo.total_timesteps == 100_000
     assert cfg.seed == 1
     # One project and group for every Square equivariant run; the name tells runs apart.
     assert (cfg.wandb.project, cfg.wandb.group) == ("robomimic-square-final", "equi-residual-rl")
-    assert cfg.wandb.name == f"equi-residual-rl-actor-bn-{arm}-1"
+    prefix = "equi-residual-rl" if arm in ACTOR_NORMS else "equi-residual-rl-actor-bn"
+    assert cfg.wandb.name == f"{prefix}-{arm}-1"
     assert "," not in cfg.wandb.notes, "hydra splits on commas"
     eq = cfg.equivariance
-    assert eq.actor_norm == "iid_bn", "every arm has the actor's batch norm (2026-10-01 AMENDMENT)"
+    assert eq.actor_norm == ACTOR_NORMS.get(arm, "iid_bn"), "the actor's IID BN, unless replaced"
     assert eq.critic_norm in HIDDEN_NORMS and eq.encoder_norm in ENCODER_NORMS
     assert eq.frozen_target_critic is False, "every arm has the target-critic fix"
     assert cfg.agent.actor.actor_last_layer_init_scale == 1e-4
@@ -116,11 +125,14 @@ def test_target_fix_is_the_reference_config(tmp_path):
 
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_name_lists_its_changes(arm, tmp_path):
-    """critic-fn-clipq-squash makes exactly those three changes, and nothing else."""
+    """critic-fn-clipq-squash differs from target-fix in exactly those three changes."""
     parts = [name for name in CHANGES if name in arm]
     assert arm == "target-fix" or "-".join(parts) == arm, f"{arm} is not a join of {list(CHANGES)}"
-    own = {o for o in _overrides(arm, tmp_path) if o.split("=", 1)[0] not in SHARED}
-    assert own == {CHANGES[name] for name in parts}
+    naming = ("wandb.name", "wandb.notes")
+    reference = {o for o in _overrides("target-fix", tmp_path) if o.split("=", 1)[0] not in naming}
+    own = {o for o in _overrides(arm, tmp_path) if o.split("=", 1)[0] not in naming}
+    assert own - reference == {CHANGES[name] for name in parts}
+    assert {o.split("=", 1)[0] for o in reference - own} <= {"equivariance.actor_norm"}
 
 
 @pytest.mark.gpu

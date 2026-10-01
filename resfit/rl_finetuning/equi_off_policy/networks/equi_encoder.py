@@ -1,7 +1,10 @@
 import torch
 from escnn import gspaces, nn
 
-from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import apply_deltaortho_init
+from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import (
+    RegularInnerBatchNorm,
+    apply_deltaortho_init,
+)
 
 ENCODER_NORMS = ("none", "inner_bn")
 
@@ -11,12 +14,13 @@ def conv_norm(kind: str, field_type: nn.FieldType) -> list[torch.nn.Module]:
 
     Empty for "none", so the encoder every run before 2026-09-29 used keeps its
     module indices. InnerBatchNorm normalizes each regular field with statistics
-    shared by its channels, so it is equivariant.
+    shared by its channels, so it is equivariant. Before 2026-10-01 this was
+    escnn's InnerBatchNorm, which computes the same but syncs; no run used it.
     """
     if kind == "none":
         return []
     if kind == "inner_bn":
-        return [nn.InnerBatchNorm(field_type, affine=True, track_running_stats=True)]
+        return [RegularInnerBatchNorm(field_type)]
     raise ValueError(f"unknown encoder norm {kind!r}; expected one of {ENCODER_NORMS}")
 
 

@@ -294,6 +294,7 @@ def test_equi_clip_actually_clips(obs_enc, device):
 
 ACTOR_OPTIONS = {
     "iid-bn": dict(norm="iid_bn"),
+    "inner-bn": dict(norm="inner_bn"),
     "layer-norm": dict(norm="layer_norm"),
     "field-norm": dict(norm="field_norm"),
     "squash": dict(residual_squash=True),
@@ -301,6 +302,7 @@ ACTOR_OPTIONS = {
 }
 CRITIC_OPTIONS = {
     "iid-bn": dict(norm="iid_bn"),
+    "inner-bn": dict(norm="inner_bn"),
     "layer-norm": dict(norm="layer_norm"),
     "field-norm": dict(norm="field_norm"),
     "two-layer-heads": dict(num_layers=2),
@@ -412,6 +414,51 @@ def test_regular_layer_norm_is_torch_layer_norm_at_init(obs_enc, device):
     x = _feat(obs_enc, [("regular", 16)], device, seed=15) * 3 + 1
     out = RegularLayerNorm(ftype).to(device)(enn.GeometricTensor(x, ftype)).tensor
     torch.testing.assert_close(out, torch.nn.functional.layer_norm(x, (x.shape[1],)))
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("spatial", [(), (5, 5)], ids=["flat", "5x5"])
+def test_regular_inner_batch_norm_is_escnns_inner_batch_norm(device, spatial):
+    """The same outputs, input gradients and running statistics as escnn's InnerBatchNorm, in
+    train mode and then in eval mode. escnn's cannot take flat features, so for the actor's
+    flat case it gets the same numbers as 1x1 feature maps."""
+    from escnn import gspaces
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import RegularInnerBatchNorm
+
+    fields, batch = 6, 16
+    planar = gspaces.rot2dOnR2(N)
+    escnn_type = enn.FieldType(planar, fields * [planar.regular_repr])
+    flat = gspaces.no_base_space(planar.fibergroup)
+    our_type = enn.FieldType(flat, fields * [flat.regular_repr]) if not spatial else escnn_type
+    ours = RegularInnerBatchNorm(our_type).to(device)
+    escnns = enn.InnerBatchNorm(escnn_type).to(device)
+    theirs = getattr(escnns, f"batch_norm_[{N}]")
+    g = torch.Generator().manual_seed(16)
+    with torch.no_grad():  # a scale and shift away from 1 and 0, the same in both
+        for name in ("weight", "bias"):
+            value = torch.randn(fields, generator=g).to(device)
+            getattr(ours.bn, name).copy_(value)
+            getattr(theirs, name).copy_(value)
+
+    # Channel means that differ within a field, where IIDBatchNorm1d would disagree.
+    x = (torch.randn(batch, fields * N, *(spatial or (1, 1)), generator=g) * 3
+         + torch.randn(1, fields * N, 1, 1, generator=g)).to(device)
+    upstream = torch.randn(x.shape, generator=g).to(device)
+    outputs = {}
+    for name, module, ftype in (("ours", ours, our_type), ("escnn", escnns, escnn_type)):
+        xi = (x if spatial else x.flatten(1)) if name == "ours" else x
+        xi = xi.clone().requires_grad_(True)
+        out = module.train(True)(enn.GeometricTensor(xi, ftype)).tensor
+        (out * upstream.view(out.shape)).sum().backward()
+        with torch.no_grad():
+            evaluated = module.train(False)(enn.GeometricTensor(xi, ftype)).tensor
+        outputs[name] = [t.reshape(x.shape) for t in (out.detach(), xi.grad, evaluated)]
+    for what, a, b in zip(("train output", "input gradient", "eval output"), *outputs.values()):
+        torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-5, msg=what)
+    torch.testing.assert_close(ours.bn.running_mean, theirs.running_mean)
+    torch.testing.assert_close(ours.bn.running_var, theirs.running_var)
 
 
 @pytest.mark.gpu
