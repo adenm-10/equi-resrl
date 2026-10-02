@@ -1,17 +1,17 @@
-"""The Square ablations' arms, exactly as submit.sh launches them.
+"""The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
 submit.sh's case table is checked here first:
 
   Tier 1  its overrides compose through Hydra, name valid options, set no key
-          twice, and keep the screen's shared settings.
+          twice, and are the pre-registered ones.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses.
 
-The arm list itself is pinned to the pre-registration (EXPERIMENTS.md,
-2026-09-30 PRE-REGISTERED, as amended twice on 2026-10-01: the arms keep the
-actor's batch norm with target-fix as the reference, every run stops at 100k,
-and three normalization arms are added).
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-02
+PRE-REGISTERED, "Square: the reference with the image fix, seeds 1 and 2"):
+one arm, image-fix, which is the parked ablations' reference target-fix at
+the commit that fixes act()'s image scaling.
 """
 
 from __future__ import annotations
@@ -27,40 +27,30 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-# Each change an arm can make against target-fix, by the name it has in the arm names. An
-# arm's name is its changes joined by "-", in this order; target-fix, the reference, makes
-# none. actor-fn and actor-inner replace the actor's batch norm rather than add an override.
-CHANGES = {
-    "critic-fn": "equivariance.critic_norm=field_norm",
-    "clipq": "agent.clip_q_target_to_reward_range=true",
-    "squash": "equivariance.residual_squash=true",
-    "depth": "equivariance.num_critic_layers=2",
-    "actor-fn": "equivariance.actor_norm=field_norm",
-    "actor-inner": "equivariance.actor_norm=inner_bn",
-    "enc-inner": "equivariance.encoder_norm=inner_bn",
+PREREGISTERED = {"image-fix"}
+# target-fix's overrides as ccff539's submit.sh launched them (2cchirbo, seed 2), less
+# the run's name and notes. 0rehtuoq, seed 1, ran the same config at ce96bb5, launched
+# to 150k, where iid_bn was the default. image-fix must launch exactly these: only the
+# code under them changed.
+TARGET_FIX = {
+    "--config-name=residual_equi_td3_square_config",
+    "algo.prefetch_batches=4",
+    "algo.total_timesteps=100000",
+    "agent.actor.actor_last_layer_init_scale=1e-4",
+    "equivariance.actor_norm=iid_bn",
+    "seed=1",
+    "debug=false",
 }
-PREREGISTERED = {
-    "target-fix", "critic-fn", "clipq",
-    "squash", "depth", "critic-fn-squash", "critic-fn-depth", "clipq-squash", "clipq-depth",
-    "critic-fn-clipq-squash", "critic-fn-clipq-depth",
-    "actor-fn", "actor-inner", "enc-inner",
-}
-# The arms whose actor has no IID batch norm, and the norm it has instead.
-ACTOR_NORMS = {"actor-fn": "field_norm", "actor-inner": "inner_bn"}
-# What every arm's launch sets, besides its own changes.
-SHARED = {"--config-name", "algo.prefetch_batches", "algo.total_timesteps",
-          "agent.actor.actor_last_layer_init_scale", "equivariance.actor_norm",
-          "wandb.name", "wandb.notes", "seed", "debug"}
+NAMING = ("wandb.name", "wandb.notes")
 
 
-def _arms() -> list[str]:
-    """The arm names in submit.sh's case table, in order."""
-    text = SUBMIT.read_text()
-    table = text[text.index('case "$ARM" in'):text.index("\nesac")]
+def case_table_arms(script: str) -> list[str]:
+    """The arm names in a submit.sh's case table, in order."""
+    table = script[script.index('case "$ARM" in'):script.index("\nesac")]
     return re.findall(r"^ {4}([a-z0-9][a-z0-9-]*)\)", table, flags=re.M)
 
 
-ARMS = _arms()
+ARMS = case_table_arms(SUBMIT.read_text())
 
 
 def _overrides(arm: str, tmp_path: pathlib.Path) -> list[str]:
@@ -93,46 +83,29 @@ def test_case_table_is_the_preregistered_arms():
 
 
 @pytest.mark.parametrize("arm", ARMS)
-def test_arm_composes(arm, tmp_path):
-    from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import ENCODER_NORMS
-    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import HIDDEN_NORMS
-
+def test_arm_launches_target_fix_overrides(arm, tmp_path):
     overrides = _overrides(arm, tmp_path)
     keys = [o.split("=", 1)[0] for o in overrides]
     assert len(keys) == len(set(keys)), f"{arm} sets a key twice: {keys}"
+    assert {o for o in overrides if o.split("=", 1)[0] not in NAMING} == TARGET_FIX
 
-    cfg = _compose(overrides)
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_arm_composes(arm, tmp_path):
+    cfg = _compose(_overrides(arm, tmp_path))
     assert cfg.task == "Square"
     assert cfg.algo.total_timesteps == 100_000
     assert cfg.seed == 1
     # One project and group for every Square equivariant run; the name tells runs apart.
     assert (cfg.wandb.project, cfg.wandb.group) == ("robomimic-square-final", "equi-residual-rl")
-    prefix = "equi-residual-rl" if arm in ACTOR_NORMS else "equi-residual-rl-actor-bn"
-    assert cfg.wandb.name == f"{prefix}-{arm}-1"
+    assert cfg.wandb.name == f"equi-residual-rl-actor-bn-{arm}-1"
+    assert cfg.wandb.notes == f"square-image-fix-1002/{arm}/seed1"
     assert "," not in cfg.wandb.notes, "hydra splits on commas"
     eq = cfg.equivariance
-    assert eq.actor_norm == ACTOR_NORMS.get(arm, "iid_bn"), "the actor's IID BN, unless replaced"
-    assert eq.critic_norm in HIDDEN_NORMS and eq.encoder_norm in ENCODER_NORMS
-    assert eq.frozen_target_critic is False, "every arm has the target-critic fix"
+    assert eq.actor_norm == "iid_bn"
+    assert eq.frozen_target_critic is False, "the target-critic fix"
+    assert eq.float_images_as_uint8 is False, "the image-scaling fix"
     assert cfg.agent.actor.actor_last_layer_init_scale == 1e-4
-
-
-def test_target_fix_is_the_reference_config(tmp_path):
-    """The arm every other arm is judged against overrides nothing else."""
-    overrides = _overrides("target-fix", tmp_path)
-    assert {o.split("=", 1)[0] for o in overrides} == SHARED
-
-
-@pytest.mark.parametrize("arm", ARMS)
-def test_arm_name_lists_its_changes(arm, tmp_path):
-    """critic-fn-clipq-squash differs from target-fix in exactly those three changes."""
-    parts = [name for name in CHANGES if name in arm]
-    assert arm == "target-fix" or "-".join(parts) == arm, f"{arm} is not a join of {list(CHANGES)}"
-    naming = ("wandb.name", "wandb.notes")
-    reference = {o for o in _overrides("target-fix", tmp_path) if o.split("=", 1)[0] not in naming}
-    own = {o for o in _overrides(arm, tmp_path) if o.split("=", 1)[0] not in naming}
-    assert own - reference == {CHANGES[name] for name in parts}
-    assert {o.split("=", 1)[0] for o in reference - own} <= {"equivariance.actor_norm"}
 
 
 @pytest.mark.gpu

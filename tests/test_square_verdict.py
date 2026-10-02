@@ -87,10 +87,19 @@ def test_top_arms_follow_the_2026_09_30_table():
     assert top_arms(True, True) == ("critic-fn-clipq-squash", "critic-fn-clipq-depth")
 
 
-def test_top_arms_are_submit_sh_arms():
-    from tests.test_sweep_arms import ARMS
+def test_top_arms_are_arms_where_the_watcher_queues_them():
+    """The watcher queues squash and depth at the commit named on its command line. For the
+    Square ablations, parked on 2026-10-02, that is ccff539: their arms launch from its
+    submit.sh. HEAD's submit.sh is rewritten for each experiment, so it is not the reference."""
+    import subprocess
+
+    from tests.test_sweep_arms import case_table_arms
+
+    script = subprocess.run(["git", "show", "ccff539:submit.sh"], cwd=Path(__file__).resolve().parent,
+                            capture_output=True, text=True, check=True).stdout
+    arms = set(case_table_arms(script))
     for flags in ((False, False), (True, False), (False, True), (True, True)):
-        assert set(top_arms(*flags)) <= set(ARMS)
+        assert set(top_arms(*flags)) <= arms
 
 
 def test_watcher_stops_only_long_runs_at_100k_and_any_collapse():

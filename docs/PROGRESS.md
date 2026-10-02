@@ -17,6 +17,42 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-02 — act() saw near-blank images in every equivariant run; fixed; the ablations parked
+
+**Done**
+
+- **The machine went down at about 06:50 and rebooted at 14:22.** That killed `enc-inner` and
+  `target-fix` seed 2, the runners and the watcher. Every run of the queue is now written up:
+  LAUNCHED, RESULTS (none advances; both actor-norm arms collapsed) and STOPPED. Both crashed
+  packages were finalized by hand.
+- **Found and fixed the image-scaling bug** (EXPERIMENTS.md, CORRECTION and CODE).
+  - act() got the env's float images and divided them by 255 again.
+  - Two trained checkpoints executed a 0.001 residual against the 0.3 they trained.
+  - After the fix the two agree to cosine 1.0000, and the update is bit-identical for all 17
+    `CANDIDATES`.
+- **New test file `tests/test_obs_formats.py`** feeds the env's format and the buffer's.
+- **New rule STANDARDS 4.5:** test on the inputs the env produces.
+- **The gate's intermittent failure was most likely an unseeded test,** not broken equivariance.
+  One delta-orthonormal encoder init in 20 gives an output near 1e-8, where the relative error is
+  noise.
+- **Pre-registered the image-fix pair** (`square-image-fix-1002`): `target-fix`'s launch at the
+  fix, seeds 1 and 2.
+- **Planned tuned RLPD,** equivariant and ResFiT, on Can and Square: `docs/plans/2026-10-02-tuned-rlpd.md`
+  and TODO B12.
+
+**Decided**
+
+- **Aden's decisions:**
+  - The Square ablations are parked.
+  - The image-fix pair runs before tuned RLPD.
+  - The equivariant tuned-RLPD arms start from the design of the best equivariant residual, the
+    image-fix reference; the ResFiT arms from ResFiT's design.
+- **"Made vanilla" means the fields ResFiT's own residual and RLPD configs differ in,** applied the
+  same way to both stacks. The equivariant actor's output bound is the one choice that rule leaves
+  open. It is asked in the plan.
+
+---
+
 ## 2026-10-01 (later) — Stop at 100k and judge the trend; three normalization arms; the queue runs itself
 
 **Done**

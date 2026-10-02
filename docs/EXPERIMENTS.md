@@ -2169,3 +2169,149 @@ Earlier runs' configs lack the field, and every earlier run had it in effect as 
 **Also:**
 - New rule STANDARDS 4.5: test the agent on the observations the env produces.
 - `preflight.py`'s Tier 2 runs `test_obs_formats.py`.
+
+---
+
+## 2026-10-02 — LAUNCHED — the queue's launches of 2026-10-01 evening, written up afterwards
+
+The runners and the watcher launched these unattended (2026-10-01 AMENDMENT, "Order" and
+"Automation"). Recorded on 2026-10-02 from `outputs/queue/gpu{0,1}.log`, `watch.log`, each launch's
+console log and the run packages.
+
+| Arm | Seed | wandb | GPU | Commit | Launched (EDT) |
+|---|---|---|---|---|---|
+| `actor-inner` | 1 | **`qlxevddz`** | 1 | `ccff539` | 2026-10-01 20:20 (wandb 20:32) |
+| `actor-fn` | 1 | **`q12tenbb`** | 0 | `ccff539` | 2026-10-01 20:28 (wandb 20:40) |
+| `squash` | 1 | none | 1 | `ccff539` | 2026-10-01 23:42: **gate NO-GO**, exit 1 after 11 min |
+| `enc-inner` | 1 | **`u4p6uz3d`** | 0 | `ccff539` | 2026-10-01 23:48 (wandb 00:01) |
+| `target-fix` | 2 | **`2cchirbo`** | 1 | `ccff539` | 2026-10-01 23:54 (wandb 00:07) |
+
+- **How:** queue lines `ccff539 <arm> <seed>`, run from `~/projects/equi-resrl-ccff539` with
+  `CACHE_DIR=~/projects/equi-resrl`. The watcher wrote the squash and depth lines at 20:29 from
+  `critic-fn`'s and `clipq`'s verdicts (both "does not advance", so the table's plain `squash` and
+  `depth`). Names and notes as the AMENDMENT says.
+- **Gate:** GO for the four runs (Tier 1: 133 passed, 2 skipped; Tier 2: 332 passed).
+  **`squash` failed Tier 2:** `test_vision_encoder_options_are_equivariant_at_right_angles
+  [orth-init-eval]`, a test of an encoder option no arm uses. The runner moved to the next line, as
+  it is built to. The most likely cause, an unseeded test, is in the 2026-10-02 CODE entry above.
+  `squash` never ran.
+- **Startup verified** from the consoles: `Set random seed` to the arm's seed; offline `1d31ed9b`
+  (80,429) and online `66c46c51` (10,000) loaded from disk; probe centre (−0.56, 0.0).
+- **Step-0 evals:** `actor-inner` 0.56, `actor-fn` 0.54, `enc-inner` 0.62, `target-fix` seed 2
+  0.46. The trainer-path step-0 pool is now 390/700 = 0.557.
+- **Speed,** from each run's history after the warm-up: 0.346 s/step (`actor-fn`), 0.347
+  (`actor-inner`), 0.426 (`target-fix` seed 2), and 0.895 (`enc-inner`): InnerBatchNorm after every
+  agentview conv doubles the step.
+
+---
+
+## 2026-10-02 — RESULTS — the Square ablations: none advances, and both actor-norm arms collapse
+
+From `tools/square_verdict.py` (the 2026-10-01 rule). Seed-group `square-ablations-1001`, seed 1.
+
+| Arm | wandb | Evals from step 0, every 10k | Slope per 100k (z) | Success: start → late | Verdict |
+|---|---|---|---|---|---|
+| `critic-fn` | `konwqk6l` | 0.64 0.56 0.44 0.60 0.42 0.58 0.48 0.60 0.58 0.46 0.48 | −0.03 ± 0.10 (−0.3) | 0.60 → 0.54 | does not advance |
+| `clipq` | `63k595oa` | 0.50 0.30 0.56 0.44 0.56 0.60 0.54 0.56 0.52 0.60 0.54 | +0.03 ± 0.10 (+0.3) | 0.38 → 0.52 | does not advance |
+| `actor-fn` | `q12tenbb` | 0.54 0.00 0.00 0.00 | — | — | collapse at 30k; does not advance |
+| `actor-inner` | `qlxevddz` | 0.56 0.00 0.00 0.00 | — | — | collapse at 30k; does not advance |
+
+- **Reported, deciding nothing:** eval mean at 60k–100k 0.520 (`critic-fn`) and 0.552 (`clipq`),
+  against B_sq = 0.508; episode-length slopes +11 ± 10 and +0 ± 10 per 100k. Neither collapsed.
+- **The watcher acted as designed:** it stopped `critic-fn` and `clipq` after their 100k evals
+  (20:28 and 20:20; both were launched to 150k), and `actor-fn` and `actor-inner` at their 30k
+  collapse (23:48 and 23:42), and finalized all four packages.
+- **The vision-share prediction failed.** FieldNorm and InnerBatchNorm in the actor both collapsed,
+  though at init they give vision 97–99% of the actor trunk's variance, as IID batch norm does
+  (2026-10-01 AMENDMENT, point 4).
+- **Every run here acted on near-blank images** (CORRECTION above). `clipq`'s trained actor executed
+  a mean residual of 0.0009 against the 0.27 it trained. So these verdicts say what the configs did
+  under that bug, not whether the designs work.
+
+---
+
+## 2026-10-02 — STOPPED — `enc-inner` (`u4p6uz3d`) and `target-fix` seed 2 (`2cchirbo`): the machine went down
+
+The machine went down at about 06:50 EDT on 2026-10-02 (the consoles' last writes are 06:43 and
+06:50) and came back at 14:22. Both runs died with it, as did the two runners and the watcher.
+Neither reached 100k, so **neither has a verdict.**
+
+| Arm | wandb | Last logged step | Evals from step 0, every 10k | Training slope so far |
+|---|---|---|---|---|
+| `enc-inner` | `u4p6uz3d` | 25,400 | 0.62 0.50 0.52 | +0.82 ± 1.48 per 100k |
+| `target-fix`, seed 2 | `2cchirbo` | 55,900 | 0.46 0.52 0.56 0.64 0.54 0.56 | −0.24 ± 0.28 per 100k |
+
+- wandb shows both as crashed. Their packages were finalized by hand on 2026-10-02
+  (`finalize_run_package`), so each holds wandb's record in `wandb_logs/`.
+- **Never launched:** `squash` (its gate failed: LAUNCHED above) and `depth` (next on GPU 0's
+  queue).
+- **The group is parked** (Aden's decision, 2026-10-02): the ablations stop here. GPU 0's queue
+  line `ccff539 depth 1` is commented out. The arms stay launchable at `ccff539`.
+
+---
+
+## 2026-10-02 — PRE-REGISTERED — Square: the reference with the image fix, seeds 1 and 2
+
+**Question.** With act() fixed, the residual the actor trains is the residual it executes. Does the
+reference equivariant residual then learn on Square, hold BC, or collapse? Aden's decision
+(2026-10-02): run this pair before the tuned-RLPD experiment.
+
+**Seed-group id `square-image-fix-1002`.**
+- Project `robomimic-square-final`, group `equi-residual-rl`.
+- Names `equi-residual-rl-actor-bn-image-fix-<seed>`, notes `square-image-fix-1002/image-fix/seed<seed>`.
+
+**The arm, `image-fix`:** `target-fix`'s launch, unchanged, at the commit that adds this entry.
+- **Overrides:** `residual_equi_td3_square_config` plus `algo.prefetch_batches=4`,
+  `algo.total_timesteps=100000`, `agent.actor.actor_last_layer_init_scale=1e-4` and
+  `equivariance.actor_norm=iid_bn`.
+- **Seeds 1 and 2,** one per GPU. These are `target-fix`'s `0rehtuoq` and `2cchirbo`.
+
+**Each run's verdict** is the 2026-10-01 rule, computed by `tools/square_verdict.py`. A run
+advances iff all three hold:
+- (a) the slope of training success over (10k, 100k] is at least 2 standard errors above zero;
+- (b) success over (70k, 100k] beats success over [0, 10k];
+- (c) it did not collapse (three consecutive evals ≤ 0.05).
+
+Reported, deciding nothing: the eval mean over 60k–100k against B_sq = 0.508, the eval sequence, and
+the episode-length slope.
+
+**No early stop.** Each run ends at 100k. A run that collapses may be stopped by hand from then on.
+That changes nothing in its verdict, since it fails (c).
+
+**What the outcomes mean,** decided now:
+- **Either run advances:** the reference learns once its actions are executed. The ablations'
+  verdicts say nothing about their designs. Stage 2 is pre-registered separately.
+- **Both hold without advancing:** the bug was not all that stopped learning. The reference's other
+  choices remain suspects, two critic heads among them.
+- **Either run collapses:** the IID-batch-norm actor's earlier stability came from executing almost
+  no residual. The equivariant tuned-RLPD arm starts from this design (Aden's decision, 2026-10-02).
+  If this happens, that arm does not launch on this design until Aden decides.
+
+**Against earlier runs.**
+- `target-fix` at the same seeds (`0rehtuoq` to 124k, `2cchirbo` to 56k) had the same config,
+  seeds, caches and training code (the deep check). The two differ in act()'s image scaling only.
+- Two seeds against two is an observation, not a comparison (STANDARDS 5.3).
+- Env initial states are unseeded in both.
+
+**Held fixed:**
+- **Everything `target-fix` had:**
+  - n_step 3, gamma 0.99, buffer 200k, learning_starts 10k, critic warm-up 10k;
+  - `action_scale` 0.1, stddev 0.05, actor LR 1e-6, critic LR 1e-4, two critic heads;
+  - 300 demo episodes;
+  - 50-episode evals every 10k.
+- **BC policy:** `run_3hzs5bz1_best:v9`.
+- **The Square caches `1d31ed9b` and `66c46c51`.** The fix changes neither: the warm-up uses no
+  actor, and the cache key holds no encoder field.
+- **Environment:** `boce-WS-01`, torch 2.6.0, torchrl 0.7.0, escnn 1.0.11.
+- **The commit:** the one that adds this entry. Its training code is `ccff539`'s apart from act()'s
+  image scaling (the deep check).
+
+**Resources.** About 12 h per run at 0.42 s/step, the rate of the earlier `iid_bn` runs. Two runs
+at a time, at 41–42 GiB each.
+
+**Launcher.** `submit.sh` and `tests/test_sweep_arms.py` are rewritten for this pair; the test checks
+that `image-fix` launches `target-fix`'s overrides exactly. `tests/test_square_verdict.py` now checks the watcher's squash and
+depth arms against `ccff539`'s `submit.sh`, where the parked group launches.
+
+**Records.** A LAUNCHED entry, with the step-0 evals and the measured speed. A RESULTS entry per
+run, from `tools/square_verdict.py`.

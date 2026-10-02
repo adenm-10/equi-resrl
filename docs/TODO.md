@@ -9,36 +9,71 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B0. The Square ablations, with the actor's batch norm — IN FLIGHT from 2026-10-01 `[SC]`
+### B11. The reference with the image fix, seeds 1 and 2 — IN FLIGHT from 2026-10-02 `[SC]`
 
-Pre-registered 2026-09-30, amended twice on 2026-10-01: the actor keeps `iid_bn` unless an arm
-replaces it, every run stops at 100k, and a run advances on its training trend
-(`tools/square_verdict.py`). Three normalization arms were added. One seed each.
-- **It runs unattended.** One runner per GPU in tmux `gpu0` and `gpu1` (`tools/gpu_queue.sh`,
-  queues `~/queues/gpu{0,1}.txt`), and the watcher in tmux `watch` (`tools/run_watch.py`). The
-  watcher stops runs at 100k and on collapse, finalizes their packages, and queues the squash and
-  depth arms once `critic-fn`'s and `clipq`'s verdicts are in. Logs: `outputs/queue/`.
-- **Check `outputs/queue/watch.log`** for `TOPS NOT QUEUED` or `READ FAILED`: either means a human
-  has to step in.
-- **Then write up:** a LAUNCHED entry per launch (from `gpu{0,1}.log` and wandb) and a RESULTS entry
-  per finished run, from `tools/square_verdict.py`.
-- **GPU 1's last slot** is `target-fix` seed 2. To run the no-BN diagnostic there instead (B10),
-  edit the queue before that slot starts, about 2026-10-02 19:00, after pre-registering it.
-- **Adding or reordering runs:** edit the queue files, which are outside the repo. A new arm needs
-  its case in `submit.sh`, a commit, a worktree at that commit (`~/projects/equi-resrl-<commit>`,
-  with the `artifacts` symlink), and a pre-registration first.
+Pre-registered 2026-10-02 (`square-image-fix-1002`): `target-fix`'s launch at the commit that fixes
+act()'s image scaling (EXPERIMENTS.md, 2026-10-02 CORRECTION). One runner per GPU in tmux `gpu0`
+and `gpu1`; no watcher. Each run ends at 100k by itself.
+- **Write up:** the LAUNCHED entry once both have a step-0 eval and a measured speed. Then a RESULTS
+  entry per run from `tools/square_verdict.py`.
+- **A collapse** (three consecutive evals ≤ 0.05) may be stopped by hand. Per the pre-registration,
+  a collapse also holds the equivariant tuned-RLPD arm (B12) until Aden decides.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
-### B10. Why the actor collapses without batch norm `[SC]` `[CS]`
+### B12. Tuned RLPD, equivariant and ResFiT, on Can and Square `[SC]` `[CS]`
+
+Vanilla RL with no base policy, as a test of the RL machinery. Planned 2026-10-02 in
+`docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Launches after B11.
+- **Aden's decisions (2026-10-02).** The equivariant arms start from the design of the best
+  equivariant residual, the B11 reference. The ResFiT arms default to ResFiT's own design.
+- **The code:** a no-base-policy mode in `train_residual_td3.py`, and a non-residual equivariant
+  actor. It needs its own pre-registration.
+**Updates:** EXPERIMENTS.md, ARCHITECTURE.md, STATUS.md.
+
+### B0 — PARKED 2026-10-02: the Square ablations, with the actor's batch norm `[SC]`
+
+Aden's decision. Recorded in EXPERIMENTS.md, 2026-10-02 LAUNCHED, RESULTS and STOPPED:
+- **Did not advance:** `critic-fn` and `clipq`.
+- **Collapsed at 30k:** `actor-fn` and `actor-inner`.
+- **No verdict:** `enc-inner` and `target-fix` seed 2, killed when the machine went down.
+- **Never ran:** `squash` (failed gate) and `depth`.
+
+Every one of these acted on near-blank images, so none of them tested its design. The arms stay
+launchable at `ccff539`. GPU 0's leftover line `ccff539 depth 1` is commented out in
+`~/queues/gpu0.txt`, with the file as it was in `gpu0.txt.bak-20261002`.
+
+### B10. Why the actor collapses without batch norm — REOPENED 2026-10-02 `[SC]` `[CS]`
 
 Both runs without the actor's batch norm went from 0.52 to 0.00–0.02 by 10k (2026-10-01 RESULTS).
-Ruled out: a larger residual, and batch norm muting the residual at eval. Open hypotheses and their
-tests are in PROGRESS 2026-10-01. Measured since: with batch norm, vision drives 99% of the actor
-trunk's variance, against 59% without; FieldNorm and InnerBatchNorm give 97% and 99%. `actor-fn` and
-`actor-inner` (B0) test those two in place of `iid_bn`. Until this is understood, `actor_norm=none`
-must not be used, and it is still the config default: decide whether to set it back to `iid_bn`,
-or to whichever of the two does better (STANDARDS 1.6).
+FieldNorm and InnerBatchNorm in its place collapsed too, by 30k (2026-10-02 RESULTS). That falsified
+the vision-share prediction.
+- **All of it ran under the image bug** (2026-10-02 CORRECTION). act() saw near-blank images. With
+  them, the IID-batch-norm actor executed about 0.001 of a 0.3 residual. The other actors executed
+  whatever they compute from a blank image, which cannot be measured: their best checkpoints are
+  from step 0.
+- So the collapses and batch norm's "stability" both fit the bug, and neither is established. The
+  2026-10-01 RESULTS' "ruled out: batch norm muting the residual at eval" was measured on buffer
+  images only.
+- **B11 decides the first half:** whether the IID-batch-norm actor is stable once its residual is
+  executed. If it is, re-run `actor-none` at the fix before concluding anything about the others.
+- `actor_norm=none` is still the config default (STANDARDS 1.6). Decide it after B11.
 **Updates:** EXPERIMENTS.md, ARCHITECTURE.md.
+
+### B13. Small findings from 2026-10-02 `[CS]` `[SC]`
+
+- **The residual path clips twice, differently.**
+  - `QAgent._combine_actions` gives the critic `equi_clip(base + residual)`: each rotating pair
+    goes onto the unit disk.
+  - The buffer stores the unclipped sum, and the env clips it per axis, to a box.
+  - So the critic is trained on actions that were not the ones executed. 3.2% (Square) and 14.9%
+    (Can) of demo xy actions lie outside the disk.
+- **The eval video's Q annotation is wrong for the equivariant agent.** `evaluate_dexmg.py` scores
+  the residual alone, because of its `if agent.residual_actor and not equivariant`. Cosmetic.
+- **`encoder_orth_init` gives a near-dead encoder** for about 1 delta-orthonormal init in 20: output
+  about 1e-8, 85% zeros. No run has used it (2026-10-02 CODE).
+- **`ablate_equi_obs_encoder.py`, which nothing imports, has the same image bug.** One more reason
+  to delete it (P3.5).
+**Updates:** ARCHITECTURE.md ("Known rough edges").
 
 ### B1 — DONE 2026-09-25 `[CS]` `[SC]`
 
@@ -53,6 +88,8 @@ estimates cache size per task.
 `36pfxsww` (0.96), and `zyed0lew` (non-equivariant Can baseline, 0.76 → 0.94). None has an
 EXPERIMENTS.md entry. `lgc70vgd` reached a higher best with `actor_last_layer_init_scale=0.0`, which
 contradicts the premise of R11 — resolve that before running R11.
+The four equivariant ones acted on near-blank images (2026-10-02 CORRECTION), so they record the
+base policy's draws, not the method.
 **Updates:** EXPERIMENTS.md, then R11.
 
 ### B3. Launch the BoxCleanup baseline `[SC]`
@@ -108,8 +145,9 @@ caches regardless. Cost is ~3.5 days of an idle GPU 1.
 ### B6. Re-run the Can replication with the target-critic fix `[SC]`
 
 Every Can result, the replication included, trained against a frozen target critic (EXPERIMENTS.md,
-2026-09-29 CORRECTION). After the Square sweep, re-run the Can reference config at a fixed-target
-commit, over 3 seeds, before any Can claim is repeated. The Can caches are gone (H7), so the first
+2026-09-29 CORRECTION). After the Square sweep, re-run the Can reference config at a commit with both
+fixes (the target critic and act()'s images, 2026-10-02 CORRECTION), over 3 seeds, before any Can
+claim is repeated. The Can caches are gone (H7), so the first
 run rebuilds them.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
