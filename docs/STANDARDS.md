@@ -219,6 +219,20 @@ code has no tests, no type checking, and no way to tell whether it still works. 
 equivariant actor and critic carry several blocks of it, which is how the dead config fields came
 to exist.
 
+### 4.5 Test on the inputs the env produces `[SC]`
+
+An observation reaches the agent by two routes. act() gets it from the env, and the update gets it
+from the replay buffer. The two formats differ: the env's images are float in [0, 1], and the
+buffer's copies are uint8.
+
+Every test, golden and fingerprint fed uint8 only. So for seven months no test could see that the
+equivariant encoder turned the env's images near-blank, and every equivariant run executed almost
+none of the residual it trained (EXPERIMENTS.md, 2026-10-02 CORRECTION).
+
+- A test of either route feeds the format that route delivers.
+- `tests/test_obs_formats.py` checks that the two give the same act().
+- A new observation key, or a change to how the trainer stores one, extends that file.
+
 ---
 
 ## 5. Running experiments
@@ -296,7 +310,9 @@ Anti-pattern: `train/` and `training/` are both in use and mean nearly the same 
 These three found the residual-saturation failure mode and should stay logged on any new agent:
 
 - `train/residual_l{1,2}_magnitude` — compare against `action_scale`. Equality means the residual is
-  pinned at its clip boundary.
+  pinned at its clip boundary. It is the update batch's residual, computed from buffer images, not
+  the one act() executes; until 2026-10-02 the two differed by about 200× in every equivariant run
+  (rule 4.5).
 - `debug/dQ_da_mean_abs` — the critic's action gradient. Around `1e-4` means the actor is ascending
   a nearly flat surface.
 - `train/critic_loss` — a low, stable loss alongside a flat `dQ_da` means the critic is fitting

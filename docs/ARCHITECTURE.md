@@ -115,12 +115,14 @@ makes each row executable.
 | `use_visual_proj` | `True` | — | live | live | **Live** from 2026-09-29 |
 | `residual_squash` | `False` | — | — | live | **Live** from 2026-09-29 |
 | `frozen_target_critic` | `False` | — | target critic's mode | — | **Live** from 2026-09-29. `True` reproduces every earlier equivariant run, whose target critic never changed (EXPERIMENTS.md, 2026-09-29 CORRECTION) |
+| `float_images_as_uint8` | `False` | act()'s image scaling, both branches | — | — | **Live** from 2026-10-02. `True` reproduces every earlier equivariant and scalar-ablation run, whose act() saw near-blank images (EXPERIMENTS.md, 2026-10-02 CORRECTION) |
 | `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
 | `num_critic_layers` | `1` | — | hidden layers per head | — | **Live** from 2026-09-29. Before, it was dead with default `2`, and every head had 1 hidden layer |
 
 A field added on 2026-09-29 is absent from earlier runs' configs; read it at its default, except
 `frozen_target_critic`, which those runs had in effect as `True`, and `actor_norm`, which every run
-before 2026-09-30 had as `iid_bn` (EXPERIMENTS.md, 2026-09-30 CODE).
+before 2026-09-30 had as `iid_bn` (EXPERIMENTS.md, 2026-09-30 CODE). `float_images_as_uint8`, added on
+2026-10-02, was in effect `True` in every run before then.
 
 Also dead: `agent.actor.dropout` and `agent.critic.dropout` are threaded into both modules and
 never used. `agent.critic.loss` reaches the equivariant critic as `loss_cfg`, is stored, and is
@@ -231,6 +233,7 @@ BasePolicyVecEnvWrapper.step(residual_naction)
   └─ obs["observation.base_action"] = base_naction
 
 ResObsEnc.forward(obs)                             # equi_off_policy/networks/obs_encoder.py
+  ├─ images     uint8 (buffer) ÷ 255, float (env) as is → ×2 − 1 → [−1, 1]
   ├─ agentview  84×84 → random crop 76×76 → EquivariantResEncoder76Cyclic → regular repr
   ├─ in-hand    84×84 → random crop 76×76 → ResEncoder76InHand            → trivial repr
   ├─ state → ee_pos, ee_quat, ee_q
@@ -316,6 +319,11 @@ representation to preserve equivariance — see [EQUIVARIANCE.md](EQUIVARIANCE.m
 
 So "where is the data normalized" has two different answers depending on which path you are on,
 and comparing statistics across the two paths requires knowing which.
+
+**Images arrive in two formats on both paths.** act() gets the env's float images in [0, 1]; the
+update gets the replay buffer's uint8 copies. ResFiT's `_encode` and `ResObsEnc` both convert by
+dtype. Until 2026-10-02 `ResObsEnc` divided both by 255, so every equivariant run acted on
+near-blank images (EXPERIMENTS.md, 2026-10-02 CORRECTION). `tests/test_obs_formats.py` feeds both.
 
 ## Training phases in `train_residual_td3.py`
 

@@ -125,6 +125,7 @@ class QAgent(torch.nn.Module):
                 initialize=self.equi_cfg.initialize,
                 encoder_norm=self.equi_cfg.encoder_norm,
                 encoder_orth_init=self.equi_cfg.encoder_orth_init,
+                float_images_as_uint8=self.equi_cfg.float_images_as_uint8,
                 **enc_layout,
             ).to(self.agent_cfg.device)
 
@@ -179,6 +180,7 @@ class QAgent(torch.nn.Module):
                 n_hidden=n_hid,
                 use_norms=use_norms,
                 equivariant=False,
+                float_images_as_uint8=self.equi_cfg.float_images_as_uint8,
                 **enc_layout,
             ).to(self.agent_cfg.device)
 

@@ -366,20 +366,6 @@ def test_critic_options_are_invariant(obs_enc, arm_spec, device, option, trainin
             assert err < TOL, f"critic {option} not invariant at k={k}: {err:.2e}"
 
 
-@pytest.fixture
-def no_tf32():
-    """Full-precision convolutions, so an error is the symmetry's, not TF32's.
-
-    cuDNN convolutions default to TF32 on this GPU, which puts about 1e-3 of
-    relative noise on a deep encoder; the looser bound in
-    test_vision_encoder_equivariant_at_right_angles allows for it.
-    """
-    saved = torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32
-    torch.backends.cudnn.allow_tf32 = torch.backends.cuda.matmul.allow_tf32 = False
-    yield
-    torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32 = saved
-
-
 @pytest.mark.gpu
 @MODES
 @pytest.mark.parametrize("option", sorted(ENCODER_OPTIONS))
@@ -388,6 +374,13 @@ def test_vision_encoder_options_are_equivariant_at_right_angles(device, option, 
         EquivariantResEncoder76Cyclic,
     )
 
+    # The init draws from torch's and numpy's global RNGs (the delta-orthonormal
+    # one through scipy's ortho_group), so unseeded, each run tested another
+    # network. About 1 delta-orthonormal draw in 20 leaves the output near 1e-8,
+    # where the relative error is float noise over a near-zero denominator. A draw
+    # like that most likely failed the gate of 2026-10-01; its error was not logged.
+    torch.manual_seed(0)
+    np.random.seed(0)
     enc = EquivariantResEncoder76Cyclic(
         obs_channel=OBS_SHAPE[0], n_out=ENC_HIDDEN, N=N, initialize=True,
         **ENCODER_OPTIONS[option],
@@ -396,6 +389,7 @@ def test_vision_encoder_options_are_equivariant_at_right_angles(device, option, 
     x = torch.randn(BATCH, OBS_SHAPE[0], CROP, CROP, generator=g).to(device)
     with torch.no_grad():
         base = enc(x).tensor.reshape(BATCH, -1)
+        assert base.abs().max() > 1e-3, f"encoder {option} output is degenerate: {base.abs().max():.1e}"
         for k in [k for k in range(1, N) if ga.is_right_angle(k, N)]:
             expected = ga.act_on_layout(base, [("regular", ENC_HIDDEN)], k, N)
             got = enc(ga.rotate_image(x, k, N)).tensor.reshape(BATCH, -1)

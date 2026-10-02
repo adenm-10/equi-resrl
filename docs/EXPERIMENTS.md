@@ -2040,3 +2040,132 @@ For the AMENDMENT above ("stop at 100k, judge by the training trend, and three n
   collapse, finalizes stopped packages, and queues the squash and depth arms once both verdicts are
   in. `tests/test_square_verdict.py` (Tier 1, in preflight) checks both tools' decisions on runs
   built to sit either side of each rule.
+
+---
+
+## 2026-10-02 — CORRECTION — every equivariant run acted on near-blank images
+
+**The bug.**
+- The update's images come from the replay buffer, which stores them as uint8 in [0, 255]
+  (`utils/dtype.py`).
+- act()'s images come from the env as float in [0, 1] (`dexmg.py`). That covers every exploration
+  step and every eval.
+- `ResObsEnc.forward` divided both by 255 before mapping to [−1, 1]. So act() saw [−1, −0.992].
+- Measured on a live Square env:
+  - act()'s encoder input lay in [−0.9998, −0.9922], std 0.0019;
+  - the same frames in the buffer's format give [−0.95, 0.98], std 0.49.
+
+**What it did, measured** on the two Square checkpoints with trained actors, both with the actor's
+IID batch norm. The same frames were fed in each format: 256 demo frames, and 8 live-env frames
+under "live".
+
+| | `2cchirbo` (`target-fix` s2, 30k, eval 0.64) | `63k595oa` (`clipq`, 50k, eval 0.60) |
+|---|---|---|
+| Agentview features, spread across states, act() vs update | 0.0003 vs 0.1247 | 0.0001 vs 0.1026 |
+| Mean \|residual\|, executed vs trained (demo frames) | 0.0014 vs 0.3057 | 0.0009 vs 0.2654 |
+| Mean \|residual\|, executed vs trained (live frames) | 0.0014 vs 0.3457 | 0.0009 vs 0.3002 |
+| Per-state cosine, executed vs trained residual | mean 0.79, min 0.74 | mean 0.38, min 0.19 |
+| ‖executed − trained‖ / ‖trained‖ | 0.997 | 0.999 |
+
+**These runs trained a residual of about 0.3 and executed about 0.001: they ran the base policy plus
+exploration noise.**
+
+**Which runs.** Every recorded equivariant run, and every run of the scalar ablation, which uses
+the same encoder:
+- **The forms of the bug:**
+  - from `4983fcd` (2026-02-28), images were divided by 255 into [0, 1], so act() saw [0, 0.004];
+  - from `aabde0f` (2026-04-23), they were mapped into [−1, 1], as above;
+  - before `4983fcd`, the encoder did not scale images at all, a 255× mismatch the other way. No
+    run in the summary table used it.
+- **So it covers every recorded run:**
+  - `x2w6phzf` (`a948786`);
+  - the `7dae4925` runs;
+  - `z8yoqylh`;
+  - the Can replication (`38z4wr9z`, `sw2qwfs9`);
+  - the four undocumented Can runs (`lgc70vgd`, `q1ocx89o`, `3vl625tv`, `36pfxsww`);
+  - `equi-square-v1`;
+  - the sweep;
+  - every ablation.
+- **Not affected:**
+  - The ResFiT agent (`870ws2c2`, `msfkjwab`, `zyed0lew`): its `_encode` converts by dtype.
+  - The base policies, which get the env's floats, as in BC training.
+  - Step-0 evals: the residual starts near zero for any input. So B_sq and the step-0 pool stand.
+
+**What it changes.**
+1. **Every equivariant result measures the base policy plus what the actor computes from a blank
+   image,** not the method.
+   - For the IID-batch-norm actor that was about zero. The runs that "held BC" held it because they
+     executed almost nothing.
+   - No Can checkpoint survives, locally or in wandb, so the Can numbers cannot be measured.
+     They come from the same code path. Read them as the base policy's draws until TODO B6 re-runs
+     Can.
+2. **Two earlier measurements fed only the buffer's format:**
+   - 2026-10-01 RESULTS, "ruled out: batch norm muting the residual at eval";
+   - STATUS, "the BN actor executes at eval what training sees".
+
+   Both hold on uint8 images and fail on the env's.
+3. **The actor-norm collapses (TODO B10) are reopened.**
+   - The no-norm, FieldNorm and InnerBatchNorm actors executed whatever they compute from a blank
+     image.
+   - Their best checkpoints are all from step 0, so that cannot be measured now.
+   - Both the collapses and the batch-norm runs' stability fit the bug. Neither is established.
+4. **Every logged `train/residual_l1_magnitude` and `residual_l2` is the update batch's residual,**
+   computed from buffer images, not the executed one (STANDARDS 6.3).
+5. **The overestimated Q values fit the bug.** One example is Q ≈ 9 on 0/1 rewards in
+   `u4p6uz3d`. The critic was asked to value residuals about 0.3 away from anything executed. That
+   is a reading, not a test.
+
+**How it went unseen.**
+- Every test, golden and fingerprint fed uint8 images, the buffer's format; none fed the env's.
+- The ResFiT agent converts by dtype. The equivariant encoder diverged from it without a comment,
+  against STANDARDS 3.1.
+
+**The fix:** CODE entry below. `equivariance.float_images_as_uint8=True` reproduces the old scaling.
+Earlier runs' configs lack the field, and every earlier run had it in effect as `True`.
+
+---
+
+## 2026-10-02 — CODE — act() reads the env's float images as they are; the gate's unseeded test
+
+**The fix.**
+- `ResObsEnc._image_to_signed_unit` divides uint8 images by 255 and takes float images as already in
+  [0, 1], then maps both to [−1, 1]. It reads the dtype, which is metadata, so there is no host sync.
+  Both encoder branches use it.
+- uint8 images go through the same operations as before, in the same order. **So every buffer
+  batch, and so every update, is bit-identical to before.**
+- **New field `equivariance.float_images_as_uint8`,** default `False`; `True` reproduces the old
+  scaling. The scalar ablation reads it too, so it is not in `EQUIVARIANT_ONLY_FIELDS`.
+- This is a behaviour change at an unchanged config (STANDARDS 1.6). From this commit, an
+  equivariant run's act() sees what its update sees.
+
+**Verified.**
+- **The deep check is identical to `ccff539`, tensor for tensor,** for all 17 `CANDIDATES`
+  (8 updates and one act() on uint8, on CUDA in deterministic mode). The regression goldens pass.
+- **New `tests/test_obs_formats.py`** (Tier 2) feeds frames made as the env and the buffer make them:
+  - The two formats give the same encoder features, in both branches, to 3.6e-7 relative. On CUDA,
+    dividing by 255 multiplies by its reciprocal, so they can differ in the last bit; TF32 is off for
+    these tests, since it rounds that up to about 1e-3.
+  - They give the same act() at the Square reference config, to under 1e-4 relative.
+  - With the flag, the image features differ by 1.0 (equivariant) and 0.37 (scalar) relative, and
+    the buffer format stays bit-identical.
+- **On the two trained checkpoints, with the fix:**
+  - the executed residual equals the trained one, on demo and live-env frames: cosine 1.0000,
+    relative difference 4e-5 to 1e-4 with TF32 on;
+  - with the flag, they reproduce the CORRECTION's 0.0014 and 0.0009.
+- `test_config.py`: the flag defaults to `False` in every equivariant config.
+
+**The gate's unseeded test** (the `squash` arm's NO-GO).
+- `test_vision_encoder_options_are_equivariant_at_right_angles[orth-init-*]` built its encoder
+  without a seed, so each run tested another network.
+- Over 20 seeded delta-orthonormal inits, 19 gave relative errors of 0.5–2.2e-6. One gave 0.87, but
+  its output is about 1e-8 (85% exact zeros) and its absolute error 1e-8: float noise over a
+  near-zero denominator, not broken equivariance. He init gave no such draw in 20.
+- The test now seeds torch and numpy before the build. It fails on a degenerate output
+  (max |out| ≤ 1e-3) instead of reporting it as non-equivariance.
+- That about 1 in 20 delta-orthonormal encoder inits is near-dead is a property of
+  `encoder_orth_init`, which no run has used (TODO).
+- The `no_tf32` fixture moved to `conftest.py`, since two test files use it now.
+
+**Also:**
+- New rule STANDARDS 4.5: test the agent on the observations the env produces.
+- `preflight.py`'s Tier 2 runs `test_obs_formats.py`.

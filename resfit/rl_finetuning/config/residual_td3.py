@@ -93,6 +93,13 @@ class EquivarianceConfig:
     # CORRECTION.
     frozen_target_critic: bool = False
 
+    # True reproduces every equivariant and scalar-ablation run before
+    # 2026-10-02: the env's float images in [0, 1] were divided by 255 as if they
+    # were uint8, so act() saw near-blank images while the update saw the
+    # buffer's uint8 copies at full contrast. EXPERIMENTS.md, 2026-10-02
+    # CORRECTION.
+    float_images_as_uint8: bool = False
+
     num_actor_layers: int = 2
     actor_degree_channel: int = 128
     

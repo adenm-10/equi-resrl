@@ -184,3 +184,17 @@ def actor(obs_enc, device):
 @pytest.fixture
 def rng():
     return torch.Generator().manual_seed(0)
+
+
+@pytest.fixture
+def no_tf32():
+    """Full-precision convolutions, so an error is the symmetry's, not TF32's.
+
+    cuDNN convolutions default to TF32 on this GPU, which puts about 1e-3 of
+    relative noise on a deep encoder; the looser bound in
+    test_vision_encoder_equivariant_at_right_angles allows for it.
+    """
+    saved = torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32
+    torch.backends.cudnn.allow_tf32 = torch.backends.cuda.matmul.allow_tf32 = False
+    yield
+    torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32 = saved

@@ -61,6 +61,13 @@ class ResObsEnc(ModuleAttrMixin):
     ``encoder_norm`` and
     ``encoder_orth_init`` configure the equivariant agentview encoder;
     ``use_norms`` is read only by the scalar one.
+
+    Images arrive in two formats: act() gets the env's float images in [0, 1]
+    (dexmg.py), and the update gets the replay buffer's uint8 copies in [0, 255]
+    (utils/dtype.py). Both map to the same floats in [-1, 1]. Until 2026-10-02
+    both were divided by 255, which left act()'s images in [-1, -0.992];
+    ``float_images_as_uint8`` reproduces that (EXPERIMENTS.md, 2026-10-02
+    CORRECTION).
     """
 
     def __init__(
@@ -84,6 +91,7 @@ class ResObsEnc(ModuleAttrMixin):
         ih_out_channel: int,
         encoder_norm: str = "none",
         encoder_orth_init: bool = False,
+        float_images_as_uint8: bool = False,
     ):
         super().__init__()
 
@@ -103,6 +111,7 @@ class ResObsEnc(ModuleAttrMixin):
         self.n_hidden = n_hidden
         self.ih_out_channel = ih_out_channel
         self.N = N
+        self.float_images_as_uint8 = float_images_as_uint8
 
         self.register_buffer(
             "robot_base_xy",
@@ -247,6 +256,14 @@ class ResObsEnc(ModuleAttrMixin):
         """
         return quaternion_to_rotation_6d(torch.cat([quat[:, 3:4], quat[:, 0:3]], dim=1))
 
+    def _image_to_signed_unit(self, img):
+        """uint8 [0, 255] or float [0, 1] → float [-1, 1]. See the class docstring.
+
+        Reads the dtype, which is metadata: no host sync."""
+        if img.dtype == torch.uint8 or self.float_images_as_uint8:
+            img = img.float() / 255.0
+        return img.float() * 2.0 - 1.0
+
     def set_normalizer(
         self,
         normalizer: LinearNormalizer,
@@ -292,15 +309,15 @@ class ResObsEnc(ModuleAttrMixin):
 
         batch_size = obs.shape[0]
 
-        # ----- Images (uint8 [0,255] → float [-1,1]) -----
+        # ----- Images (uint8 [0,255] or float [0,1] → float [-1,1]) -----
         # In-hand cameras are cropped before agentview; CropRandomizer draws a random
         # offset per call in train mode, so this order is part of the trained behaviour.
         ih_out = []
         for key, enc_ih in zip(self.wrist_keys, self.enc_ih):
-            ih = nobs[key].float() / 255.0 * 2.0 - 1.0
+            ih = self._image_to_signed_unit(nobs[key])
             ih_out.append(enc_ih(self.crop_randomizer(ih)))
 
-        obs     = obs.float() / 255.0 * 2.0 - 1.0
+        obs     = self._image_to_signed_unit(obs)
         obs     = self.crop_randomizer(obs)
         enc_raw = self.enc_obs(obs)
         enc_out = (enc_raw.tensor if self.equivariant else enc_raw).reshape(batch_size, -1)

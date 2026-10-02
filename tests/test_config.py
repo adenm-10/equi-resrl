@@ -194,6 +194,13 @@ def test_target_critic_is_not_frozen_by_default(name):
 
 
 @pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+def test_act_time_images_are_not_scaled_as_uint8_by_default(name):
+    """float_images_as_uint8=True reproduces the bug in every equivariant and
+    scalar-ablation run before 2026-10-02. It exists for comparison runs only."""
+    assert _node(name).equivariance.float_images_as_uint8 is False
+
+
+@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
 def test_equivariant_defaults_build_the_reference_network(name):
     """Every field added for the 2026-09-29 sweep defaults to what earlier runs had,
     except actor_norm.

@@ -35,6 +35,7 @@ blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 | `test_no_ops.py` | 2 | yes | Pins which config fields actually do nothing, and which sites each live one reaches. |
 | `test_sweep_arms.py` | 2 | partly | Every arm in `submit.sh` is a pre-registered one, composes through Hydra with valid options, and (on the GPU) builds its agent and runs one TD3 update. |
 | `test_sync_free.py` | 2 | partly | The update makes no host sync (STANDARDS 6.5): for every config in `tools/agent_fingerprint.py`'s `CANDIDATES` without the actor's IID batch norm (the 2026-09-30 schedule's arms and their combinations, `actor-fn`, `actor-inner`), for the encoder's InnerBatchNorm, and for the two-arm layout. On CPU too: escnn is 1.0.11, and each fix in `escnn_fixes.py`, the crops and the rotation reorder give exactly what they replaced. |
+| `test_obs_formats.py` | 2 | yes | The agent acts on the observations the env produces, not only on buffer batches: the env's float images and the buffer's uint8 copies give the same encoder features (both encoder branches) and the same `act()` at the Square reference config. `float_images_as_uint8` still reproduces the bug of every run before 2026-10-02 and leaves the buffer format, all the update sees, bit-identical. Every other test feeds uint8 only, which is how that bug went unseen. |
 | `group_action.py` | — | — | Independent implementation of the C_N action. Not a test file. |
 
 ## Arm count
