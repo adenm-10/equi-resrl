@@ -2415,3 +2415,85 @@ with evals). Verdicts from `tools/square_verdict.py fal5sfot fqo83rvd`.
   binomial noise.
 - For comparison, `msfkjwab`'s step-0 eval (`residual_td3_can_config` at `807efd65`) was 0.92.
 - It is the bar for the Can arms of tuned RLPD (PRE-REGISTERED below).
+
+---
+
+## 2026-10-04 — CODE — a no-base-policy mode for tuned RLPD; the residual path unchanged
+
+**What it adds.** `base_policy=None` runs vanilla RL through `train_residual_td3.py`: there is no
+base policy, and the actor outputs the whole action. It is the plan's Phase 2
+(`docs/plans/2026-10-02-tuned-rlpd.md`, TODO B12). It is a mode of the existing trainer, not a
+copied one, so there is one code path per behavior and recorded launch commands stay valid.
+ARCHITECTURE.md, "Residual or vanilla", lists the nine branches on `residual_run`.
+- **Config** (`residual_td3.py`):
+  - `base_policy: BasePolicyConfig | None`.
+  - `TunedRLPDConfig` holds the vanilla values: every field in which upstream's residual and RLPD
+    configs differ, at its RLPD value.
+  - Four registered configs: `tuned_rlpd_{square,can}_config` (ResFiT, 10 critic heads) and
+    `equi_tuned_rlpd_{square,can}_config` (2 heads). A task's two configs differ only in heads,
+    `equivariance` and wandb group.
+  - `residual_only_fields_set` names any residual-only field a vanilla config turns on, and the
+    trainer refuses to start if it finds one.
+- **`NormalizedVecEnvWrapper`** (`wrappers/normalized_env_wrapper.py`): the residual wrapper
+  less the base policy.
+- **The equivariant agent:**
+  - `ResObsEnc(base_action_input=False)`: no base action, and the actor's features are the
+    critic's.
+  - `Actor(residual_actor=False)`: no base action at the trunk or the policy MLP; it refuses
+    features that carry one. Its bound is `residual_squash`, which then bounds the whole action.
+  - The scalar ablation refuses non-residual mode at construction.
+- **Cache keys:** a vanilla key adds `base_policy: None` and `normalization` (`identity` on the
+  equivariant path, `dataset` on ResFiT's), so it can never name a residual buffer. Residual keys
+  are untouched.
+- **Logging:** a vanilla run logs `train/action_l{1,2}_magnitude` and `histograms/actions`, as
+  upstream's RLPD does.
+- **Gate:** `preflight.py --method tuned-rlpd --stack {equi,resfit}` skips the BC checks, mirrors
+  the vanilla keys, reports that buffers are built in memory, and skips the probe for ResFiT.
+- **Verdict:** `tools/tuned_rlpd_verdict.py --project <project>`. `square_verdict.load_history`
+  now takes a project.
+- **Launcher:** `submit.sh` holds the four arms. The two equivariant arms refuse to launch while
+  their design is pending (TODO B12).
+
+**The residual path is unchanged. Verified:**
+- **The deep check is identical to `b05736d`, tensor for tensor,** for all 17 `CANDIDATES`: 8
+  updates and one act(), on CUDA in deterministic mode, against the pinned worktree at `b667647`,
+  whose code is `b05736d`'s. The regression goldens pass.
+- **Every residual config resolves byte for byte as before** (`--cfg job --resolve`, all nine), and
+  so does the image-fix pair's launch.
+- **Its cache keys did not move:** the residual reference's debug run loaded `1d31ed9b` and
+  `66c46c51` from disk, and `test_config.py` still pins all three tasks' residual keys.
+- No default changed (STANDARDS 1.6).
+
+**The vanilla path. Verified:**
+- `test_env_wrapper.py`: the new wrapper steps exactly as the residual wrapper does with a base
+  action that normalizes to zero: the same env action, buffer action, observations and rewards.
+- The equivariant vanilla actor:
+  - is equivariant for every actor norm, the squash and no visual projection, in train and eval
+    mode, for one and two arms (`test_equivariance.py`);
+  - with `equi_tanh`, keeps its output, the whole action, within the bound per block; without it,
+    only the explored action stays within the bound;
+  - has the right widths (`test_layouts.py`), makes no host sync at `actor_norm=none`
+    (`test_sync_free.py`), and acts alike on the env's and the buffer's observations
+    (`test_obs_formats.py`).
+- The four arms compose. A task's two arms differ in their stack only, and each builds and
+  updates on the GPU (`test_sweep_arms.py`).
+- `test_config.py` pins the vanilla configs and the four vanilla cache keys.
+- **The full suite: 514 passed, 2 skipped** (the two skips predate this change).
+
+**Four debug runs, end to end** (`debug=true`, 600 steps, 8-episode evals at 0, 300 and 600):
+
+| Run | What it showed |
+|---|---|
+| The residual reference: the image-fix pair's launch, critic warm-up cut to 100 | Loaded `66c46c51` (10,000) and `1d31ed9b` (80,429) from disk. Logs `residual_l1` as before. Evals 7, 4 and 3 of 8, its base policy. 37.7 GB peak RSS. |
+| `tuned-rlpd-square` | No base policy; `ActionScaler` not widened. 80,429 demo transitions built in memory in 3.8 min, as many as the residual cache holds. 10k warm-up steps of U(±1). Keys `a2d779c4` and `6e94049f`. 0 of 8 at every eval. 14.2 GB. |
+| `equi-tuned-rlpd-square`, at the provisional design | Keys `8b214742` and `8e67e7b9`. 0 of 8 at every eval. 14.0 GB. |
+| `tuned-rlpd-can` | 62,454 demo transitions. The warm-up's 50 episodes in 10k steps show Can's 200-step horizon. Keys `83506f61` and `3718c816`. 0 of 8 at every eval. 12.2 GB. |
+
+- Each vanilla run's keys are the ones `preflight.cache_hashes(task, "tuned-rlpd", stack)`
+  mirrors.
+- **Observed, deciding nothing:** `train/action_l1` over the first 600 steps was 0.88–0.95 for
+  ResFiT on Square, 0.85–1.00 on Can, and 0.69–0.78 for the equivariant arm. ResFiT's Tanh
+  saturates within its first 100 actor updates: 0.9985 on Can, with an actor gradient norm of
+  0.0006. Upstream's RLPD config is the same.
+- Peak RSS is at the start, with 10k online transitions. The online buffer then grows by about
+  85 kB a transition.

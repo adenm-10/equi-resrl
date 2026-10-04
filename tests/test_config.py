@@ -23,7 +23,14 @@ EXPECTED_NAMES = {
     "residual_equi_td3_can_config",
     "residual_equi_td3_square_config",
     "residual_equi_td3_box_clean_config",
+    "tuned_rlpd_square_config",
+    "tuned_rlpd_can_config",
+    "equi_tuned_rlpd_square_config",
+    "equi_tuned_rlpd_can_config",
 }
+# Vanilla RL, no base policy (TunedRLPDConfig). Every other name is a residual config.
+TUNED_RLPD_NAMES = {n for n in EXPECTED_NAMES if "tuned_rlpd" in n}
+RESIDUAL_NAMES = EXPECTED_NAMES - TUNED_RLPD_NAMES
 
 # The reproduction target. Values pinned here are the ones the experiment log
 # records; a change to any of them invalidates comparability with prior runs
@@ -36,6 +43,10 @@ def _node(name):
     key = f"{name}.yaml"
     assert key in repo, f"{name} not registered in the ConfigStore"
     return repo[key].node
+
+
+# The configs that build the equivariant agent, residual or vanilla.
+EQUIVARIANT_NAMES = {n for n in EXPECTED_NAMES if _node(n).equivariance is not None}
 
 
 def test_all_expected_configs_registered():
@@ -180,27 +191,27 @@ def test_dead_config_fields_are_documented():
     assert "DEAD" in doc, "provenance table no longer marks any field DEAD"
 
 
-@pytest.mark.parametrize("name", sorted(EXPECTED_NAMES))
-def test_every_config_writes_caches_by_default(name):
+@pytest.mark.parametrize("name", sorted(RESIDUAL_NAMES))
+def test_every_residual_config_writes_caches_by_default(name):
     """write_buffer_caches is new; True reproduces every earlier run."""
     assert _node(name).write_buffer_caches is True
 
 
-@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+@pytest.mark.parametrize("name", sorted(EQUIVARIANT_NAMES))
 def test_target_critic_is_not_frozen_by_default(name):
     """frozen_target_critic=True reproduces the bug in every equivariant run
     before 2026-09-29. It exists for comparison runs only."""
     assert _node(name).equivariance.frozen_target_critic is False
 
 
-@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+@pytest.mark.parametrize("name", sorted(EQUIVARIANT_NAMES))
 def test_act_time_images_are_not_scaled_as_uint8_by_default(name):
     """float_images_as_uint8=True reproduces the bug in every equivariant and
     scalar-ablation run before 2026-10-02. It exists for comparison runs only."""
     assert _node(name).equivariance.float_images_as_uint8 is False
 
 
-@pytest.mark.parametrize("name", sorted(n for n in EXPECTED_NAMES if "_equi_" in n))
+@pytest.mark.parametrize("name", sorted(EQUIVARIANT_NAMES))
 def test_equivariant_defaults_build_the_reference_network(name):
     """Every field added for the 2026-09-29 sweep defaults to what earlier runs had,
     except actor_norm.
@@ -217,3 +228,97 @@ def test_equivariant_defaults_build_the_reference_network(name):
     assert eq.use_visual_proj is True and eq.residual_squash is False
     assert eq.num_critic_layers == 1
     assert eq.ih_out_channel == eq.enc_degree_channel == 32
+
+
+# ---------------------------------------------------------------------------
+# Tuned RLPD: vanilla RL, no base policy (TunedRLPDConfig)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", sorted(TUNED_RLPD_NAMES))
+def test_tuned_rlpd_is_the_residual_design_made_vanilla(name):
+    """Every field in which upstream ResFiT's residual and RLPD configs differ takes its RLPD
+    value; every field the two share keeps it (docs/plans/2026-10-02-tuned-rlpd.md, rule 1)."""
+    cfg = _node(name)
+    assert cfg.base_policy is None
+    assert rtd3.residual_only_fields_set(cfg) == []
+    # Made vanilla
+    assert cfg.agent.actor_lr == 1e-4
+    assert cfg.agent.critic_target_tau == 0.01
+    assert cfg.agent.actor.action_scale == 1.0
+    assert cfg.agent.actor.actor_last_layer_init_scale is None
+    assert cfg.algo.critic_warmup_steps == 0
+    assert cfg.algo.random_action_noise_scale == 1.0
+    assert (cfg.algo.stddev_max, cfg.algo.stddev_min) == (0.1, 0.1)
+    # Computed when the dataclass is built, so a CLI override of stddev_max would not reach it.
+    assert cfg.algo.stddev_schedule == "linear(0.1,0.1,300000)"
+    assert cfg.offline_data.use_base_policy_for_base_actions is False
+    assert cfg.write_buffer_caches is False
+    # Held fixed, as both of ResFiT's configs have them
+    assert cfg.agent.critic_lr == 1e-4
+    assert (cfg.agent.critic_grad_clip_norm, cfg.agent.actor_grad_clip_norm) == (1.0, 1.0)
+    assert cfg.agent.stddev_clip == 0.3
+    assert (cfg.agent.critic.min_q_heads, cfg.agent.critic.policy_gradient_type) == (2, "ensemble_mean")
+    assert (cfg.algo.n_step, cfg.algo.gamma) == (3, 0.99)
+    assert (cfg.algo.num_updates_per_iteration, cfg.algo.actor_updates_per_iteration) == (4, 1)
+    assert (cfg.algo.batch_size, cfg.algo.offline_fraction) == (256, 0.5)
+    assert (cfg.algo.buffer_size, cfg.algo.learning_starts) == (200_000, 10_000)
+    assert cfg.offline_data.num_episodes == 300
+    assert (cfg.eval_num_episodes, cfg.eval_interval_every_steps) == (50, 10_000)
+
+
+@pytest.mark.parametrize("task", ["square", "can"])
+def test_tuned_rlpd_stacks(task):
+    """ResFiT's arm keeps its 10 critic heads and has no equivariance; the equivariant arm
+    keeps its reference's 2. The design the equivariant arm launches with is submit.sh's."""
+    resfit, equi = _node(f"tuned_rlpd_{task}_config"), _node(f"equi_tuned_rlpd_{task}_config")
+    project = f"robomimic-{task}-final"
+    assert resfit.equivariance is None and resfit.agent.critic.num_q == 10
+    assert equi.equivariance.N == 8 and equi.agent.critic.num_q == 2
+    assert (resfit.wandb.project, resfit.wandb.group) == (project, "tuned-rlpd")
+    assert (equi.wandb.project, equi.wandb.group) == (project, "equi-tuned-rlpd")
+    assert resfit.task == equi.task == task.capitalize()
+    assert resfit.offline_data.name == equi.offline_data.name == f"ankile/robomimic-mh-{task}-image"
+
+
+def test_residual_only_fields_are_named():
+    """train_residual_td3.py refuses a vanilla run that turns one on."""
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.structured(rtd3.TunedRLPDSquareConfig)
+    assert rtd3.residual_only_fields_set(cfg) == []
+    cfg.algo.use_base_policy_for_warmup = True
+    cfg.offline_data.use_base_policy_for_base_actions = True
+    assert rtd3.residual_only_fields_set(cfg) == [
+        "offline_data.use_base_policy_for_base_actions=True",
+        "algo.use_base_policy_for_warmup=True",
+    ]
+    # So base_policy=None on a residual config fails at startup instead of running mislabeled.
+    for name in RESIDUAL_NAMES:
+        assert rtd3.residual_only_fields_set(_node(name)), name
+
+
+# The tuned-RLPD keys by (task, stack). train_residual_td3.py printed the first three in the
+# 2026-10-04 debug runs; Can's equivariant key comes from the same code. They add fields that no
+# residual key has, so the two can never coincide.
+VANILLA_CACHE_HASHES = {
+    ("Square", "resfit"): ("a2d779c4", "6e94049f"),
+    ("Square", "equi"): ("8b214742", "8e67e7b9"),
+    ("Can", "resfit"): ("83506f61", "3718c816"),
+    ("Can", "equi"): ("e83a0b31", "163d26c0"),
+}
+
+
+def test_tuned_rlpd_cache_keys_are_their_own():
+    import tensordict
+    import torchrl
+
+    import preflight
+
+    if (torchrl.__version__, tensordict.__version__) != CACHE_STACK:
+        pytest.skip(f"cache keys pinned to torchrl/tensordict {CACHE_STACK}")
+
+    for (task, stack), expected in VANILLA_CACHE_HASHES.items():
+        assert preflight.cache_hashes(task, "tuned-rlpd", stack) == expected, (task, stack)
+    residual = set().union(*CACHE_HASHES.values())
+    assert not residual & set().union(*VANILLA_CACHE_HASHES.values())

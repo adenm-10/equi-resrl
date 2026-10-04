@@ -58,7 +58,7 @@ from resfit.lerobot.utils.load_policy import (
     log_best_video_to_panel,
     upload_best,
 )
-from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig
+from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig, residual_only_fields_set
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
 from resfit.rl_finetuning.utils.checkpoint import save_residual_model
@@ -73,6 +73,7 @@ from resfit.rl_finetuning.utils.hugging_face import (
 
 from resfit.rl_finetuning.utils.normalization import ActionScaler, StateStandardizer
 from resfit.rl_finetuning.utils.rb_transforms import MultiStepTransform
+from resfit.rl_finetuning.wrappers.normalized_env_wrapper import NormalizedVecEnvWrapper
 from resfit.rl_finetuning.wrappers.residual_env_wrapper import BasePolicyVecEnvWrapper
 
 
@@ -273,31 +274,43 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     # ---------------------------------------------------------------------
     # Load the behaviour-cloning policy that will serve as the "base" policy
-    # for residual learning.
+    # for residual learning. base_policy=None runs vanilla RL instead: no base
+    # policy, and the actor outputs the whole action (TunedRLPDConfig). Every
+    # place the two differ branches on residual_run.
     # ---------------------------------------------------------------------
-    assert "base_policy" in cfg, "Base policy configuration is required"
-    policy_dir, _ = download_policy_from_wandb(
-        cfg.base_policy.wandb_id,
-        step=cfg.base_policy.wt_type,
-        artifact_version=cfg.base_policy.wt_version,
-    )
+    residual_run = cfg.base_policy is not None
+    base_policy = eval_base_policy = None
+    if residual_run:
+        policy_dir, _ = download_policy_from_wandb(
+            cfg.base_policy.wandb_id,
+            step=cfg.base_policy.wt_type,
+            artifact_version=cfg.base_policy.wt_version,
+        )
 
-    base_policy: ACTPolicy = load_policy(policy_dir)
-    base_policy.to(device)
-    base_policy.eval()
-    eval_base_policy: ACTPolicy = load_policy(policy_dir)
-    eval_base_policy.to(device)
-    eval_base_policy.eval()
+        base_policy: ACTPolicy = load_policy(policy_dir)
+        base_policy.to(device)
+        base_policy.eval()
+        eval_base_policy: ACTPolicy = load_policy(policy_dir)
+        eval_base_policy.to(device)
+        eval_base_policy.eval()
 
-    # Extract the configuration from base policy
-    base_cfg = base_policy.config
+        # Extract the configuration from base policy
+        base_cfg = base_policy.config
 
-    if isinstance(base_cfg, ACTConfig):
-        cfg.actor_name = "residual_act"
-    elif isinstance(base_cfg, DiffusionConfig):
-        cfg.actor_name = "residual_diffusion"
+        if isinstance(base_cfg, ACTConfig):
+            cfg.actor_name = "residual_act"
+        elif isinstance(base_cfg, DiffusionConfig):
+            cfg.actor_name = "residual_diffusion"
+        else:
+            raise ValueError(f"Unknown base policy type: {type(base_cfg)}")
     else:
-        raise ValueError(f"Unknown base policy type: {type(base_cfg)}")
+        residual_only_on = residual_only_fields_set(cfg)
+        if residual_only_on:
+            raise ValueError(
+                f"base_policy=None runs vanilla RL, which has no base policy for "
+                f"{residual_only_on}; turn them off"
+            )
+        print("No base policy: vanilla RL, the actor outputs the whole action")
 
     # Load dataset and get normalization functions early
     print("Loading dataset and setting up normalization...")
@@ -323,10 +336,12 @@ def main(cfg: ResidualTD3DexmgConfig):
             device=device
         )
 
-        # Create action scaler from dataset statistics
+        # Create action scaler from dataset statistics. The residual run widens the range by
+        # action_scale to make room for base + residual; vanilla RL widens nothing, as
+        # upstream's train_rlpd_dexmg.py.
         action_scaler = ActionScaler.from_dataset_stats(
             action_stats=dataset.meta.stats["action"],
-            action_scale=cfg.agent.actor.action_scale,
+            action_scale=cfg.agent.actor.action_scale if residual_run else 0.0,
             min_range_per_dim=cfg.offline_data.min_action_range,
             device=device,
         )
@@ -356,6 +371,14 @@ def main(cfg: ResidualTD3DexmgConfig):
             video_key=video_key,
             debug=debug,
         )
+
+        if not residual_run:
+            # No base policy to run: the wrapper only normalizes.
+            return NormalizedVecEnvWrapper(
+                vec_env=vec_env,
+                action_scaler=action_scaler,
+                state_standardizer=state_standardizer,
+            )
 
         # Wrap it with the base policy wrapper
         return BasePolicyVecEnvWrapper(
@@ -440,7 +463,7 @@ def main(cfg: ResidualTD3DexmgConfig):
     img_c, img_h, img_w = env.observation_space[image_keys[0]].shape[1:]
     action_dim = env.action_space.shape[1]
 
-    lowdim_keys = ["observation.state", "observation.base_action"]
+    lowdim_keys = ["observation.state", "observation.base_action"] if residual_run else ["observation.state"]
 
     # ---------------------------------------------------------------------
     # Networks ------------------------------------------------------------
@@ -455,7 +478,7 @@ def main(cfg: ResidualTD3DexmgConfig):
             action_dim=action_dim,
             rl_cameras=image_keys,
             cfg=cfg.agent,
-            residual_actor=True,  # Enable residual actor mode
+            residual_actor=residual_run,  # the actor outputs a residual, or the whole action
         )
     else:
         print(f"Instantiating Equivariant Agent")
@@ -467,7 +490,7 @@ def main(cfg: ResidualTD3DexmgConfig):
             rl_cameras=image_keys,
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
-            residual_actor=True,
+            residual_actor=residual_run,
             equivariant=cfg.equivariance.use_equivariant_model,
         )
 
@@ -570,6 +593,11 @@ def main(cfg: ResidualTD3DexmgConfig):
     if cfg.algo.sampling_strategy == "prioritized_replay":
         online_cache_meta["priority_alpha"] = cfg.algo.priority_alpha
         online_cache_meta["priority_beta"] = cfg.algo.priority_beta
+    # A vanilla buffer holds no base action, and the two stacks fill it differently normalized:
+    # its keys add these fields, and a residual key stays as it was (TODO B7, S9).
+    vanilla_cache_fields = {"base_policy": None, "normalization": "identity" if equivariant_run else "dataset"}
+    if not residual_run:
+        online_cache_meta.update(vanilla_cache_fields)
 
     pprint.pprint(online_cache_meta)
     _online_meta_str = json.dumps(online_cache_meta, sort_keys=True)
@@ -666,6 +694,8 @@ def main(cfg: ResidualTD3DexmgConfig):
            Uses base policy to generate base actions and GT actions as targets.
            More consistent with online training: residual = GT - base_policy_action
 
+        Vanilla RL (base_policy=None) stores no base action, as upstream's RLPD.
+
         Returns the number of transitions added.
         """
         if use_base_policy_for_base_actions and base_policy is None:
@@ -705,7 +735,7 @@ def main(cfg: ResidualTD3DexmgConfig):
                 with torch.no_grad():
                     base_action = base_policy.select_action(raw_obs)
                 base_action_scaled = action_scaler.scale(base_action.squeeze(0).cpu())
-            else:
+            elif residual_run:  # vanilla RL labels nothing; its labels flag is off (checked above)
                 # Use GT action as base action (original behavior)
                 base_action_scaled = gt_action_scaled
 
@@ -714,8 +744,9 @@ def main(cfg: ResidualTD3DexmgConfig):
             # Build observation dict directly in target format
             curr_obs = {
                 "observation.state": state_standardizer.standardize(sample["observation.state"].float().squeeze(0)),
-                "observation.base_action": base_action_scaled,
             }
+            if residual_run:
+                curr_obs["observation.base_action"] = base_action_scaled
             # print(f"curr_obs shape: {curr_obs.shape}")
             # print(f"curr_obs: {curr_obs}")
             # assert False
@@ -784,7 +815,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         "image_keys": image_keys,
         "n_step": cfg.algo.n_step,
         "gamma": cfg.algo.gamma,
-        "base_policy_wandb_id": cfg.base_policy.wandb_id,
+        "base_policy_wandb_id": cfg.base_policy.wandb_id if residual_run else None,
         "sampling_strategy": cfg.algo.sampling_strategy,
         "normalized_actions": True,
         "batch_size": offline_batch_size,
@@ -795,6 +826,8 @@ def main(cfg: ResidualTD3DexmgConfig):
     if cfg.algo.sampling_strategy == "prioritized_replay":
         offline_cache_meta["priority_alpha"] = cfg.algo.priority_alpha
         offline_cache_meta["priority_beta"] = cfg.algo.priority_beta
+    if not residual_run:
+        offline_cache_meta.update(vanilla_cache_fields)
 
     pprint.pprint(offline_cache_meta)
 
@@ -877,10 +910,11 @@ def main(cfg: ResidualTD3DexmgConfig):
         episode_count = 0
 
         while len(online_rb) < cfg.algo.learning_starts:
-            if cfg.algo.use_base_policy_for_warmup:
+            if not residual_run or cfg.algo.use_base_policy_for_warmup:
                 # Use base policy action + noise (residual exploration)
                 # Since the environment wrapper always adds base_action to residual_action,
-                # we just need to provide the noise as the residual action
+                # we just need to provide the noise as the residual action.
+                # Vanilla RL: the noise is the whole action, as in upstream's RLPD warm-up.
                 rand_actions = (
                     torch.rand((cfg.num_envs, action_dim), device=device) * 2 - 1
                 ) * cfg.algo.random_action_noise_scale
@@ -1307,7 +1341,9 @@ def main(cfg: ResidualTD3DexmgConfig):
             filtered_metrics = {k: v for k, v in metrics.items() if not k.startswith("_")}
             log_dict.update(filtered_metrics)
 
-            # Compute residual action statistics only when logging
+            # Compute residual action statistics only when logging. Vanilla RL's actor outputs the
+            # whole action, logged under upstream RLPD's names.
+            action_name = "residual" if residual_run else "action"
             if "_actions" in metrics:
                 actions = metrics["_actions"]
                 # print(actions)
@@ -1316,9 +1352,10 @@ def main(cfg: ResidualTD3DexmgConfig):
                 residual_l1_magnitude = torch.mean(torch.abs(actions)).item()
                 residual_l2_magnitude = torch.mean(torch.square(actions)).item()
 
-                log_dict["train/residual_l1_magnitude"] = residual_l1_magnitude
-                log_dict["train/residual_l2_magnitude"] = residual_l2_magnitude
-                log_dict["histograms/residual_actions"] = wandb.Histogram(actions.numpy().reshape(-1))
+                log_dict[f"train/{action_name}_l1_magnitude"] = residual_l1_magnitude
+                log_dict[f"train/{action_name}_l2_magnitude"] = residual_l2_magnitude
+                histogram = "histograms/residual_actions" if residual_run else "histograms/actions"
+                log_dict[histogram] = wandb.Histogram(actions.numpy().reshape(-1))
             else:
                 residual_l1_magnitude = None
                 residual_l2_magnitude = None
@@ -1350,7 +1387,8 @@ def main(cfg: ResidualTD3DexmgConfig):
                     f"actor_lr={current_actor_lr:.2e} (actor not updated)"
                 )
             if residual_l1_magnitude is not None and residual_l2_magnitude is not None:
-                print_msg += f" residual_l1={residual_l1_magnitude:.4f} residual_l2={residual_l2_magnitude:.4f}"
+                print_msg += (f" {action_name}_l1={residual_l1_magnitude:.4f}"
+                              f" {action_name}_l2={residual_l2_magnitude:.4f}")
 
             # Add gradient norms to print statement
             if "train/actor_grad_norm" in metrics:

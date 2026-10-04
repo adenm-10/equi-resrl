@@ -181,3 +181,79 @@ def test_ih_out_channel_sets_the_wrist_width():
         assert enc.ih_type.size == 2 * ih_out
         widths[ih_out] = enc.vis_type.size
     assert widths[8] == widths[IH_OUT] == ENC_HIDDEN * N
+
+
+# ---------------------------------------------------------------------------
+# 3. Vanilla RL: no base action anywhere
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+def test_vanilla_encoder_gives_the_actor_the_critics_features(device, arm_spec):
+    """base_action_input=False, vanilla RL's encoder, reads no base action, so observations
+    without one go through, and the actor's features are exactly the critic's."""
+    from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
+        build_equivariant_normalizer,
+    )
+    from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
+    from tests.conftest import BATCH, CROP, OBS_SHAPE, wrist_keys
+    from tools.agent_fingerprint import ROTATION_CENTRE, _stats
+
+    keys = ("observation.images.agentview", *wrist_keys(arm_spec["n_arms"]))
+    enc = ResObsEnc(
+        obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT,
+        equivariant=True, initialize=True, wrist_keys=keys[1:], base_action_input=False, **arm_spec,
+    )
+    assert enc.enc_out_type_actor == enc.enc_out_type_critic
+    assert enc.enc_out_dim_actor == enc.enc_out_dim_critic == ga.layout_width(_layouts(arm_spec)["critic"], N)
+
+    enc.set_normalizer(
+        build_equivariant_normalizer(
+            stats={"observation.state": _stats(enc.state_dim), "action": _stats(enc.action_dim)},
+            robot_base_xy=torch.tensor(ROTATION_CENTRE), **arm_spec,
+        ),
+        robot_base_xy=list(ROTATION_CENTRE),
+    )
+    enc = enc.to(device).eval()
+    g = torch.Generator().manual_seed(0)
+    obs = {key: torch.randint(0, 256, (BATCH, *OBS_SHAPE), generator=g, dtype=torch.uint8) for key in keys}
+    obs["observation.state"] = torch.randn(BATCH, enc.state_dim, generator=g)
+    with torch.no_grad():
+        actor_feat, critic_feat = enc({k: v.to(device) for k, v in obs.items()})
+    assert actor_feat.type == critic_feat.type
+    assert torch.equal(actor_feat.tensor, critic_feat.tensor)
+
+
+@pytest.mark.gpu
+def test_vanilla_actor_reads_no_base_action(obs_enc, device):
+    """Its trunk and policy MLP each take one action block fewer than the residual actor's,
+    and it refuses features that still carry one."""
+    from escnn import nn as enn
+
+    from tests.conftest import BATCH, build_actor
+
+    residual = build_actor(obs_enc, device)
+    vanilla = build_actor(obs_enc, device, residual_actor=False)
+    action = obs_enc.action_type.size
+    assert vanilla.input_proj[0].in_type.size == residual.input_proj[0].in_type.size - action
+    assert vanilla.policy[0].in_type.size == residual.policy[0].in_type.size - action
+    assert vanilla.vis_ih_type.size + vanilla.prop_type.size == obs_enc.enc_out_type_critic.size
+
+    feat = torch.randn(BATCH, obs_enc.enc_out_type_actor.size, device=device)
+    with pytest.raises(AssertionError, match="vanilla actor reads"):
+        vanilla(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
+
+
+def test_the_scalar_ablation_is_residual_only():
+    """Its actor reads a base action, so it refuses vanilla RL (residual_actor=False) before
+    building anything."""
+    from resfit.rl_finetuning.config.residual_td3 import ResidualEquiTD3SquareConfig
+    from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
+    from tools.agent_fingerprint import ACTION_DIM, CAMERAS, OBS_SHAPE, STATE_DIM
+
+    cfg = ResidualEquiTD3SquareConfig()
+    cfg.agent.device = "cpu"
+    with pytest.raises(ValueError, match="residual-only"):
+        QAgent(obs_shape=OBS_SHAPE, prop_shape=(STATE_DIM,), action_dim=ACTION_DIM,
+               rl_cameras=list(CAMERAS), agent_cfg=cfg.agent, equi_cfg=cfg.equivariance,
+               residual_actor=False, equivariant=False)

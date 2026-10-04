@@ -140,12 +140,14 @@ def _flat_params(module: torch.nn.Module) -> torch.Tensor:
 
 
 def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
-                          **equivariance) -> QAgent:
+                          residual_actor: bool = True, **equivariance) -> QAgent:
     """The equivariant QAgent at the Square reference config, seeded.
 
     `overrides` maps dotted config paths to values, as in CANDIDATES.
     Keyword arguments override EquivarianceConfig fields, for tests of one
-    option. The fingerprint itself always uses the reference."""
+    option. residual_actor=False builds vanilla RL's agent, which reads no base
+    action; its batches come from fixed_batch(base_action=False). The
+    fingerprint itself always uses the reference."""
     cfg = ResidualEquiTD3SquareConfig()
     cfg.agent.device = device
     cfg.agent.actor.actor_last_layer_init_scale = INIT_SCALE
@@ -174,7 +176,7 @@ def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
             rl_cameras=list(CAMERAS),
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
-            residual_actor=True,
+            residual_actor=residual_actor,
             equivariant=True,
         )
     normalizer = build_equivariant_normalizer(
@@ -187,7 +189,7 @@ def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
 
 
 def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STATE_DIM,
-                action_dim: int = ACTION_DIM) -> TensorDict:
+                action_dim: int = ACTION_DIM, base_action: bool = True) -> TensorDict:
     """A replay batch shaped like the trainer's, rebuilt identically per call.
 
     Rebuild it for every use: QAgent.update writes features into the obs dicts.
@@ -195,7 +197,8 @@ def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STAT
     every batch, all 1 under uniform sampling. They send the critic loss down
     its weighted branch, as in training. The fingerprint predates them.
     The layout defaults to Square's; tests/test_sync_free.py also builds a
-    two-arm batch.
+    two-arm batch. base_action=False is a vanilla RL batch, whose observations
+    have no base action.
     """
     g = torch.Generator().manual_seed(1)
 
@@ -204,14 +207,10 @@ def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STAT
             cam: torch.randint(0, 256, (BATCH, *OBS_SHAPE), generator=g, dtype=torch.uint8)
             for cam in cameras
         }
-        return TensorDict(
-            {
-                **images,
-                "observation.state": torch.randn(BATCH, state_dim, generator=g),
-                "observation.base_action": torch.rand(BATCH, action_dim, generator=g) * 2 - 1,
-            },
-            batch_size=[BATCH],
-        )
+        fields = {**images, "observation.state": torch.randn(BATCH, state_dim, generator=g)}
+        if base_action:
+            fields["observation.base_action"] = torch.rand(BATCH, action_dim, generator=g) * 2 - 1
+        return TensorDict(fields, batch_size=[BATCH])
 
     batch = TensorDict(
         {

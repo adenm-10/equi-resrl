@@ -8,7 +8,13 @@ from dataclasses import dataclass, field
 
 from hydra.core.config_store import ConfigStore
 
-from resfit.rl_finetuning.config.rlpd import ActorConfig, QAgentConfig, RLPDAlgoConfig, RLPDDexmgConfig
+from resfit.rl_finetuning.config.rlpd import (
+    ActorConfig,
+    CriticConfig,
+    QAgentConfig,
+    RLPDAlgoConfig,
+    RLPDDexmgConfig,
+)
 
 
 @dataclass
@@ -84,7 +90,8 @@ class EquivarianceConfig:
     # the encoder's features directly.
     use_visual_proj: bool = True
     # True bounds the actor's mean by action_scale, as ResFiT's Tanh does:
-    # equi_tanh on each irrep(1) pair's norm and each trivial component.
+    # equi_tanh on each irrep(1) pair's norm and each trivial component. In
+    # vanilla RL (base_policy=None) that mean is the whole action.
     residual_squash: bool = False
 
     # True reproduces every equivariant run before 2026-09-29: the target critic
@@ -180,7 +187,10 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # ------------------------------------------------------------------
     # Base policy
     # ------------------------------------------------------------------
-    base_policy: BasePolicyConfig = field(default_factory=BasePolicyConfig)
+    # None runs vanilla RL: no base policy, and the actor outputs the whole
+    # action (TunedRLPDConfig). train_residual_td3.py branches on it as
+    # residual_run.
+    base_policy: BasePolicyConfig | None = field(default_factory=BasePolicyConfig)
 
     # ------------------------------------------------------------------
     # Weights & Biases logging
@@ -415,6 +425,137 @@ class ResidualTD3TwoArmCanSortConfig(ResidualTD3BoxCleanConfig):
 
 
 # -----------------------------------------------------------------------------
+# Tuned RLPD: ResFiT's off-policy RL with no base policy ----------------------
+# -----------------------------------------------------------------------------
+# The fields only a residual run reads, at the values that turn them off. A vanilla run
+# (base_policy=None) must leave each one off: the trainer would ignore it, and the run's
+# recorded config would describe a base policy it never had (STANDARDS 1.2).
+RESIDUAL_ONLY_FIELDS_OFF = {
+    "offline_data.use_base_policy_for_base_actions": False,  # labels the demos with base actions
+    "algo.use_base_policy_for_warmup": False,                # warm-up acts as base policy + noise
+    "algo.progressive_clipping_steps": 0,                    # ramps the residual in from zero
+}
+
+
+def residual_only_fields_set(cfg) -> list[str]:
+    """The residual-only fields `cfg` turns on, as "path=value". train_residual_td3.py refuses
+    a vanilla run (base_policy=None) unless this is empty."""
+    on = []
+    for path, off in RESIDUAL_ONLY_FIELDS_OFF.items():
+        value = cfg
+        for name in path.split("."):
+            value = getattr(value, name)
+        if value != off:
+            on.append(f"{path}={value}")
+    return on
+
+
+def _vanilla_agent(num_q: int) -> QAgentConfig:
+    """The agent half of the vanilla column: upstream's RLPD agent, written out."""
+    return QAgentConfig(
+        actor_lr=1e-4,
+        critic_lr=1e-4,
+        critic_target_tau=0.01,
+        critic=CriticConfig(num_q=num_q),
+        actor=ActorConfig(action_scale=1.0, actor_last_layer_init_scale=None),
+    )
+
+
+@dataclass
+class TunedRLPDConfig(ResidualTD3DexmgConfig):
+    """The ResFiT paper's "Tuned RLPD": ResFiT's off-policy RL, with no base policy.
+
+    A residual config made vanilla the way the paper made ResFiT vanilla. Every field in which
+    upstream's residual config and its RLPD config (config/rlpd.py) differ takes the RLPD
+    value; every other field stays as the residual config has it. The actor then learns the
+    whole action from random exploration and the demos, as in upstream's train_rlpd_dexmg.py,
+    whose training steps this trainer runs (docs/ARCHITECTURE.md, "Residual or vanilla").
+
+    Ten critic heads are ResFiT's design as the paper ran it (EXPERIMENTS.md, 2026-09-29
+    CORRECTION). The equivariant subclasses keep their residual reference's two.
+    """
+
+    base_policy: BasePolicyConfig | None = None
+
+    algo: ResidualTD3AlgoConfig = field(
+        default_factory=lambda: ResidualTD3AlgoConfig(
+            critic_warmup_steps=0,
+            random_action_noise_scale=1.0,  # warm-up actions U(-1, 1)
+            use_base_policy_for_warmup=False,
+            stddev_max=0.1,
+            stddev_min=0.1,
+        )
+    )
+
+    agent: QAgentConfig = field(default_factory=lambda: _vanilla_agent(num_q=10))
+
+    # Each run builds its buffers in memory: a vanilla buffer holds no base action, and the
+    # cache key does not record which normalization path filled a buffer (TODO B7).
+    write_buffer_caches: bool = False
+
+
+@dataclass
+class TunedRLPDSquareConfig(TunedRLPDConfig):
+    task: str = "Square"
+
+    offline_data: OfflineDataConfig = field(
+        default_factory=lambda: OfflineDataConfig(
+            name="ankile/robomimic-mh-square-image",
+            num_episodes=300,
+            use_base_policy_for_base_actions=False,
+        )
+    )
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-square-final", group="tuned-rlpd")
+    )
+
+
+@dataclass
+class TunedRLPDCanConfig(TunedRLPDConfig):
+    task: str = "Can"
+
+    offline_data: OfflineDataConfig = field(
+        default_factory=lambda: OfflineDataConfig(
+            name="ankile/robomimic-mh-can-image",
+            num_episodes=300,
+            use_base_policy_for_base_actions=False,
+        )
+    )
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-can-final", group="tuned-rlpd")
+    )
+
+
+@dataclass
+class EquiTunedRLPDSquareConfig(TunedRLPDSquareConfig):
+    """Tuned RLPD on the equivariant stack. These three fields are its whole difference from
+    the ResFiT arm's config; tests/test_sweep_arms.py checks that for the arms as launched."""
+
+    agent: QAgentConfig = field(default_factory=lambda: _vanilla_agent(num_q=2))
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-square-final", group="equi-tuned-rlpd")
+    )
+
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
+
+
+@dataclass
+class EquiTunedRLPDCanConfig(TunedRLPDCanConfig):
+    """As EquiTunedRLPDSquareConfig, on Can."""
+
+    agent: QAgentConfig = field(default_factory=lambda: _vanilla_agent(num_q=2))
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-can-final", group="equi-tuned-rlpd")
+    )
+
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
+
+
+# -----------------------------------------------------------------------------
 # Register with Hydra
 # -----------------------------------------------------------------------------
 cs = ConfigStore.instance()
@@ -428,3 +569,8 @@ cs.store(name="residual_td3_two_arm_cansort_config", node=ResidualTD3TwoArmCanSo
 cs.store(name="residual_equi_td3_can_config",    node=ResidualEquiTD3CanConfig)
 cs.store(name="residual_equi_td3_square_config", node=ResidualEquiTD3SquareConfig)
 cs.store(name="residual_equi_td3_box_clean_config", node=ResidualEquiTD3BoxCleanConfig)
+
+cs.store(name="tuned_rlpd_square_config", node=TunedRLPDSquareConfig)
+cs.store(name="tuned_rlpd_can_config", node=TunedRLPDCanConfig)
+cs.store(name="equi_tuned_rlpd_square_config", node=EquiTunedRLPDSquareConfig)
+cs.store(name="equi_tuned_rlpd_can_config", node=EquiTunedRLPDCanConfig)

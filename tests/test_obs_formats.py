@@ -121,3 +121,23 @@ def test_act_is_the_same_on_env_and_buffer_observations(device, float_images_as_
         assert rel > 0.1, f"the old scaling should change the action: {rel:.2e}"
     else:
         assert rel < 1e-4, f"act() differs between the env's and the buffer's images: {rel:.2e}"
+
+
+@pytest.mark.gpu
+def test_vanilla_act_is_the_same_on_env_and_buffer_observations(device, no_tf32):
+    """Vanilla RL's agent (base_policy=None) acts on the env's observations, which carry no base
+    action, as it acts on the buffer's."""
+    from tools.agent_fingerprint import build_reference_agent
+
+    agent = build_reference_agent(str(device), residual_actor=False, overrides={
+        "agent.actor.action_scale": 1.0, "agent.actor.actor_last_layer_init_scale": None})
+    agent.train(False)
+    env, buffer = _observations(device)
+    for obs in (env, buffer):
+        del obs["observation.base_action"]
+    with torch.no_grad():
+        a_env = agent.act(env, eval_mode=True, cpu=False)
+        a_buffer = agent.act(buffer, eval_mode=True, cpu=False)
+    assert a_env.abs().max().item() > 1e-3, "a zero action would pass trivially"
+    rel = _rel_diff(a_env, a_buffer)
+    assert rel < 1e-4, f"act() differs between the env's and the buffer's images: {rel:.2e}"

@@ -46,12 +46,12 @@ EVAL_WINDOW = (60_000, 100_000)
 B_SQ = 0.508                # Square's base rate, 2026-09-29 MEASUREMENT
 
 
-def load_history(run_id: str, runs_root: Path | None = None) -> list[dict]:
+def load_history(run_id: str, runs_root: Path | None = None, project: str = PROJECT) -> list[dict]:
     """Every history row of a run, from its local wandb record."""
     if runs_root is None:
         from resfit.lerobot.utils.load_policy import RUNS_ROOT
         runs_root = RUNS_ROOT
-    package = runs_root / PROJECT / run_id
+    package = runs_root / project / run_id
     saved = package / "wandb_logs" / "metrics.jsonl"
     if saved.exists():
         return [json.loads(line) for line in saved.read_text().splitlines() if line]

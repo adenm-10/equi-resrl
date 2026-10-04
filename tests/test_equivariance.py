@@ -317,26 +317,31 @@ ENCODER_OPTIONS = {
 MODES = pytest.mark.parametrize("training", [False, True], ids=["eval", "train"])
 
 
+def _assert_actor_equivariant(actor, feat_type, feat_layout, arm_spec, device, label, seed):
+    """pi(g.s) == g.pi(s) at every nontrivial group element, on a nonzero mean."""
+    from escnn import nn as enn
+
+    feat = _feat(None, feat_layout, device, seed=seed)
+    with torch.no_grad():
+        mu = actor(enn.GeometricTensor(feat, feat_type), std=None)
+        assert mu.abs().max().item() > 1e-8, "actor output is all zeros"
+        for k in range(1, N):
+            expected = ga.act_on_layout(mu, _action_layout(arm_spec), k, N)
+            got = actor(enn.GeometricTensor(ga.act_on_layout(feat, feat_layout, k, N), feat_type),
+                        std=None)
+            err = _rel_err(got, expected)
+            assert err < TOL, f"actor {label} not equivariant at k={k}: {err:.2e}"
+
+
 @pytest.mark.gpu
 @MODES
 @pytest.mark.parametrize("option", sorted(ACTOR_OPTIONS))
 def test_actor_options_are_equivariant(obs_enc, arm_spec, device, option, training):
-    from escnn import nn as enn
-
     from tests.conftest import build_actor
 
     actor = build_actor(obs_enc, device, **ACTOR_OPTIONS[option]).train(training)
-    feat_layout = _actor_layout(arm_spec)
-    feat = _feat(obs_enc, feat_layout, device, seed=11)
-    with torch.no_grad():
-        mu = actor(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
-        assert mu.abs().max().item() > 1e-8, "actor output is all zeros"
-        for k in range(1, N):
-            expected = ga.act_on_layout(mu, _action_layout(arm_spec), k, N)
-            got = actor(enn.GeometricTensor(ga.act_on_layout(feat, feat_layout, k, N),
-                                            obs_enc.enc_out_type_actor), std=None)
-            err = _rel_err(got, expected)
-            assert err < TOL, f"actor {option} not equivariant at k={k}: {err:.2e}"
+    _assert_actor_equivariant(actor, obs_enc.enc_out_type_actor, _actor_layout(arm_spec), arm_spec,
+                              device, option, seed=11)
 
 
 @pytest.mark.gpu
@@ -502,3 +507,55 @@ def test_squashed_actor_mean_is_bounded_by_action_scale(obs_enc, arm_spec, devic
         chunk = mu[..., sl]
         worst = chunk.abs().max() if kind == "trivial" else chunk.norm(dim=-1).max()
         assert worst.item() <= actor.action_scale + 1e-6, f"{kind} block {sl}"
+
+
+# ---------------------------------------------------------------------------
+# The vanilla actor (residual_actor=False): every norm, and its output bound
+# ---------------------------------------------------------------------------
+#
+# Vanilla RL's actor (base_policy=None) reads the critic's features, with no
+# base action, and outputs the whole action at action_scale 1.0.
+
+VANILLA_ACTOR_OPTIONS = {"none": {}, **ACTOR_OPTIONS}
+
+
+def _block_maxima(action, layout) -> list[float]:
+    """Each block's size: |x| for a scalar, the norm for an irrep(1) pair; max over the batch."""
+    return [(action[..., sl].abs().max() if kind == "trivial" else action[..., sl].norm(dim=-1).max()).item()
+            for sl, kind in layout]
+
+
+@pytest.mark.gpu
+@MODES
+@pytest.mark.parametrize("option", sorted(VANILLA_ACTOR_OPTIONS))
+def test_vanilla_actor_options_are_equivariant(obs_enc, arm_spec, device, option, training):
+    from tests.conftest import build_actor
+
+    actor = build_actor(obs_enc, device, residual_actor=False, action_scale=1.0,
+                        **VANILLA_ACTOR_OPTIONS[option]).train(training)
+    _assert_actor_equivariant(actor, obs_enc.enc_out_type_critic, _critic_layout(arm_spec), arm_spec,
+                              device, f"vanilla {option}", seed=19)
+
+
+@pytest.mark.gpu
+def test_vanilla_actor_output_is_bounded_per_block(obs_enc, arm_spec, device):
+    """With equi_tanh the mean, which is the whole action, has each irrep(1) pair in the unit
+    disk and each scalar in [-1, 1]. Without it the mean is unbounded, and only the explored
+    action is clipped to that bound. Both are what plan rule 2 chooses between."""
+    from escnn import nn as enn
+
+    from tests.conftest import build_actor
+
+    feat = enn.GeometricTensor(_feat(obs_enc, _critic_layout(arm_spec), device, seed=20) * 50,
+                               obs_enc.enc_out_type_critic)
+    layout = obs_enc.action_layout
+    for squash in (True, False):
+        actor = build_actor(obs_enc, device, residual_actor=False, action_scale=1.0,
+                            residual_squash=squash).eval()
+        with torch.no_grad():
+            mean, explored = actor(feat, std=None), actor(feat, std=0.1)
+        assert max(_block_maxima(explored, layout)) <= 1.0 + 1e-5, f"squash={squash}: explored past 1"
+        if squash:
+            assert max(_block_maxima(mean, layout)) <= 1.0 + 1e-6, "a squashed mean past 1"
+        else:
+            assert max(_block_maxima(mean, layout)) > 1.0, "the unbounded mean never left the bound"

@@ -7,12 +7,17 @@ from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import *
 
 
 class Actor(torch.nn.Module):
-    """The equivariant residual actor: pi(g.s) = g.pi(s).
+    """The equivariant actor: pi(g.s) = g.pi(s).
 
     visual projection -> trunk projection -> one hidden layer -> Linear to the
     action representation, each hidden layer followed by `norm` and a ReLU.
     Every Linear maps between escnn field types, which is what makes the map
     equivariant; `norm` (HIDDEN_NORMS) and equi_tanh preserve it.
+
+    The residual actor (the default) outputs a residual on the base action,
+    which it reads beside proprioception at the trunk and at the policy MLP.
+    With residual_actor=False, vanilla RL's, it reads no base action and outputs
+    the whole action; its features are the encoder's critic features.
     """
 
     def __init__(self,
@@ -33,8 +38,7 @@ class Actor(torch.nn.Module):
                  residual_squash: bool,
                  residual_actor: bool = True):
         super().__init__()
-        assert residual_actor, "Non-residual mode dropped — actor is residual-only"
-        self.residual_actor = True
+        self.residual_actor = residual_actor
         self.group = group
 
         self.vis_ih_type   = vis_ih_type
@@ -60,8 +64,10 @@ class Actor(torch.nn.Module):
             self.vp_type = vis_ih_type
             self.visual_proj = torch.nn.Identity()
 
-        # ---- Trunk: (vp + prop + base_action) ----
-        trunk_in_type        = self.vp_type + prop_type + action_type
+        # ---- Trunk: (vp + prop + base_action); the vanilla actor has no base action ----
+        trunk_in_type = self.vp_type + prop_type
+        if residual_actor:
+            trunk_in_type = trunk_in_type + action_type
         self.trunk_proj_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
         self.input_proj = torch.nn.Sequential(
             nn.Linear(trunk_in_type, self.trunk_proj_type, initialize=True),
@@ -71,7 +77,9 @@ class Actor(torch.nn.Module):
 
         # ---- Policy MLP (trunk_out + prop + base_action), one hidden layer ----
         # num_layers is not read: equivariance.num_actor_layers is dead (ARCHITECTURE.md).
-        pol_in_type     = self.trunk_proj_type + prop_type + action_type
+        pol_in_type = self.trunk_proj_type + prop_type
+        if residual_actor:
+            pol_in_type = pol_in_type + action_type
         pol_hidden_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
         pol_out_type    = nn.FieldType(group, action_shape)
         self.policy = torch.nn.Sequential(
@@ -100,13 +108,18 @@ class Actor(torch.nn.Module):
 
         vis_ih      = slice_gt(feat, 0,          vis_ih_end, self.vis_ih_type)
         prop        = slice_gt(feat, vis_ih_end, prop_end,   self.prop_type)
-        base_action = slice_gt(feat, prop_end,   n,          self.action_type)
+        # What both stages read beside their input: proprioception, and the base action.
+        if self.residual_actor:
+            skip = [prop, slice_gt(feat, prop_end, n, self.action_type)]
+        else:
+            assert n == prop_end, f"the vanilla actor reads {prop_end} features, got {n}"
+            skip = [prop]
 
         v        = self.visual_proj(vis_ih)
-        trunk_in = cat_gts([v, prop, base_action])
+        trunk_in = cat_gts([v, *skip])
 
         z         = self.input_proj(trunk_in)
-        policy_in = cat_gts([z, prop, base_action])
+        policy_in = cat_gts([z, *skip])
 
         mu: torch.Tensor = self.policy(policy_in).tensor
         if self.residual_squash:

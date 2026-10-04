@@ -68,6 +68,9 @@ class ResObsEnc(ModuleAttrMixin):
     both were divided by 255, which left act()'s images in [-1, -0.992];
     ``float_images_as_uint8`` reproduces that (EXPERIMENTS.md, 2026-10-02
     CORRECTION).
+
+    ``base_action_input=False`` is vanilla RL's encoder (base_policy=None): it reads
+    no ``observation.base_action``, so the actor's features are the critic's.
     """
 
     def __init__(
@@ -92,6 +95,7 @@ class ResObsEnc(ModuleAttrMixin):
         encoder_norm: str = "none",
         encoder_orth_init: bool = False,
         float_images_as_uint8: bool = False,
+        base_action_input: bool = True,
     ):
         super().__init__()
 
@@ -112,6 +116,7 @@ class ResObsEnc(ModuleAttrMixin):
         self.ih_out_channel = ih_out_channel
         self.N = N
         self.float_images_as_uint8 = float_images_as_uint8
+        self.base_action_input = base_action_input
 
         self.register_buffer(
             "robot_base_xy",
@@ -190,7 +195,7 @@ class ResObsEnc(ModuleAttrMixin):
                 n_hidden * [self.group.regular_repr]
                 + n_arms * ih_out_channel * [self.group.trivial_repr]
                 + self.prop_shape
-                + self.action_shape,
+                + (self.action_shape if base_action_input else []),
             )
 
             self.enc_obs = EquivariantResEncoder76Cyclic(
@@ -230,7 +235,7 @@ class ResObsEnc(ModuleAttrMixin):
             )
 
             self.enc_out_dim_critic = n_hidden * N + n_arms * ih_out_channel + self.prop_dim
-            self.enc_out_dim_actor  = self.enc_out_dim_critic + self.action_dim
+            self.enc_out_dim_actor  = self.enc_out_dim_critic + (self.action_dim if base_action_input else 0)
 
     @staticmethod
     def _build_action_layout(action_shape, group):
@@ -304,7 +309,7 @@ class ResObsEnc(ModuleAttrMixin):
         assert self._normalizers_ready, "Call set_normalizer() before forward()"
 
         obs         = nobs[self.agentview_key]
-        base_action = nobs["observation.base_action"]
+        base_action = nobs["observation.base_action"] if self.base_action_input else None
         state       = nobs["observation.state"]
 
         batch_size = obs.shape[0]
@@ -326,7 +331,6 @@ class ResObsEnc(ModuleAttrMixin):
         prop, action = [], []
         for arm in range(self.n_arms):
             s = state[:, arm * self.state_stride : (arm + 1) * self.state_stride]
-            a = base_action[:, arm * self.action_stride : (arm + 1) * self.action_stride]
 
             pos_xy_centered = s[:, 0:2] - self.robot_base_xy  # (B, 2), buffer broadcasts
             pos_xy = self.normalizer[arm_key("pos_xy", arm)].normalize(pos_xy_centered)
@@ -342,6 +346,9 @@ class ResObsEnc(ModuleAttrMixin):
                 pos_z,
                 ee_q,
             ]
+            if not self.base_action_input:
+                continue
+            a = base_action[:, arm * self.action_stride : (arm + 1) * self.action_stride]
             action += [
                 self.normalizer[arm_key("action_xy", arm)].normalize(a[:, 0:2]),
                 self.normalizer[arm_key("action_z", arm)].normalize(a[:, 2:3]),
@@ -350,9 +357,9 @@ class ResObsEnc(ModuleAttrMixin):
                 self.normalizer[arm_key("action_hand", arm)].normalize(a[:, 6:self.action_stride]),
             ]
 
-        # ----- Concatenate feature vector -----
+        # ----- Concatenate feature vector; without a base action the actor's is the critic's -----
         critic_features = torch.cat([enc_out, *ih_out, *prop], dim=1)
-        actor_features  = torch.cat([critic_features, *action], dim=1)
+        actor_features  = torch.cat([critic_features, *action], dim=1) if action else critic_features
 
         # Wrap in GeometricTensor for equivariant path
         if self.equivariant:

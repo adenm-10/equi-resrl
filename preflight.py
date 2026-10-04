@@ -14,6 +14,7 @@ Exits non-zero if anything blocking fails, so submit.sh can gate on it.
     python preflight.py --task Square              # the Square config instead
     python preflight.py --concurrent-seeds 2       # planning to run two at once
     python preflight.py --skip-tier2               # when both GPUs are busy
+    python preflight.py --task Can --method tuned-rlpd --stack resfit   # vanilla RL, no base policy
 """
 
 from __future__ import annotations
@@ -161,8 +162,9 @@ def tier1_pytest() -> bool:
         ["tests/test_imports.py", "tests/test_config.py",
          "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
          "tests/test_run_package.py", "tests/test_env_wrapper.py",
-         "tests/test_eval_base_policy.py", "tests/test_square_verdict.py"],
-        "imports + config + regression + run package + env wrapper + base-rate eval",
+         "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
+         "tests/test_tuned_rlpd_verdict.py"],
+        "imports + config + regression + run package + env wrappers + base-rate eval + verdicts",
     )
 
 
@@ -241,11 +243,13 @@ def _sha8(d: dict) -> str:
     return hashlib.sha1(json.dumps(d, sort_keys=True).encode()).hexdigest()[:8]
 
 
-def cache_hashes(task: str) -> tuple[str, str]:
+def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tuple[str, str]:
     """Mirror the cache keys built in train_residual_td3.py.
 
     Kept in sync by hand. If the hashes reported here do not match what the
-    training script prints at startup, this function is stale.
+    training script prints at startup, this function is stale. A residual key
+    does not record the stack (TODO B7, S9); a tuned-RLPD key adds the fields
+    that record it.
     """
     import tensordict
     import torchrl
@@ -261,11 +265,17 @@ def cache_hashes(task: str) -> tuple[str, str]:
     online = {**common, "horizon": t["horizon"], "size": 10_000,
               "buffer_size": 200_000, "batch_size": 128,
               "random_action_noise_scale": 0.2}
+    if method == "tuned-rlpd":
+        vanilla = {"base_policy": None,
+                   "normalization": {"equi": "identity", "resfit": "dataset"}[stack]}
+        offline.update(use_base_policy_for_base_actions=False, base_policy_wandb_id=None, **vanilla)
+        online.update(random_action_noise_scale=1.0, **vanilla)
     return _sha8(offline), _sha8(online)
 
 
-def tier3_resources(task: str, seeds: int, require_caches: bool = False) -> None:
-    section(f"Tier 3 - resources for {task}")
+def tier3_resources(task: str, seeds: int, require_caches: bool = False,
+                    method: str = "residual", stack: str = "equi") -> None:
+    section(f"Tier 3 - resources for {task} ({method}, {stack} stack)")
     t = TASKS[task]
     # The trainer reads caches and probes under CACHE_DIR, which a launch from a
     # pinned worktree points at the main checkout. Look where it will look.
@@ -273,6 +283,59 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False) -> None
     miss = FAIL if require_caches else WARN
 
     # -- base BC policy ----------------------------------------------------
+    if method == "residual":
+        tier3_bc_policy(t)
+    else:
+        record(INFO, "BC policy", "not used: tuned RLPD has no base policy")
+
+    # -- buffer caches -----------------------------------------------------
+    need_gb = 0.0
+    try:
+        off_h, on_h = cache_hashes(task, method, stack)
+        off = cache_root / "offline_buffer_cache" / off_h
+        on = cache_root / "online_buffer_cache" / on_h
+        off_gb, on_gb = cache_size_estimate(task)
+        if method == "tuned-rlpd":
+            # write_buffer_caches=false (TunedRLPDConfig): nothing is written, hit or miss.
+            for name, h, path in (("offline", off_h, off), ("online", on_h, on)):
+                record(INFO, f"{name} buffer cache {h}",
+                       "hit, will be read" if path.exists() else "none: built in memory, not written")
+        else:
+            record(PASS if off.exists() else miss, f"offline buffer cache {off_h}",
+                   "hit, loads in minutes" if off.exists()
+                   else f"MISS: will rebuild from the dataset (slow, writes ~{off_gb:.0f} GB)")
+            record(PASS if on.exists() else miss, f"online buffer cache {on_h}",
+                   "hit, so the 10k-step env warmup is skipped" if on.exists()
+                   else f"MISS: 10k-step env warmup will run, then writes ~{on_gb:.0f} GB")
+            need_gb = (0 if off.exists() else off_gb) + (0 if on.exists() else on_gb)
+        record(INFO, "cache key assumption",
+               "hashes assume default n_step=3 / gamma=0.99 / buffer_size=200k / "
+               "learning_starts=10k. Overriding any of those on the CLI changes the "
+               "key and forces a full rebuild. Cross-check against the hashes the "
+               "training script prints at startup.")
+    except Exception as exc:
+        record(WARN, "buffer cache hashes", f"could not compute: {exc}")
+
+    # -- env probe ---------------------------------------------------------
+    probe = cache_root / "env_probes" / f"{task}.json"
+    if stack == "resfit":
+        record(INFO, "robot base probe", "not used: the ResFiT stack has no equivariant normalizer")
+    elif probe.exists():
+        data = json.loads(probe.read_text())
+        bases = data["bases"] if "bases" in data else [data["base_xy"]]
+        centre = [sum(c) / len(bases) for c in zip(*bases)]
+        record(PASS, f"robot base probe {task}.json",
+               f"{len(bases)} base(s) {bases}, rotation centre {centre}")
+    else:
+        record(WARN, "robot base probe missing",
+               "will be detected by launching a probe env. If it silently fails, pos_xy is "
+               "centred on the world origin and the symmetry is broken (see EQUIVARIANCE.md)")
+
+    tier3_memory_and_disk(need_gb, seeds)
+
+
+def tier3_bc_policy(t: dict) -> None:
+    """The residual run's base policy: cached locally, and resolvable in wandb."""
     cached = list(REPO.glob(f"artifacts/run_{t['bc'].split('/')[-1]}_best*/policy/model.safetensors"))
     if cached:
         record(PASS, "BC policy cached locally", str(cached[0].parent.parent.relative_to(REPO)))
@@ -291,40 +354,9 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False) -> None
                f"{type(exc).__name__}. " + ("Local cache present, so this is survivable."
                                             if cached else "No local cache either: BLOCKING."))
 
-    # -- buffer caches -----------------------------------------------------
-    try:
-        off_h, on_h = cache_hashes(task)
-        off = cache_root / "offline_buffer_cache" / off_h
-        on = cache_root / "online_buffer_cache" / on_h
-        off_gb, on_gb = cache_size_estimate(task)
-        record(PASS if off.exists() else miss, f"offline buffer cache {off_h}",
-               "hit, loads in minutes" if off.exists()
-               else f"MISS: will rebuild from the dataset (slow, writes ~{off_gb:.0f} GB)")
-        record(PASS if on.exists() else miss, f"online buffer cache {on_h}",
-               "hit, so the 10k-step env warmup is skipped" if on.exists()
-               else f"MISS: 10k-step env warmup will run, then writes ~{on_gb:.0f} GB")
-        need_gb = (0 if off.exists() else off_gb) + (0 if on.exists() else on_gb)
-        record(INFO, "cache key assumption",
-               "hashes assume default n_step=3 / gamma=0.99 / buffer_size=200k / "
-               "learning_starts=10k. Overriding any of those on the CLI changes the "
-               "key and forces a full rebuild. Cross-check against the hashes the "
-               "training script prints at startup.")
-    except Exception as exc:
-        record(WARN, "buffer cache hashes", f"could not compute: {exc}")
 
-    # -- env probe ---------------------------------------------------------
-    probe = cache_root / "env_probes" / f"{task}.json"
-    if probe.exists():
-        data = json.loads(probe.read_text())
-        bases = data["bases"] if "bases" in data else [data["base_xy"]]
-        centre = [sum(c) / len(bases) for c in zip(*bases)]
-        record(PASS, f"robot base probe {task}.json",
-               f"{len(bases)} base(s) {bases}, rotation centre {centre}")
-    else:
-        record(WARN, "robot base probe missing",
-               "will be detected by launching a probe env. If it silently fails, pos_xy is "
-               "centred on the world origin and the symmetry is broken (see EQUIVARIANCE.md)")
-
+def tier3_memory_and_disk(need_gb: float, seeds: int) -> None:
+    """RAM for `seeds` concurrent runs, and disk for `need_gb` of cache each writes."""
     # -- memory ------------------------------------------------------------
     try:
         # MemAvailable, not free: page cache is reclaimable, and this box keeps
@@ -344,17 +376,14 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False) -> None
         record(WARN, "RAM headroom", "could not determine")
 
     free = shutil.disk_usage(REPO).free / 1e9
-    try:
-        need_gb = need_gb * seeds
-    except NameError:
-        need_gb = 0.0
+    need_gb = need_gb * seeds
     if need_gb:
         # Blocking: filling the disk mid-build corrupts the cache and wastes hours.
         detail = (f"{free:.0f} GB free, ~{need_gb:.0f} GB of cache to write "
                   f"= ~{free - need_gb:.0f} GB margin")
         record(PASS if free - need_gb > 10 else FAIL, "disk", detail)
     else:
-        record(PASS if free > 40 else WARN, "disk", f"{free:.0f} GB free, all caches hit")
+        record(PASS if free > 40 else WARN, "disk", f"{free:.0f} GB free, no cache to write")
 
 
 # ---------------------------------------------------------------------------
@@ -369,11 +398,17 @@ def main() -> int:
     ap.add_argument("--skip-tier2", action="store_true", help="skip the GPU suite")
     ap.add_argument("--require-caches", action="store_true",
                     help="a buffer-cache miss blocks, instead of warning of a rebuild")
+    ap.add_argument("--method", default="residual", choices=("residual", "tuned-rlpd"),
+                    help="tuned-rlpd is vanilla RL (base_policy=None): no BC checks, and "
+                         "buffers built in memory")
+    ap.add_argument("--stack", default="equi", choices=("equi", "resfit"),
+                    help="the agent; sets the tuned-RLPD cache keys and whether the probe is read")
     ap.add_argument("--compose", nargs=argparse.REMAINDER, default=[],
                     help="hydra overrides to dry-run compose; must come last")
     args = ap.parse_args()
 
-    print(f"\033[1mPre-submission gate\033[0m  task={args.task}  repo={REPO}")
+    print(f"\033[1mPre-submission gate\033[0m  task={args.task}  method={args.method}  "
+          f"stack={args.stack}  repo={REPO}")
 
     tier1_environment()
     tier1_git()
@@ -383,7 +418,7 @@ def main() -> int:
         ok = tier2() and ok
     else:
         record(WARN, "Tier 2 skipped", "--skip-tier2 was passed; equivariance is unverified")
-    tier3_resources(args.task, args.concurrent_seeds, args.require_caches)
+    tier3_resources(args.task, args.concurrent_seeds, args.require_caches, args.method, args.stack)
 
     fails = [r for r in results if r[0] == FAIL]
     warns = [r for r in results if r[0] == WARN]

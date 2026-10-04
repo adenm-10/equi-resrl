@@ -235,3 +235,15 @@ def test_encoder_inner_bn_makes_no_host_sync(device):
 def test_two_arm_update_makes_no_host_sync(device):
     agent, layout = _two_arm_agent(device)
     _assert_no_host_sync(agent, lambda: fixed_batch(weights=True, **layout).to(device))
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+@pytest.mark.parametrize("squash", [False, True], ids=["unbounded", "squash"])
+def test_vanilla_update_makes_no_host_sync(device, squash):
+    """Vanilla RL's agent (base_policy=None), on batches with no base action, at the actor_norm
+    default. The equivariant tuned-RLPD arm's provisional iid_bn syncs, as every iid_bn actor does."""
+    overrides = {"equivariance.actor_norm": "none", "equivariance.residual_squash": squash,
+                 "agent.actor.action_scale": 1.0, "agent.actor.actor_last_layer_init_scale": None}
+    agent = build_reference_agent(str(device), overrides=overrides, residual_actor=False)
+    _assert_no_host_sync(agent, lambda: fixed_batch(weights=True, base_action=False).to(device))

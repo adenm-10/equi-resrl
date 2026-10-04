@@ -103,7 +103,8 @@ class QAgent(torch.nn.Module):
         actor_dropout = self.agent_cfg.actor.dropout
         last_layer_scale = self.agent_cfg.actor.actor_last_layer_init_scale
 
-        # Per-arm observation layout; identical for both encoder branches.
+        # Per-arm observation layout; identical for both encoder branches. Vanilla RL
+        # (residual_actor=False) has no base action to encode.
         enc_layout = dict(
             n_arms=self.equi_cfg.n_arms,
             gripper_dim=self.equi_cfg.gripper_dim,
@@ -111,6 +112,7 @@ class QAgent(torch.nn.Module):
             agentview_key=rl_cameras[0],
             wrist_keys=tuple(rl_cameras[1:]),
             ih_out_channel=self.equi_cfg.ih_out_channel,
+            base_action_input=residual_actor,
         )
 
         if self.equivariant:
@@ -167,6 +169,8 @@ class QAgent(torch.nn.Module):
             )
         else:
             self.group = None
+            if not residual_actor:
+                raise ValueError("the scalar ablation is residual-only: its actor reads a base action")
             # The scalar ablation reads use_norms, and none of the equivariant-only fields.
             defaults = EquivarianceConfig()
             changed = [f for f in EQUIVARIANT_ONLY_FIELDS

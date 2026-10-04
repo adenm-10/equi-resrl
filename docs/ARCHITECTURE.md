@@ -25,7 +25,7 @@ work is entirely stage 2.
 |---|---|---|
 | [resfit/lerobot/scripts/train_bc_dexmg.py](../resfit/lerobot/scripts/train_bc_dexmg.py) | BC | argparse CLI. Launchers in `resfit/lerobot/shell/`. |
 | [resfit/rl_finetuning/scripts/train_residual_td3.py](../resfit/rl_finetuning/scripts/train_residual_td3.py) | Residual RL | Hydra CLI. **The main script.** 1316 lines. |
-| [resfit/rl_finetuning/scripts/train_rlpd_dexmg.py](../resfit/rl_finetuning/scripts/train_rlpd_dexmg.py) | RLPD baseline | Alternative baseline from the paper. Not currently used. |
+| [resfit/rl_finetuning/scripts/train_rlpd_dexmg.py](../resfit/rl_finetuning/scripts/train_rlpd_dexmg.py) | RLPD baseline | Upstream's RLPD trainer. Not used: tuned RLPD runs through the main script with `base_policy=None` ("Residual or vanilla", below). |
 
 ### The one fork that matters
 
@@ -52,6 +52,44 @@ squashing, and clipping semantics as well as in equivariance — six differences
 uninterpretable result. Matching the stacks is tracked in TODO P4 and blocks the ablation
 experiment.
 
+### Residual or vanilla
+
+A third switch, independent of the other two, was added on 2026-10-04 (EXPERIMENTS.md, CODE):
+
+```python
+residual_run = cfg.base_policy is not None
+```
+
+`base_policy=None` runs vanilla RL. There is no base policy, and the actor outputs the whole action.
+That is the ResFiT paper's "Tuned RLPD", which `TunedRLPDConfig` sets up. Both agents run it. A
+vanilla run differs from a residual one at exactly these places, each a branch on `residual_run`:
+
+| Where | Residual run | Vanilla run |
+|---|---|---|
+| Base policy | loaded from wandb, for training and for evals | none |
+| `ActionScaler` (ResFiT path) | range widened by `action_scale`, room for base + residual | not widened, as upstream's RLPD |
+| Env wrapper | `BasePolicyVecEnvWrapper`: adds the base action, steps base + residual | `NormalizedVecEnvWrapper`: normalizes, steps the action |
+| Buffer observation keys | state and base action | state |
+| Agent | `residual_actor=True` | `residual_actor=False`: the actor reads no base action |
+| Offline labels | the base policy's action on each demo frame | none |
+| Warm-up actions | base action + U(±0.2) | U(±1) |
+| Cache keys | unchanged | add `base_policy: None` and `normalization` (`identity` or `dataset`) |
+| Logging | `train/residual_l*`, `histograms/residual_actions` | `train/action_l*`, `histograms/actions`, as upstream |
+
+- **At startup** a vanilla run refuses any residual-only field that is on
+  (`residual_only_fields_set` in `config/residual_td3.py`).
+- **The ResFiT agent's** non-residual mode is upstream's, the one `train_rlpd_dexmg.py` uses.
+- **The equivariant agent's is new.** `ResObsEnc(base_action_input=False)` gives the actor the
+  critic's features, and `Actor(residual_actor=False)` drops the base action from its trunk and
+  policy inputs. Its output bound is `residual_squash`, which then bounds the whole action. The
+  scalar ablation stays residual-only and refuses at construction.
+- **Against upstream's `train_rlpd_dexmg.py`,** the training steps are the same: 4 updates per env
+  step with the actor on the last, the same warm-up, buffers and exploration. Three things differ:
+  - replay sampling is uniform through torchrl's prioritized buffer at α = 0, not a
+    `RandomSampler`, so it draws other random numbers;
+  - evals fall on every multiple of 10k, the last step included;
+  - the run keeps its package instead of deleting it (STANDARDS 6.4).
+
 ## Config system
 
 Hydra + nested dataclasses. All in [resfit/rl_finetuning/config/](../resfit/rl_finetuning/config/).
@@ -67,6 +105,11 @@ RLPDDexmgConfig                       (rlpd.py — task, cameras, envs, eval set
     │   ├── ResidualEquiTD3BoxCleanConfig    equivariance=EquivarianceConfig(N=8, n_arms=2)
     │   ├── ResidualTD3CoffeeConfig          task=TwoArmCoffee
     │   └── ResidualTD3TwoArmCanSortConfig   task=TwoArmCanSortRandom
+    └── TunedRLPDConfig                      base_policy=None: vanilla RL, the residual design made vanilla
+        ├── TunedRLPDSquareConfig            task=Square, ResFiT's stack (10 critic heads)
+        │   └── EquiTunedRLPDSquareConfig    + equivariance=EquivarianceConfig(N=8), 2 critic heads
+        └── TunedRLPDCanConfig               task=Can
+            └── EquiTunedRLPDCanConfig       + equivariance=EquivarianceConfig(N=8), 2 critic heads
 ```
 
 Sub-configs live inside these: `ResidualTD3AlgoConfig` (`algo.*`), `QAgentConfig` (`agent.*`),
@@ -87,6 +130,10 @@ Registered at [residual_td3.py:338-347](../resfit/rl_finetuning/config/residual_
 | `residual_equi_td3_box_clean_config` | `ResidualEquiTD3BoxCleanConfig` | TwoArmBoxCleanup | yes |
 | `residual_td3_coffee_config` | `ResidualTD3CoffeeConfig` | TwoArmCoffee | no |
 | `residual_td3_two_arm_cansort_config` | `ResidualTD3TwoArmCanSortConfig` | TwoArmCanSortRandom | no |
+| `tuned_rlpd_square_config` | `TunedRLPDSquareConfig` | Square | no; vanilla RL |
+| `tuned_rlpd_can_config` | `TunedRLPDCanConfig` | Can | no; vanilla RL |
+| `equi_tuned_rlpd_square_config` | `EquiTunedRLPDSquareConfig` | Square | yes; vanilla RL |
+| `equi_tuned_rlpd_can_config` | `EquiTunedRLPDCanConfig` | Can | yes; vanilla RL |
 
 ## Config field provenance
 
@@ -218,6 +265,7 @@ TODO P3.4.
 | File | Role |
 |---|---|
 | `wrappers/residual_env_wrapper.py` | `BasePolicyVecEnvWrapper`. Runs the base policy, adds `observation.base_action` to the observation, sums base + residual before stepping. |
+| `wrappers/normalized_env_wrapper.py` | `NormalizedVecEnvWrapper`, vanilla RL's: the residual wrapper less the base policy. Standardizes the state, unscales the action, records it in `info["scaled_action"]`. |
 | `utils/normalization.py` | `StateStandardizer`, `ActionScaler`, and the identity versions used on the equivariant path. |
 | `utils/hugging_face.py` | Downloads BC checkpoints from wandb and buffer caches from HF. |
 | `utils/checkpoint.py`, `utils/evaluate_dexmg.py`, `utils/rb_transforms.py`, `utils/dtype.py` | Checkpointing, evaluation rollouts, replay-buffer transforms, dtype helpers. |
@@ -263,6 +311,10 @@ QAgent._combine_actions(base, residual)
 
 Note the skip connections: proprioception and action are re-concatenated at every stage rather
 than only entering at the input. Both actor and critic do this.
+
+In a vanilla run (`base_policy=None`) `NormalizedVecEnvWrapper` steps the actor's action itself,
+the encoder has no base-action block, so `actor_features` is `critic_features`, and the actor's
+skip connections carry proprioception only.
 
 ### Metrics only on the update that is logged
 
@@ -338,6 +390,10 @@ Roughly in order:
 7. Environment warmup: fill the online buffer to `algo.learning_starts` with base policy + noise.
 8. Critic warmup: `algo.critic_warmup_steps` critic-only updates, actor frozen.
 9. Main loop to `algo.total_timesteps`: step env, add to buffer, do `num_updates_per_iteration` gradient updates, evaluate every `eval_interval_every_steps`. On a new best success rate, save the residual weights and upload them with that eval's video (see "Run packages" below).
+
+A vanilla run skips step 1, wraps its envs in `NormalizedVecEnvWrapper` (3), stores no base action
+(6), warms up with uniform random actions (7), and runs no critic warm-up (8), since
+`TunedRLPDConfig` sets none. It builds its buffers in memory: `write_buffer_caches=false`.
 
 `eval_first: bool = True` means there is an evaluation at step 0. Because
 `agent.actor.actor_last_layer_init_scale = 0.0`, the residual starts at exactly zero, so **the
