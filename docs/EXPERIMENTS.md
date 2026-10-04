@@ -2362,3 +2362,56 @@ run, from `tools/square_verdict.py`.
   without `residual_squash`. The equivariant actor ignores `stddev_clip`, so its target noise is not
   clipped. The same caveats hold for the four runs of the LAUNCHED entry for 2026-10-01's launches
   above, which omitted them.
+
+---
+
+## 2026-10-04 — RESULTS — the image-fix pair: both collapsed by the first eval
+
+Seed-group `square-image-fix-1002` (2026-10-02 PRE-REGISTERED and LAUNCHED). Both runs finished
+100k on 2026-10-03, at 05:25 and 05:35, after 12.1 and 12.3 h by the trainer's clock (0.44 s/step
+with evals). Verdicts from `tools/square_verdict.py fal5sfot fqo83rvd`.
+
+| Run | Seed | Step 0 | Evals 10k–100k | Training success, [0, 10k] → (70k, 100k] | Verdict |
+|---|---|---|---|---|---|
+| `fal5sfot` | 1 | 0.46 | 0.00 at all ten | 0.09 (34 episodes) → 0.00 (100) | does not advance: collapsed at 30k |
+| `fqo83rvd` | 2 | 0.52 | 0.00 at all ten | 0.03 (33 episodes) → 0.00 (100) | does not advance: collapsed at 30k |
+
+- **Read against the pre-registration: "either run collapses."** So the IID-batch-norm actor's
+  earlier stability came from executing almost no residual (2026-10-02 CORRECTION), and the
+  ablations' verdicts say nothing about their designs.
+- **The residual,** mean |r| over the update batch, in env action units, against the clip at 1.0:
+
+  | Step | 2k | 5k | 10k | 20k | 30k | 50k | 100k |
+  |---|---|---|---|---|---|---|---|
+  | `fal5sfot` | 0.03 | 0.13 | 0.18 | 0.28 | 0.43 | 0.44 | 0.47 |
+  | `fqo83rvd` | 0.03 | 0.12 | 0.07 | 0.20 | 0.28 | 0.40 | 0.44 |
+
+  - Its largest component reached the clip by 15–20k (`debug/residual_max_abs` 1.00).
+  - ResFiT's `870ws2c2`, whose Tanh caps it at 0.1, had 0.055 at 10k.
+  - Every training episode after 10k timed out at 300 steps.
+- **The critic kept scoring the residual above the base action** while the policy failed:
+  - `debug/q_advantage` was −0.0004 to +0.007, and positive at 19 of the 20 logged steps read
+    (10 per run).
+  - `train/critic_qt` stayed at 0.06–0.23 and the critic loss fell from about 7e-4 to 1e-4. Half
+    of each batch is demos, which succeed, so those batch means do not show the online failure.
+  - `dQ_da` stayed at 6–10e-5.
+- **Aden's decision (2026-10-04),** as the pre-registration requires: the equivariant tuned-RLPD
+  arms do not launch on this design. Build all four tuned-RLPD arms, launch the two ResFiT arms,
+  and decide the equivariant arms' design when those report (TODO B12).
+- Two seeds: an observation, not a comparison (STANDARDS 5.3). Packages in
+  `outputs/runs/robomimic-square-final/{fal5sfot,fqo83rvd}/`.
+
+---
+
+## 2026-10-04 — MEASUREMENT — Can base rate B_can = 0.894 ± 0.014
+
+- `eval_base_policy --config-name residual_equi_td3_can_config --num-evals 10 --seed 1000`, as for
+  B_sq. Run at `b667647` from its pinned worktree, whose code is `b05736d`'s, on `boce-WS-01`, GPU 1,
+  11:57–12:06. Record: `outputs/base_rates/Can__xhjdl8a7_best_latest__seed1000.json`.
+- BC `run_xhjdl8a7_best:latest`, which resolves to `v7`, the only version on disk. 8 eval envs, as
+  in the trainer. Env initial states are unseeded.
+- **Per-eval rates:** 0.88, 0.94, 0.90, 0.90, 0.86, 0.84, 0.92, 0.86, 0.94, 0.90.
+  **Mean 0.894 ± 0.014** (binomial SE, 500 episodes). The spread between evals matches 50-episode
+  binomial noise.
+- For comparison, `msfkjwab`'s step-0 eval (`residual_td3_can_config` at `807efd65`) was 0.92.
+- It is the bar for the Can arms of tuned RLPD (PRE-REGISTERED below).
