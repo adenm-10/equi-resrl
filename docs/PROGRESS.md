@@ -37,8 +37,9 @@ other four docs, with a pointer from here.
 - **Verified the vanilla path:** new tests in seven files, and four 600-step debug runs: the
   residual reference, and vanilla ResFiT on Square and Can and equivariant on Square. The full
   suite gave 514 passed.
-- **Pre-registered `tuned-rlpd-1002`** (PRE-REGISTERED). Its two ResFiT arms launch from that
-  commit.
+- **Pre-registered `tuned-rlpd-1002` and launched its two ResFiT arms** from `a0353a5`:
+  `8ma5alnm` (Square) and `lg8qad3l` (Can), ending around 18:30–19:00 (PRE-REGISTERED,
+  LAUNCHED). Gate GO with no warnings; step-0 0/50 on both; 0.11–0.12 s/step.
 
 **Decisions** (Aden's)
 
@@ -55,8 +56,8 @@ other four docs, with a pointer from here.
 
 **Next**
 
-- **Watch the ResFiT arms;** each takes about 8 h. Then RESULTS from `tools/tuned_rlpd_verdict.py`
-  and `/analyze-experiment`.
+- **Watch the ResFiT arms;** each takes about 5.5 h. Then RESULTS from
+  `tools/tuned_rlpd_verdict.py` and `/analyze-experiment`.
 - **Aden decides the equivariant arms' design** (TODO B12). Then an AMENDMENT, and they launch.
 
 ---

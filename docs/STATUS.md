@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-10-04 · **Last verified commit:** the tuned-RLPD pre-registration, on the
-no-base-policy mode (EXPERIMENTS.md, 2026-10-04 CODE and PRE-REGISTERED)
+**Last updated:** 2026-10-04 · **Last verified commit:** `a0353a5`, the tuned-RLPD pre-registration
+and launch, on the no-base-policy mode `692f09a` (EXPERIMENTS.md, 2026-10-04 CODE)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -21,7 +21,7 @@ policy (TODO B12; EXPERIMENTS.md, 2026-10-04 PRE-REGISTERED).
 - **Built:** a `base_policy=None` mode in `train_residual_td3.py`, for both agents, with four
   configs, a wrapper, a gate method, a verdict tool and four arms in `submit.sh`
   (2026-10-04 CODE). The residual path is unchanged, tensor for tensor.
-- **Launching now: the two ResFiT arms,** Square and Can, seed 1, 150k steps each.
+- **Running: the two ResFiT arms,** Square and Can, seed 1, 150k steps each ("Running now").
 - **The two equivariant arms wait for Aden** (Aden's decision, 2026-10-04), who decides their
   design when the ResFiT arms report: the actor's norm and its output bound at least. `submit.sh`
   holds them with the plan's provisional design and refuses to launch them.
@@ -41,17 +41,19 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**Tuned RLPD, the ResFiT arms** (seed-group `tuned-rlpd-1002`), launched from the pre-registration
-commit through `tools/gpu_queue.sh`. Run ids, startup checks and speed are in the LAUNCHED entry.
+**Tuned RLPD, the ResFiT arms** (seed-group `tuned-rlpd-1002`; EXPERIMENTS.md, 2026-10-04
+PRE-REGISTERED and LAUNCHED), from `a0353a5` through `tools/gpu_queue.sh`.
 
-| Arm | Task | GPU | Bar (110k–150k eval mean) |
-|---|---|---|---|
-| `tuned-rlpd-square` | Square | 0 | B_sq = 0.508 |
-| `tuned-rlpd-can` | Can | 1 | B_can = 0.894 |
+| Arm | wandb | GPU | Started | Ends (est.) | Bar (110k–150k eval mean) |
+|---|---|---|---|---|---|
+| `tuned-rlpd-square` | `8ma5alnm` | 0 | 2026-10-04 13:19 | ~18:30–19:00 | B_sq = 0.508 |
+| `tuned-rlpd-can` | `lg8qad3l` | 1 | 2026-10-04 13:19 | ~18:30–19:00 | B_can = 0.894 |
+
+- **At launch:** step-0 evals 0/50 on both; 0.112 and 0.120 s/step; 13.8 and 11.1 GiB PSS.
 
 - **How it runs:** one runner per GPU in tmux `gpu0` and `gpu1` (queues `~/queues/gpu{0,1}.txt`),
-  started from `~/projects/equi-resrl-b667647`; each launch runs in the worktree pinned to its
-  commit. No watcher: each run ends at 150k.
+  started from `~/projects/equi-resrl-b667647`; these launched in `~/projects/equi-resrl-a0353a5`.
+  No watcher: each run ends at 150k, and nothing else is queued.
 - **Expect** a step-0 eval near zero, from a randomly initialized actor. The paper's Tuned RLPD
   passes 90% on Square within 150k, and reaches high success on Can.
 - **The verdict:** `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`.

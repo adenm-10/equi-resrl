@@ -27,8 +27,9 @@ Vanilla RL with no base policy, as a test of the RL machinery. Plan:
 `NormalizedVecEnvWrapper`, the non-residual equivariant encoder and actor,
 `preflight.py --method tuned-rlpd`, `tools/tuned_rlpd_verdict.py`, and four arms in `submit.sh`.
 
-**Running: the two ResFiT arms** (STATUS, "Running now"). When each reaches 150k: a RESULTS entry
-from `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`, then
+**Running: the two ResFiT arms,** `8ma5alnm` (Square, GPU 0) and `lg8qad3l` (Can, GPU 1), from
+2026-10-04 13:19, ending around 18:30–19:00 (LAUNCHED entry). When each reaches 150k: a RESULTS
+entry from `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`, then
 `/analyze-experiment`.
 
 **Waiting for Aden: the equivariant arms' design.** Aden's decision (2026-10-04) is to decide it

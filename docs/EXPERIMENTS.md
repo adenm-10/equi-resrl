@@ -2606,3 +2606,46 @@ vanilla"). Env initial states are unseeded, as in every run.
 **Records.** A LAUNCHED entry with the startup checks: no base policy loaded, buffers built in
 memory, step-0 about 0, the speed and the RAM. A RESULTS entry per run, from
 `tools/tuned_rlpd_verdict.py`.
+
+---
+
+## 2026-10-04 — LAUNCHED — tuned RLPD's ResFiT arms: `8ma5alnm` (Square) and `lg8qad3l` (Can)
+
+| Arm | Seed | wandb | GPU | Commit | Launched (EDT) |
+|---|---|---|---|---|---|
+| `tuned-rlpd-square` | 1 | **`8ma5alnm`** | 0 | `a0353a5` | 2026-10-04 12:57 (wandb 13:19) |
+| `tuned-rlpd-can` | 1 | **`lg8qad3l`** | 1 | `a0353a5` | 2026-10-04 12:58 (wandb 13:19) |
+
+- **How:**
+  - queue lines `a0353a5 tuned-rlpd-square 1` and `a0353a5 tuned-rlpd-can 1`;
+  - the runners in tmux `gpu0` and `gpu1` (started 2026-10-02 from `~/projects/equi-resrl-b667647`,
+    with `CACHE_DIR=~/projects/equi-resrl`) launched them in the new worktree
+    `~/projects/equi-resrl-a0353a5`;
+  - consoles in `outputs/queue/20261004-125755_tuned-rlpd-square-1_gpu0.log` and
+    `20261004-125812_tuned-rlpd-can-1_gpu1.log`;
+  - no watcher: each run ends at 150k.
+- **Gate:** GO for both, with no warnings. Tier 1: 163 passed, 2 skipped. Tier 2: 351 passed.
+  - The two pending equivariant arms: GO on Tiers 1 and 3 from the same worktree. Their Tier 2 was
+    skipped, since the two launch gates ran it on that commit.
+- **Startup verified, both runs:**
+  - "No base policy"; the `ActionScaler` not widened (factor 0.0); `Set random seed to 1`;
+  - buffers built in memory, nothing written: 80,429 (Square) and 62,454 (Can) demo transitions,
+    under keys `a2d779c4`/`6e94049f` and `83506f61`/`3718c816`;
+  - 10k warm-up steps of U(±1): 0 successes in 33 and 50 episodes;
+  - the resolved configs in wandb have `base_policy: None`, `equivariance: None`, `num_q: 10`, actor
+    LR 1e-4, τ 0.01, `action_scale` 1, init scale None, critic warm-up 0,
+    `stddev_schedule: linear(0.1,0.1,300000)`, 150k steps, and no cache writes.
+- **Step-0 eval:** 0/50 on both, from a randomly initialized actor.
+- **Speed:** 0.112 s/step (Square) and 0.120 (Can) over steps 1k–3k, from each run's history.
+  An eval takes about a minute. So 150k ends in about 5–5.5 h, around 18:30–19:00 on
+  2026-10-04, sooner than the pre-registration's 8 h, which came from `msfkjwab` on the other
+  machine.
+- **Memory:** 13.8 GiB (Square) and 11.1 GiB (Can) PSS per trainer process, not counting the env
+  workers, at about 13k online transitions. With both running, 69 GB of 125 are available.
+- **The first 3k steps, as observations only; the verdict is at 110k–150k:**
+  - **Training episodes:** 0 successes in 10 (Square) and 16 (Can); every one timed out.
+  - **`train/action_l1`:** 0.75–0.80 (Square) and 0.84–0.91 (Can). The Tanh actor sits near its
+    bound, as in the debug runs. Actor gradient norm 0.0015–0.05.
+  - **Critic loss:** 1–2e-4 (Square), under 5e-5 (Can).
+- **Config caveats:** none on this stack. The ResFiT agent does not log `debug/dQ_da_*`
+  (TODO B13).
