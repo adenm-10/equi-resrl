@@ -466,8 +466,8 @@ Recorded so they are not rediscovered. None are blocking.
   Two different code paths for what reads as the same intent.
 - `networks/ablate_equi_obs_encoder.py` is imported by nothing — the scalar ablation goes through
   `ResObsEnc(equivariant=False)`. It still looks up the pre-bimanual normalizer key
-  `action_gripper`, which no longer exists, so wiring it up would raise. Left in place under the
-  freeze; delete it in the Phase 3 cleanup.
+  `action_gripper`, which no longer exists, so wiring it up would raise. It also has the image bug
+  (EXPERIMENTS.md, 2026-10-02 CORRECTION). Left in place; delete it in the Phase 3 cleanup.
 - `Critic.forward` accepts a `return_logits` keyword and ignores it.
 - **`action_scale` does not bound the residual** unless `equivariance.residual_squash=True`
   (added 2026-09-29, off by default, as every earlier run had it). `Actor.forward` computes
@@ -475,13 +475,14 @@ Recorded so they are not rediscovered. None are blocking.
   can exceed `action_scale`. Measured at 1.27x on the two-arm actor.
   The executed action is bounded instead by `equi_clip(..., bound=1.0)`, which is ten times
   looser than `action_scale=0.1` suggests. Read `residual_l1` / `residual_l2` against 1.0, not
-  against `action_scale`. Surfaced 2026-09-25 by parameterising the equivariance tests over arm
+  against `action_scale`. Both are the update batch's residual, not the executed one. Surfaced 2026-09-25 by parameterising the equivariance tests over arm
   count; the single-arm actor happened to stay under the bound, so the old test passed by luck.
 - **The base policy is reset only on success, and for diffusion it resets every env.**
   `BasePolicyVecEnvWrapper.step` resets on `terminated` but not `truncated`, so after a timeout the
   auto-reset env keeps executing the old episode's action chunk. The reset also comes after
   `select_action`, and diffusion's `reset()` clears the queues of all envs, not just the finished one.
-  Fixing either changes Can and Square behaviour, so it breaks comparability with every run so far.
+  Fixing either changes Can and Square behaviour, so it breaks comparability with the runs that are
+  still comparable: the ResFiT runs, the base rates and the image-fix pair.
 - **The ACT branch of that reset crashes.** It passes `env_ids=terminated_envs`, a name that does not
   exist, so the first success with an ACT base policy raises `NameError`. Can and Square use
   diffusion and never reach it; BoxCleanup does. TODO B3.

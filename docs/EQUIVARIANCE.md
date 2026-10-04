@@ -4,6 +4,11 @@ Why this project has a symmetry in it, what exactly is assumed to be symmetric, 
 those assumptions actually hold. For where the code lives, see
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
+**Note, 2026-10-02.** Every equivariant run before `e15d36c` acted on near-blank images
+(EXPERIMENTS.md, 2026-10-02 CORRECTION). So this file's statements about which runs "worked" or
+"collapsed" describe those runs' base policy plus whatever the actor computed from a blank image,
+not the design. The symmetry statements, and the tests behind them, are unaffected.
+
 ## The idea in one paragraph
 
 A tabletop manipulation task has a rotational symmetry: if you rotate the whole scene about the
@@ -383,13 +388,14 @@ mind if the equivariant advantage turns out smaller than the SO(2) paper's.
   proprioception and action?
 - At its default the critic head has no activation before pooling, and `GroupPooling` is doing
   double duty as the head's only nonlinearity. `num_critic_layers=2` adds a ReLU'd hidden layer;
-  the sweep's `critic-deep` arm tests it.
+  the sweep's `critic-deep` arm was to test it, and never ran.
 - At its default the critic has **no normalization at all**. Every run before 2026-09-30 had batch
   norm in the actor; from then on the actor's default has none either, as in the SO(2) equivariant
-  RL code. `critic_norm` (2026-09-29) adds it after every hidden layer, before the pooling; the
-  sweep's `critic-ln` and `critic-iid` arms test it.
+  RL code. `critic_norm` (2026-09-29) adds it after every hidden layer, before the pooling. The
+  sweep's `critic-ln` was stopped without a verdict and `critic-iid` never launched. `critic-fn`
+  did not advance, but under the image bug.
   `TrivialLayerNorm` — written by Aden, never run, preserved in TODO P3.4 — is the correct layer for
   the all-trivial features that `GroupPooling` produces, since escnn's `FieldNorm` would zero them.
-  Restoring critic normalization is scheduled for P3.4, gated on the reproduction.
+  Restoring critic normalization is scheduled for P3.4, whose gate needs re-deciding (TODO P3).
 - The in-hand camera is invariant, which is correct, but it means half the visual input carries no
   symmetry information. How much does the equivariant agentview branch actually contribute?

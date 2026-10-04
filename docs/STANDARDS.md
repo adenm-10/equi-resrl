@@ -102,8 +102,7 @@ Established naming, follow it: `vis_type`, `ih_type`, `prop_type`, `action_type`
 The actor is equivariant (`π(g·s) = g·π(s)`); the critic is invariant (`Q(g·s, g·a) = Q(s, a)`).
 Any new module states which it is and how it achieves it. The critic achieves invariance with
 `GroupPooling` at [critic.py:35-37](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L35) —
-the single most load-bearing line in the equivariant code, and the change that enabled the first
-successful run.
+the single most load-bearing line in the equivariant code.
 
 ### 2.3 Use the existing `GeometricTensor` helpers `[CS]`
 
@@ -226,8 +225,9 @@ from the replay buffer. The two formats differ: the env's images are float in [0
 buffer's copies are uint8.
 
 Every test, golden and fingerprint fed uint8 only. So for seven months no test could see that the
-equivariant encoder turned the env's images near-blank, and every equivariant run executed almost
-none of the residual it trained (EXPERIMENTS.md, 2026-10-02 CORRECTION).
+equivariant encoder turned the env's images near-blank. Every equivariant run executed a residual
+unrelated to the one it trained, and almost none of it in the two IID-batch-norm checkpoints
+measured (EXPERIMENTS.md, 2026-10-02 CORRECTION).
 
 - A test of either route feeds the format that route delivers.
 - `tests/test_obs_formats.py` checks that the two give the same act().
@@ -309,10 +309,11 @@ Anti-pattern: `train/` and `training/` are both in use and mean nearly the same 
 
 These three found the residual-saturation failure mode and should stay logged on any new agent:
 
-- `train/residual_l{1,2}_magnitude` — compare against `action_scale`. Equality means the residual is
-  pinned at its clip boundary. It is the update batch's residual, computed from buffer images, not
-  the one act() executes; until 2026-10-02 the two differed by about 200× in every equivariant run
-  (rule 4.5).
+- `train/residual_l{1,2}_magnitude` — compare against `action_scale` with `residual_squash`, and
+  against 1.0, the clip, without it. Equality means the residual is pinned at its bound.
+  - It is the update batch's residual, computed from buffer images, not the one act() executes.
+  - Until 2026-10-02 the two differed by about 200× in the two IID-batch-norm checkpoints measured
+    (rule 4.5).
 - `debug/dQ_da_mean_abs` — the critic's action gradient. Around `1e-4` means the actor is ascending
   a nearly flat surface.
 - `train/critic_loss` — a low, stable loss alongside a flat `dQ_da` means the critic is fitting

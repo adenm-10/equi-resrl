@@ -2315,3 +2315,50 @@ depth arms against `ccff539`'s `submit.sh`, where the parked group launches.
 
 **Records.** A LAUNCHED entry, with the step-0 evals and the measured speed. A RESULTS entry per
 run, from `tools/square_verdict.py`.
+
+---
+
+## 2026-10-02 — LAUNCHED — the image-fix pair, `fal5sfot` (seed 1) and `fqo83rvd` (seed 2)
+
+| Arm | Seed | wandb | GPU | Commit | Launched (EDT) |
+|---|---|---|---|---|---|
+| `image-fix` | 1 | **`fal5sfot`** | 0 (`GPU-ca9f06b8`) | `b667647` | 2026-10-02 17:04 (wandb 17:19) |
+| `image-fix` | 2 | **`fqo83rvd`** | 1 (`GPU-8d23cc42`) | `b667647` | 2026-10-02 17:04 (wandb 17:19) |
+
+- **How:**
+  - queue lines `b667647 image-fix <seed>`;
+  - `tools/gpu_queue.sh`, in new tmux sessions `gpu0` and `gpu1`, started from
+    `~/projects/equi-resrl-b667647` with `CACHE_DIR=~/projects/equi-resrl`;
+  - consoles in `outputs/queue/20261002-170447_image-fix-{1_gpu0,2_gpu1}.log`;
+  - no watcher.
+- **Gate:** GO for both. Tier 1: 136 passed, 2 skipped. Tier 2: 298 passed, now including
+  `test_obs_formats.py`.
+- **Startup verified:**
+  - `Set random seed` to 1 and 2;
+  - offline `1d31ed9b` (80,429) and online `66c46c51` (10,000) loaded from disk;
+  - probe centre (−0.56, 0.0);
+  - the resolved configs in wandb have `actor_norm: iid_bn`, `float_images_as_uint8: False`,
+    `frozen_target_critic: False`, `num_q: 2`, init scale 1e-4 and 100k steps.
+- **Step-0 eval:** `fal5sfot` 0.46 (23/50), `fqo83rvd` 0.52 (26/50). The trainer-path step-0 pool is
+  now 439/800 = 0.549.
+- **Speed:** 0.417 s/step for both over steps 1k–3.7k, as for the earlier `iid_bn` runs. 100k ends
+  around 2026-10-03 06:00.
+- **Memory:** 27.6–27.7 GiB PSS per trainer process, not counting the eval workers.
+- **The first 2.9k steps, as observations only; the verdict is at 100k.**
+  - **Training success:** 3/10 and 1/9 episodes.
+    - Before the fix, the same seeds had 4/10 and 2/10. `870ws2c2`, ResFiT's run that went on to
+      learn, had 3/11 by 3k.
+    - Training episodes carry the exploration noise (σ 0.05), so they sit below the evals.
+    - At about 10 episodes per run, ±0.15, none of these differ.
+  - **The residual,** on the update batch: mean |r| 0.049 and 0.056, max 0.18. That is the same as
+    before the fix (0.051 for both) and as `870ws2c2` at 3k (0.048, in its normalized units). No metric
+    logs the executed residual; after the fix, act() computes the same one on the same observation.
+  - **What to watch: before the fix, this residual kept growing.** It reached 0.13 by 5k, 0.16–0.24
+    by 10k, and about 0.3 by 20–30k. `870ws2c2`'s reached 0.055 by 10k and 0.072 by 30k, and its
+    Tanh times `action_scale` caps it at 0.1. The reference has no cap (`residual_squash=false`), and
+    that growth is now executed. This is the first test of the unbounded residual, the question the
+    never-run `squash` arm was to ask.
+- **Config caveats:** `num_actor_layers` stays dead. `action_scale` does not bound the residual
+  without `residual_squash`. The equivariant actor ignores `stddev_clip`, so its target noise is not
+  clipped. The same caveats hold for the four runs of the LAUNCHED entry for 2026-10-01's launches
+  above, which omitted them.

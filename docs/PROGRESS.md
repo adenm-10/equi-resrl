@@ -17,39 +17,62 @@ other four docs, with a pointer from here.
 
 ---
 
-## 2026-10-02 — act() saw near-blank images in every equivariant run; fixed; the ablations parked
+## 2026-10-02 — act() saw near-blank images in every equivariant run; fixed; the image-fix pair launched
 
 **Done**
 
-- **The machine went down at about 06:50 and rebooted at 14:22.** That killed `enc-inner` and
-  `target-fix` seed 2, the runners and the watcher. Every run of the queue is now written up:
-  LAUNCHED, RESULTS (none advances; both actor-norm arms collapsed) and STOPPED. Both crashed
-  packages were finalized by hand.
-- **Found and fixed the image-scaling bug** (EXPERIMENTS.md, CORRECTION and CODE).
+- **The machine went down at about 06:50 and rebooted at 14:22,** killing `enc-inner`, `target-fix`
+  seed 2, the runners and the watcher.
+  - Every queue run is written up: LAUNCHED, RESULTS (none advances; both actor-norm arms collapsed)
+    and STOPPED.
+  - Both crashed packages were finalized by hand.
+- **Fixed the image-scaling bug** (`e15d36c`; EXPERIMENTS.md, CORRECTION and CODE):
   - act() got the env's float images and divided them by 255 again.
   - Two trained checkpoints executed a 0.001 residual against the 0.3 they trained.
   - After the fix the two agree to cosine 1.0000, and the update is bit-identical for all 17
     `CANDIDATES`.
-- **New test file `tests/test_obs_formats.py`** feeds the env's format and the buffer's.
-- **New rule STANDARDS 4.5:** test on the inputs the env produces.
+  - New tests in `tests/test_obs_formats.py`, and STANDARDS 4.5: test on the inputs the env
+    produces.
 - **The gate's intermittent failure was most likely an unseeded test,** not broken equivariance.
   One delta-orthonormal encoder init in 20 gives an output near 1e-8, where the relative error is
-  noise.
-- **Pre-registered the image-fix pair** (`square-image-fix-1002`): `target-fix`'s launch at the
-  fix, seeds 1 and 2.
-- **Planned tuned RLPD,** equivariant and ResFiT, on Can and Square: `docs/plans/2026-10-02-tuned-rlpd.md`
-  and TODO B12.
+  noise. The test is now seeded.
+- **Parked the Square ablations, then pre-registered and launched the image-fix pair** (`b667647`):
+  `fal5sfot` and `fqo83rvd`, ending around 2026-10-03 06:00.
+- **Planned tuned RLPD,** equivariant and ResFiT, on Can and Square
+  (`docs/plans/2026-10-02-tuned-rlpd.md`, untracked; TODO B12 holds its decisions).
 
-**Decided**
+**Findings**
 
-- **Aden's decisions:**
-  - The Square ablations are parked.
-  - The image-fix pair runs before tuned RLPD.
-  - The equivariant tuned-RLPD arms start from the design of the best equivariant residual, the
-    image-fix reference; the ResFiT arms from ResFiT's design.
-- **"Made vanilla" means the fields ResFiT's own residual and RLPD configs differ in,** applied the
-  same way to both stacks. The equivariant actor's output bound is the one choice that rule leaves
-  open. It is asked in the plan.
+- **No equivariant result yet measures the method.** No Can checkpoint survives, so the Can
+  numbers cannot be checked directly. The best policies remain ResFiT's: `870ws2c2` on Square and
+  `msfkjwab` on Can.
+- **The pair's first 2.9k steps look like every earlier run's,** as observations only:
+  - training success 3/10 and 1/9 (the same seeds before the fix: 4/10, 2/10; `870ws2c2`: 3/11);
+  - residual 0.05.
+- **What will tell:** before the fix the residual grew to about 0.3 by 20–30k, 4× ResFiT's capped
+  0.1. It is now executed.
+- **Read earlier entries through the CORRECTION.** Their claims about learning, stability, collapse
+  causes and residual sizes come from runs that acted on near-blank images, or from update-batch
+  metrics. Their queue states are history: the queue died at 06:50.
+
+**Decisions** (Aden's)
+
+- The Square ablations are parked.
+- The image-fix pair runs before tuned RLPD.
+- The equivariant tuned-RLPD arms start from the design of the best equivariant residual (the B11
+  reference), because its performance at least indicates stability. The ResFiT arms take ResFiT's
+  design.
+- I read "made vanilla" as the fields ResFiT's own residual and RLPD configs differ in, applied the
+  same way to both stacks. The paper describes Tuned RLPD as ResFiT "without a base policy or
+  residuals".
+
+**Next**
+
+- **Aden answers the open question:** the equivariant actor's output bound (TODO B12; `equi_tanh`
+  recommended).
+- **Build the plan's Phase 2 while B11 runs.**
+- **When B11 ends:** RESULTS from `tools/square_verdict.py fal5sfot fqo83rvd`. If either run
+  collapsed, the equivariant RLPD arms wait for Aden.
 
 ---
 

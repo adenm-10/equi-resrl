@@ -1,29 +1,29 @@
 # Status
 
-**Last updated:** 2026-10-02 · **Last verified commit:** the image-scaling fix (EXPERIMENTS.md,
-2026-10-02 CODE)
+**Last updated:** 2026-10-02 · **Last verified commit:** `b667647`, the image-fix pair's launch, on
+the image-scaling fix `e15d36c` (EXPERIMENTS.md, 2026-10-02 CODE)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**Every equivariant run so far acted on near-blank images** (EXPERIMENTS.md, 2026-10-02
+**Every equivariant run before `e15d36c` acted on near-blank images** (EXPERIMENTS.md, 2026-10-02
 CORRECTION).
 - The env hands act() float images in [0, 1], and the encoder divided them by 255, as it does the
   buffer's uint8 copies. So exploration and evals saw images in [−1, −0.992], while the update saw
   them at full contrast.
 - On two trained Square checkpoints the actor executed a mean residual of 0.001 against the 0.3 it
   trained. Those runs ran the base policy plus exploration noise.
-- Fixed from the commit of the 2026-10-02 CODE entry: images are converted by dtype, as ResFiT's
-  agent does. `equivariance.float_images_as_uint8=True` reproduces the old scaling.
+- Fixed from `e15d36c`: images are converted by dtype, as ResFiT's agent does. `equivariance.float_images_as_uint8=True` reproduces the old scaling.
 - Every equivariant run before `93a8ad4` also trained against a frozen target critic (2026-09-29
   CORRECTION).
 
 **So no equivariant result yet measures the method.**
 - That covers the Can replication, `equi-square-v1`, the sweep and the ablations.
-- The IID-batch-norm actors executed almost nothing, so they held BC.
-- The others collapsed, after executing whatever the actor computes from a blank image.
+- The IID-batch-norm actors executed almost nothing (measured), so they held BC.
+- The others executed whatever their actor computes from a blank image, and collapsed. Whether the
+  bug caused the collapses is not established (TODO B10).
 
 **The Square ablations are parked** (Aden's decision, 2026-10-02; EXPERIMENTS.md, 2026-10-02
 RESULTS and STOPPED):
@@ -43,15 +43,27 @@ RESULTS and STOPPED):
 
 ## Running now
 
-**The image-fix pair** (EXPERIMENTS.md, 2026-10-02 PRE-REGISTERED, seed-group
-`square-image-fix-1002`):
-- What it is: `target-fix`'s launch at the fix, seeds 1 and 2, one per GPU, 100k steps each, judged
-  by the training trend.
-- Launched from the worktree pinned to the pre-registration's commit, by one runner per GPU in tmux
-  `gpu0` and `gpu1` (`tools/gpu_queue.sh`, queues `~/queues/gpu{0,1}.txt`).
-- No watcher: each run ends at 100k by itself.
-- About 12 h each.
-- The LAUNCHED entry records the run ids.
+**The image-fix pair** (EXPERIMENTS.md, 2026-10-02 PRE-REGISTERED and LAUNCHED, seed-group
+`square-image-fix-1002`): `target-fix`'s launch at the fix, 100k steps each, judged by the training
+trend (`tools/square_verdict.py`).
+
+| Seed | wandb | GPU | Started | Ends (est.) |
+|---|---|---|---|---|
+| 1 | `fal5sfot` | 0 | 2026-10-02 17:04 | 2026-10-03 ~06:00 |
+| 2 | `fqo83rvd` | 1 | 2026-10-02 17:04 | 2026-10-03 ~06:00 |
+
+- **How it runs:**
+  - one runner per GPU in tmux `gpu0` and `gpu1` (`tools/gpu_queue.sh`, queues
+    `~/queues/gpu{0,1}.txt`), from the worktree `~/projects/equi-resrl-b667647`;
+  - no watcher: each run ends at 100k by itself;
+  - nothing else is queued.
+- **So far (2.9k steps):** step-0 evals 0.46 and 0.52.
+  - Training success is 3/10 and 1/9 episodes, as before the fix and as ResFiT's `870ws2c2` early
+    on.
+  - The residual is 0.05, as before the fix.
+- **Watch the residual.** Before the fix it grew to 0.16–0.24 by 10k and about 0.3 by 20–30k,
+  about 4× ResFiT's, which ResFiT's Tanh caps at 0.1. Now that growth is executed. The 10k and 20k
+  evals are the first real signal.
 
 **RAM:** two Square runs at 40.3 GiB each fit; a third does not.
 
@@ -88,9 +100,9 @@ RESULTS and STOPPED):
 ## What is not
 
 - **The base rate is uncertain.** The base-rate script gave 0.508 ± 0.022 (500 episodes). The
-  trainer-path step-0 evals pool to 0.557 (390/700). No systematic cause was found. The image bug
+  trainer-path step-0 evals pool to 0.549 (439/800). No systematic cause was found. The image bug
   does not touch either: the residual starts near zero. Verdicts use 0.508, as pre-registered.
-- **Five successful runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
+- **Five high-scoring runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
   `36pfxsww` and `zyed0lew`. The four equivariant ones acted on near-blank images.
 - **`action_scale` bounds the residual only with `residual_squash=True`.** Otherwise the bound is
   `equi_clip(..., bound=1.0)`, so read `residual_l1` and `residual_l2` against 1.0. Both are the
@@ -120,7 +132,10 @@ policy, as a test of the RL machinery.
 - By Aden's decision, the equivariant arms start from the image-fix pair's design, and the ResFiT
   arms from ResFiT's.
 - If the pair collapses, the equivariant arms wait for Aden.
-- The plan is `docs/plans/2026-10-02-tuned-rlpd.md` (untracked).
+- **One question is open for Aden:** whether the equivariant actor's output is bounded with
+  `equi_tanh`, in the plan's rule 2.
+- The plan is `docs/plans/2026-10-02-tuned-rlpd.md` (untracked), and TODO B12 summarizes it.
+  Nothing of it is built yet.
 
 **3. BoxCleanup, one arm at a time, without writing caches** (TODO B3, B4, B7).
 - A full run needs about 82 GiB of RAM, so it can't share the machine with a Square run.

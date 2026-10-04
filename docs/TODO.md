@@ -11,23 +11,65 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ### B11. The reference with the image fix, seeds 1 and 2 — IN FLIGHT from 2026-10-02 `[SC]`
 
-Pre-registered 2026-10-02 (`square-image-fix-1002`): `target-fix`'s launch at the commit that fixes
-act()'s image scaling (EXPERIMENTS.md, 2026-10-02 CORRECTION). One runner per GPU in tmux `gpu0`
-and `gpu1`; no watcher. Each run ends at 100k by itself.
-- **Write up:** the LAUNCHED entry once both have a step-0 eval and a measured speed. Then a RESULTS
-  entry per run from `tools/square_verdict.py`.
+Pre-registered and launched 2026-10-02 (`square-image-fix-1002`): `target-fix`'s launch at the
+commit that fixes act()'s image scaling (EXPERIMENTS.md, 2026-10-02 CORRECTION).
+- **Runs:** seed 1 `fal5sfot` on GPU 0 and seed 2 `fqo83rvd` on GPU 1, from
+  `~/projects/equi-resrl-b667647`.
+- **Timing:** started 2026-10-02 17:04, at 0.417 s/step, ending around 2026-10-03 06:00.
+- **No watcher:** each run ends at 100k by itself.
+- **Watch:** the residual (`train/residual_l1_magnitude`) and the 10k and 20k evals. Before the fix
+  the residual grew to 0.16–0.24 by 10k and about 0.3 by 20–30k, about 4× ResFiT's; now it is
+  executed (LAUNCHED entry).
 - **A collapse** (three consecutive evals ≤ 0.05) may be stopped by hand. Per the pre-registration,
-  a collapse also holds the equivariant tuned-RLPD arm (B12) until Aden decides.
+  a collapse also holds the equivariant tuned-RLPD arms (B12) until Aden decides.
+- **Then:** a RESULTS entry per run from `tools/square_verdict.py fal5sfot fqo83rvd`, read against
+  the pre-registered outcomes.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### B12. Tuned RLPD, equivariant and ResFiT, on Can and Square `[SC]` `[CS]`
 
-Vanilla RL with no base policy, as a test of the RL machinery. Planned 2026-10-02 in
-`docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Launches after B11.
-- **Aden's decisions (2026-10-02).** The equivariant arms start from the design of the best
-  equivariant residual, the B11 reference. The ResFiT arms default to ResFiT's own design.
-- **The code:** a no-base-policy mode in `train_residual_td3.py`, and a non-residual equivariant
-  actor. It needs its own pre-registration.
+Vanilla RL with no base policy, as a test of the RL machinery. The plan is
+`docs/plans/2026-10-02-tuned-rlpd.md` (untracked); this item holds its decisions in case the file
+is lost. Nothing is built yet. It launches after B11.
+
+**Aden's decisions (2026-10-02):**
+- The equivariant arms start from the design of the best equivariant residual, the B11 reference;
+  Aden's reason is that its performance at least indicates stability. B11 tests that with the
+  residual executed.
+- The ResFiT arms default to ResFiT's design: upstream's `rlpd_{square,can}_config`, with 10
+  critic heads as the paper ran it.
+
+**"Made vanilla"** means the fields ResFiT's residual and RLPD configs differ in, applied the same
+way to both stacks:
+- no base policy;
+- actor LR 1e-6 → 1e-4, target τ 0.005 → 0.01;
+- `action_scale` 0.1 → 1.0, with the actor's default last-layer init;
+- no critic warm-up;
+- warm-up actions U(±1);
+- exploration σ 0.05 → 0.1;
+- the ResFiT path's `ActionScaler` expansion 0.0.
+
+The arms then differ in heads, norms, depth, encoder and action bound. So they are two stage-1
+checks, each against its task's BC rate at 110k–150k (B_can to be measured), not a test of
+equivariance.
+
+**Open question for Aden: the equivariant actor's output bound.**
+- **Recommended:** `residual_squash=true` (`equi_tanh`). ResFiT's change raises its Tanh bound from
+  ±0.1 to ±1, and only the squash can make that change in the unbounded equivariant actor.
+- **The literal alternative:** `residual_squash=false`. It is unbounded and then clipped, so the
+  actor's mean can leave the clip, where its gradient vanishes.
+
+**The code** (the plan's Phase 2):
+- a `base_policy: None` mode in `train_residual_td3.py`, branching at the nine places that read a
+  base policy;
+- `NormalizedVecEnvWrapper`;
+- a non-residual equivariant actor, and `ResObsEnc(base_action_input=False)`;
+- four registered configs;
+- the gate's `--method tuned-rlpd`;
+- a `tuned-rlpd` verdict rule;
+- `submit.sh` and its arm tests.
+
+Then a pre-registration.
 **Updates:** EXPERIMENTS.md, ARCHITECTURE.md, STATUS.md.
 
 ### B0 — PARKED 2026-10-02: the Square ablations, with the actor's batch norm `[SC]`
@@ -45,8 +87,9 @@ launchable at `ccff539`. GPU 0's leftover line `ccff539 depth 1` is commented ou
 ### B10. Why the actor collapses without batch norm — REOPENED 2026-10-02 `[SC]` `[CS]`
 
 Both runs without the actor's batch norm went from 0.52 to 0.00–0.02 by 10k (2026-10-01 RESULTS).
-FieldNorm and InnerBatchNorm in its place collapsed too, by 30k (2026-10-02 RESULTS). That falsified
-the vision-share prediction.
+FieldNorm and InnerBatchNorm in its place collapsed too, by 30k (2026-10-02 RESULTS). That looked
+like it falsified the vision-share prediction. But act() saw no usable vision under the bug, so the
+prediction was never tested.
 - **All of it ran under the image bug** (2026-10-02 CORRECTION). act() saw near-blank images. With
   them, the IID-batch-norm actor executed about 0.001 of a 0.3 residual. The other actors executed
   whatever they compute from a blank image, which cannot be measured: their best checkpoints are
@@ -82,14 +125,14 @@ Single-arm output verified bit-identical by `tests/test_regression_single_arm.py
 Square runs stay comparable. `preflight.py` now carries `image_keys` / `num_episodes` per task and
 estimates cache size per task.
 
-### B2. Record the five undocumented successful runs `[SC]`
+### B2. Record the five undocumented high-scoring runs `[SC]`
 
 `lgc70vgd` (0.86 → **0.98**, 243,800 steps, no overrides), `q1ocx89o` (0.98), `3vl625tv` (0.96),
 `36pfxsww` (0.96), and `zyed0lew` (non-equivariant Can baseline, 0.76 → 0.94). None has an
 EXPERIMENTS.md entry. `lgc70vgd` reached a higher best with `actor_last_layer_init_scale=0.0`, which
 contradicts the premise of R11 — resolve that before running R11.
 The four equivariant ones acted on near-blank images (2026-10-02 CORRECTION), so they record the
-base policy's draws, not the method.
+base policy's draws, not the method. That makes the init-scale question, and R11, moot.
 **Updates:** EXPERIMENTS.md, then R11.
 
 ### B3. Launch the BoxCleanup baseline `[SC]`
@@ -99,7 +142,7 @@ base policy's draws, not the method.
   `run_xg0w2r0z_best:v7` is backed up and pinned in both configs and in `preflight.TASKS` (`93a8ad4`).
 - `write_buffer_caches=false` exists, and the gate can require caches.
 - The smoke run (PROGRESS 2026-09-29) measures RAM and speed.
-- Still open: the launch itself, which follows the Square sweep (B5, superseded, below).
+- Still open: the launch itself, which now follows B11 and B12 (STATUS, "The plan").
 - The rest of this item is the original text.
 
 Blocked on Square finishing (B5) and on **a crash in the residual env wrapper**:
@@ -142,10 +185,10 @@ caches regardless. Cost is ~3.5 days of an idle GPU 1.
 
 ---
 
-### B6. Re-run the Can replication with the target-critic fix `[SC]`
+### B6. Re-run the Can replication with the target-critic and image fixes `[SC]`
 
 Every Can result, the replication included, trained against a frozen target critic (EXPERIMENTS.md,
-2026-09-29 CORRECTION). After the Square sweep, re-run the Can reference config at a commit with both
+2026-09-29 CORRECTION). After B11 and B12, re-run the Can reference config at a commit with both
 fixes (the target critic and act()'s images, 2026-10-02 CORRECTION), over 3 seeds, before any Can
 claim is repeated. The Can caches are gone (H7), so the first
 run rebuilds them.
@@ -179,7 +222,7 @@ From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Sq
 ### B9 — RESOLVED 2026-09-30: a reference at the new actor default `[SC]`
 
 `actor-none` is that reference, and runs first as the gate (EXPERIMENTS.md, 2026-09-30
-PRE-REGISTERED).
+PRE-REGISTERED). That gate ran under the image bug, and B10 reopens it.
 
 ## H — Housekeeping
 
@@ -264,7 +307,12 @@ are what a rebuild must reproduce.
 
 ## R — Replicate the recovered run
 
-Current top priority. **The `7dae4925` replication ran and failed on all three seeds, because it was
+**Superseded 2026-10-02.** Every run this section concerns acted on near-blank images
+(EXPERIMENTS.md, 2026-10-02 CORRECTION). That covers `z8yoqylh`, the `7dae4925` seeds and the
+`caf83f3` replication. So their outcomes say nothing about the method, and R9–R11 and R16 are moot
+until B6 re-runs Can with both fixes. The original text follows.
+
+**The `7dae4925` replication ran and failed on all three seeds, because it was
 aimed at the wrong commit.** `z8yoqylh` ran `caf83f3`'s code with `HEAD` reading `7dae4925`; the
 proof is a 117-field config match plus five schema fields that only exist at `caf83f3`. Both the
 results and the correction are in [EXPERIMENTS.md](EXPERIMENTS.md), 2026-09-18 entries.
@@ -384,7 +432,8 @@ compare live on `boce-WS-01`, not here.
 ## P2 — Equivariance tests — MOSTLY DONE 2026-09-16
 
 `preflight.py` (3 tiers) plus `tests/` (244 tests as of 2026-09-25), passing on both machines. Full detail in
-[tests/README.md](../tests/README.md). **Result: the equivariant implementation is correct** —
+[tests/README.md](../tests/README.md). **Result: the symmetry is implemented correctly** (act() had a
+separate image-scaling bug until `e15d36c`: EXPERIMENTS.md, 2026-10-02 CORRECTION) —
 declared representations match the physics at all 8 group elements, the actor is equivariant and the
 critic invariant to `< 1e-4`. So the collapses were not a broken symmetry.
 
@@ -404,7 +453,9 @@ critic invariant to `< 1e-4`. So the collapses were not a broken symmetry.
 
 ## P3 — Cleanup, gated on R10
 
-Do not start before the reproduction completes. See the freeze in STATUS.md.
+This was gated on the reproduction (R10), which the image bug made moot (2026-10-02 CORRECTION).
+STATUS.md has no freeze now: `tests/test_regression_agent.py` pins the update in its place. The
+gate needs re-deciding with Aden.
 
 ### P3.1 Wire or remove every dead config field `[CS]` `[SC]`
 
@@ -445,7 +496,9 @@ with no normalization" is a property of HEAD, not of the run that reached 0.94.
 At HEAD, then: the critic trains with no normalization at all while the actor has active batch norm.
 That asymmetry is a plausible contributor to the instability seen as `dQ_da ≈ 2e-4` and residual
 saturation — though note that the run which worked had `FieldNorm` present, so the previous
-reasoning that `FieldNorm` was itself the problem no longer holds. See
+reasoning that `FieldNorm` was itself the problem no longer holds. These are update-batch
+metrics, from runs that acted on near-blank images, and no equivariant run has "worked"
+(2026-10-02 CORRECTION). See
 [EQUIVARIANCE.md](EQUIVARIANCE.md), "What actually changed".
 
 The obvious fix has a trap. escnn's `FieldNorm` cannot be used after `GroupPooling`, because its own
@@ -488,7 +541,7 @@ class TrivialLayerNorm(torch.nn.Module):
 ```
 
 Belongs in `equi_rl_utils.py` alongside `FieldNorm`. Gated on R10 — it changes critic behavior, so it
-cannot land before the reproduction. Any version of this must be covered by the P2.3 critic
+cannot land before the reproduction. R10 is moot since 2026-10-02 (P3's note). Any version of this must be covered by the P2.3 critic
 invariance test, since normalization is exactly where equivariance tends to break.
 
 ### P3.5 Sweep the four remaining unreachable modules `[CS]`
@@ -520,7 +573,9 @@ Not yet planned in detail. Recorded so it is not forgotten.
   **Blocked on matching depth, nonlinearity count, squashing, and clipping semantics**, not on
   compute. Until then the ablation yields an uninterpretable result.
 - **Diagnose the residual saturation.** `residual_l2 ≈ action_scale` with `dQ_da ≈ 2e-4` across
-  multiple runs. Is the critic providing any usable action gradient?
+  multiple runs. Is the critic providing any usable action gradient? Those are update-batch values,
+  from runs that acted on near-blank images, and the bound is 1.0 without `residual_squash`. Re-pose
+  this after B11.
 - **Expand to more tasks.** Square next — its base policy sits at 0.52, so it discriminates far
   better than Can's 0.92. Then the two-arm dexmg tasks, which need BC base policies trained
   (`wandb_id` is still `TODO` for TwoArmBoxCleanup and TwoArmCanSortRandom).
