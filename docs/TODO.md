@@ -9,68 +9,41 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B11. The reference with the image fix, seeds 1 and 2 — IN FLIGHT from 2026-10-02 `[SC]`
+### B11 — DONE 2026-10-04: the reference with the image fix collapsed, both seeds `[SC]`
 
-Pre-registered and launched 2026-10-02 (`square-image-fix-1002`): `target-fix`'s launch at the
-commit that fixes act()'s image scaling (EXPERIMENTS.md, 2026-10-02 CORRECTION).
-- **Runs:** seed 1 `fal5sfot` on GPU 0 and seed 2 `fqo83rvd` on GPU 1, from
-  `~/projects/equi-resrl-b667647`.
-- **Timing:** started 2026-10-02 17:04, at 0.417 s/step, ending around 2026-10-03 06:00.
-- **No watcher:** each run ends at 100k by itself.
-- **Watch:** the residual (`train/residual_l1_magnitude`) and the 10k and 20k evals. Before the fix
-  the residual grew to 0.16–0.24 by 10k and about 0.3 by 20–30k, about 4× ResFiT's; now it is
-  executed (LAUNCHED entry).
-- **A collapse** (three consecutive evals ≤ 0.05) may be stopped by hand. Per the pre-registration,
-  a collapse also holds the equivariant tuned-RLPD arms (B12) until Aden decides.
-- **Then:** a RESULTS entry per run from `tools/square_verdict.py fal5sfot fqo83rvd`, read against
-  the pre-registered outcomes.
+`fal5sfot` and `fqo83rvd` (`square-image-fix-1002`) went from 0.46 and 0.52 at step 0 to 0.00 at
+every eval from 10k (EXPERIMENTS.md, 2026-10-04 RESULTS). Executed, the residual grew to the clip
+while the critic rated it above the base action. So, as pre-registered, the IID-batch-norm actor's
+earlier stability came from executing almost no residual, and the equivariant tuned-RLPD arms
+wait for Aden (B12).
+
+### B12. Tuned RLPD on Can and Square — the ResFiT arms IN FLIGHT from 2026-10-04 `[SC]` `[CS]`
+
+Vanilla RL with no base policy, as a test of the RL machinery. Plan:
+`docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Pre-registered as `tuned-rlpd-1002`
+(EXPERIMENTS.md, 2026-10-04 PRE-REGISTERED), which holds the design tables and the verdict.
+
+**Built** (2026-10-04 CODE): the `base_policy=None` mode in `train_residual_td3.py`, four configs,
+`NormalizedVecEnvWrapper`, the non-residual equivariant encoder and actor,
+`preflight.py --method tuned-rlpd`, `tools/tuned_rlpd_verdict.py`, and four arms in `submit.sh`.
+
+**Running: the two ResFiT arms** (STATUS, "Running now"). When each reaches 150k: a RESULTS entry
+from `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`, then
+`/analyze-experiment`.
+
+**Waiting for Aden: the equivariant arms' design.** Aden's decision (2026-10-04) is to decide it
+once the ResFiT arms report. `submit.sh` holds the plan's provisional design and refuses to launch
+it. The choices:
+- **The actor's norm.** `iid_bn`, the image-fix reference's, is provisional. That design collapsed
+  in residual RL, and it syncs, so about 19 h per task. `none` is the config default and what the
+  SO(2) equivariant RL code uses, about 15 h per task.
+- **The output bound.** `residual_squash=true` (`equi_tanh`) is provisional and recommended: it is
+  the counterpart of ResFiT's Tanh. `false` leaves the mean unbounded, clipped to the disk; in the
+  image-fix pair that mean grew to the clip.
+- Anything else the ResFiT results suggest.
+
+Then an AMENDMENT before they run, `submit.sh`'s overrides and pending flag, and the launch.
 **Updates:** EXPERIMENTS.md, STATUS.md.
-
-### B12. Tuned RLPD, equivariant and ResFiT, on Can and Square `[SC]` `[CS]`
-
-Vanilla RL with no base policy, as a test of the RL machinery. The plan is
-`docs/plans/2026-10-02-tuned-rlpd.md` (untracked); this item holds its decisions in case the file
-is lost. Nothing is built yet. It launches after B11.
-
-**Aden's decisions (2026-10-02):**
-- The equivariant arms start from the design of the best equivariant residual, the B11 reference;
-  Aden's reason is that its performance at least indicates stability. B11 tests that with the
-  residual executed.
-- The ResFiT arms default to ResFiT's design: upstream's `rlpd_{square,can}_config`, with 10
-  critic heads as the paper ran it.
-
-**"Made vanilla"** means the fields ResFiT's residual and RLPD configs differ in, applied the same
-way to both stacks:
-- no base policy;
-- actor LR 1e-6 → 1e-4, target τ 0.005 → 0.01;
-- `action_scale` 0.1 → 1.0, with the actor's default last-layer init;
-- no critic warm-up;
-- warm-up actions U(±1);
-- exploration σ 0.05 → 0.1;
-- the ResFiT path's `ActionScaler` expansion 0.0.
-
-The arms then differ in heads, norms, depth, encoder and action bound. So they are two stage-1
-checks, each against its task's BC rate at 110k–150k (B_can to be measured), not a test of
-equivariance.
-
-**Open question for Aden: the equivariant actor's output bound.**
-- **Recommended:** `residual_squash=true` (`equi_tanh`). ResFiT's change raises its Tanh bound from
-  ±0.1 to ±1, and only the squash can make that change in the unbounded equivariant actor.
-- **The literal alternative:** `residual_squash=false`. It is unbounded and then clipped, so the
-  actor's mean can leave the clip, where its gradient vanishes.
-
-**The code** (the plan's Phase 2):
-- a `base_policy: None` mode in `train_residual_td3.py`, branching at the nine places that read a
-  base policy;
-- `NormalizedVecEnvWrapper`;
-- a non-residual equivariant actor, and `ResObsEnc(base_action_input=False)`;
-- four registered configs;
-- the gate's `--method tuned-rlpd`;
-- a `tuned-rlpd` verdict rule;
-- `submit.sh` and its arm tests.
-
-Then a pre-registration.
-**Updates:** EXPERIMENTS.md, ARCHITECTURE.md, STATUS.md.
 
 ### B0 — PARKED 2026-10-02: the Square ablations, with the actor's batch norm `[SC]`
 
@@ -84,7 +57,7 @@ Every one of these acted on near-blank images, so none of them tested its design
 launchable at `ccff539`. GPU 0's leftover line `ccff539 depth 1` is commented out in
 `~/queues/gpu0.txt`, with the file as it was in `gpu0.txt.bak-20261002`.
 
-### B10. Why the actor collapses without batch norm — REOPENED 2026-10-02 `[SC]` `[CS]`
+### B10. Why the executed residual collapses the policy — REOPENED 2026-10-02 `[SC]` `[CS]`
 
 Both runs without the actor's batch norm went from 0.52 to 0.00–0.02 by 10k (2026-10-01 RESULTS).
 FieldNorm and InnerBatchNorm in its place collapsed too, by 30k (2026-10-02 RESULTS). That looked
@@ -97,12 +70,21 @@ prediction was never tested.
 - So the collapses and batch norm's "stability" both fit the bug, and neither is established. The
   2026-10-01 RESULTS' "ruled out: batch norm muting the residual at eval" was measured on buffer
   images only.
-- **B11 decides the first half:** whether the IID-batch-norm actor is stable once its residual is
-  executed. If it is, re-run `actor-none` at the fix before concluding anything about the others.
-- `actor_norm=none` is still the config default (STANDARDS 1.6). Decide it after B11.
+- **B11 answered the first half: no** (2026-10-04 RESULTS). Executed, the IID-batch-norm actor's
+  residual grew to the clip and both seeds collapsed by 10k, while the critic rated the residual
+  above the base action. So no equivariant residual design has yet been stable with its residual
+  executed. Why the residual grows is now the question; tuned RLPD (B12) checks the RL machinery
+  without the residual first.
+- `actor_norm=none` is still the config default (STANDARDS 1.6). Decide it with the
+  equivariant tuned-RLPD design (B12).
 **Updates:** EXPERIMENTS.md, ARCHITECTURE.md.
 
 ### B13. Small findings from 2026-10-02 `[CS]` `[SC]`
+
+- **The ResFiT agent never logs `debug/dQ_da_*`** (found 2026-10-04). `combined_action` is not a
+  leaf and gets no `retain_grad()`, so its `.grad` is None, `dQ_da_norm` is logged as 0.0, and
+  torch warns. Upstream code. STANDARDS 6.3 asks for the diagnostic on every agent; the fix
+  changes logging only.
 
 - **The residual path clips twice, differently.**
   - `QAgent._combine_actions` gives the critic `equi_clip(base + residual)`: each rotating pair

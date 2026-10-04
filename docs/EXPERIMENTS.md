@@ -2497,3 +2497,112 @@ ARCHITECTURE.md, "Residual or vanilla", lists the nine branches on `residual_run
   0.0006. Upstream's RLPD config is the same.
 - Peak RSS is at the start, with 10k online transitions. The online buffer then grows by about
   85 kB a transition.
+
+---
+
+## 2026-10-04 — PRE-REGISTERED — tuned RLPD on Can and Square
+
+**Question.** Does the RL machinery learn in vanilla RL, with no base policy, on the two tasks the
+residual work uses? The ResFiT paper's "Tuned RLPD" is this baseline: it "does not use a base
+policy or residuals but does incorporate all of ResFiT's other off-policy RL design decisions".
+On Square it is the only baseline over 90% within 150k steps; on Can, all the baselines reach
+"high success rates in ~150k steps". Plan: `docs/plans/2026-10-02-tuned-rlpd.md` (untracked);
+TODO B12 holds its decisions.
+
+**Seed-group id `tuned-rlpd-1002`,** seed 1 per arm and task.
+- Projects `robomimic-square-final` and `robomimic-can-final`.
+- Groups `tuned-rlpd` (ResFiT) and `equi-tuned-rlpd`.
+- Names `<arm>-<seed>`, notes `tuned-rlpd-1002/<arm>/seed<seed>`.
+
+**The arms.** Each is its stack's residual design made vanilla, the way the paper made ResFiT
+vanilla: every field in which upstream's residual and RLPD configs differ takes its RLPD value, on
+both stacks (Aden's decisions, 2026-10-02; `TunedRLPDConfig`).
+
+| Made vanilla, on both stacks | Residual | Vanilla |
+|---|---|---|
+| Base policy | yes | none (`base_policy=None`) |
+| Actor LR | 1e-6 | 1e-4 |
+| Critic target τ | 0.005 | 0.01 |
+| `action_scale` | 0.1 | 1.0 |
+| Actor last-layer init scale | 0.0 (the equivariant reference: 1e-4) | None |
+| Critic warm-up | 10k updates | 0 |
+| Warm-up actions, first 10k steps | base action + U(±0.2) | U(±1) |
+| Exploration σ | 0.05 | 0.1 |
+| Offline action labels | the base policy's | none |
+| ResFiT path's `ActionScaler` range expansion | 0.1 | 0.0, as upstream's RLPD trainer |
+
+| Kept from each stack's residual design | Equivariant | ResFiT |
+|---|---|---|
+| Critic heads | 2 (min of 2 for targets, mean for the actor) | 10, the same rules, as the paper ran it (2026-09-29 CORRECTION) |
+| Critic head | 1 hidden layer, no norm, He init, GroupPooling → invariant Q | 2 hidden layers of 1024, LayerNorm, orthogonal init |
+| Actor | 1 hidden layer of 128 regular fields, delta-orthonormal init; **norm pending** | 2 hidden layers of 1024, LayerNorm, Tanh |
+| Encoder | C8 CNN on agentview (32 regular fields), CNN on the wrist (32), random crop 84→76 | ViT per camera, random shift (pad 4) |
+| Normalization | identity outside; the equivariant normalizer inside the encoder | dataset statistics, outside the network |
+| Action bound | **pending**; the clip is the unit disk per rotating pair, [−1, 1] per scalar | per-axis box (Tanh) |
+| Target noise | not clipped (the equivariant actor ignores `stddev_clip`) | clipped at 0.3 |
+
+Held fixed, by both stacks' configs: critic LR 1e-4, gradient clip 1.0, n_step 3, γ 0.99, 4 updates
+per env step with the actor on the last, batch 256 half demos, buffer 200k, learning_starts 10k,
+300 demo episodes, 50-episode evals every 10k, 150k steps.
+
+So **the two stacks are not a controlled comparison of equivariance.** They differ in heads,
+norms, depth, encoder and bound. Each arm is a stage-1 check of its own stack against its own
+bar (STANDARDS 5.3).
+
+**What launches now** (Aden's decision, 2026-10-04). The image-fix pair collapsed (RESULTS above),
+so, as its pre-registration requires, the equivariant arms do not launch on its design. Aden
+chose to build all four arms, launch the two ResFiT arms, and decide the equivariant design when
+those report.
+
+| Arm | Config | Launch |
+|---|---|---|
+| `tuned-rlpd-square` | `tuned_rlpd_square_config` | now, GPU 0 |
+| `tuned-rlpd-can` | `tuned_rlpd_can_config` | now, GPU 1 |
+| `equi-tuned-rlpd-square` | `equi_tuned_rlpd_square_config` + its design | pending Aden |
+| `equi-tuned-rlpd-can` | `equi_tuned_rlpd_can_config` + its design | pending Aden |
+
+- Every arm's overrides: `algo.total_timesteps=150000`, and the name, notes and seed.
+- `submit.sh` holds the equivariant arms with the plan's provisional design,
+  `equivariance.actor_norm=iid_bn` and `equivariance.residual_squash=true`, and refuses to launch
+  them. An AMENDMENT records their design before they run.
+
+**The verdict, per run** (`tools/tuned_rlpd_verdict.py`). A run **passes** iff the mean of its
+five evals at 110k–150k (250 episodes) is at least its task's BC base rate:
+- Square: B_sq = 0.508 (2026-09-29 MEASUREMENT);
+- Can: B_can = 0.894 (2026-10-04 MEASUREMENT, above).
+
+The precedent is the 2026-09-30 gate, "must at least match vanilla BC"; the paper's ~0.9 is
+context, not the bar. **No early stop, and no collapse rule:** these runs start near zero.
+Reported, deciding nothing: the step-0 eval (about 0 expected, from a randomly initialized actor),
+best, final, every eval, and `train/action_l1_magnitude`.
+
+**What the outcomes mean,** decided now:
+- **A ResFiT arm passes:** the setup reproduces the paper's Tuned RLPD on that task, at least to
+  the BC bar, and an equivariant arm there can be read against it.
+- **A ResFiT arm fails:** the setup does not reproduce the paper on that task, and an equivariant
+  result there can't be read.
+- Once the equivariant arms run:
+  - **both stacks pass:** the equivariant stack learns in vanilla RL; next is stage 2, 3 seeds;
+  - **ResFiT passes and the equivariant arm fails:** the problem is in the equivariant stack, not
+    in residual RL.
+
+**Against earlier runs.** No earlier run is vanilla. The trainer runs the training steps of
+upstream's `train_rlpd_dexmg.py`, which no run here has used (ARCHITECTURE.md, "Residual or
+vanilla"). Env initial states are unseeded, as in every run.
+
+**Held fixed:**
+- **No caches.** `write_buffer_caches=false`, so each run builds its buffers in memory. The vanilla
+  cache keys add `base_policy` and `normalization`, so they can never name a residual buffer
+  (TODO B7, S9).
+- **Environment:** `boce-WS-01`, torch 2.6.0, torchrl 0.7.0, escnn 1.0.11.
+- **The commit:** the one that adds this entry. Its residual path is `b05736d`'s (2026-10-04 CODE).
+
+**Resources.** About 8 h per ResFiT arm (`msfkjwab` took 16.4 h for 300k), one per GPU, at once.
+- The debug runs (2026-10-04 CODE) peaked at 14.2 GB RSS on Square and 12.2 GB on Can, with 10k
+  online transitions.
+- The online buffer grows by about 85 kB a transition, so about 27 GB and 25 GB at 150k. The two
+  fit beside each other.
+
+**Records.** A LAUNCHED entry with the startup checks: no base policy loaded, buffers built in
+memory, step-0 about 0, the speed and the RAM. A RESULTS entry per run, from
+`tools/tuned_rlpd_verdict.py`.

@@ -17,6 +17,50 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-04 — the image-fix pair collapsed; tuned RLPD built, its ResFiT arms launched
+
+**Done**
+
+- **Recorded the image-fix pair** (EXPERIMENTS.md, RESULTS). Both seeds were at 0.00 at every eval
+  from 10k. The executed residual grew to the clip, while the critic rated it above the base
+  action.
+- **Measured B_can = 0.894 ± 0.014** (MEASUREMENT), the Can bar for tuned RLPD.
+- **Built the plan's Phase 2** (`docs/plans/2026-10-02-tuned-rlpd.md`; EXPERIMENTS.md, CODE):
+  - a `base_policy=None` mode in `train_residual_td3.py`, for both agents;
+  - four configs, `NormalizedVecEnvWrapper`, and the non-residual equivariant encoder and actor;
+  - `preflight.py --method tuned-rlpd`, `tools/tuned_rlpd_verdict.py`, and four arms in
+    `submit.sh`.
+- **Verified the residual path is unchanged:**
+  - the deep check of all 17 `CANDIDATES` is identical to `b05736d`;
+  - every residual config resolves byte for byte as before;
+  - the reference's debug run hit both Square caches.
+- **Verified the vanilla path:** new tests in seven files, and four 600-step debug runs: the
+  residual reference, and vanilla ResFiT on Square and Can and equivariant on Square. The full
+  suite gave 514 passed.
+- **Pre-registered `tuned-rlpd-1002`** (PRE-REGISTERED). Its two ResFiT arms launch from that
+  commit.
+
+**Decisions** (Aden's)
+
+- **Option (c):** build all four arms, launch the two ResFiT arms, and decide the equivariant
+  arms' design once those report. The image-fix pair's pre-registration held them back.
+- The output-bound question (plan rule 2) is folded into that decision. `submit.sh` holds the
+  plan's provisional design: `iid_bn` and `equi_tanh`.
+
+**Findings**
+
+- **The ResFiT agent never logs `debug/dQ_da_*`:** its combined action is not a leaf (TODO B13).
+- **A trainer's prints are block-buffered when its output goes to a file.** Run debug runs with
+  `python -u` to read them live.
+
+**Next**
+
+- **Watch the ResFiT arms;** each takes about 8 h. Then RESULTS from `tools/tuned_rlpd_verdict.py`
+  and `/analyze-experiment`.
+- **Aden decides the equivariant arms' design** (TODO B12). Then an AMENDMENT, and they launch.
+
+---
+
 ## 2026-10-02 — act() saw near-blank images in every equivariant run; fixed; the image-fix pair launched
 
 **Done**
