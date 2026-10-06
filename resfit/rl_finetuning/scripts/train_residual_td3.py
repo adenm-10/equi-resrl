@@ -329,6 +329,14 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Create state standardizer from dataset statistics
     state_standardizer = action_scaler = None
     equivariant_run = not cfg.equivariance is None
+    # The BC term regresses the actor's whole action on the demo half's actions, as upstream's
+    # train_rlpd_dexmg.py does. Upstream's BC loss asserts a vanilla actor, and the equivariant
+    # agent's has no test.
+    if cfg.agent.bc_loss_coef > 0 and (residual_run or equivariant_run or cfg.algo.offline_fraction == 0):
+        raise ValueError("agent.bc_loss_coef > 0 needs vanilla RL on the ResFiT agent, with demos in each batch")
+    if cfg.agent.bc_loss_dynamic:
+        # Its weight compares Q under a reference agent's act_method, from IBRL; QAgentConfig has none.
+        raise ValueError("agent.bc_loss_dynamic needs IBRL's act_method, which this agent does not have")
     if not equivariant_run:
         state_standardizer = StateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
@@ -516,14 +524,15 @@ def main(cfg: ResidualTD3DexmgConfig):
 
         agent.to(device)
 
-    def agent_update(batch, stddev, update_actor, compute_metrics):
+    def agent_update(batch, stddev, update_actor, compute_metrics, bc_batch=None):
         """One gradient update. compute_metrics=False lets the equivariant agent skip the
         metrics that will not be logged (see its QAgent.update). The ResFiT agent computes
-        them on every update, as upstream does."""
+        them on every update, as upstream does. A bc_batch adds the BC term to the actor's
+        update (QAgent.update_actor_rft)."""
         if equivariant_run:
             return agent.update(batch, stddev, update_actor, bc_batch=None, ref_agent=agent,
                                 compute_metrics=compute_metrics)
-        return agent.update(batch, stddev, update_actor, bc_batch=None, ref_agent=agent)
+        return agent.update(batch, stddev, update_actor, bc_batch=bc_batch, ref_agent=agent)
 
     horizon = env.vec_env.metadata["horizon"]
 
@@ -1274,8 +1283,11 @@ def main(cfg: ResidualTD3DexmgConfig):
 
                     actor_updates += 1
 
+                # The BC term takes the demo half, as upstream's train_rlpd_dexmg.py passes it.
+                bc_batch = offline_batch if update_actor and cfg.agent.bc_loss_coef > 0 else None
+
                 with training_timer.time("gradient_update"):
-                    metrics = agent_update(batch, stddev, update_actor, compute_metrics)
+                    metrics = agent_update(batch, stddev, update_actor, compute_metrics, bc_batch)
                     # Without metrics the equivariant update never waits for the GPU, so the
                     # timer would record only the time to queue the work. The wait would land in
                     # env_step instead, the next place that reads a GPU result, and Time% would

@@ -615,6 +615,11 @@ class QAgent(torch.nn.Module):
 
         loss.backward()
 
+        # The critic's slope alone: the BC term's gradient reaches the actor through its own
+        # forward pass on bc_batch, not through combined_action.
+        metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
+        metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+
         # Gradient clipping
         metrics["train/actor_grad_norm"] = torch.nn.utils.clip_grad_norm_(
             self.actor.parameters(), self.cfg.actor_grad_clip_norm

@@ -177,6 +177,16 @@ never read — so the distributional critic (C51 / HL-Gauss) is unreachable on t
 even though it is still settable in config. `Critic.forward`'s `return_logits` is accepted and
 ignored.
 
+**The actor's BC term** (`agent.bc_loss_coef`, live in `train_residual_td3.py` since 2026-10-06,
+TODO B14). At a positive coefficient the trainer passes each actor update the batch's demo half,
+as upstream's `train_rlpd_dexmg.py` does, and `QAgent.update_actor_rft` adds
+`bc_loss_coef × Σ_axes (π(s) − a_demo)²`, averaged over the demo rows, to the actor's loss. The BC
+loss sees the encoder's features detached (`bc_backprop_encoder`, upstream's default False). At 0
+the actor takes `QAgent.update_actor`, as every run before 2026-10-06 did. The trainer refuses a
+positive coefficient for a residual run (upstream's BC loss asserts a vanilla actor), for the
+equivariant agent (untested), and with no demos in the batch. It refuses `agent.bc_loss_dynamic`
+outright: its weight needs IBRL's `act_method`, which `QAgentConfig` does not have.
+
 The scalar ablation (`use_equivariant_model=False`) raises at construction if any field that only
 the equivariant networks read is off its default.
 

@@ -194,8 +194,9 @@ def tier2() -> bool:
     return _run_pytest(
         ["tests/test_layouts.py", "tests/test_equivariance.py", "tests/test_no_ops.py",
          "tests/test_sweep_arms.py", "tests/test_sync_free.py", "tests/test_obs_formats.py",
-         "tests/test_critic_diagnostics.py"],
-        "equivariance suite + sweep arms + sync-free update + env image format + critic diagnostics",
+         "tests/test_critic_diagnostics.py", "tests/test_bc_term.py"],
+        "equivariance suite + sweep arms + sync-free update + env image format + critic diagnostics"
+        " + BC term",
     )
 
 
