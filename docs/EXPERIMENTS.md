@@ -3157,3 +3157,23 @@ actor's default init, exploration σ 0.1, buffers built in memory. Evals of 50 e
 **Resources.** Three runs at once, about 1.5–2.5 h each: runners `gpu0` (`tau`), `gpu1` (`bc`)
 and `gpu0b` (`tau-bc`). About 15 GB of RAM each, of 120 GB available. No buffer caches are
 written; 29 GB of disk free.
+
+---
+
+## 2026-10-06 — LAUNCHED — τ 0.005 and a BC term on Can (`tuned-rlpd-can-tau-bc-1006`)
+
+| Arm | Runner | wandb | Picked up / training from (EDT) |
+|---|---|---|---|
+| `tuned-rlpd-can-tau` | `gpu0` | at its start | 14:44 / 15:01 |
+| `tuned-rlpd-can-bc` | `gpu1` | at its start | 14:44 / 15:01 |
+| `tuned-rlpd-can-tau-bc` | `gpu0b` | at its start | 14:43 / 15:00 |
+
+- **All from `ed47957`,** in the worktree `~/projects/equi-resrl-ed47957`, with
+  `CACHE_DIR=~/projects/equi-resrl`, through `tools/gpu_queue.sh`. Consoles in
+  `outputs/queue/20261006-144*_<arm>-1_gpu<g>.log`. Their wandb ids are in those consoles and in
+  the project `robomimic-can-final`, by name and notes.
+- **Gates:** GO for all three. A dry run of `tuned-rlpd-can-bc` at the same commit passed first
+  (Tier 1: 163 passed; Tier 2: 357 passed, `tests/test_bc_term.py` among them). Its one warning
+  was the disk: 30 GB free, and no cache to write.
+- **As pre-registered:** the runners, the arms and the commit all match. The only difference
+  from the plan is time: the three gates shared the GPUs, so each took about 17 min.
