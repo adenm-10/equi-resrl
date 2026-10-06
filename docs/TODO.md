@@ -86,6 +86,12 @@ prediction was never tested.
   no `retain_grad()`, so the metric read 0.0 in every ResFiT run before then. It now mirrors the
   equivariant agent (2026-10-06 CODE).
 
+- **`agent.critic.orth` does nothing** (2026-10-06 CORRECTION). ResFiT's critic gets PyTorch's
+  default init whatever it says, in every ResFiT run so far, upstream's included. It breaks
+  STANDARDS 1.2, but fixing the init would change every ResFiT run's critic. Decide between
+  deleting the field and fixing the init as an explicit, recorded change, after the tuned-RLPD
+  screen.
+
 - **The residual path clips twice, differently.**
   - `QAgent._combine_actions` gives the critic `equi_clip(base + residual)`: each rotating pair
     goes onto the unit disk.

@@ -2849,3 +2849,78 @@ as in every run.
 **Resources.** Six runs of about 1–1.5 h, four at a time: a second queue runner on each GPU, in
 tmux `gpu0b` and `gpu1b`. About 15 GB of RAM per run, of 121 GB available. Disk: 29 GB free
 before upstream's 16 GB online cache.
+
+---
+
+## 2026-10-06 — CORRECTION — ResFiT's critic was never orthogonally initialized; `agent.critic.orth` does nothing
+
+- **Found** by the session running the 2026-10-06 audit (`outputs/audit-2026-10-06/`), and
+  reproduced here.
+- **Why:**
+  - `SpatialEmbQEnsemble._init_per_head_params` (`off_policy/rl/critic.py:560–570`) calls
+    `utils.orth_weight_init(param[h])` on a raw tensor.
+  - `orth_weight_init` (`off_policy/common_utils/utils.py:66–75`) acts only on `nn.Linear` and
+    `nn.Conv` modules, so the call does nothing.
+  - The ten heads keep PyTorch's default `nn.Linear` init, and nothing else in the critic reads
+    `orth`.
+- **Measured, twice:**
+  - The audit's config tracer rebuilt the ResFiT agent with `agent.critic.orth` 0 and 2 instead
+    of 1. State dict, metrics and actions were bit-identical each time.
+    `outputs/audit-2026-10-06/config_physics/t2_report.txt` and `t2_sens*_*.json`.
+  - Here: `tuned_rlpd_can_config`'s critic, seed 0, `orth=1` against `orth=0`: all 25 tensors
+    equal. Head 0's first weight has max |WWᵀ − I| = 0.70, so it is not orthogonal. Its biases
+    reach 0.031 = 1/√1040, PyTorch's default `nn.Linear` bound.
+- **Scope:**
+  - It is upstream code: the same line is at `6bd9f7c`, `critic.py:550`.
+  - So it covers every ResFiT run in this project, the working residual baselines `870ws2c2` and
+    `msfkjwab` included, and upstream's `train_rlpd_dexmg.py`.
+  - All six arms of `tuned-rlpd-can-screen-1006` share it, so it confounds none of the screen's
+    comparisons, nor the question of whether our mode matches upstream's.
+  - The equivariant critic is a different module and is not affected.
+- **What it corrects:** the 2026-10-04 PRE-REGISTERED table, "Critic head … 2 hidden layers of
+  1024, LayerNorm, orthogonal init", for ResFiT's arm. ResFiT's critic has PyTorch's default init
+  throughout. The untracked plan's table has the same error.
+- **Not changed:** the code. Fixing it would change the critic's init in every ResFiT run, and so
+  break comparability with `870ws2c2`, `msfkjwab` and the screen (CLAUDE.md, priority 1). So
+  `agent.critic.orth` stays a field that does nothing, against STANDARDS 1.2 (TODO B13).
+
+---
+
+## 2026-10-06 — LAUNCHED — the tuned-RLPD Can screen (`tuned-rlpd-can-screen-1006`)
+
+| Arm | Runner | wandb | Launched (EDT) |
+|---|---|---|---|
+| `upstream-rlpd-can` | `gpu0` | **`rdoj0ex8`**, offline: `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8` | 10:13; training from 10:53 |
+| `tuned-rlpd-can-control` | `gpu1` | **`r1hvijqh`** | 10:14; training from 10:59 |
+| `tuned-rlpd-can-zero-init` | `gpu0b` | at its start | 11:02 |
+| `tuned-rlpd-can-critic-warmup` | `gpu1b` | at its start | 11:02 |
+| `tuned-rlpd-can-combined` | `gpu0`, after upstream's | — | queued |
+| `tuned-rlpd-can-actor-lr` | `gpu1`, after the control | — | queued |
+
+- **All from `187d895`,** in the worktree `~/projects/equi-resrl-187d895`, with
+  `CACHE_DIR=~/projects/equi-resrl`. Consoles in `outputs/queue/20261006-*_<arm>-1_gpu<g>.log`.
+- **The runners differ from the pre-registration's plan, not the runs.** Another session's
+  Square base-rate audit (`outputs/audit-2026-10-06/`) had both GPUs at 98–99% until about 11:00.
+  So two arms started at 10:13, and the second runners, `gpu0b` and `gpu1b`, started at 11:02.
+- **Gates:** GO for the first two. They took about 40 min, sharing the GPUs with the audit.
+  - The gate's Tier 2 file list does not include the new `tests/test_critic_diagnostics.py`. It
+    passed in the full suite at `187d895` (2026-10-06 CODE) (TODO B13).
+- **Startup:**
+  - **Upstream's arm** loaded the offline cache `5b67f661` at 60,000 transitions (the overwrite
+    the pre-registration describes). It wrote its online cache `2d0562d5`, 16 GB, under
+    `local_runs/upstream-rlpd/`.
+  - **The control** built 62,456 demo transitions in memory, into a buffer sized 62,454. So our
+    trainer also overwrites 2 of them: it sizes the buffer from the dataset's metadata, which
+    is 2 transitions short. The same was true of `lg8qad3l`, whose LAUNCHED entry says 62,454.
+  - Step-0 evals: 0/50 on both, from a randomly initialized actor.
+- **The first steps, observations only; the verdict is at 20k–30k:**
+  - **`action_l1` at step 100:** upstream 0.965, the control 0.926, against `lg8qad3l`'s
+    0.929. By 1k, 0.85 on both, and 0.89–0.91 by 3–6k. Upstream's trainer runs to the Tanh
+    bound as ours does.
+  - **The control's critic diagnostics at 3.3k:** on the demo rows, Q of the data's action 0.786
+    and of the policy's 0.808, against the demos' true mean of 0.398. On the online rows, −0.004
+    and −0.002. That is what the 2026-10-06 RESULTS reading predicts. The pre-registered check of
+    it is at 10k, 20k and 30k.
+- **Memory:** 11.8 GiB RSS per trainer at the start; 70 GB available with two running.
+- **Disk:** 29 GB free after upstream's online cache. The smoke run's online cache `eef0c5e8` had
+  been deleted outside this session by then.
