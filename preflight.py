@@ -193,8 +193,9 @@ def tier2() -> bool:
     section("Tier 2 - layouts, equivariance, no-op pins, host syncs (GPU)")
     return _run_pytest(
         ["tests/test_layouts.py", "tests/test_equivariance.py", "tests/test_no_ops.py",
-         "tests/test_sweep_arms.py", "tests/test_sync_free.py", "tests/test_obs_formats.py"],
-        "equivariance suite + sweep arms + sync-free update + env image format",
+         "tests/test_sweep_arms.py", "tests/test_sync_free.py", "tests/test_obs_formats.py",
+         "tests/test_critic_diagnostics.py"],
+        "equivariance suite + sweep arms + sync-free update + env image format + critic diagnostics",
     )
 
 
