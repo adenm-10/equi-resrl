@@ -17,6 +17,66 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-06 (evening) — the BC term wired; τ 0.005 and BC arms launched on Can
+
+**Done**
+
+- **Wired `agent.bc_loss_coef` into our trainer** (TODO B14, done; EXPERIMENTS.md, CODE, "the
+  actor's BC term"), as upstream's trainer passes it. The 0 path is unchanged, bit for bit.
+- **Pre-registered and launched three Can arms** at Aden's request: τ 0.005, a BC term at 0.025
+  (TD3+BC's α = 2.5 balance at the control's Q scale), and both (EXPERIMENTS.md,
+  PRE-REGISTERED, "τ 0.005 and a BC term").
+- **Which of ResFiT's settings are for the residual alone,** asked by Aden: of the nine fields in
+  which upstream's residual and RLPD configs differ, all but τ serve the residual. The zero init,
+  the 0.1 cap, the low actor LR, the critic warm-up and the small noise keep the residual near
+  the BC policy (the paper's Sec. III-B). Without a base policy "small" means near the middle of
+  the demos' action range, not near a good action, so none of them carries over. τ is in the
+  general recipe (Sec. III-C) that the paper says Tuned RLPD shares.
+- **Aden's notes from a conversation with the paper's author**, the parts that bear on the
+  replication:
+  - sim used the released benchmark demos, successes only. Checked: all 300 Can MH demos end in
+    success. Each ends with 5–6 frames flagged done, all rewarded, in both trainers alike;
+  - n-step returns were their most sensitive setting; they suggest sweeping it on a sim task
+    with a similar horizon;
+  - UTD above 2–4 did not help them;
+  - nothing about Tuned RLPD's config. Questions for the author are in Aden's hands: was Fig. 5
+    made with the released `rlpd_can_config`, and with what τ, BC term, warm-up and seeds.
+
+**Open**
+
+- **The three arms finish around 16:30–17:00 EDT.** Then a RESULTS entry by the pre-registered rule.
+- **`local_runs/upstream-rlpd/`** (about 21 GB) is still on disk, for Aden to delete.
+
+---
+
+## 2026-10-06 (later) — the Can screen: no arm off zero; the failure mechanism measured
+
+**Done**
+
+- **Recorded the screen** (EXPERIMENTS.md, RESULTS, the screen). All six 30k-step arms scored 0 at
+  every eval, upstream's own trainer included. None promoted.
+- **Measured the mechanism** from the critic diagnostics, all five of our arms:
+  - on demo states the critic values the policy's action about 0.024 above the demo's, at every
+    log step;
+  - the target bootstraps through the policy's action, so that compounds to demo values of
+    0.79–0.85, against the demos' true 0.398. A fixed-point formula predicts them to within 0.05;
+  - Adam moves the actor at its full rate along the critic's tiny but steady slope, to the bound;
+  - offline RL's extrapolation error, settling, not a Q blowup.
+- **Answered Aden's recipe checklist** against our tuned RLPD: n-step, UTD, heads, delayed actor,
+  target smoothing, shift augmentation, sampling and demos all match the paper and upstream. The
+  differences: τ is 0.01, not 0.005; LayerNorm is in the actor as well as the critic (the
+  paper's text names the critic, its ablation both); the actor is not zero-initialized.
+- **Found `agent.bc_loss_coef` dead in our trainer** (TODO B14; ARCHITECTURE.md).
+
+**Open**
+
+- **The next pre-registration needs Aden.** Most likely a BC-term arm (after B14), with τ 0.005 and
+  a critic-only LayerNorm as record-keeping arms. A BC term departs from the paper's Tuned RLPD.
+- **`local_runs/upstream-rlpd/`** (about 21 GB) is still on disk, for Aden to delete.
+- `main` is ahead of origin and unpushed.
+
+---
+
 ## 2026-10-06 — tuned RLPD's ResFiT arms failed; why; a Can screen launched
 
 **Done**

@@ -2924,3 +2924,236 @@ before upstream's 16 GB online cache.
 - **Memory:** 11.8 GiB RSS per trainer at the start; 70 GB available with two running.
 - **Disk:** 29 GB free after upstream's online cache. The smoke run's online cache `eef0c5e8` had
   been deleted outside this session by then.
+
+---
+
+## 2026-10-06 — RESULTS — the tuned-RLPD Can screen: no arm got off zero, upstream's trainer included
+
+Seed-group `tuned-rlpd-can-screen-1006` (2026-10-06 PRE-REGISTERED and LAUNCHED). All six arms ran
+30k steps from `187d895` and exited 0, between 12:21 and 14:06 EDT. Read from each run's local
+wandb record. Step means the env step after the 10k random warm-up steps, with 4 critic updates
+and 1 actor update per step.
+
+| Arm | wandb | Wall | Evals 0 / 10k / 20k / 30k | Successes, 20k + 30k | Training episodes | `action_l1` at 100 / 1k / 10k | Verdict |
+|---|---|---|---|---|---|---|---|
+| `upstream-rlpd-can` | `rdoj0ex8` (offline) | 128 min | 0 / 0 / 0 / 0 (last at 29,999) | 0 of 100 | not logged by its trainer | 0.965 / 0.845 / 0.878 | not off zero |
+| `tuned-rlpd-can-control` | `r1hvijqh` | 139 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 successes in 150 | 0.926 / 0.856 / 0.875 | not off zero |
+| `tuned-rlpd-can-actor-lr` | `0ama3t4v` | 92 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.509 / 0.664 / 0.788 | not off zero |
+| `tuned-rlpd-can-critic-warmup` | `qiadwtn1` | 132 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.876 / 0.903 / 0.799 | not off zero |
+| `tuned-rlpd-can-zero-init` | `85fpzqmp` | 118 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.793 / 0.875 / 0.821 | not off zero |
+| `tuned-rlpd-can-combined` | `u4cwl6bt` | 93 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.029 / 0.276 / 0.660 | not off zero |
+| reference: `lg8qad3l` | | | 0 at all 16 evals to 150k | | 0 in 750 | 0.929 / 0.839 / 0.876 | |
+
+Evals are 50 episodes each. Every training episode of our five arms was a 200-step timeout:
+150 × 200 is all 30,000 steps. Wall times include the two GPUs being shared by four runs, and
+the first two arms' gates sharing them with the audit (LAUNCHED entry).
+
+**Read against the pre-registration:**
+- **"Neither off zero": our mode matches upstream in outcome.** Upstream's released config, run by
+  its own trainer as the paper's launcher runs it, does not reproduce the paper's Fig. 5 on Can
+  here (about 0.7 by 25k there; 0 in 200 eval episodes here). Its logs show the same course as
+  ours: `action_l1` 0.965 at step 100, `critic_qt` 0.45 and `debug/dQ_da_mean_abs` 6.5e-6 at 30k,
+  against the control's 0.44 and 6.8e-6.
+- **"No arm off zero": none of the three changes is enough by 30k, alone or together.** None
+  is promoted, and `tuned-rlpd-1002` gets no AMENDMENT from this screen.
+- **The mechanism holds.** The control's critic diagnostics at 10k, 20k and 30k:
+
+  | Step | 10k | 20k | 30k |
+  |---|---|---|---|
+  | `debug/q_data_demo` | 0.840 | 0.829 | 0.876 |
+  | `debug/q_policy_demo` | 0.866 | 0.852 | 0.902 |
+  | `debug/q_data_online` | −0.001 | 0.000 | 0.010 |
+  | `debug/q_policy_online` | −0.001 | 0.000 | 0.010 |
+  | `debug/policy_data_gap_demo` | 0.90 | 0.78 | 0.78 |
+
+  That is what the reading predicted: demo states valued at about 0.8, against the demos' true
+  mean of 0.398; the policy's action valued at least as high as the demo's; the online half near
+  0. No CORRECTION. The other four arms of ours reach the same state by 10k (below).
+- One seed per arm: observations, not comparisons (STANDARDS 5.3).
+
+**What the diagnostics add, from all five arms of ours.** Readings, single-seed:
+- **A small, constant preference for the policy's action is enough to explain the inflated
+  values.** Call δ = `q_policy_demo` − `q_data_demo`. From 5k to 30k it averages +0.022 to
+  +0.026 in each arm, and is positive at all 251 log steps of every arm. The TD target for a demo
+  transition bootstraps through the policy's action three steps on, not the demo's. So each
+  3-step chunk adds γ³δ to the demo value, until the episode ends:
+  - the expected demo value is 0.398 + (1 − 0.398) · γ³δ / (1 − γ³);
+  - the factor 1 − 0.398 is the average over demo transitions of 1 − γ^(steps to success),
+    which is how much of the bonus a state's remaining chunks can collect;
+  - γ³ / (1 − γ³) is about 33, so a δ of 0.024 lifts the mean demo value by about 0.47.
+  - Predicted against observed, mean from 5k: control 0.87 / 0.83, zero-init 0.90 / 0.85,
+    critic-warmup 0.84 / 0.79, combined 0.85 / 0.80, actor-lr 0.87 / 0.82.
+  - Every prediction is about 0.05 high. A guess at why: the target takes the min of 2 heads and
+    a smoothed action, while δ is measured on the 10 heads' mean and the policy's mean action.
+  - This is the extrapolation error of offline RL (BCQ, Fujimoto et al. 2019): the critic is
+    trained only on the demos' actions at demo states and is queried at the policy's. It does
+    not diverge here. δ stays small and γ³ < 1, so the values settle; `critic_qt` peaks at 0.47
+    across all arms. **Not a Q blowup.**
+- **Why the actor reaches the bound so fast, whatever the change:** Adam's step is about the
+  learning rate whatever the gradient's size, as long as its sign holds.
+  - The critic's slope at the policy's action is tiny: `debug/dQ_da_mean_abs` 5e-6 to 1.1e-5 from 5k
+    in every arm, well under STANDARDS 6.3's "nearly flat" 1e-4. It is the gradient of the
+    batch-mean loss, so the control's 6.5e-6 is about 1.7e-3 per sample per axis.
+  - But the slope's sign holds, so the actor moves at the full rate along it: to the bound
+    within about 100 updates at LR 1e-4 (control, zero-init, critic-warmup).
+  - At LR 1e-6 it takes thousands: 0.51 at step 100, 0.79 by 5k (actor-lr); 0.66 at 10k and 0.85
+    at 20k (combined).
+- **Starting the actor at the dataset midpoint kept δ at about 0, until the actor left it.**
+  The two arms with a 10k critic warm-up differ in their actor's start:
+  - Critic-warmup started at a random actor. At step 100 its demo values were already 0.74
+    (data) and 0.80 (policy), so δ = +0.06.
+  - Combined started at zero-init, its actions 0.31 per axis from the demos' on average. After
+    the same 10k critic-only updates, its demo values were 0.18 and 0.18, so δ = −0.005.
+  - Combined's actor then drifted outward anyway, at its slow rate. As it did, δ turned positive
+    and the demo value climbed: 0.57 at 1k, 0.77 at 5k.
+  - So nothing in the critic pulls the actor toward the demos' actions. Its slope at the demo
+    actions, on demo states, points away from them.
+- **The online half carries no signal.** The saturated policy's rollouts leave the demos'
+  states at once, and never succeed. So the critic values every online state at about 0,
+  whatever the action, which is correct. The actor's only gradient comes from the demo half,
+  and there it points to the bound.
+- **What this says about the candidates the pre-registration named:**
+  - **τ 0.005** changes how fast the target tracks the critic, not the fixed point above. So it is
+    not expected to help. It is the paper's stated value, so it is still worth a run as a
+    record.
+  - **A lower exploration σ** has nothing to act on: the online half is at 0 for any action.
+  - **A BC term on the demo half** gives the actor what the critic does not: a gradient back
+    toward the demos' actions on demo states. Upstream's `QAgent.update_actor_rft` has one, and
+    upstream's trainer passes it the offline half when `agent.bc_loss_coef > 0`. Ours ignores
+    `bc_loss_coef` (a dead field, STANDARDS 1.2). The paper's Tuned RLPD does not use one:
+    `rlpd.py`'s default is 0, and the paper's text describes none.
+  - What to run next needs its own pre-registration, and Aden's approval.
+- Packages in `outputs/runs/robomimic-can-final/{r1hvijqh,0ama3t4v,qiadwtn1,85fpzqmp,u4cwl6bt}/`.
+  None saved a best checkpoint, since no eval beat 0. Each manifest records commit `187d895`;
+  the only path it lists as uncommitted is `artifacts/`, the runs' own output.
+- **Upstream's arm** has no package: its trainer deleted its run folder at the end, as the
+  pre-registration says. Its history is in
+  `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8/`, and its console log in
+  `outputs/queue/20261006-101334_upstream-rlpd-can-1_gpu0.log`. Its caches,
+  `local_runs/upstream-rlpd/` (about 21 GB), are still on disk, for Aden to delete.
+
+---
+
+## 2026-10-06 — CODE — the actor's BC term, live in our trainer (TODO B14)
+
+`train_residual_td3.py` ignored `agent.bc_loss_coef`: its update always passed `bc_batch=None`.
+Now it passes the term what upstream's `train_rlpd_dexmg.py` passes it.
+- **The trainer:** on each actor update, when `agent.bc_loss_coef > 0`, it hands `agent.update`
+  the batch's demo half as `bc_batch`. That is the separately sampled `offline_batch`, the same
+  rows the critic's batch concatenates. `QAgent.update_actor_rft`, upstream's code and unchanged
+  apart from logging, then adds `bc_loss_coef × Σ_axes (π(s) − a_demo)²`, averaged over the demo
+  rows, to the actor's loss. The BC loss encodes those images again, with its own random shift.
+  It detaches the features (`bc_backprop_encoder`, upstream's default False), so the term trains
+  the actor and not the encoder.
+- **Refused at startup:** a positive coefficient in a residual run (upstream's BC loss asserts a
+  vanilla actor), on the equivariant agent (its BC path has no test), or with
+  `algo.offline_fraction = 0`. Also `agent.bc_loss_dynamic` at any value but 0: its weight needs
+  IBRL's `act_method`, which `QAgentConfig` does not have, so it would crash at the first update.
+- **Logging:** `update_actor_rft` now logs `debug/dQ_da_*` as `update_actor` does. It is the
+  critic's slope alone: the BC term reaches the actor through its own forward pass on `bc_batch`.
+  It also logs `rft/bc_loss` and `rft/ratio` (always 1 here).
+- **At `bc_loss_coef = 0`, every run before this one:** the trainer passes no demo half, and the
+  actor takes `QAgent.update_actor`, as before. `tests/test_regression_agent.py` pins that update
+  bit for bit, and passes.
+- **Tests:** `tests/test_bc_term.py`, in the gate's Tier 2. On the fixed test batch, 100 updates
+  at 0.025 moved the actor toward the demo rows' actions, 0.50 to 0.37 per axis. The same 100
+  updates without the term moved it away, 0.50 to 0.86, as the tuned-RLPD actors do.
+  `tests/test_sweep_arms.py` now passes the demo half to the BC arms' GPU update.
+- **Not unit-tested:** that the trainer itself passes the demo half. A smoke run checked it: the
+  trainer at `agent.bc_loss_coef=0.025`, 300 warm-up steps, 400 steps, debug mode, from the
+  working tree of this commit. It ran without error, and `action_l1` read 0.58–0.62 at steps
+  100–400. Without the term it reads 0.93 at step 100 (the screen's control) or 0.79 from a
+  zero-initialized start. So the term reaches the actor.
+
+---
+
+## 2026-10-06 — PRE-REGISTERED — tuned RLPD on Can: τ 0.005 and a BC term
+
+**Questions,** both on Can, after the screen (2026-10-06 RESULTS, the screen) found no fix among
+the residual recipe's safeguards. Aden asked for these two on 2026-10-06. A critic-only LayerNorm
+arm and a longer n-step arm were also proposed, and not chosen.
+1. **Does τ 0.005, the paper's stated value, change the outcome?** Upstream's `rlpd.py` has 0.01.
+   The paper lists τ in the recipe it says Tuned RLPD shares (Sec. III-C). Of the nine fields in
+   which upstream's residual and RLPD configs differ, it is the only one the paper does not tie to
+   the residual. The screen's reading says no: τ sets how fast the target tracks the critic, not
+   the fixed point the demo values settle at.
+2. **Does a BC term on the demo half get tuned RLPD off zero?** TD3+BC's remedy for the
+   extrapolation error the screen measured. Nothing in the critic pulls the actor toward the
+   demos' actions; the term does. **It departs from the paper's Tuned RLPD,** which uses none
+   (upstream's `bc_loss_coef` is 0, and the paper describes none).
+
+**Seed-group `tuned-rlpd-can-tau-bc-1006`,** seed 1 per arm, 30k steps, Can, from the commit that
+adds this entry.
+- Project `robomimic-can-final`, group `tuned-rlpd`.
+- Names `<arm>-1`, notes `tuned-rlpd-can-tau-bc-1006/<arm>/seed1`.
+
+| Arm | Change from `tuned_rlpd_can_config` | Why |
+|---|---|---|
+| `tuned-rlpd-can-tau` | `agent.critic_target_tau=0.005` | question 1 |
+| `tuned-rlpd-can-bc` | `agent.bc_loss_coef=0.025` | question 2 |
+| `tuned-rlpd-can-tau-bc` | both | whether they only work together |
+
+**The control** is the screen's `tuned-rlpd-can-control` (`r1hvijqh`, at `187d895`): this config
+with no change. It is not run again. At `bc_loss_coef = 0` the new commit's code path is the old
+one, bit for bit (2026-10-06 CODE, above), and nothing else it changes reaches a run. Env initial
+states are unseeded, in every run, so a second control would not repeat the first exactly
+either.
+
+**The coefficient, 0.025, is TD3+BC's balance, not a tuned value.**
+- TD3+BC (Fujimoto & Gu, 2021) maximizes λ·Q − mean over axes of (π(s) − a)², with
+  λ = α / mean |Q| and α = 2.5.
+- Divided by λ, that is our Q loss plus (mean |Q| / α) × the mean over axes. Upstream's term sums
+  over the 7 axes instead, so the matching coefficient is mean |Q| / (7α).
+- Mean |Q| over the actor's batch, both halves, in the control: −`train/actor_loss_base`
+  averaged 0.44 from 20k to 30k. So 0.44 / 17.5 = 0.025.
+- TODO B14's rough 0.05 used the demo half's Q, about 0.85, alone. The actor's loss averages
+  over both halves.
+- At 0.025 the term dominates the actor's gradient for as long as the critic's slope stays as
+  flat as the screen measured. The actor should then imitate the demos on demo states, until the
+  critic learns to rank actions.
+
+**Held fixed:** everything else in `tuned_rlpd_can_config`, as `r1hvijqh` ran it: 10 critic
+heads, actor and critic LR 1e-4, 4 critic updates and 1 actor update per step, n-step 3, γ 0.99,
+batch 256 half demos, the same 300 MH demos, 10k U(±1) warm-up steps, no critic warm-up, the
+actor's default init, exploration σ 0.1, buffers built in memory. Evals of 50 episodes at 0,
+10k, 20k and 30k.
+
+**The verdict, per arm,** by the screen's rule:
+- **Off zero** iff its 20k and 30k evals score at least 5 successes between them, of 100.
+- **What runs next, if an arm is off zero, is Aden's decision,** since a BC arm is not the paper's
+  Tuned RLPD. The candidate is the off-zero arm with the most successes at 20k and 30k (a tie: the
+  fewer changes, then the higher 30k eval). It would run 150k as an AMENDMENT to
+  `tuned-rlpd-1002`, judged by that experiment's rule: the 110k–150k eval mean against
+  B_can = 0.894. With the term, it is named "Tuned RLPD + BC", not Tuned RLPD, and the equivariant
+  side gets the same term.
+- **Reported, deciding nothing:** every eval; training successes; `train/action_l1_magnitude` at
+  100, 1k and 10k; and at 10k, 20k and 30k, `debug/q_{data,policy}_{demo,online}`,
+  `debug/policy_data_gap_demo`, `debug/dQ_da_mean_abs` and `rft/bc_loss`.
+
+**Predictions, decided now:**
+- **`tau`:** not off zero. The demo values settle near the fixed point again, 0.75–0.9 at 30k,
+  with δ = `q_policy_demo` − `q_data_demo` positive at most log steps. Slower to get there than
+  the control, if anything.
+- **`bc` and `tau-bc`:** `debug/policy_data_gap_demo` falls well below the control's 0.78–0.90,
+  under 0.3 by 10k. With the policy's actions near the demos', δ falls to about 0, and the demo
+  values fall toward their true mean of 0.398, not 0.8.
+- **Whether success follows is the open question.** A single-step actor that imitates 300 MH
+  demos may or may not succeed on Can by itself. If it does, the online half gets successes and
+  failures near each other, the action contrast the critic has lacked.
+
+**What the outcomes mean,** decided now:
+- **`tau` off zero:** contradicts the screen's fixed-point reading, which gets a CORRECTION.
+- **A BC arm off zero:** a BC term is enough, by 30k, to start learning here. The paper's Tuned
+  RLPD as described still does not reproduce here.
+- **A BC arm not off zero, with its gap under 0.3:** imitating the demos does not succeed on Can
+  with this actor, and the critic still cannot rank actions. The next candidates: a longer
+  n-step (the paper's author told Aden it was their most sensitive setting; PROGRESS.md,
+  2026-10-06), letting the BC loss train the
+  encoder (`agent.bc_backprop_encoder=true`), or a larger coefficient.
+- **A BC arm with its gap not under 0.3:** the coefficient is too weak against the critic, or
+  the term is not reaching the actor. `rft/bc_loss` says which.
+- One seed per arm: observations, not comparisons (STANDARDS 5.3).
+
+**Resources.** Three runs at once, about 1.5–2.5 h each: runners `gpu0` (`tau`), `gpu1` (`bc`)
+and `gpu0b` (`tau-bc`). About 15 GB of RAM each, of 120 GB available. No buffer caches are
+written; 29 GB of disk free.

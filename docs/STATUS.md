@@ -1,26 +1,41 @@
 # Status
 
-**Last updated:** 2026-10-06 · **Last verified commit:** the Can screen's pre-registration, on the
-critic diagnostics (EXPERIMENTS.md, 2026-10-06 CODE)
+**Last updated:** 2026-10-06 · **Last verified commit:** the τ/BC pre-registration, on the BC term's
+wiring (EXPERIMENTS.md, 2026-10-06 CODE and PRE-REGISTERED, "τ 0.005 and a BC term")
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**Tuned RLPD on ResFiT's stack failed on both tasks** (EXPERIMENTS.md, 2026-10-06 RESULTS).
-`8ma5alnm` (Square) and `lg8qad3l` (Can) were at 0.00 at every eval to 150k, with 0 training
-successes. The paper's Tuned RLPD is off zero by 20–30k on both. So this setup does not yet
-reproduce the paper's baseline, and an equivariant tuned-RLPD result could not be read.
-- **The failure:** the actor reached its Tanh bound within about 100 updates, before the critic
-  had learned anything, and stayed near it (`action_l1` 0.68–0.90; the demos' is 0.29–0.32).
-- **The critic** values the policy's own rollouts at about 0. By inference, it values the
-  policy's action on demo states at about twice the demos' own value, so nothing pulls the
-  actor back toward the demos. The control arm of the screen below measures this directly.
-- **Not mainly exploration:** with demos in every batch, RLPD does not need an online success.
-- **Our config equals upstream's** `rlpd_can_config`, at its original 10 heads, on every field
-  the two share. The candidate gaps are between that config and the paper's text: no critic
-  warm-up (upstream's RLPD trainer has none), and τ 0.01 against the text's 0.005.
+**Tuned RLPD on ResFiT's stack does not learn on Can, under our trainer or upstream's**
+(EXPERIMENTS.md, 2026-10-06 RESULTS, the screen). Six 30k-step arms on Can scored 0 in all 1,200
+eval episodes, and our five scored 0 in 750 training episodes. The paper's Tuned RLPD is at about
+0.7 there by 25k. Before that, `8ma5alnm` (Square) and `lg8qad3l` (Can) scored 0 at every eval
+to 150k.
+- **Upstream's own trainer fails the same way.** `train_rlpd_dexmg.py` at its released
+  `rlpd_can_config`, as the paper's launcher runs it, scored 0 at 0, 10k, 20k and 30k, with the
+  same signature. So the failure is not in our no-base-policy mode.
+- **None of the three changes from the residual recipe got it off zero,** alone or together:
+  actor LR 1e-6, a 10k-update critic warm-up, a zero-initialized last layer. They change how
+  fast the actor reaches its Tanh bound, not where it ends up.
+- **The mechanism, now measured.** It is offline RL's extrapolation error, not a Q blowup:
+  - On demo states the critic values the policy's action slightly above the demo's, by about
+    0.024, at every log step of every arm.
+  - The TD target bootstraps through the policy's action, so that margin compounds over each
+    episode. Demo values settle at 0.79–0.85 on average, against the demos' true 0.398, and a simple
+    fixed-point formula predicts them to within 0.05.
+  - The critic's slope at the policy's action is tiny (`dQ_da` about 6e-6), but its sign holds,
+    and Adam moves the actor at its full learning rate along it, to the bound.
+  - The online half is valued at about 0 for any action, correctly: the saturated policy never
+    succeeds. So nothing pulls the actor back toward the demos' actions.
+  - An actor started at the dataset midpoint, with a critic trained first, held the margin at
+    about 0. It drifted out anyway, and the margin turned positive as it did.
+- **Not exploration, and not the demos.** The runs use the same 300 MH demos the BC policies
+  were trained on, and with demos in every batch no online success is needed to see reward.
+- **What could fix it,** from the diagnostics: a BC term on the demo half, as in TD3+BC. The paper's
+  Tuned RLPD does not use one. Our trainer now runs upstream's (`agent.bc_loss_coef`; TODO B14,
+  done). τ 0.005, the paper's text, should not change the fixed point. Both are running now.
 
 **Aden's order (2026-10-06):** ResFiT tuned RLPD on Can, then on Square, then the equivariant
 stack on Can, then on Square. Residual RL after.
@@ -44,26 +59,20 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**The tuned-RLPD Can screen** (seed-group `tuned-rlpd-can-screen-1006`; EXPERIMENTS.md,
-2026-10-06 PRE-REGISTERED). Six 30k-step arms on Can, seed 1, through `tools/gpu_queue.sh`, four
-at a time: runners `gpu0` and `gpu1`, plus `gpu0b` and `gpu1b`.
+**τ 0.005 and a BC term, tuned RLPD on Can** (seed-group `tuned-rlpd-can-tau-bc-1006`;
+EXPERIMENTS.md, 2026-10-06 PRE-REGISTERED and LAUNCHED). Three 30k-step arms, seed 1, through
+`tools/gpu_queue.sh`, against the screen's control `r1hvijqh`.
 
 | Arm | What changes | Runner |
 |---|---|---|
-| `upstream-rlpd-can` | upstream's own trainer | `gpu0` |
-| `tuned-rlpd-can-control` | nothing; logs the critic diagnostics | `gpu0b` |
-| `tuned-rlpd-can-critic-warmup` | 10k critic-only updates | `gpu1` |
-| `tuned-rlpd-can-actor-lr` | actor LR 1e-6 | `gpu1b` |
-| `tuned-rlpd-can-zero-init` | actor last layer starts at zero | `gpu0`, second |
-| `tuned-rlpd-can-combined` | all three | `gpu1`, second |
+| `tuned-rlpd-can-tau` | `agent.critic_target_tau=0.005` | `gpu0` |
+| `tuned-rlpd-can-bc` | `agent.bc_loss_coef=0.025` | `gpu1` |
+| `tuned-rlpd-can-tau-bc` | both | `gpu0b` |
 
-- **The verdict per arm:** off zero iff its 20k and 30k evals score at least 5 of 100. The
-  off-zero arm of ours with the most successes runs 150k next, as an AMENDMENT to
-  `tuned-rlpd-1002`.
-- **Upstream's arm** writes its caches under `local_runs/upstream-rlpd/` and runs wandb offline:
-  its history is in its local wandb record, and it deletes its own run folder at the end.
-- **The disk is at 100%:** 29 GB free before upstream's 16 GB online cache. Delete
-  `local_runs/upstream-rlpd/` when the screen is done (TODO B12).
+- **The verdict per arm:** off zero iff its 20k and 30k evals score at least 5 of 100. What runs
+  next from an off-zero arm is Aden's decision: a BC term is not the paper's Tuned RLPD.
+- **The disk:** upstream's caches, `local_runs/upstream-rlpd/` (about 21 GB), are still there,
+  for Aden to delete (TODO B12). Nothing reads them: our trainer builds its buffers in memory.
 
 **RAM:** about 15 GB per Can tuned-RLPD run. Two Square residual runs at 40.3 GiB each fit; a
 third does not.
@@ -125,9 +134,11 @@ third does not.
 
 ## The plan, and why
 
-**1. Get ResFiT tuned RLPD learning on Can** (TODO B12), the screen above. It tells whether our
-mode matches upstream's trainer in outcome, and whether any of three changes from the residual
-recipe gets it off zero by 30k. The promoted arm then runs 150k against B_can = 0.894.
+**1. Get ResFiT tuned RLPD learning on Can** (TODO B12). The screen ruled out the three
+recipe changes and showed upstream's trainer fails too. Running now: τ 0.005, a BC term, and both.
+A BC term makes this TD3+BC-style RLPD, not the paper's Tuned RLPD; whether that is an
+acceptable comparison baseline is Aden's call. An off-zero arm would run 150k against
+B_can = 0.894.
 
 **2. The same on Square,** with what worked on Can.
 
@@ -147,5 +158,8 @@ design: the actor's norm and output bound, plus whatever the screen settles.
   sha256 is in EXPERIMENTS.md, 2026-09-27 CODE.
 - The pinned worktrees `~/projects/equi-resrl-<commit>` hold their runs' `wandb/` folders, and the
   parked arms launch from `~/projects/equi-resrl-ccff539`.
+- **`rdoj0ex8`, upstream's Can arm,** exists only as its offline record,
+  `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8/`. Its trainer
+  deleted its run folder, and it was never synced.
 
 Three runs have already been lost to deletions.

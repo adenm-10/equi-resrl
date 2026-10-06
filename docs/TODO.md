@@ -17,7 +17,7 @@ while the critic rated it above the base action. So, as pre-registered, the IID-
 earlier stability came from executing almost no residual, and the equivariant tuned-RLPD arms
 wait for Aden (B12).
 
-### B12. Tuned RLPD — the ResFiT arms FAILED; a Can screen IN FLIGHT from 2026-10-06 `[SC]` `[CS]`
+### B12. Tuned RLPD — the ResFiT arms FAILED, and the Can screen found no fix `[SC]` `[CS]`
 
 Vanilla RL with no base policy, as a test of the RL machinery. Plan:
 `docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Pre-registered as `tuned-rlpd-1002`
@@ -27,24 +27,42 @@ Vanilla RL with no base policy, as a test of the RL machinery. Plan:
 on Can, then on Square. Residual RL comes after.
 
 **The ResFiT arms failed** (2026-10-06 RESULTS): `8ma5alnm` (Square) and `lg8qad3l` (Can) were at
-0.00 at every eval, with 0 training successes. The actor reached its Tanh bound within about 100
-updates and stayed there. The critic, by inference, valued that action on demo states at about
-twice the demos' own value. Not mainly exploration.
+0.00 at every eval, with 0 training successes.
 
-**Now: the Can screen** (`tuned-rlpd-can-screen-1006`; 2026-10-06 PRE-REGISTERED). Six 30k-step
-arms: upstream's own trainer, our control with the new critic diagnostics, and three changes from
-the residual recipe (actor LR 1e-6, 10k critic warm-up, zero-init last layer) alone and together.
-- **When they finish:** a RESULTS entry by the pre-registered rule, `/analyze-experiment`, and the
-  promoted arm's 150k run as an AMENDMENT to `tuned-rlpd-1002`.
-- **After that run passes:** the same on Square; then the equivariant stack.
+**The Can screen found no fix** (`tuned-rlpd-can-screen-1006`; 2026-10-06 RESULTS, the screen).
+All six 30k-step arms scored 0 at every eval: upstream's own trainer, our control, and actor LR
+1e-6, a 10k critic warm-up and a zero-init last layer, alone and together. Nothing was promoted.
+The diagnostics measured the mechanism: extrapolation error on the demo half, settling at a fixed
+point, with no Q blowup. STATUS, "Where the project is", has the short version.
+
+**Running now: τ 0.005 and a BC term** (`tuned-rlpd-can-tau-bc-1006`; EXPERIMENTS.md, 2026-10-06
+PRE-REGISTERED, "τ 0.005 and a BC term"). Three 30k-step arms: `tau`, `bc` (`bc_loss_coef`
+0.025, TD3+BC's balance) and `tau-bc`.
+- **When they finish:** a RESULTS entry by the pre-registered rule, and `/analyze-experiment`.
+  An off-zero arm's 150k run waits for Aden: a BC term is not the paper's Tuned RLPD, so he
+  decides whether it is an acceptable comparison baseline for the equivariant arms.
+- **If no arm gets off zero,** the pre-registration names the next candidates: a longer n-step,
+  the BC loss training the encoder (`agent.bc_backprop_encoder=true`), a larger coefficient.
+- **Not chosen on 2026-10-06:** a critic-only LayerNorm (`agent.actor.use_layer_norm=false`)
+  and a lower exploration σ, which has nothing to act on: the online half is valued at 0 for any
+  action.
+- **After an arm passes 150k on Can:** the same on Square; then the equivariant stack.
 - **Before the equivariant arms:** the equivariant agent needs `critic_diagnostics` too (the
   trainer calls it for ResFiT's agent only), and its design: the actor's norm, its output bound,
-  and whatever the screen settles. The provisional design (`iid_bn`, `residual_squash=true`)
-  is in `a0353a5`'s `submit.sh`.
-- **Delete when the screen is done:** `local_runs/upstream-rlpd/`, upstream's buffer caches
-  (about 21 GB, or 37 GB with the smoke run's 16 GB online cache, `eef0c5e8`, which is no use to
-  any run). The disk is at 100%.
+  and whatever a BC term needs. The provisional design (`iid_bn`, `residual_squash=true`) is in
+  `a0353a5`'s `submit.sh`.
+- **For Aden to delete:** `local_runs/upstream-rlpd/`, upstream's buffer caches (about 21 GB).
+  No run reads them.
 **Updates:** EXPERIMENTS.md, STATUS.md.
+
+### B14. DONE 2026-10-06 — our trainer ignored `agent.bc_loss_coef` `[CS]`
+
+Wired as upstream's `train_rlpd_dexmg.py` does: the demo half goes to each actor update when the
+coefficient is positive (EXPERIMENTS.md, 2026-10-06 CODE, "the actor's BC term"). The 0 path is
+unchanged, bit for bit. The trainer refuses a positive coefficient in a residual or equivariant
+run, and `bc_loss_dynamic` at any value but 0. ARCHITECTURE.md has the details.
+- **Left open:** the equivariant agent's BC path. It needs a test before an equivariant BC arm.
+  Delete this entry once that is done or decided against.
 
 ### B0 — PARKED 2026-10-02: the Square ablations, with the actor's batch norm `[SC]`
 
