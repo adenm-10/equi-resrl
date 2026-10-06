@@ -17,6 +17,45 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-06 — tuned RLPD's ResFiT arms failed; why; a Can screen launched
+
+**Done**
+
+- **Recorded `8ma5alnm` and `lg8qad3l`** (EXPERIMENTS.md, RESULTS): 0.00 at every eval, 0
+  training successes, on both tasks.
+- **Read the failure from the logs:**
+  - the actor hit its Tanh bound within about 100 updates and stayed near it;
+  - the critic valued the policy's own rollouts at about 0, but its batch-mean target stayed at
+    0.40, which puts the demo half near 0.8 against the demos' true 0.335–0.398;
+  - not mainly exploration.
+- **Compared with upstream and the paper.** Our config equals upstream's `rlpd_can_config`, at 10
+  heads, on every shared field (now a test). Against the paper's text, upstream's RLPD has no
+  critic warm-up and uses τ 0.01, not 0.005. Read the paper's Fig. 5: its Tuned RLPD is at about
+  0.7 on Can by 25k.
+- **Smoke-ran upstream's `train_rlpd_dexmg.py`,** its first run here. Its Can offline buffer
+  overwrites 2,456 of 62,456 demo transitions, and it dumps its online buffer at full capacity,
+  16 GB.
+- **Added `critic_diagnostics`** (Q split by buffer) and **fixed `dQ_da` on ResFiT's agent**
+  (CODE). The full suite gave 533 passed.
+- **Pre-registered and launched the Can screen,** `tuned-rlpd-can-screen-1006`: upstream's
+  trainer, a control, and actor LR 1e-6, critic warm-up 10k and zero-init, alone and together.
+
+**Decided (Aden)**
+
+- **The order:** ResFiT tuned RLPD on Can, then Square, then the equivariant stack on Can, then
+  Square. Residual RL after.
+- **Screen the residual recipe's three safeguards.** In place of the 0.1 cap, which with no base
+  policy cannot cancel Can's midpoint yaw, use zero-init. Add a combined arm.
+
+**Open**
+
+- The disk is at 100%. Upstream's caches under `local_runs/upstream-rlpd/` go when the screen is
+  done; deleting the smoke run's 16 GB online cache was declined this session, so it is still
+  there.
+- `main` is ahead of origin and unpushed.
+
+---
+
 ## 2026-10-04 — the image-fix pair collapsed; tuned RLPD built, its ResFiT arms launched
 
 **Done**

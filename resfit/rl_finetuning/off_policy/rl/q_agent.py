@@ -451,6 +451,9 @@ class QAgent(torch.nn.Module):
         else:
             combined_action = action_pred
 
+        # Keeps the gradient update_actor logs as debug/dQ_da_*; a non-leaf drops it otherwise.
+        # The equivariant agent does the same.
+        combined_action.retain_grad()
         q = self.critic.q_value_for_policy(obs["feat"], obs["observation.state"], combined_action)
         actor_loss_base = -q.mean()
 
@@ -686,6 +689,42 @@ class QAgent(torch.nn.Module):
         utils.soft_update_params(self.actor, self.actor_target, self.cfg.critic_target_tau)
         metrics.update(actor_metric)
 
+        return metrics
+
+    @torch.no_grad()
+    def critic_diagnostics(self, batch, num_online: int) -> dict[str, float]:
+        """What the critic thinks of the data's actions and of the policy's, on each buffer.
+
+        The batch is the trainer's: online rows [:num_online], then demo rows. Q is the mean
+        over heads; the policy's action is the actor's mean, combined with the base action in a
+        residual run as the actor loss combines it. Logging only: the caller puts the agent in
+        eval mode, the images are not augmented, and nothing draws a random number, so logging
+        does not change what a run computes.
+        """
+        assert not self.training
+        obs = {k: batch["obs"][k] for k in [*self.rl_cameras, "observation.state"]}
+        if self.residual_actor:
+            obs["observation.base_action"] = batch["obs"]["observation.base_action"]
+        obs["feat"] = self._encode(obs, augment=False)
+
+        data_action = batch["action"]
+        policy_action = self.actor(obs, 0.0).mean
+        if self.residual_actor:
+            policy_action = torch.clamp(obs["observation.base_action"] + policy_action, -1.0, 1.0)
+
+        def q(action):
+            return self.critic(obs["feat"], obs["observation.state"], action).mean(dim=0).squeeze(-1)
+
+        q_data, q_policy = q(data_action), q(policy_action)
+        gap = (policy_action - data_action).abs().mean(dim=-1)
+        halves = {"online": slice(0, num_online), "demo": slice(num_online, None)}
+        metrics = {}
+        for name, rows in halves.items():
+            if q_data[rows].numel() == 0:
+                continue
+            metrics[f"debug/q_data_{name}"] = q_data[rows].mean().item()
+            metrics[f"debug/q_policy_{name}"] = q_policy[rows].mean().item()
+            metrics[f"debug/policy_data_gap_{name}"] = gap[rows].mean().item()
         return metrics
 
     def step_lr_schedulers(self):

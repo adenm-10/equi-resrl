@@ -2649,3 +2649,203 @@ memory, step-0 about 0, the speed and the RAM. A RESULTS entry per run, from
   - **Critic loss:** 1–2e-4 (Square), under 5e-5 (Can).
 - **Config caveats:** none on this stack. The ResFiT agent does not log `debug/dQ_da_*`
   (TODO B13).
+
+---
+
+## 2026-10-06 — RESULTS — tuned RLPD's ResFiT arms: neither learned, on either task
+
+Seed-group `tuned-rlpd-1002` (2026-10-04 PRE-REGISTERED and LAUNCHED). Both runs finished 150k on
+2026-10-04, `8ma5alnm` at 18:21 and `lg8qad3l` at 18:35, about 5.0 and 5.3 h after wandb start.
+Verdicts from `tools/tuned_rlpd_verdict.py`.
+
+| Run | Task | Step 0 | Evals 10k–150k | Training episodes | 110k–150k mean | Bar | Verdict |
+|---|---|---|---|---|---|---|---|
+| `8ma5alnm` | Square | 0.00 | 0.00 at all 15 | 0 successes in 500, every one a 300-step timeout | 0.000 | B_sq = 0.508 | does not pass |
+| `lg8qad3l` | Can | 0.00 | 0.00 at all 15 | 0 successes in 750, every one a 200-step timeout | 0.000 | B_can = 0.894 | does not pass |
+
+- **Read against the pre-registration: "a ResFiT arm fails."** The setup does not reproduce the
+  paper's Tuned RLPD on either task, so an equivariant tuned-RLPD result can't be read against it
+  yet. The equivariant arms stay unlaunched.
+- **Against the paper.** Read off its Fig. 5, Tuned RLPD is at about 0.7 on Can by 25k and about
+  0.9 by 50k, and on Square at about 0.2 at 25k, 0.6 at 50k and over 0.9 by about 100k. So by 30k
+  the paper's curve is clearly off zero on both tasks; ours never is.
+- **What the logs show** (console every 100 steps, and the local history):
+
+  | Step | 100 | 1k | 5k | 10k | 50k | 150k |
+  |---|---|---|---|---|---|---|
+  | Square `train/action_l1_magnitude` | 0.998 | 0.789 | 0.686 | 0.714 | 0.731 | 0.676 |
+  | Square `train/critic_qt` | 0.04 | 0.43 | 0.47 | 0.42 | 0.39 | 0.40 |
+  | Square `train/actor_grad_norm` | 0.0025 | 0.038 | 0.028 | 0.017 | 0.008 | 0.0036 |
+  | Can `train/action_l1_magnitude` | 0.929 | 0.839 | 0.884 | 0.876 | 0.862 | 0.832 |
+  | Can `train/critic_qt` | −0.09 | 0.37 | 0.40 | 0.42 | 0.42 | 0.41 |
+  | Can `train/actor_grad_norm` | 0.013 | 0.0028 | 0.0029 | 0.0026 | 0.0052 | 0.0033 |
+
+  - **The actor reached its Tanh bound within about 100 actor updates,** before the critic had
+    learned anything (`critic_qt` 0.04 and −0.09 at step 100), and never came back.
+  - **The demos are far from that.** The 300 demos' actions, normalized as the buffer stores
+    them, average |a| = 0.29 (Square) and 0.32 (Can) over all 7 axes, and that includes the
+    gripper axis, which is always ±1. The six arm axes average 0.03–0.37.
+  - **The critic values the policy's own rollouts at about zero,** correctly: the eval Q-trajectory
+    plots at 150k sit within 4e-4 of 0 on both tasks (Square was about 0.095 at 10k).
+  - **Yet the batch-mean TD target stays at about 0.40.** Half of each batch is demos. If the
+    online half's targets are about 0, the demo half's average about 0.8. The demos' true mean
+    value is 0.335 (Square) and 0.398 (Can): γ^(steps to success) over the 300 demos' transitions.
+    So, **inferred and not measured,** the critic values the policy's saturated actions on demo
+    states at about twice what the demonstrator's own actions earn. That removes any gradient
+    back toward the demos. The ResFiT agent logs no split of Q by half, and `debug/dQ_da_*` reads
+    0 at every step (TODO B13).
+  - **Then everything stops moving.** Critic loss under 5e-5 from about 7.5k; encoder gradient
+    from 0.02 at step 100 to about 2e-5; actor gradient 0.003–0.008 for the last 100k steps.
+- **Not mainly exploration.** With demos in half of every batch, RLPD does not need an online
+  success to see reward. Here the actor never approached the demos' actions, so the missing
+  online successes follow from the failure rather than cause it.
+- **Against upstream.** No hyperparameter of these runs differs from upstream's released
+  `rlpd_{square,can}_config` with its original 10 critic heads, and the two trainers build the
+  same `QAgent` (ARCHITECTURE.md, "Residual or vanilla"). The differences found are between
+  that config and the paper's text:
+  - **critic warm-up:** 0 here and in upstream's RLPD config, and upstream's
+    `train_rlpd_dexmg.py` has no warm-up code at all. The paper says demos are used "to warm up a
+    critic", and the residual config does 10k critic-only updates;
+  - **target τ:** 0.01 here and in upstream's RLPD config; 0.005 in the paper's text.
+- The same pattern as the image-fix pair (2026-10-04 RESULTS): an actor that runs to its bound
+  while the critic scores the bound above the data's actions. A reading, not a test.
+- One seed per task: an observation, not a comparison (STANDARDS 5.3). Packages in
+  `outputs/runs/robomimic-{square,can}-final/{8ma5alnm,lg8qad3l}/`, with each eval's Q-trajectory
+  plot. No best checkpoint was saved: no eval beat 0.
+
+---
+
+## 2026-10-06 — CODE — the critic's Q split by buffer, `dQ_da` on ResFiT's agent, and the Can screen's launcher
+
+**What it adds,** for the screen pre-registered below:
+- **`QAgent.critic_diagnostics`** (ResFiT's agent). On the last update's batch, it reports the
+  critic's Q for the data's action and for the policy's, on the online rows and on the demo rows,
+  as `debug/q_data_{online,demo}` and `debug/q_policy_{online,demo}`. It also reports
+  `debug/policy_data_gap_{online,demo}`, the mean |policy action − data action| per axis.
+  - Q is the mean over heads. The policy's action is the actor's mean, combined with the base
+    action in a residual run, as the actor loss combines it.
+  - The trainer logs it at every log step, and prints the demo and online pairs on the console
+    line. ResFiT's agent only, for now: the equivariant agent needs the same method before its
+    tuned-RLPD arms run (TODO B12).
+  - Logging only: the agent is in eval mode, the images are not augmented, and nothing draws a
+    random number, so a run computes the same updates whether or not it logs.
+- **`debug/dQ_da_*` now reads the critic's action gradient on ResFiT's agent** (TODO B13). It
+  read 0.0 in every ResFiT run before this commit, `8ma5alnm` and `lg8qad3l` included:
+  `combined_action` is not a leaf, and its gradient was never kept. One `retain_grad()`, as the
+  equivariant agent has.
+- **`submit.sh` is rewritten for the screen:** six arms. One, `upstream-rlpd-can`, runs upstream's
+  `train_rlpd_dexmg.py`, with its caches under `$CACHE_DIR/local_runs/upstream-rlpd`, wandb
+  offline, and a gate step that refuses it under 26 GB of free disk. The 2026-10-04 arms launch
+  from `a0353a5`.
+
+**Verified:**
+- **The config claim:** `tests/test_sweep_arms.py` shows `tuned_rlpd_can_config` equal to
+  upstream's `rlpd_can_config`, at 10 critic heads, on every field the two share, wandb naming
+  aside. The fields only ours has are residual-only ones, off, and the two normalization floors,
+  which upstream's trainer hard-codes at the same 0.1.
+- **The diagnostics:** `tests/test_critic_diagnostics.py`. They match the same quantities
+  computed from the agent's parts, in vanilla and residual mode. They skip an empty demo half,
+  and they move no parameter and draw no random number on CPU or CUDA. `dQ_da` is now nonzero
+  after an actor update.
+- **Training numerics unchanged:** neither change alters an update. The equivariant agent is
+  untouched, and its goldens and deep-check tests pass.
+- **The full suite: 533 passed, 2 skipped** (the two skips predate this).
+- **Upstream's trainer, end to end** (`debug=true`, 500 warm-up steps, 300 steps, Can): it runs
+  here, its first run on this machine.
+  - `action_l1` was 0.97 at step 100, as in `lg8qad3l`.
+  - **Its Can offline buffer is sized horizon × episodes = 200 × 300 = 60,000** for 62,456 demo
+    transitions, so the last 2,456 overwrite the first. Square's 90,000 slots hold its 80,431.
+    Ours sizes the buffer exactly.
+  - It wrote the offline cache `5b67f661` (4.8 GB) and an online cache `eef0c5e8`. The online
+    buffer is dumped at its full 200k capacity: 16 GB for 500 transitions.
+- **Our control, end to end** (`debug=true`, 500 warm-up steps, 300 steps, 200 critic warm-up
+  updates): the diagnostics reach the console and the log, and critic warm-up runs with no base
+  policy. Seen, deciding nothing: the demo rows already valued the policy's action above the
+  demo's, 0.343 against 0.306 at step 300.
+
+---
+
+## 2026-10-06 — PRE-REGISTERED — tuned RLPD on Can: upstream's trainer, and a screen of three changes
+
+**Questions.** Both on Can, the cheaper task and the faster one in the paper: its Tuned RLPD is
+at about 0.7 there by 25k, so 30k steps can tell learning from not learning.
+1. **Does upstream's own trainer fail the way ours did?** Our `tuned_rlpd_can_config` equals
+   upstream's `rlpd_can_config`, at its original 10 critic heads, on every field the two share
+   (`tests/test_sweep_arms.py` checks it), and both trainers build the same `QAgent`. So the
+   expectation is yes. If upstream learns and our control does not, our mode differs from
+   upstream somewhere.
+2. **Which of three changes from ResFiT's residual recipe gets tuned RLPD off zero?** Each targets
+   the failure the 2026-10-06 RESULTS describe: an actor that reaches its Tanh bound within about
+   100 updates, against a critic that has learned nothing yet.
+
+**Seed-group `tuned-rlpd-can-screen-1006`,** seed 1 per arm, 30k steps, Can.
+- Project `robomimic-can-final`. Groups `tuned-rlpd` (ours) and `upstream-rlpd`.
+- Names `<arm>-1`, notes `tuned-rlpd-can-screen-1006/<arm>/seed1`.
+
+| Arm | Trainer | Change from `tuned_rlpd_can_config` | Why |
+|---|---|---|---|
+| `upstream-rlpd-can` | `train_rlpd_dexmg.py` | upstream's `rlpd_can_config` with `agent.critic.num_q=10`, as `shell/paper_runs/can/2_can_rlpd.sh` launches it | question 1 |
+| `tuned-rlpd-can-control` | `train_residual_td3.py` | none: `lg8qad3l`'s config, with the new diagnostics (2026-10-06 CODE) | the screen's control, and the test of the mechanism |
+| `tuned-rlpd-can-actor-lr` | ours | `agent.actor_lr=1e-6`, the residual config's, 100× lower | slows the run to the bound |
+| `tuned-rlpd-can-critic-warmup` | ours | `algo.critic_warmup_steps=10000`, the residual config's | the actor's first update meets a trained critic; the paper says demos "warm up a critic", and upstream's RLPD trainer has no warm-up at all |
+| `tuned-rlpd-can-zero-init` | ours | `agent.actor.actor_last_layer_init_scale=0.0`, the residual config's | the actor starts at the dataset midpoint, not at a random action |
+| `tuned-rlpd-can-combined` | ours | all three | whether they only work together |
+
+- **The residual's third safeguard, its 0.1 cap, is not tested** (Aden's decision, 2026-10-06).
+  With no base policy, `action_scale=0.1` bounds the whole action, around each axis's dataset
+  midpoint. Can's yaw axis spans −0.927 to 0.424, so the capped actor could only command −0.18 to
+  −0.32: a yaw of 0.09–0.16 rad every step that it cannot cancel. It would also cap translation
+  at about half the demos' average. `zero-init` keeps the recipe's "start small" without that
+  bound.
+- **Not changed, though the residual config differs:** τ (0.01, not 0.005), exploration σ (0.1,
+  not 0.05) and the warm-up actions (U(±1)). They stay as in `lg8qad3l`.
+
+**Held fixed:** everything else in `tuned_rlpd_can_config`, which is `lg8qad3l`'s: 10 critic
+heads, critic LR 1e-4, 4 updates per step with the actor on the last, n-step 3, γ 0.99, batch 256
+half demos, 300 demos, 10k U(±1) warm-up steps, buffers built in memory. Evals of 50 episodes at
+0, 10k, 20k and 30k. The commit is the one that adds this entry; env initial states are unseeded,
+as in every run.
+
+**How upstream's arm differs in its running, not its config:**
+- **Its Can offline buffer holds 60,000 transitions, not 62,456.** It sizes the buffer
+  horizon × episodes = 200 × 300, so the last 2,456 demo transitions overwrite the first.
+  Found in today's smoke run; an upstream bug, kept, since this arm tests upstream as it is.
+- Its last eval is at step 29,999, not 30,000.
+- It writes its buffer caches, under `local_runs/upstream-rlpd/`, away from ours. It loads the
+  offline cache `5b67f661`, which today's smoke run built at this code, and writes a 16 GB
+  online cache.
+- **wandb runs offline,** since its trainer uploads every best checkpoint (STANDARDS 6.4). The
+  history stays in its local wandb record, and at its end the trainer deletes its own run
+  folder, models and videos included. Its console log in `outputs/queue/` stays.
+- It logs no diagnostics beyond upstream's.
+
+**The verdict, per arm,** from its evals at 20k and 30k (100 episodes):
+- **Off zero** iff those two evals score at least 5 successes between them. `lg8qad3l` scored 0
+  in 800 eval episodes and 0 in 750 training episodes; the paper's curve is about 0.5–0.7 there.
+  So 5 of 100 says learning has started, without asking for the paper's number.
+- **Promoted:** the off-zero arm of ours with the most successes at 20k and 30k runs 150k next,
+  as an AMENDMENT to `tuned-rlpd-1002`, judged by that experiment's rule (the 110k–150k eval
+  mean against B_can = 0.894). A tie goes to the arm with fewer changes; a remaining tie, to the
+  higher 30k eval; a remaining tie, to Aden.
+- **Reported, deciding nothing:** every eval, training successes, and `train/action_l1_magnitude`
+  at steps 100, 1k and 10k against `lg8qad3l`'s 0.93, 0.84 and 0.88.
+
+**What the outcomes mean,** decided now:
+- **Upstream off zero and our control not:** our mode differs from upstream. The screen's
+  results are set aside until the difference is found.
+- **Neither off zero:** our mode matches upstream in outcome. Upstream's released config does not
+  reproduce the paper's Fig. 5 on Can here, and the screen says whether any of the three changes
+  does.
+- **No arm off zero:** none of the three changes, alone or together, is enough by 30k. What to try
+  next is decided from the diagnostics; the candidates are τ 0.005 (the paper's text), a BC term,
+  and a lower exploration σ.
+- **The mechanism,** from the control's new diagnostics at 10k, 20k and 30k. The 2026-10-06
+  RESULTS reading predicts the demo half valued well above the demos' true mean of 0.398, about
+  0.8, with `debug/q_policy_demo` at least `debug/q_data_demo`, and the online half near 0. If the
+  demo values sit near 0.398 instead, that reading is wrong, and it gets a CORRECTION.
+- One seed per arm: observations, not comparisons (STANDARDS 5.3). The screen chooses what runs
+  next; it does not establish an effect.
+
+**Resources.** Six runs of about 1–1.5 h, four at a time: a second queue runner on each GPU, in
+tmux `gpu0b` and `gpu1b`. About 15 GB of RAM per run, of 121 GB available. Disk: 29 GB free
+before upstream's 16 GB online cache.

@@ -17,33 +17,33 @@ while the critic rated it above the base action. So, as pre-registered, the IID-
 earlier stability came from executing almost no residual, and the equivariant tuned-RLPD arms
 wait for Aden (B12).
 
-### B12. Tuned RLPD on Can and Square — the ResFiT arms IN FLIGHT from 2026-10-04 `[SC]` `[CS]`
+### B12. Tuned RLPD — the ResFiT arms FAILED; a Can screen IN FLIGHT from 2026-10-06 `[SC]` `[CS]`
 
 Vanilla RL with no base policy, as a test of the RL machinery. Plan:
 `docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Pre-registered as `tuned-rlpd-1002`
 (EXPERIMENTS.md, 2026-10-04 PRE-REGISTERED), which holds the design tables and the verdict.
 
-**Built** (2026-10-04 CODE): the `base_policy=None` mode in `train_residual_td3.py`, four configs,
-`NormalizedVecEnvWrapper`, the non-residual equivariant encoder and actor,
-`preflight.py --method tuned-rlpd`, `tools/tuned_rlpd_verdict.py`, and four arms in `submit.sh`.
+**Aden's order (2026-10-06):** ResFiT on Can, then ResFiT on Square, then the equivariant stack
+on Can, then on Square. Residual RL comes after.
 
-**Running: the two ResFiT arms,** `8ma5alnm` (Square, GPU 0) and `lg8qad3l` (Can, GPU 1), from
-2026-10-04 13:19, ending around 18:30–19:00 (LAUNCHED entry). When each reaches 150k: a RESULTS
-entry from `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`, then
-`/analyze-experiment`.
+**The ResFiT arms failed** (2026-10-06 RESULTS): `8ma5alnm` (Square) and `lg8qad3l` (Can) were at
+0.00 at every eval, with 0 training successes. The actor reached its Tanh bound within about 100
+updates and stayed there. The critic, by inference, valued that action on demo states at about
+twice the demos' own value. Not mainly exploration.
 
-**Waiting for Aden: the equivariant arms' design.** Aden's decision (2026-10-04) is to decide it
-once the ResFiT arms report. `submit.sh` holds the plan's provisional design and refuses to launch
-it. The choices:
-- **The actor's norm.** `iid_bn`, the image-fix reference's, is provisional. That design collapsed
-  in residual RL, and it syncs, so about 19 h per task. `none` is the config default and what the
-  SO(2) equivariant RL code uses, about 15 h per task.
-- **The output bound.** `residual_squash=true` (`equi_tanh`) is provisional and recommended: it is
-  the counterpart of ResFiT's Tanh. `false` leaves the mean unbounded, clipped to the disk; in the
-  image-fix pair that mean grew to the clip.
-- Anything else the ResFiT results suggest.
-
-Then an AMENDMENT before they run, `submit.sh`'s overrides and pending flag, and the launch.
+**Now: the Can screen** (`tuned-rlpd-can-screen-1006`; 2026-10-06 PRE-REGISTERED). Six 30k-step
+arms: upstream's own trainer, our control with the new critic diagnostics, and three changes from
+the residual recipe (actor LR 1e-6, 10k critic warm-up, zero-init last layer) alone and together.
+- **When they finish:** a RESULTS entry by the pre-registered rule, `/analyze-experiment`, and the
+  promoted arm's 150k run as an AMENDMENT to `tuned-rlpd-1002`.
+- **After that run passes:** the same on Square; then the equivariant stack.
+- **Before the equivariant arms:** the equivariant agent needs `critic_diagnostics` too (the
+  trainer calls it for ResFiT's agent only), and its design: the actor's norm, its output bound,
+  and whatever the screen settles. The provisional design (`iid_bn`, `residual_squash=true`)
+  is in `a0353a5`'s `submit.sh`.
+- **Delete when the screen is done:** `local_runs/upstream-rlpd/`, upstream's buffer caches
+  (about 21 GB, or 37 GB with the smoke run's 16 GB online cache, `eef0c5e8`, which is no use to
+  any run). The disk is at 100%.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### B0 — PARKED 2026-10-02: the Square ablations, with the actor's batch norm `[SC]`
@@ -82,10 +82,9 @@ prediction was never tested.
 
 ### B13. Small findings from 2026-10-02 `[CS]` `[SC]`
 
-- **The ResFiT agent never logs `debug/dQ_da_*`** (found 2026-10-04). `combined_action` is not a
-  leaf and gets no `retain_grad()`, so its `.grad` is None, `dQ_da_norm` is logged as 0.0, and
-  torch warns. Upstream code. STANDARDS 6.3 asks for the diagnostic on every agent; the fix
-  changes logging only.
+- **FIXED 2026-10-06: the ResFiT agent never logged `debug/dQ_da_*`.** `combined_action` got
+  no `retain_grad()`, so the metric read 0.0 in every ResFiT run before then. It now mirrors the
+  equivariant agent (2026-10-06 CODE).
 
 - **The residual path clips twice, differently.**
   - `QAgent._combine_actions` gives the critic `equi_clip(base + residual)`: each rotating pair

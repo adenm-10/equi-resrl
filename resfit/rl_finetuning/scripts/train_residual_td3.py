@@ -1341,6 +1341,14 @@ def main(cfg: ResidualTD3DexmgConfig):
             filtered_metrics = {k: v for k, v in metrics.items() if not k.startswith("_")}
             log_dict.update(filtered_metrics)
 
+            # Q split by buffer, on the last update's batch. ResFiT's agent only, for now: the
+            # equivariant agent gets the same method before its tuned-RLPD arms run (TODO B12).
+            critic_split = {}
+            if not equivariant_run:
+                with utils.eval_mode(agent):
+                    critic_split = agent.critic_diagnostics(batch, online_batch_size)
+                log_dict.update(critic_split)
+
             # Compute residual action statistics only when logging. Vanilla RL's actor outputs the
             # whole action, logged under upstream RLPD's names.
             action_name = "residual" if residual_run else "action"
@@ -1393,6 +1401,11 @@ def main(cfg: ResidualTD3DexmgConfig):
             # Add gradient norms to print statement
             if "train/actor_grad_norm" in metrics:
                 print_msg += f" actor_grad_norm={metrics['train/actor_grad_norm']:.4f}"
+            if "debug/q_policy_demo" in critic_split:
+                print_msg += (f" q_demo(data/policy)={critic_split['debug/q_data_demo']:.3f}"
+                              f"/{critic_split['debug/q_policy_demo']:.3f}"
+                              f" q_online(data/policy)={critic_split['debug/q_data_online']:.3f}"
+                              f"/{critic_split['debug/q_policy_online']:.3f}")
 
             # Add L2 penalty if active
             if "train/actor_l2_penalty" in metrics:

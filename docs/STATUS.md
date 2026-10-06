@@ -1,64 +1,72 @@
 # Status
 
-**Last updated:** 2026-10-04 · **Last verified commit:** `a0353a5`, the tuned-RLPD pre-registration
-and launch, on the no-base-policy mode `692f09a` (EXPERIMENTS.md, 2026-10-04 CODE)
+**Last updated:** 2026-10-06 · **Last verified commit:** the Can screen's pre-registration, on the
+critic diagnostics (EXPERIMENTS.md, 2026-10-06 CODE)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**The image-fix pair collapsed** (EXPERIMENTS.md, 2026-10-04 RESULTS). Both seeds of the residual
-reference, with act() fixed, went from 0.46 and 0.52 at step 0 to 0.00 at every eval from 10k.
-- The residual, now executed, grew to a mean |r| of about 0.45 by 30–50k, and its largest
-  component reached the clip at 1.0 by 15–20k.
-- The critic kept scoring it above the base action.
-- So, as pre-registered, the IID-batch-norm actor's earlier stability came from executing almost
-  no residual. **No equivariant residual design has yet held or beaten its base policy.**
+**Tuned RLPD on ResFiT's stack failed on both tasks** (EXPERIMENTS.md, 2026-10-06 RESULTS).
+`8ma5alnm` (Square) and `lg8qad3l` (Can) were at 0.00 at every eval to 150k, with 0 training
+successes. The paper's Tuned RLPD is off zero by 20–30k on both. So this setup does not yet
+reproduce the paper's baseline, and an equivariant tuned-RLPD result could not be read.
+- **The failure:** the actor reached its Tanh bound within about 100 updates, before the critic
+  had learned anything, and stayed near it (`action_l1` 0.68–0.90; the demos' is 0.29–0.32).
+- **The critic** values the policy's own rollouts at about 0. By inference, it values the
+  policy's action on demo states at about twice the demos' own value, so nothing pulls the
+  actor back toward the demos. The control arm of the screen below measures this directly.
+- **Not mainly exploration:** with demos in every batch, RLPD does not need an online success.
+- **Our config equals upstream's** `rlpd_can_config`, at its original 10 heads, on every field
+  the two share. The candidate gaps are between that config and the paper's text: no critic
+  warm-up (upstream's RLPD trainer has none), and τ 0.01 against the text's 0.005.
 
-**So the RL machinery is being tested without residual RL:** tuned RLPD, vanilla RL with no base
-policy (TODO B12; EXPERIMENTS.md, 2026-10-04 PRE-REGISTERED).
-- **Built:** a `base_policy=None` mode in `train_residual_td3.py`, for both agents, with four
-  configs, a wrapper, a gate method, a verdict tool and four arms in `submit.sh`
-  (2026-10-04 CODE). The residual path is unchanged, tensor for tensor.
-- **Running: the two ResFiT arms,** Square and Can, seed 1, 150k steps each ("Running now").
-- **The two equivariant arms wait for Aden** (Aden's decision, 2026-10-04), who decides their
-  design when the ResFiT arms report: the actor's norm and its output bound at least. `submit.sh`
-  holds them with the plan's provisional design and refuses to launch them.
+**Aden's order (2026-10-06):** ResFiT tuned RLPD on Can, then on Square, then the equivariant
+stack on Can, then on Square. Residual RL after.
+
+**No equivariant residual design has yet held its base policy** with its residual executed
+(2026-10-04 RESULTS, the image-fix pair). The tuned-RLPD failure looks like the same pattern, an
+actor that runs to its bound while the critic scores the bound above the data's actions, but that
+is a reading, not a test (TODO B10).
 
 **Every equivariant run before `e15d36c` acted on near-blank images,** and every one before
-`93a8ad4` trained against a frozen target critic (2026-10-02 and 2026-09-29 CORRECTIONs). The
-Square ablations stay parked (2026-10-02 RESULTS and STOPPED).
+`93a8ad4` trained against a frozen target critic (2026-10-02 and 2026-09-29 CORRECTIONs).
+**Every ResFiT run before 2026-10-06 logged `debug/dQ_da_*` as 0** (2026-10-06 CODE).
 
-**From 2026-09-30 the update is about 2× faster, and `actor_norm` defaults to `none`**
-(EXPERIMENTS.md, 2026-09-30 CODE). Runs set `iid_bn` explicitly; TODO B10 settles the default.
 - **wandb:** every Square equivariant residual run is in group `equi-residual-rl`, and every
   Square BC run in `robomimic-square-bc`. Tuned RLPD is in groups `tuned-rlpd` and
-  `equi-tuned-rlpd`, in `robomimic-{square,can}-final`.
+  `equi-tuned-rlpd`, in `robomimic-{square,can}-final`; upstream's trainer's runs are in
+  `upstream-rlpd`, recorded offline.
 
 **BoxCleanup** has had a smoke run only: 59.8 GiB at the start, projecting to about 82 GiB for a
 full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**Tuned RLPD, the ResFiT arms** (seed-group `tuned-rlpd-1002`; EXPERIMENTS.md, 2026-10-04
-PRE-REGISTERED and LAUNCHED), from `a0353a5` through `tools/gpu_queue.sh`.
+**The tuned-RLPD Can screen** (seed-group `tuned-rlpd-can-screen-1006`; EXPERIMENTS.md,
+2026-10-06 PRE-REGISTERED). Six 30k-step arms on Can, seed 1, through `tools/gpu_queue.sh`, four
+at a time: runners `gpu0` and `gpu1`, plus `gpu0b` and `gpu1b`.
 
-| Arm | wandb | GPU | Started | Ends (est.) | Bar (110k–150k eval mean) |
-|---|---|---|---|---|---|
-| `tuned-rlpd-square` | `8ma5alnm` | 0 | 2026-10-04 13:19 | ~18:30–19:00 | B_sq = 0.508 |
-| `tuned-rlpd-can` | `lg8qad3l` | 1 | 2026-10-04 13:19 | ~18:30–19:00 | B_can = 0.894 |
+| Arm | What changes | Runner |
+|---|---|---|
+| `upstream-rlpd-can` | upstream's own trainer | `gpu0` |
+| `tuned-rlpd-can-control` | nothing; logs the critic diagnostics | `gpu0b` |
+| `tuned-rlpd-can-critic-warmup` | 10k critic-only updates | `gpu1` |
+| `tuned-rlpd-can-actor-lr` | actor LR 1e-6 | `gpu1b` |
+| `tuned-rlpd-can-zero-init` | actor last layer starts at zero | `gpu0`, second |
+| `tuned-rlpd-can-combined` | all three | `gpu1`, second |
 
-- **At launch:** step-0 evals 0/50 on both; 0.112 and 0.120 s/step; 13.8 and 11.1 GiB PSS.
+- **The verdict per arm:** off zero iff its 20k and 30k evals score at least 5 of 100. The
+  off-zero arm of ours with the most successes runs 150k next, as an AMENDMENT to
+  `tuned-rlpd-1002`.
+- **Upstream's arm** writes its caches under `local_runs/upstream-rlpd/` and runs wandb offline:
+  its history is in its local wandb record, and it deletes its own run folder at the end.
+- **The disk is at 100%:** 29 GB free before upstream's 16 GB online cache. Delete
+  `local_runs/upstream-rlpd/` when the screen is done (TODO B12).
 
-- **How it runs:** one runner per GPU in tmux `gpu0` and `gpu1` (queues `~/queues/gpu{0,1}.txt`),
-  started from `~/projects/equi-resrl-b667647`; these launched in `~/projects/equi-resrl-a0353a5`.
-  No watcher: each run ends at 150k, and nothing else is queued.
-- **Expect** a step-0 eval near zero, from a randomly initialized actor. The paper's Tuned RLPD
-  passes 90% on Square within 150k, and reaches high success on Can.
-- **The verdict:** `tools/tuned_rlpd_verdict.py --project robomimic-{square,can}-final <id>`.
-
-**RAM:** two Square residual runs at 40.3 GiB each fit; a third does not.
+**RAM:** about 15 GB per Can tuned-RLPD run. Two Square residual runs at 40.3 GiB each fit; a
+third does not.
 
 ## What is established
 
@@ -112,19 +120,23 @@ PRE-REGISTERED and LAUNCHED), from `a0353a5` through `tools/gpu_queue.sh`.
 - **The gate's RAM estimate is 21 GB per run against a measured 40.3 GiB** (TODO B7, S10). It does
   not count running trainers either.
 - **The scalar ablation is still not usable as a control** (STANDARDS 3.3, TODO P4), and it is
-  residual-only. **The gate cannot validate the commit it launches** (TODO R14).
+  residual-only. So no arm yet isolates equivariance in vanilla RL: the ResFiT and equivariant
+  tuned-RLPD arms differ in seven ways. **The gate cannot validate the commit it launches** (TODO R14).
 
 ## The plan, and why
 
-**1. The ResFiT tuned-RLPD arms** (TODO B12), now. They test whether this setup reproduces the
-paper's Tuned RLPD, which makes them the bar any equivariant vanilla result is read against.
+**1. Get ResFiT tuned RLPD learning on Can** (TODO B12), the screen above. It tells whether our
+mode matches upstream's trainer in outcome, and whether any of three changes from the residual
+recipe gets it off zero by 30k. The promoted arm then runs 150k against B_can = 0.894.
 
-**2. Then Aden decides the equivariant arms' design,** and they launch after an AMENDMENT.
-- At their provisional design (`iid_bn`), about 19 h per task; at `actor_norm=none` about 15 h.
-- Their result separates "the equivariant stack does not learn" from "residual RL is the problem".
+**2. The same on Square,** with what worked on Can.
 
-**3. BoxCleanup, one arm at a time, without writing caches** (TODO B3, B4, B7). A full run needs
-about 82 GiB of RAM, so it can't share the machine with a Square run, and takes about 4 days.
+**3. The equivariant stack on Can, then Square.** It first needs `critic_diagnostics` and its
+design: the actor's norm and output bound, plus whatever the screen settles.
+
+**4. Residual RL after that** (TODO B10): why the executed residual grows to the clip.
+
+**BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
 
 ## Do not delete
 
