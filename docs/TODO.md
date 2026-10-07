@@ -274,6 +274,12 @@ From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Sq
   then derives its disk need from `write_buffer_caches`.
 - **S10, the RAM gate.** Per-task RAM estimates from measured PSS, counting running trainers.
   `RAM_PER_RUN_GB = 21` is half the measured 40.3 GiB.
+- **The gate's BC-policy check looks in the launch worktree** (`preflight.py`, Tier 3:
+  `REPO.glob("artifacts/...")`), but since 2026-10-07 the trainer keeps BC policies under
+  `CACHE_DIR/artifacts/`. So a launch from a worktree warns "BC policy not in artifacts/ — will
+  download ~1 GB" while the policy is cached in main (`equi-residual-square` seed 1, 2026-10-07:
+  the warning, and main's `run_3hzs5bz1_best:v9` files untouched). Look under `CACHE_DIR`, as the
+  cache checks do. Not changed in the fixed-env baselines' launch commit `9cf207d`.
 - **S11, `tools/eval_report.py`.** Parse evals from `output.log`, and implement the stop rule as a
   parameter, with golden and calibration tests. That makes the sweep's verdicts mechanical.
 - **S12, the records.** Enter the BoxCleanup base rate (E1-box, still to measure: about 1–2 h, 25 GiB).
