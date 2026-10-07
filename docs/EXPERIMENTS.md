@@ -3961,3 +3961,49 @@ in the trainer: `eval_base_policy --num-evals 10 --seed 1000`, base policies pin
 - **The rule's numbers, with these bars:** tuned RLPD on Can passes at p ≥ 0.852. A residual arm
   on Square passes at p − 0.582 ≥ 2·sqrt(p(1−p)/500 + 0.582·0.418/500): at p ≥ 0.644, a margin
   of about 0.062 over the bar.
+
+---
+
+## 2026-10-07 — RESULTS — the fixed-env baselines' validation: tuned RLPD learns Can in our trainer once the render matches
+
+`d047it6c`, `resfit-tuned-rlpd-can` seed 1, at `9cf207d` (the pre-registration above).
+
+| Step | 0 | 10k | 20k | 30k |
+|---|---|---|---|---|
+| Eval success, 50 episodes | 0.00 | 0.00 | **0.70** | **0.80** |
+| Upstream in its env, `zwmk393l` | 0.00 | 0.00 | 0.88 | 0.80 |
+| Our control in the old render, `r1hvijqh` | 0.00 | 0.00 | 0.00 | 0.00 |
+
+- **Passes, as predicted (prediction 1):** 75 successes of 100 at 20k and 30k, against the 5 the
+  rule needs. The rule was already met at 20k (35), so the other nine runs were queued then, at
+  14:38, by Aden's call to start them, not at 30k.
+- **Training episodes,** with exploration noise: 0 of 50 succeed before 10k, 14 of 56 in
+  (10k, 20k], 71 of 92 in (20k, 30k].
+- **The critic, against the old render's signature** (means over the 1k steps before each eval):
+
+  | | 10k | 20k | 30k | `r1hvijqh`, 8k–10k |
+  |---|---|---|---|---|
+  | `q_data_demo` | 0.63 | 0.62 | 0.62 | 0.81 |
+  | `q_data_online` | 0.32 | 0.36 | 0.44 | −0.002 |
+  | `policy_data_gap_demo` | 0.39 | 0.35 | 0.35 | 0.90 |
+  | `policy_data_gap_online` | 0.78 | 0.70 | 0.61 | — |
+  | `dQ_da_mean_abs` | 2.8e-5 | 3.2e-5 | 3.0e-5 | 6.7e-6 |
+  | `critic_loss` | 1.9e-4 | 1.9e-4 | 1.4e-4 | 1.1e-5 |
+  | `train/action_l1_magnitude` | 0.64 | 0.60 | 0.59 | 0.87 |
+
+  Online transitions are valued at 0.3–0.4 from 10k, not at 0; the critic's loss is about 15×
+  and its action gradient about 4× the old render's; the actor is off its bound and closer to the
+  demos' actions.
+- **What it settles:** of upstream's env's differences from ours, mujoco alone was enough. With
+  torch 2.6.0, torchrl 0.7.0 and tensordict 0.7.0 kept, and only mujoco moved to 3.3.2, our trainer
+  learns Can as upstream's did. So the 2026-10-07 FINDING's reading holds: in the old render the
+  critic told demo frames from online ones by the floor.
+- One seed, as pre-registered for the validation. The run goes on to 150k as seed 1 of its arm.
+
+**The smoke run was stopped at Aden's call,** at 14:39, during its offline-buffer fill, so GPU 1
+could start the baselines at once. Its speed and RAM come from `equi-residual-square` seed 1
+instead, which runner `gpu1` launched at 14:39. Queues, from `9cf207d`:
+- `gpu0`, after the validation run: `equi-tuned-rlpd-can` 1, `resfit-residual-square` 1,
+  `resfit-tuned-rlpd-can` 2, `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
+- `gpu1`: `equi-residual-square` 1 (launched), `equi-residual-square-zero-init` 1,
+  `equi-residual-square` 2, `resfit-residual-square` 2.

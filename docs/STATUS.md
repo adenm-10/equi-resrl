@@ -78,11 +78,15 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 **The fixed-env baselines** (`fixed-env-baselines-1007`, EXPERIMENTS.md, PRE-REGISTERED and
 LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
-- **GPU 0,** runner `gpu0` (tmux), queue `~/queues/gpu0.txt`: the validation run,
-  `resfit-tuned-rlpd-can` seed 1, `d047it6c`. The other nine runs are queued only once its 20k
-  and 30k evals score 5 of 100.
-- **GPU 1,** tmux `gpu1-bars`: the two bars (done) and then `SMOKE=1` of `equi-residual-square`,
-  for speed and RAM. Then a runner `gpu1` on `~/queues/gpu1.txt`.
+- **The validation passed:** `d047it6c` scored 0.70 at 20k and 0.80 at 30k (EXPERIMENTS.md,
+  RESULTS of 2026-10-07). It goes on to 150k as seed 1 of its arm.
+- **GPU 0,** runner `gpu0` (tmux), queue `~/queues/gpu0.txt`: `d047it6c` until about 19:30, then
+  `equi-tuned-rlpd-can` 1, `resfit-residual-square` 1, `resfit-tuned-rlpd-can` 2,
+  `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
+- **GPU 1,** runner `gpu1` (tmux), queue `~/queues/gpu1.txt`: `equi-residual-square` 1 from
+  14:39, then `equi-residual-square-zero-init` 1, `equi-residual-square` 2,
+  `resfit-residual-square` 2. The smoke run was stopped to start it (Aden).
+- All ten should finish around 2026-10-10.
 
 **How to follow them:**
 - **Every arm at once, from disk,** live runs included (a run's evals so far, step 0, best, final,
