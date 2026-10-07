@@ -4047,3 +4047,18 @@ An observation mid-run, deciding nothing; the run goes on to 150k as pre-registe
 ahead of `equi-tuned-rlpd-can` 1. It is the reference: the same recipe, base policy and env in
 ResFiT's stack. If it also falls at 10k, the cause is shared, not the equivariant stack's. It
 starts when `d047it6c` ends, about 19:30. No run's config changes.
+
+---
+
+## 2026-10-07 — NOTE — `kyv7clfc` collapsed by the 2026-10-01 rule; `d047it6c` finished
+
+- **`kyv7clfc`** (`equi-residual-square` seed 1): 0.60, **0.00, 0.00, 0.02** at 0, 10k, 20k and
+  30k, three consecutive evals at or below 0.05: collapsed, by the rule the pre-registration
+  reports. Prediction 5 fails for this seed. None of its 33 training episodes in (10k, 20k]
+  succeeded. It runs on to 150k as pre-registered.
+- **`d047it6c`** (`resfit-tuned-rlpd-can` seed 1) finished at 18:52 after 320 min, exit 0, its
+  package complete (507 MB). Evals 0.00 0.00 0.70 0.80 0.72 0.98 0.82 0.58 0.96 0.88 0.96 **1.00
+  1.00 0.92 1.00 0.94**; the five at 110k–150k average 0.972 (B_can 0.852). The arm's verdict waits
+  for seed 2. The 0.58 at 70k came while 62 of 67 training episodes in (65k, 70k] succeeded.
+- **`resfit-residual-square` seed 1** launched on `gpu0` at 18:52, the reference for
+  `kyv7clfc`. Its gate said GO with the false BC-policy warning (TODO B7).
