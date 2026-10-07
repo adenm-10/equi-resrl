@@ -225,6 +225,53 @@ ResFiT's LayerNorm, with a scale and shift shared by each field's channels; `fie
 `FieldNorm`, which normalizes each field by its own statistics. The encoder's `inner_bn` is escnn's
 `InnerBatchNorm`. The ResFiT baseline has LayerNorm after every hidden layer of its actor and critic.
 
+## The two stacks side by side
+
+As the fixed-env baselines of 2026-10-07 run them (TODO B15; EXPERIMENTS.md, the pre-registration
+of that date): ResFiT's stack from `off_policy/`, and the equivariant stack from `equi_off_policy/`
+at Aden's design (`residual_squash=true`, 10 heads, `num_critic_layers=2`,
+`critic_norm=field_norm`, `actor_norm=none`). Within a task both take the same recipe, so a pair of
+arms compares everything in this table, not equivariance alone (STANDARDS 3.3).
+
+| | ResFiT | Equivariant |
+|---|---|---|
+| Front camera | a ViT (patch 8, depth 1, width 128) | `EquivariantResEncoder76Cyclic`, 32 regular fields of C8 |
+| Wrist camera | its own ViT | `ResEncoder76InHand`, 32 scalar channels: not equivariant, as a wrist view turns with the hand |
+| Augmentation | `RandomShiftsAug`, pad 4 | `CropRandomizer` to 76×76, centred in eval mode |
+| Normalization | dataset statistics outside the agent (`StateStandardizer`, `ActionScaler`) | per representation inside the encoder, xy about the robot base; the outer scalers are identity |
+| Critic | per-camera features → spatial-embedding trunk → 10 heads × 2 hidden layers (1024, LayerNorm) | visual projection → trunk → 10 heads × 2 hidden layers (128 regular fields, `FieldNorm`) → `GroupPooling` → Q |
+| Actor | projection (128) → 2 hidden layers (1024, LayerNorm) → Tanh | visual projection → trunk → 1 hidden layer (128 regular fields, no norm) → `equi_tanh` |
+| Action bound | per axis: a box | per pair that rotates: a disk (below) |
+| Residual's last layer at init | scaled by 0 | scaled by 1e-4, or 0 in the zero-init arm |
+
+**The disk bound.** The equivariant action has two pairs that turn with the group, translation xy
+(dims 0:2) and rotation rx-ry (3:5), and three components that do not (z, rz, gripper). A bound on
+a pair has to be the same in every direction to commute with the rotation, so `equi_tanh` and
+`equi_clip` bound each pair's length by 1, a disk, and each other component to [-1, 1]. The env's
+action space is the box [-1, 1]^7, and ResFiT's Tanh and clamp bound each axis to it. So:
+- **The equivariant actor cannot output a box corner.** In the demos, measured on 2026-10-07 over
+  every frame (Can 62,756, Square 80,731), the xy pair is longer than 1 in **14.9% of Can's frames
+  and 3.2% of Square's**, up to √2 (both axes at 1: a fast diagonal move); the rx-ry pair in 0.0% and
+  0.1%. Within the disk a diagonal move is at most 0.71 per axis, against 1 for ResFiT.
+- **Tuned RLPD** (vanilla) bounds the whole action this way. Its critic still trains on the demos'
+  actions as recorded, corners included; only the actor's own actions are held to the disk.
+- **The residual** bounds `base + residual` this way where the critic scores it
+  (`_combine_actions`), but the buffer stores the unclipped sum and the env clips that per axis, to
+  the box. So the critic is trained on actions that differ from the ones executed whenever the sum
+  leaves the disk (TODO B13).
+
+Kept as a stack difference: a box bound would break equivariance, and changing the bound would
+change every equivariant run's updates.
+
+**The actor's depth.** `equivariance.num_actor_layers` is dead (provenance table above): whatever
+its value, the actor is visual projection → trunk → 1 hidden layer, each 128 regular fields. That
+is ResFiT's actor depth counting the projection (a projection, then two layers), and one layer
+fewer per head than this critic at `num_critic_layers=2`. Kept as built (Aden, 2026-10-07).
+
+**Shared by both stacks:** the trainer and its replay (n-step 3, γ 0.99, batch 256 with half demos,
+4 updates per env step, a 200k buffer), the cameras, the env, the base policy, the reward, and the
+eval.
+
 ## Module map
 
 ### `resfit/rl_finetuning/equi_off_policy/` — the new work

@@ -3821,3 +3821,103 @@ both agents at every log step: `debug/q_{data,policy}_{online,demo}` and
 - **In the trainer:** `rhqmlon0`, the equivariant smoke run in the entry above, printed
   `q_demo(data/policy)` and `q_online(data/policy)` at every log step, as the ResFiT agent's runs do.
 - **No earlier run changes:** the ResFiT agent logged these already, and no equivariant run did.
+
+---
+
+## 2026-10-07 — PRE-REGISTERED — the fixed-env baselines: tuned RLPD on Can and residual RL on Square, each stack
+
+**Question** (TODO B15, Aden's plan of 2026-10-07): with mujoco 3.3.2, whose render matches the
+demos (CODE, "mujoco 3.3.2"), does tuned RLPD learn Can, and does residual RL lift the Square base
+policy, in ResFiT's stack and in the equivariant one? Every earlier run of the project saw a floor
+the demos do not show (2026-10-07 FINDING).
+
+**Seed-group `fixed-env-baselines-1007`,** seeds 1 and 2 per arm, 150k steps, from the commit that
+adds this entry, launched from one worktree pinned to it (`~/projects/equi-resrl-<commit>`). Every
+record lands in main. Names `<arm>-<seed>`, notes `fixed-env-baselines-1007/<arm>/seed<seed>`.
+
+| Arm | Task | Config | Overrides beyond the shared ones | wandb project / group |
+|---|---|---|---|---|
+| `resfit-tuned-rlpd-can` | Can | `tuned_rlpd_can_config` | none | `robomimic-can-final` / `tuned-rlpd` |
+| `equi-tuned-rlpd-can` | Can | `equi_tuned_rlpd_can_config` | the design | `robomimic-can-final` / `tuned-rlpd` |
+| `resfit-residual-square` | Square | `residual_td3_square_config` | `agent.critic.num_q=10`, base `v9` | `robomimic-square-final` / `residual-rl` |
+| `equi-residual-square` | Square | `residual_equi_td3_square_config` | the design, `agent.actor.actor_last_layer_init_scale=1e-4`, base `v9` | `robomimic-square-final` / `equi-residual-rl` |
+| `equi-residual-square-zero-init` | Square | `residual_equi_td3_square_config` | the design, `agent.actor.actor_last_layer_init_scale=0.0`, base `v9` | `robomimic-square-final` / `equi-residual-rl` |
+
+- **Shared:** `algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false`
+  (both buffers filled in the run, no cache read or written); evals of 50 episodes at 0 and every
+  10k (16); 10 critic heads, n-step 3, γ 0.99, batch 256 with half demos, 4 updates per env step,
+  a 200k buffer, one env.
+- **The recipes,** by method, the same in both stacks (`tests/test_sweep_arms.py` pins them):
+  tuned RLPD, 10k uniform-random warm-up steps, no critic warm-up, actor LR 1e-4, τ 0.01, σ 0.1,
+  action scale 1.0, the actor's default init; residual, 10k warm-up steps of the base policy plus
+  U(±0.2), 10k critic-warm-up updates, actor LR 1e-6, τ 0.005, σ 0.05, action scale 0.1.
+- **The equivariant design** (Aden, 2026-10-07): `equivariance.residual_squash=true`,
+  `agent.critic.num_q=10`, `equivariance.num_critic_layers=2`, `equivariance.critic_norm=field_norm`,
+  `equivariance.actor_norm=none`. The actor as built: visual projection, trunk, one hidden layer,
+  each 128 regular fields of C8.
+- **The base policies, pinned:** `base_policy.wt_version=v9` for Square (`run_3hzs5bz1_best:v9`),
+  and `v7` for Can's bar (`run_xhjdl8a7_best:v7`), what `latest` resolves to today.
+- **wandb:** where each kind of run has gone before (Aden). Both tuned-RLPD arms share
+  `tuned-rlpd`, so the equivariant one overrides its config's `equi-tuned-rlpd`, which has never
+  held a run. ResFiT's Square residual overrides its config's project, which no run has used, for
+  `robomimic-square-final` / `residual-rl`, where all five earlier ones are (`870ws2c2` among them).
+- **Config caveats** (ARCHITECTURE.md, provenance table): `equivariance.num_actor_layers` is dead
+  and not set; `agent.actor.dropout`, `agent.critic.dropout` and `agent.critic.orth` do nothing
+  (TODO B13); the equivariant arms' configs carry ResFiT's network fields under `agent` (`enc_type`,
+  `vit.*`, `actor.hidden_dim`, `critic.hidden_dim` and the like), which the equivariant agent does
+  not read.
+
+**What varies, and what does not.** Within a task the arms differ only in `equivariance`, and on
+Square in the residual's last-layer init (`tests/test_sweep_arms.py`). That one switch changes the
+whole stack: encoder, augmentation, normalization, critic and actor architecture, and the action
+bound (ARCHITECTURE.md, "The two stacks side by side"). So each pair compares stacks, not
+equivariance alone (STANDARDS 3.3). The two equivariant residual arms differ in the init only.
+Across tasks the method differs too, so nothing is compared across them.
+
+**The validation, first:** `resfit-tuned-rlpd-can` seed 1 launches alone on GPU 0. Its 20k and 30k
+evals must score at least 5 successes of 100 between them (the screen's rule; upstream's code in
+upstream's env, `zwmk393l`, scored 84). If they do, the other nine runs launch; if not, none does,
+and the next step is Aden's. It separates the render from upstream's env's other differences
+(torch 2.7.1, torchrl 0.9.2, tensordict 0.9.1): only mujoco changed here.
+
+**The bars, measured while the validation runs,** on GPU 1 from the launch worktree, as before:
+`eval_base_policy --num-evals 10 --seed 1000` at `residual_equi_td3_can_config` and
+`residual_equi_td3_square_config`, with the pinned versions. 500 episodes each, recorded in
+`outputs/base_rates/`. The old ones, B_can 0.894 and B_sq 0.508, were measured in the old render
+and decide nothing here.
+
+**Verdicts, per arm, both seeds pooled** (`tools/baseline_verdict.py`): p is the mean of the ten
+evals at 110k–150k, five per seed, 500 episodes.
+- **Tuned RLPD passes** iff p ≥ the new B_can.
+- **A residual arm passes** iff p − B_sq ≥ 2·sqrt(p(1−p)/500 + B_sq(1−B_sq)/500).
+- **Zero init against 1e-4, reported, deciding nothing:** each init's p, and whether a run
+  collapsed by the rule of 2026-10-01 (three consecutive evals at or below 0.05). With two seeds a
+  difference between them is an observation, not a comparison (STANDARDS 5.3); so is any claim
+  that one stack beats the other.
+- **Also reported:** every eval of every run; step 0 against the bar (the ResFiT and zero-init
+  residual arms' step 0 is the base policy exactly, so their four step-0 evals are 200 more
+  episodes on B_sq through the trainer's path); and at each 10k, `debug/q_{data,policy}_{demo,online}`,
+  `debug/policy_data_gap_*`, `debug/dQ_da_mean_abs`, `train/critic_loss`, and
+  `train/action_l1_magnitude` or `train/residual_l{1,2}_magnitude`.
+
+**Predictions** (Claude's, approved by Aden on 2026-10-07):
+0. Both bars come out at or above their old-render values (0.894, 0.508): the BC policies were
+   trained on the demos' frames, which the env now matches.
+1. The validation passes.
+2. `resfit-tuned-rlpd-can`: off zero by 20k; p near B_can; even odds of passing.
+3. `equi-tuned-rlpd-can`: off zero, below ResFiT's tuned RLPD; does not pass.
+4. `resfit-residual-square`: passes.
+5. `equi-residual-square`: does not collapse; does not pass. Low confidence.
+6. Zero init against 1e-4: no difference beyond seed noise, and no run collapses because of its
+   init. The 1e-4 residual starts at about 1.5e-5 in action units, far below anything that moves
+   the base policy.
+
+**Resources and order.** Two runs at a time, one per GPU, from runners `gpu0` and `gpu1`
+(`tools/gpu_queue.sh`, queues in `~/queues/`); each launch runs the gate first (about 15 min).
+About 6 h per ResFiT run and 19–20 h per equivariant run (0.115 and 0.41 s per step in the
+2026-10-07 smoke runs, before evals); a Square residual run first fills its offline buffer, about
+27 min. About 145 GPU-hours, so about three days from the validation's launch. RAM at most about
+80 GiB (two Square residual runs), disk about 1.5 GB of records. On GPU 1, before its first
+training run: the two bars, then `SMOKE=1` of `equi-residual-square`, for its speed and RAM
+(the zero-init arm shares both). Then seed 1 of every arm before any seed 2, the equivariant runs
+first on each GPU.

@@ -45,15 +45,23 @@ other four docs, with a pointer from here.
   in main, `versions` on both, 0.115 and 0.41 s a step. Square's offline buffer takes 26.6 min to
   fill without its cache. The gate said GO.
 
+- **The baselines pre-registered** (EXPERIMENTS.md, PRE-REGISTERED, "the fixed-env baselines"):
+  five arms, ten runs. `submit.sh` and `tests/test_sweep_arms.py` rewritten for them; the
+  equivariance checks now run on each arm's own networks. `tools/baseline_verdict.py` judges them
+  and, with no arguments, shows every run's evals so far.
+
 **Decided**
 
 - Aden: fewer worktrees. B15 launches from one, at its launch commit, removed when its runs end.
 - The render bar is 2.5x the within-demo gap (above).
+- Aden's review of the arms: base policies pinned; wandb where each kind of run has gone; the disk
+  bound written up as a stack difference (ARCHITECTURE.md, "The two stacks side by side"); the
+  actor as built; two seeds; a fifth arm, the equivariant residual at zero init, since the one
+  run that blamed zero init (`a3e3zylp`) was confounded with host and broken images.
 
 **Open**
 
-- Aden's review of the four arms' designs, before Phase 4 (pre-registration, validation, base
-  rates, smoke runs for speed and RAM).
+- Aden's review of "The two stacks side by side".
 - The doc budget is about 450 KB against 150 KB, mostly EXPERIMENTS.md (TODO H5).
 
 ---

@@ -53,7 +53,24 @@ upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in our
    | Equivariant tuned RLPD | Can | `equi_tuned_rlpd_can_config` | the design below; actor init at its default |
    | ResFiT residual | Square | `residual_td3_square_config` | `agent.critic.num_q=10` (the paper's and `870ws2c2`'s) |
    | Equivariant residual | Square | `residual_equi_td3_square_config` | the design below; `agent.actor.actor_last_layer_init_scale=1e-4` |
+   | Equivariant residual, zero init | Square | `residual_equi_td3_square_config` | the design below; `agent.actor.actor_last_layer_init_scale=0.0` |
 
+   - **Aden's review of the arms (2026-10-07):**
+     1. Base policies pinned, `v9` (Square) and `v7` (Can, for B_can), not `latest`.
+     2. wandb where each kind of run has gone: both tuned-RLPD arms in `robomimic-can-final` /
+        `tuned-rlpd` (all 11 earlier tuned-RLPD Can runs; `equi-tuned-rlpd` never held one); ResFiT's
+        Square residual in `robomimic-square-final` / `residual-rl` (all 5 earlier, `870ws2c2`
+        among them; its config's default project was never used); the equivariant ones in
+        `equi-residual-rl`, the config default.
+     3. The disk bound is a stack difference, written up for review: ARCHITECTURE.md, "The two
+        stacks side by side".
+     4. The actor as built; `num_actor_layers` is dead and not set.
+     5. Two seeds.
+     6. The zero-init arm added. The evidence against zero init is `a3e3zylp` (0.88 → 0.00)
+        against `z8yoqylh` (1e-4, 0.82 → 0.94), confounded with host and software, both on
+        near-blank images (EQUIVARIANCE.md, "What actually changed"). At the design, a
+        zero-initialized residual leaves zero within 4 actor updates with no NaN (checked
+        2026-10-07); `equi_tanh` has gradient 1 at the origin.
    - **The ResFiT tuned-RLPD arm's seed 1 is the validation:** its 20k and 30k evals must score at
      least 5 of 100, as `zwmk393l` did. Launch the rest only after it has.
    - **The equivariant design** (Aden, 2026-10-07), on both equivariant arms:

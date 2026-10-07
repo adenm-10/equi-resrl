@@ -54,8 +54,12 @@ with the equivariant design Aden set (B15).
 - **Done 2026-10-07:** every record in main, the queue runner fixed, mujoco pinned and on the
   gate and the record, `read_buffer_caches` for runs that must not read a cache, and the
   equivariant agent's critic diagnostics (EXPERIMENTS.md, the three CODE entries of that day).
-- **Next:** Aden reviews the four arms' designs; then their pre-registration, the validation
-  run, and the base rates.
+- **Pre-registered 2026-10-07, after Aden's review:** five arms, ten runs, 150k steps
+  (EXPERIMENTS.md, PRE-REGISTERED, "the fixed-env baselines"; seed-group
+  `fixed-env-baselines-1007`). Aden added the fifth, the equivariant residual with its last layer
+  initialized to zero. The validation run goes first; the other nine follow only if it scores 5
+  of 100 at 20k and 30k. The two stacks' differences, the disk bound among them, are in
+  ARCHITECTURE.md, "The two stacks side by side", for Aden's review.
 
 **Earlier bugs, still true of the old runs:** every equivariant run before `e15d36c` acted on
 near-blank images, and every one before `93a8ad4` trained against a frozen target critic
@@ -167,7 +171,7 @@ now run from there).
 
 **1. B15, in order:** worktrees into main; mujoco 3.3.2 with the render on the record and in the
 gate (both done); tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did;
-base rates again; then the four baselines.
+base rates again; then the five arms (pre-registered).
 
 **2. Read the residual and equivariant history again** once the baselines report: which
 conclusions survive the render fix.
