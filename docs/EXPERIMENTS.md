@@ -4022,3 +4022,28 @@ instead, which runner `gpu1` launched at 14:39. Queues, from `9cf207d`:
 - Its offline buffer, 80,731 frames labeled by the base policy, filled in about 27 min after the
   15-min gate, as the smoke runs measured. 10.1 GiB resident at its first wandb step, beside
   `d047it6c` at 14.0 GiB.
+
+---
+
+## 2026-10-07 — NOTE — `kyv7clfc` (`equi-residual-square` seed 1) at 0.00 at 10k; ResFiT's Square residual moved ahead
+
+An observation mid-run, deciding nothing; the run goes on to 150k as pre-registered.
+
+- **Evals:** 0.60 at step 0 (the base policy, B_sq 0.582), **0.00 at 10k.**
+- **Training episodes,** per 2k steps: 6 of 8 succeed in (0, 2k], then 1 of 7, 0 of 7, 0 of 6,
+  0 of 7. The warm-up's base policy with U(±0.2) noise succeeded in 9 of 35.
+- **The residual grows to its bound while the critic rates it above the base action:**
+  `debug/residual_max_abs` 0.008, 0.049, 0.086, 0.097, 0.099 over the five 2k windows (the squash
+  bounds it by `action_scale` 0.1); `train/residual_l1_magnitude` 0.002 to 0.035;
+  `debug/q_advantage` positive throughout (0.0002 to 0.0024); online transitions valued at about
+  −0.04, demo ones at 0.15–0.26; `debug/dQ_da_mean_abs` about 5e-5.
+- This is the signature of `fal5sfot` and `fqo83rvd` (2026-10-04 RESULTS: 0.46 and 0.52 to 0.00
+  from 10k, "the residual grew to the clip while the critic rated it above the base action"),
+  now with the squash, two field-norm critic layers, 10 heads and the matching render.
+- **Prediction 5 ("does not collapse") is at risk:** the collapse rule needs three consecutive
+  evals at or below 0.05, so 20k and 30k decide it.
+
+**Queue change, order only:** `resfit-residual-square` 1 moved to the front of `gpu0`'s queue,
+ahead of `equi-tuned-rlpd-can` 1. It is the reference: the same recipe, base policy and env in
+ResFiT's stack. If it also falls at 10k, the cause is shared, not the equivariant stack's. It
+starts when `d047it6c` ends, about 19:30. No run's config changes.

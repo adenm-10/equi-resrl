@@ -81,7 +81,8 @@ LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
 - **The validation passed:** `d047it6c` scored 0.70 at 20k and 0.80 at 30k (EXPERIMENTS.md,
   RESULTS of 2026-10-07). It goes on to 150k as seed 1 of its arm.
 - **GPU 0,** runner `gpu0` (tmux), queue `~/queues/gpu0.txt`: `d047it6c` until about 19:30, then
-  `equi-tuned-rlpd-can` 1, `resfit-residual-square` 1, `resfit-tuned-rlpd-can` 2,
+  `resfit-residual-square` 1 (moved ahead, the reference for `kyv7clfc`'s 0.00 at 10k),
+  `equi-tuned-rlpd-can` 1, `resfit-tuned-rlpd-can` 2,
   `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
 - **GPU 1,** runner `gpu1` (tmux), queue `~/queues/gpu1.txt`: `equi-residual-square` 1 from
   14:39 (`kyv7clfc`), then `equi-residual-square-zero-init` 1, `equi-residual-square` 2,
