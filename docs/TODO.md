@@ -43,6 +43,14 @@ no rollout succeeded.
 PRE-REGISTERED, "the BC term trains the encoder"), on `gpu1`. When it finishes: a RESULTS entry
 by its rule.
 
+**Running: no warm-up** (`tuned-rlpd-can-no-warmup-1007`; 2026-10-07 PRE-REGISTERED, "with no
+warm-up"), on `gpu0`: the demos in the buffer, no random steps, no critic warm-up. When it
+finishes: a RESULTS entry by its rule.
+- **Warm-up alternatives not yet run** (PROGRESS.md, 2026-10-07): a shorter random warm-up; demos
+  only in each batch until the online buffer fills; warm-up rollouts from a BC-pretrained actor
+  (ResFiT's warm-ups, minus the base policy); episodes started from demo states, which needs the
+  original robomimic files' sim states.
+
 **Next: upstream's code out of the box** (`upstream-clean-1007`; 2026-10-07 PRE-REGISTERED). The
 clone and its env are built. It launches once `local_runs/upstream-rlpd/` is deleted (Aden).
 - **Launch `clean-rlpd-can`** in tmux from `~/projects/resfit-upstream`, with the pre-registered

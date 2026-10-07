@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-10-07 · **Last verified commit:** the BC-encoder pre-registration
-(EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED, "the BC term trains the encoder")
+**Last updated:** 2026-10-07 · **Last verified commit:** the no-warm-up pre-registration
+(EXPERIMENTS.md, 2026-10-07 CODE and PRE-REGISTERED, "with no warm-up")
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -68,6 +68,11 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 `tuned-rlpd-can-bc-encoder-1007`; EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). One 30k-step arm,
 `tuned-rlpd-can-bc-encoder` (`agent.bc_backprop_encoder=true`), on runner `gpu1`, against
 `tuned-rlpd-can-bc` (`kc8z7vsf`). Off zero iff its 20k and 30k evals score at least 5 of 100.
+
+**Tuned RLPD on Can with no warm-up** (seed-group `tuned-rlpd-can-no-warmup-1007`; EXPERIMENTS.md,
+2026-10-07 PRE-REGISTERED). One 30k-step arm, `tuned-rlpd-can-no-warmup`
+(`algo.learning_starts=0`: no random steps, no critic warm-up), on runner `gpu0`, against the
+screen's control `r1hvijqh`. Same verdict rule.
 
 **Ready, waiting on disk: upstream's code out of the box** (seed-group `upstream-clean-1007`;
 EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). A fresh clone of upstream at `66262b06` in

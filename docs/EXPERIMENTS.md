@@ -3384,3 +3384,80 @@ demos, the 300 MH demos, 10k U(±1) warm-up steps, no critic warm-up. Evals of 5
 
 **Resources.** One run, on runner `gpu1`, about 1.5 h. No buffer caches are written. GPU 0 stays
 free for `upstream-clean-1007`.
+
+---
+
+## 2026-10-07 — CODE — training can start with no warm-up (`algo.learning_starts` below one batch)
+
+`train_residual_td3.py` could not run without a buffer warm-up. At `algo.learning_starts=0` it
+skipped the random steps, then sampled the empty online buffer at step 1 and crashed. The buffer
+stays empty for the first n-step window: the n-step transform releases a transition once n = 3
+steps follow it.
+- **Updates now wait until the online buffer holds one online batch** (128 transitions). Until
+  then the actor collects, untrained, with its exploration noise, and nothing learns. The
+  logging step waits too: it reads the last update's metrics and batch.
+- **A critic warm-up now refuses to start on a buffer holding less than one batch.**
+- **Every earlier run is unaffected:** each started its main loop with 10k transitions in the
+  online buffer, so the gate was open from its first update. `tests/test_regression_agent.py`
+  pins the agent, which this does not touch.
+- **Not unit-tested,** being the trainer's loop. A smoke run checked it: the trainer at
+  `algo.learning_starts=0`, 400 steps, debug mode, from this commit's working tree. It took no
+  random steps, logged nothing at step 100 (no update yet), logged from step 200, and finished
+  without error. Its `action_l1` was 0.996 at step 200, about 70 actor updates in.
+
+---
+
+## 2026-10-07 — PRE-REGISTERED — tuned RLPD on Can with no warm-up: the demos in the buffer, no random steps
+
+**Question** (Aden, 2026-10-07): with the demos already in every batch, does tuned RLPD need the
+10k-step random warm-up, or does it get in the way?
+
+**Why it might matter.** Sampling within the online buffer is uniform. So the warm-up's 10k random
+transitions, all at reward 0 and far from the demos' states, make up much of the online half for a
+long time: 10k / (10k + t) of it at step t, so two thirds at 5k, half at 10k, a quarter at 30k.
+Without them, the online half is the actor's own rollouts from the start.
+
+**Seed-group `tuned-rlpd-can-no-warmup-1007`,** seed 1, 30k steps, Can, from the commit that adds
+this entry (and the CODE entry above). Project `robomimic-can-final`, group `tuned-rlpd`, name
+`tuned-rlpd-can-no-warmup-1`, notes `tuned-rlpd-can-no-warmup-1007/tuned-rlpd-can-no-warmup/seed1`.
+
+| Arm | Change from the screen's control (`r1hvijqh`) |
+|---|---|
+| `tuned-rlpd-can-no-warmup` | `algo.learning_starts=0` |
+
+- **No critic warm-up,** as the control (`algo.critic_warmup_steps` 0).
+- **The first steps:** the untrained actor collects with σ 0.1 noise, and learning starts once
+  the online buffer holds 128 transitions, at about step 130. From there, 4 critic updates and 1
+  actor update per step, as the control.
+- **What this changes besides the data:** the step counter starts at the first env step, not
+  after 10k random ones. So at 30k this arm has taken 30k env steps, the control 40k, and both
+  about 120k critic updates. The comparison removes the random data and keeps the updates.
+- **Held fixed:** everything else in `tuned_rlpd_can_config`, as `r1hvijqh` ran it. Evals of 50
+  episodes at 0, 10k, 20k and 30k.
+
+**The verdict,** by the screen's rule: **off zero** iff its 20k and 30k evals score at least 5
+successes between them, of 100. **Reported, deciding nothing:** every eval; training successes;
+`train/action_l1_magnitude` at 1k, 5k and 10k; and at 10k, 20k and 30k,
+`debug/q_{data,policy}_{demo,online}`, `debug/policy_data_gap_{demo,online}` and
+`debug/dQ_da_mean_abs`.
+
+**Prediction: not off zero.** The screen's mechanism lives in the demo half, and nothing here
+changes it.
+- The actor reaches its bound within a few hundred updates, as the control's did.
+- The demo values settle near 0.8 again, with δ positive at most log steps.
+- **What does change is the online half's data.** Its actions are now the actor's own plus
+  noise, not uniform ones. So `debug/policy_data_gap_online` should be near the noise's size,
+  about 0.08 per axis, far below the control's. The online half is still valued at about 0: the
+  saturated actor's rollouts still never succeed.
+
+**What the outcomes mean,** decided now:
+- **Off zero:** the random warm-up data were what held tuned RLPD at zero. That contradicts the
+  screen's reading that the online half carries no signal either way, which gets a CORRECTION.
+- **Not off zero:** the warm-up is not the obstacle; the online half has no successes with or
+  without it. Removing it stays a candidate to pair with whatever makes the actor imitate the
+  demos (the BC-encoder run, BC pretraining), since then the actor's own early rollouts are the
+  useful data.
+- One seed: an observation, not a comparison (STANDARDS 5.3).
+
+**Resources.** One run on runner `gpu0`, about 1.5 h. No buffer caches. GPU 0 is otherwise free
+until `upstream-clean-1007` has disk; the two can share it.

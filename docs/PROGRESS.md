@@ -60,6 +60,17 @@ other four docs, with a pointer from here.
   exploit the critic; its costs are interference in the shared encoder and AdamW, and features
   that move under the critic's targets. `bc_backprop_encoder` adds the BC gradient only; the Q
   term stays detached.
+- **Made training possible with no warm-up** (EXPERIMENTS.md, CODE, "training can start with no
+  warm-up"): updates wait for one online batch. Pre-registered and launched a no-warm-up arm
+  (PRE-REGISTERED, "with no warm-up"), Aden's request: demos in the buffer, no random steps.
+- **Warm-up alternatives, for later:**
+  - a shorter random warm-up;
+  - demos only in each batch until the online buffer fills;
+  - warm-up rollouts from a BC-pretrained actor;
+  - episodes started from demo states.
+
+  Only the last two put successes in the online half; the third is what ResFiT's warm-ups do,
+  with the BC policy as the actor's start.
 - **Pre-registered and launched the BC-encoder arm** (EXPERIMENTS.md, PRE-REGISTERED, "the BC
   term trains the encoder"), with a test that the flag does what it says.
 

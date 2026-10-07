@@ -1127,6 +1127,9 @@ def main(cfg: ResidualTD3DexmgConfig):
     # BREAK HERE
     if cfg.algo.critic_warmup_steps > 0:
     # if False:
+        if len(online_rb) < online_batch_size:
+            raise ValueError("a critic warm-up samples the online buffer: algo.learning_starts must be "
+                             f"at least one online batch ({online_batch_size})")
         print(f"Critic warmup: running {cfg.algo.critic_warmup_steps} critic-only updates...")
         _run_critic_warmup(
             agent=agent,
@@ -1242,7 +1245,11 @@ def main(cfg: ResidualTD3DexmgConfig):
         # ------------------------------------------------------------------
         # (4) Updates -------------------------------------------------------
         # ------------------------------------------------------------------
-        if global_step % cfg.algo.update_every_n_steps == 0 or global_step == cfg.num_envs:
+        # Updates wait until the online buffer holds one online batch. Only a run with almost no
+        # warm-up (algo.learning_starts below the online batch) reaches this loop before then;
+        # its first steps collect with the actor, untrained.
+        online_ready = len(online_rb) >= online_batch_size
+        if online_ready and (global_step % cfg.algo.update_every_n_steps == 0 or global_step == cfg.num_envs):
             i = 0
             actor_update_cadence = cfg.algo.num_updates_per_iteration // cfg.algo.actor_updates_per_iteration
             # Normal training loop - critic is already warmed up
@@ -1331,7 +1338,8 @@ def main(cfg: ResidualTD3DexmgConfig):
         # ------------------------------------------------------------------
         # (6) Logging -------------------------------------------------------
         # ------------------------------------------------------------------
-        if global_step % cfg.log_freq == 0:
+        # It reads the last update's metrics and batch, so it waits for the first update.
+        if global_step % cfg.log_freq == 0 and online_ready:
             sps = int(global_step / training_cum_time) if training_cum_time > 0 else 0
 
             # Prepare base logging dict

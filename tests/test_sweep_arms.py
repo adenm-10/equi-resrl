@@ -12,9 +12,9 @@ submit.sh's case table is checked here first:
           actor's BC term when the arm turns it on, as the trainer does.
 
 The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-07
-PRE-REGISTERED, "tuned RLPD on Can: the BC term trains the encoder"): one arm of
-vanilla RL with no base policy on Can, 30k steps, against tuned-rlpd-can-bc
-(kc8z7vsf, at ed47957): tuned_rlpd_can_config with agent.bc_loss_coef=0.025.
+PRE-REGISTERED, "tuned RLPD on Can with no warm-up"): one arm of vanilla RL with
+no base policy on Can, 30k steps, against the screen's control r1hvijqh (at
+187d895): tuned_rlpd_can_config unchanged.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-SEED_GROUP = "tuned-rlpd-can-bc-encoder-1007"
+SEED_GROUP = "tuned-rlpd-can-no-warmup-1007"
 
 # What each arm launches, less the run's name and notes.
 COMMON = {"algo.total_timesteps=30000", "seed=1", "debug=false"}
 OURS = "--config-name=tuned_rlpd_can_config"
-# The reference run's change from tuned_rlpd_can_config: tuned-rlpd-can-bc, kc8z7vsf.
-REFERENCE = {"agent.bc_loss_coef=0.025"}
+# The reference run's change from tuned_rlpd_can_config: none, for the screen's control r1hvijqh.
+REFERENCE: set[str] = set()
 CHANGES = {
-    "tuned-rlpd-can-bc-encoder": {"agent.bc_backprop_encoder=true"},
+    "tuned-rlpd-can-no-warmup": {"algo.learning_starts=0"},
 }
 LAUNCHED = {arm: {OURS, *REFERENCE, *change, *COMMON} for arm, change in CHANGES.items()}
 NAMING = ("wandb.name", "wandb.notes")
@@ -46,6 +46,7 @@ NAMING = ("wandb.name", "wandb.notes")
 MOVED = {
     "agent.bc_loss_coef=0.025": ("agent.bc_loss_coef", 0.025),
     "agent.bc_backprop_encoder=true": ("agent.bc_backprop_encoder", True),
+    "algo.learning_starts=0": ("algo.learning_starts", 0),
 }
 
 def case_table_arms(script: str) -> list[str]:
@@ -136,13 +137,14 @@ def test_arm_composes(arm, tmp_path):
 
 @pytest.mark.parametrize("arm", ARMS)
 def test_an_arm_differs_from_its_reference_in_its_change_only(arm, tmp_path):
-    """The reference is tuned-rlpd-can-bc's config: tuned_rlpd_can_config with the BC term."""
+    """The reference is the screen's control's config: tuned_rlpd_can_config unchanged."""
     reference = _flat(_compose([OURS, *sorted(REFERENCE), *sorted(COMMON)]))
     changed = _flat(_compose(_overrides(arm, tmp_path)))
     differing = {k for k in reference.keys() | changed.keys() if reference.get(k) != changed.get(k)}
     assert differing - set(NAMING) == {MOVED[c][0] for c in CHANGES[arm]}
-    assert reference["agent.bc_backprop_encoder"] is False, "upstream's default, as kc8z7vsf ran"
-    assert reference["agent.critic_target_tau"] == 0.01, "rlpd.py's value, as kc8z7vsf ran"
+    assert reference["algo.learning_starts"] == 10_000, "the 10k random steps r1hvijqh ran"
+    assert reference["algo.critic_warmup_steps"] == 0, "no critic warm-up, as r1hvijqh ran"
+    assert reference["agent.bc_loss_coef"] == 0.0, "as r1hvijqh ran"
 
 
 @pytest.mark.parametrize("arm", ARMS)
