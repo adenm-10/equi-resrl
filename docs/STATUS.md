@@ -66,12 +66,13 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 **The BC term training the encoder, tuned RLPD on Can** (seed-group
 `tuned-rlpd-can-bc-encoder-1007`; EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). One 30k-step arm,
-`tuned-rlpd-can-bc-encoder` (`agent.bc_backprop_encoder=true`), on runner `gpu1`, against
+`tuned-rlpd-can-bc-encoder` (`agent.bc_backprop_encoder=true`, wandb `44enq26h`; read its history
+from wandb's servers, since its local record broke when the disk filled at 08:23), on runner `gpu1`, against
 `tuned-rlpd-can-bc` (`kc8z7vsf`). Off zero iff its 20k and 30k evals score at least 5 of 100.
 
 **Tuned RLPD on Can with no warm-up** (seed-group `tuned-rlpd-can-no-warmup-1007`; EXPERIMENTS.md,
 2026-10-07 PRE-REGISTERED). One 30k-step arm, `tuned-rlpd-can-no-warmup`
-(`algo.learning_starts=0`: no random steps, no critic warm-up), on runner `gpu0`, against the
+(`algo.learning_starts=0`: no random steps, no critic warm-up; wandb `hi8t2hps`), on runner `gpu0`, against the
 screen's control `r1hvijqh`. Same verdict rule.
 
 **Ready, waiting on disk: upstream's code out of the box** (seed-group `upstream-clean-1007`;
@@ -80,7 +81,10 @@ EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). A fresh clone of upstream at `66262b
 (torchrl 0.9.2 and mujoco 3.3.2, against our 0.7.0 and 3.8.1). Its RLPD script on Can for 30k
 steps, then its residual on Can with our BC policy as the env's control. Launched by hand in tmux,
 not through `gpu_queue.sh`.
-- **Blocked:** each run writes about 21 GB of caches, and 17 GB are free. Deleting
+- **Blocked:** each run writes about 21 GB of caches, and 16 GB are free. The disk filled
+  completely for about 2 minutes at 08:23 (EXPERIMENTS.md, 2026-10-07 LAUNCHED); the margin is
+  too thin for upstream's trainer even after the delete below, without also clearing the pip
+  and conda caches (8.4 GB and 3.1 GB). Deleting
   `local_runs/upstream-rlpd/` (21 GB, read by nothing) frees the room; Aden approved it, but
   the delete needs his hands (the session's permissions block `rm -rf`).
 

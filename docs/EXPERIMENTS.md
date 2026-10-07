@@ -3461,3 +3461,34 @@ changes it.
 
 **Resources.** One run on runner `gpu0`, about 1.5 h. No buffer caches. GPU 0 is otherwise free
 until `upstream-clean-1007` has disk; the two can share it.
+
+---
+
+## 2026-10-07 — LAUNCHED — the BC-encoder and no-warm-up arms on Can, and a full disk between them
+
+| Arm | Runner | Commit | wandb | Picked up / training from (EDT) |
+|---|---|---|---|---|
+| `tuned-rlpd-can-bc-encoder` | `gpu1` | `05fd8d0` | **`44enq26h`** | 07:51 / 08:07 |
+| `tuned-rlpd-can-no-warmup` | `gpu0` | `f581d9c` | **`hi8t2hps`** | 08:24 / 08:41 |
+
+- Both in worktrees pinned to their commits (`~/projects/equi-resrl-<commit>`), with
+  `CACHE_DIR=~/projects/equi-resrl`, through `tools/gpu_queue.sh`. Gates: GO for both.
+- **The disk filled at about 08:23 and emptied again by 08:25:45,** with nothing of ours writing in
+  bulk. It had been near full for days, with another user's home holding 945 GB. Upstream's env
+  build for `upstream-clean-1007` (07:25–07:45) took about 13 GB of the 29 GB that were free. A
+  system snap update wrote 555 MB at 08:23. Free space was back at 16 GB by 08:25:45, with nothing
+  of ours deleted.
+- **What it did to `44enq26h`:** the run kept training. Its wandb history kept reaching wandb's
+  servers (every upload answered 200 OK). But its local wandb record stopped at 08:23:57, about
+  step 7.3k, and its writer has failed on every record since. **Read this run's history from
+  wandb's servers, not from its local record.** Its console log may have lost lines during the
+  window.
+- **What it did to `hi8t2hps`'s launch:** the runner could not delete the arm's line from its
+  queue file, a write, and it relaunches whatever line is first. So it retried the launch about
+  once a second, 44 times, from 08:23:45 to 08:24:30. Each attempt died at once; the 44th, with
+  space back, went through. The line was still in the queue afterwards, and would have launched
+  a duplicate run when this one ended; it was removed by hand at 08:48. The arm's console log is
+  empty, since `tee` dropped the file during the window: its console output is in the `gpu0`
+  tmux pane and in wandb. Its local record is healthy.
+- **A bug in `tools/gpu_queue.sh`,** found here: it launches even when deleting the line fails
+  (TODO).

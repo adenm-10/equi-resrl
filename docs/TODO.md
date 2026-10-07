@@ -51,6 +51,12 @@ finishes: a RESULTS entry by its rule.
   (ResFiT's warm-ups, minus the base policy); episodes started from demo states, which needs the
   original robomimic files' sim states.
 
+**`tools/gpu_queue.sh` launches even when it cannot delete the queue line** `[CS]`. On a full disk
+`sed -i` fails, the line stays first, and the runner relaunches it every second (44 times on
+2026-10-07, EXPERIMENTS.md LAUNCHED). Fix: launch only if the delete succeeded; otherwise log,
+sleep and retry. Restart the runners from a worktree at the fixed commit (never edit a running
+copy).
+
 **Next: upstream's code out of the box** (`upstream-clean-1007`; 2026-10-07 PRE-REGISTERED). The
 clone and its env are built. It launches once `local_runs/upstream-rlpd/` is deleted (Aden).
 - **Launch `clean-rlpd-can`** in tmux from `~/projects/resfit-upstream`, with the pre-registered
