@@ -3318,3 +3318,69 @@ group `upstream-clean`, names `<arm>-1`, notes `upstream-clean-1007/<arm>/seed1`
 **Resources.** One GPU at a time. About 15 GB of RAM. Disk: 17 GB free after the env, which is
 too little for 21 GB of caches. It launches once `local_runs/upstream-rlpd/` (21 GB, no longer
 read by anything) is deleted.
+
+---
+
+## 2026-10-07 — PRE-REGISTERED — tuned RLPD on Can: the BC term trains the encoder
+
+**Question** (Aden, 2026-10-07): does the BC term get tuned RLPD off zero when its loss also trains
+the image encoder? In the τ/BC arms (2026-10-07 RESULTS) the term held the actor near the demos'
+actions, but coarsely: about 0.21 RMS per axis, against demo actions about 0.32 in size. A likely
+reason is that the BC loss saw detached features, and the encoder learned only from a critic with
+almost no action signal. Aden's reading is that no rollout ever succeeds, so nothing is learned;
+this tests whether better imitation produces successful rollouts.
+
+**Seed-group `tuned-rlpd-can-bc-encoder-1007`,** seed 1, 30k steps, Can, from the commit that adds
+this entry. Project `robomimic-can-final`, group `tuned-rlpd`, name `tuned-rlpd-can-bc-encoder-1`,
+notes `tuned-rlpd-can-bc-encoder-1007/tuned-rlpd-can-bc-encoder/seed1`.
+
+| Arm | Change from `tuned-rlpd-can-bc` (`kc8z7vsf`) |
+|---|---|
+| `tuned-rlpd-can-bc-encoder` | `agent.bc_backprop_encoder=true` |
+
+**What the flag does,** in upstream's `QAgent.update_actor_rft`, unchanged:
+- On each actor update, the BC loss's gradient also reaches both cameras' ViT encoders, and the
+  encoder's optimizer takes a second step. It is the critic's: AdamW, LR 1e-4. The BC gradient is
+  clipped at norm 1.0.
+- **The actor's Q term stays detached** (`QAgent.update` detaches the features first). So the
+  encoder learns from the critic's TD loss on every update and from the BC loss on every fourth,
+  never from the actor's Q loss.
+- `tests/test_bc_term.py` checks that the BC step moves the encoder iff the flag is set.
+
+**The reference,** `kc8z7vsf`, is not run again: the new commit changes tests, docs and
+`submit.sh` only. **Held fixed:** everything else as `kc8z7vsf` ran: `bc_loss_coef` 0.025, τ 0.01,
+10 critic heads, LRs 1e-4, 4 critic updates and 1 actor update per step, n-step 3, batch 256 half
+demos, the 300 MH demos, 10k U(±1) warm-up steps, no critic warm-up. Evals of 50 episodes at 0,
+10k, 20k and 30k.
+
+**The verdict,** by the screen's rule:
+- **Off zero** iff its 20k and 30k evals score at least 5 successes between them, of 100.
+- **What runs next, if it is off zero, is Aden's decision:** a BC term is not the paper's Tuned
+  RLPD.
+- **Reported, deciding nothing:** every eval; training successes, and the step of the first; at
+  10k, 20k and 30k, `rft/bc_loss`, `debug/policy_data_gap_demo`, `debug/q_{data,policy}_{demo,online}`,
+  `debug/dQ_da_mean_abs`, `train/critic_loss` and `train/critic_qt`.
+
+**Predictions, decided now:**
+- **Better imitation:** `rft/bc_loss` under 0.2 by 10k (the reference's 0.29–0.36), and
+  `debug/policy_data_gap_demo` under 0.12 (its 0.14–0.16).
+- **Whether rollouts then succeed is the open question.** If some do, they show up in the
+  training episodes first. The online half's values then rise above 0, and `dQ_da` above the
+  reference's 2.5e-5: the action contrast the critic has lacked.
+- **The risk, interference in the shared encoder.** The BC loss (about 0.3) is many times the
+  critic's (under 1e-4), and both step one AdamW. So BC may set the features, and the critic fit
+  on top of them. It is visible if `train/critic_loss` rises well above the reference's, or
+  `train/critic_qt` leaves [0, 1], the range of the true returns.
+
+**What the outcomes mean,** decided now:
+- **Off zero:** the encoder's imitation quality was the bottleneck; with it, demos seed
+  exploration. "Tuned RLPD + BC, encoder trained" becomes a candidate baseline, for Aden to judge.
+- **Not off zero, imitation better** (`rft/bc_loss` under 0.2): imitating the demos well still
+  does not succeed on Can with a single-step actor, at least by 30k. Next candidates: BC
+  pretraining of actor and encoder before the online phase, a longer n-step.
+- **Not off zero, imitation no better:** the encoder was not the limit. Next: a larger
+  coefficient.
+- One seed: an observation, not a comparison (STANDARDS 5.3).
+
+**Resources.** One run, on runner `gpu1`, about 1.5 h. No buffer caches are written. GPU 0 stays
+free for `upstream-clean-1007`.

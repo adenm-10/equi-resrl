@@ -2,27 +2,28 @@
 # Rewritable submission script. Overwrite this in place for each new experiment.
 # The durable record is docs/EXPERIMENTS.md plus the resolved config in wandb.
 #
-#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh tuned-rlpd-can-tau 1 0
-#   DRY_RUN=1 ./submit.sh tuned-rlpd-can-tau 1         # run the gate for that arm, then stop
+#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh tuned-rlpd-can-bc-encoder 1 1
+#   DRY_RUN=1 ./submit.sh tuned-rlpd-can-bc-encoder 1  # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                   # escape hatch, discouraged
 #
-# Currently configured for: τ and a BC term for tuned RLPD on Can, pre-registered in
-# docs/EXPERIMENTS.md, "2026-10-06 — PRE-REGISTERED — tuned RLPD on Can: τ 0.005 and a BC term"
-# (seed-group tuned-rlpd-can-tau-bc-1006). Launch it inside tmux from a worktree pinned to a commit,
-# with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
+# Currently configured for: the BC term training the encoder, tuned RLPD on Can, pre-registered in
+# docs/EXPERIMENTS.md, "2026-10-07 — PRE-REGISTERED — tuned RLPD on Can: the BC term trains the
+# encoder" (seed-group tuned-rlpd-can-bc-encoder-1007). Launch it inside tmux from a worktree pinned
+# to a commit, with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
 #
-# Earlier experiments launch from the commits they ran at: the Can screen
-# (tuned-rlpd-can-screen-1006) from 187d895, tuned-rlpd-1002 from a0353a5 (its two equivariant
-# arms, still pending Aden's design, are in that commit's submit.sh), the image-fix pair from
-# b667647, and the parked Square ablations from ccff539.
+# Earlier experiments launch from the commits they ran at: τ and the BC term
+# (tuned-rlpd-can-tau-bc-1006) from ed47957, the Can screen (tuned-rlpd-can-screen-1006) from
+# 187d895, tuned-rlpd-1002 from a0353a5 (its two equivariant arms, still pending Aden's design, are
+# in that commit's submit.sh), the image-fix pair from b667647, and the parked Square ablations
+# from ccff539. Upstream's code out of the box (upstream-clean-1007) does not launch from here:
+# ~/projects/resfit-upstream-runs/launch.sh runs it, in its own clone and env.
 #
-# THE ARMS
-# --------
-# All run train_residual_td3.py at tuned_rlpd_can_config for 30k steps on Can, vanilla RL with no
-# base policy. Their control is the screen's, tuned-rlpd-can-control (r1hvijqh, at 187d895).
-#   tuned-rlpd-can-tau      critic_target_tau 0.005, the paper's stated value, not rlpd.py's 0.01.
-#   tuned-rlpd-can-bc       a BC term on the demo half: agent.bc_loss_coef=0.025.
-#   tuned-rlpd-can-tau-bc   both.
+# THE ARM
+# -------
+# train_residual_td3.py at tuned_rlpd_can_config for 30k steps on Can, vanilla RL with no base
+# policy. Its reference is tuned-rlpd-can-bc (kc8z7vsf, at ed47957).
+#   tuned-rlpd-can-bc-encoder   the BC term at 0.025, as tuned-rlpd-can-bc, and its loss also trains
+#                               the image encoder: agent.bc_backprop_encoder=true.
 
 set -euo pipefail
 
@@ -51,18 +52,14 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     exit 1
 fi
 
-SEED_GROUP=tuned-rlpd-can-tau-bc-1006
+SEED_GROUP=tuned-rlpd-can-bc-encoder-1007
 NAME="${ARM}-${SEED}"
 NAMING=("wandb.name=${NAME}" "wandb.notes=${SEED_GROUP}/${ARM}/seed${SEED}")
 
 case "$ARM" in
-    tuned-rlpd-can-tau)
-        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.critic_target_tau=0.005) ;;
-    tuned-rlpd-can-bc)
-        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.bc_loss_coef=0.025) ;;
-    tuned-rlpd-can-tau-bc)
-        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.critic_target_tau=0.005
-                       agent.bc_loss_coef=0.025) ;;
+    tuned-rlpd-can-bc-encoder)
+        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.bc_loss_coef=0.025
+                       agent.bc_backprop_encoder=true) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2

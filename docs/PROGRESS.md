@@ -39,6 +39,30 @@ other four docs, with a pointer from here.
   its buffer caches only when `HF_OFFLINE_BUFFER_REPO` / `HF_ONLINE_BUFFER_REPO` are set. They are
   not, here.
 
+- **The two warm-ups, and what is faithful,** asked by Aden:
+  - **The buffer warm-up** (`learning_starts`, 10k env steps, no learning) and **the critic
+    warm-up** (`critic_warmup_steps`, critic-only updates) are separate. Upstream's RLPD trainer
+    has the first, with U(±1) actions, and never reads the second's field.
+  - **Faithful to the released code** is what we run, field for field. **Faithful to the paper's
+    text**, Algorithm 1 without its base policy, would make the warm-up actions U(±0.2) around the
+    midpoint, plus the code's 10k critic warm-up. Algorithm 1 itself shows no critic-only phase.
+  - **What they do in ResFiT:** both run on the BC policy. Its warm-up rollouts stay near the
+    demos and mostly succeed, so the buffer holds near-demo states with different outcomes. The
+    zero-initialized residual makes the frozen actor output exactly the BC action, so the critic
+    warm-up evaluates the BC policy, with no extrapolation. Without a base policy, neither phase
+    has a succeeding policy to work on: the frozen actor is a random network, and its warm-up
+    targets query actions no data covers (the 0.74–0.80 demo values before the actor moved).
+  - **Their working analog without a base policy** is a policy trained from the demos: BC
+    pretraining, or a BC term. That departs from the paper's Tuned RLPD as written.
+- **Why the encoder learns from the critic only,** asked by Aden: upstream, like SAC-AE and DrQ,
+  detaches the actor's features, because the actor's loss −Q(s, π(s)) could raise Q by changing
+  the features the critic sees rather than the action. A BC loss has fixed targets and cannot
+  exploit the critic; its costs are interference in the shared encoder and AdamW, and features
+  that move under the critic's targets. `bc_backprop_encoder` adds the BC gradient only; the Q
+  term stays detached.
+- **Pre-registered and launched the BC-encoder arm** (EXPERIMENTS.md, PRE-REGISTERED, "the BC
+  term trains the encoder"), with a test that the flag does what it says.
+
 **Open**
 
 - **The clean-env runs wait on disk:** 17 GB free, 21 GB needed. `local_runs/upstream-rlpd/`

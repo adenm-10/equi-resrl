@@ -39,14 +39,21 @@ point, with no Q blowup. STATUS, "Where the project is", has the short version.
 RESULTS). All three arms at 0. The BC term held the actor near the demos' actions, coarsely, and
 no rollout succeeded.
 
+**Running: the BC term training the encoder** (`tuned-rlpd-can-bc-encoder-1007`; 2026-10-07
+PRE-REGISTERED, "the BC term trains the encoder"), on `gpu1`. When it finishes: a RESULTS entry
+by its rule.
+
 **Next: upstream's code out of the box** (`upstream-clean-1007`; 2026-10-07 PRE-REGISTERED). The
 clone and its env are built. It launches once `local_runs/upstream-rlpd/` is deleted (Aden).
 - **Launch `clean-rlpd-can`** in tmux from `~/projects/resfit-upstream`, with the pre-registered
   command; then `clean-residual-can` when the disk has room again.
 - **Then, by its outcome:** if off zero, find the package (torchrl first) in our env. If not, the
-  candidates from 2026-10-07 RESULTS: the BC loss training the encoder
-  (`agent.bc_backprop_encoder=true`), a longer n-step, a larger coefficient. Each needs its own
-  pre-registration.
+  candidates from 2026-10-07 RESULTS: a longer n-step, a larger coefficient, BC pretraining of
+  actor and encoder before the online phase. Each needs its own pre-registration.
+- **The warm-ups, for the record** (PROGRESS.md, 2026-10-07): the paper's text read literally
+  (Algorithm 1 without the base policy) gives warm-up actions U(±0.2), not U(±1), plus the code's
+  10k critic warm-up. Only the critic warm-up has been run. Not expected to help; one cheap arm
+  would settle the text-against-code question.
 - **Questions for the paper's author, in Aden's hands:** was Fig. 5's Tuned RLPD made with the
   released `rlpd_can_config`; with what τ, BC term, warm-up and seeds.
 - **Not chosen on 2026-10-06:** a critic-only LayerNorm (`agent.actor.use_layer_norm=false`)

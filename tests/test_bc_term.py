@@ -21,7 +21,7 @@ import torch
 NUM_ONLINE = 2  # of tools/agent_fingerprint.BATCH = 4 rows; the rest are the demo half
 
 
-def _agent(bc_loss_coef: float, device):
+def _agent(bc_loss_coef: float, device, bc_backprop_encoder: bool = False):
     from resfit.rl_finetuning.config.residual_td3 import TunedRLPDCanConfig
     from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
     from tools.agent_fingerprint import ACTION_DIM, CAMERAS, OBS_SHAPE, STATE_DIM
@@ -29,6 +29,7 @@ def _agent(bc_loss_coef: float, device):
     cfg = TunedRLPDCanConfig().agent
     cfg.device = str(device)
     cfg.bc_loss_coef = bc_loss_coef
+    cfg.bc_backprop_encoder = bc_backprop_encoder
     torch.manual_seed(0)
     agent = QAgent(obs_shape=OBS_SHAPE, prop_shape=(STATE_DIM,), action_dim=ACTION_DIM,
                    rl_cameras=list(CAMERAS), cfg=cfg, residual_actor=False)
@@ -91,3 +92,26 @@ def test_bc_term_pulls_the_actor_toward_the_demo_actions(device):
     assert start == pytest.approx(start_bc), "both agents start from the same weights"
     assert with_bc < 0.9 * start, gaps
     assert plain > start, gaps
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("backprop", [False, True], ids=["detached", "backprop"])
+def test_bc_step_trains_the_encoder_only_when_asked(backprop, device):
+    """agent.bc_backprop_encoder: the actor's BC step moves the encoder iff it is set.
+
+    The step's Q term never does: QAgent.update hands the actor detached features, as here.
+    So with the flag set, the encoder learns from the critic's TD loss and the BC loss, and
+    never from the actor's Q loss.
+    """
+    from tools.agent_fingerprint import STDDEV
+
+    agent = _agent(0.025, device, bc_backprop_encoder=backprop)
+    agent.train(True)
+    batch, demo = _batches(device)
+    obs = batch["obs"]
+    obs["feat"] = agent._encode(obs, augment=True).detach()
+    before = [p.detach().clone() for p in agent.encoders.parameters()]
+    metrics = agent.update_actor_rft(obs, STDDEV, demo, agent)
+    moved = any(not torch.equal(b, p) for b, p in zip(before, agent.encoders.parameters()))
+    assert moved == backprop
+    assert ("train/encoder_grad_norm" in metrics) == backprop

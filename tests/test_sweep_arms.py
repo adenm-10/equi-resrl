@@ -5,16 +5,16 @@ submit.sh's case table is checked here first:
 
   Tier 1  its overrides compose through train_residual_td3's Hydra configs, name
           valid options, set no key twice, and are the pre-registered ones; each
-          arm differs from the control in its declared change only; and every
-          arm launches.
+          arm differs from its reference run's config in its declared change
+          only; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses, on a batch with no base action, passing the demo half to the
           actor's BC term when the arm turns it on, as the trainer does.
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-06
-PRE-REGISTERED, "tuned RLPD on Can: τ 0.005 and a BC term"): three arms of
-vanilla RL with no base policy on Can, 30k steps each, against the Can screen's
-control, tuned_rlpd_can_config unchanged (r1hvijqh, at 187d895).
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-07
+PRE-REGISTERED, "tuned RLPD on Can: the BC term trains the encoder"): one arm of
+vanilla RL with no base policy on Can, 30k steps, against tuned-rlpd-can-bc
+(kc8z7vsf, at ed47957): tuned_rlpd_can_config with agent.bc_loss_coef=0.025.
 """
 
 from __future__ import annotations
@@ -30,22 +30,22 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-SEED_GROUP = "tuned-rlpd-can-tau-bc-1006"
+SEED_GROUP = "tuned-rlpd-can-bc-encoder-1007"
 
 # What each arm launches, less the run's name and notes.
 COMMON = {"algo.total_timesteps=30000", "seed=1", "debug=false"}
 OURS = "--config-name=tuned_rlpd_can_config"
+# The reference run's change from tuned_rlpd_can_config: tuned-rlpd-can-bc, kc8z7vsf.
+REFERENCE = {"agent.bc_loss_coef=0.025"}
 CHANGES = {
-    "tuned-rlpd-can-tau": {"agent.critic_target_tau=0.005"},
-    "tuned-rlpd-can-bc": {"agent.bc_loss_coef=0.025"},
-    "tuned-rlpd-can-tau-bc": {"agent.critic_target_tau=0.005", "agent.bc_loss_coef=0.025"},
+    "tuned-rlpd-can-bc-encoder": {"agent.bc_backprop_encoder=true"},
 }
-LAUNCHED = {arm: {OURS, *change, *COMMON} for arm, change in CHANGES.items()}
+LAUNCHED = {arm: {OURS, *REFERENCE, *change, *COMMON} for arm, change in CHANGES.items()}
 NAMING = ("wandb.name", "wandb.notes")
 # Each change, as the composed config's fields it moves.
 MOVED = {
-    "agent.critic_target_tau=0.005": ("agent.critic_target_tau", 0.005),
     "agent.bc_loss_coef=0.025": ("agent.bc_loss_coef", 0.025),
+    "agent.bc_backprop_encoder=true": ("agent.bc_backprop_encoder", True),
 }
 
 def case_table_arms(script: str) -> list[str]:
@@ -126,7 +126,7 @@ def test_arm_composes(arm, tmp_path):
     assert cfg.equivariance is None, "ResFiT's stack"
     assert cfg.write_buffer_caches is False
     assert cfg.wandb.group == "tuned-rlpd"
-    for change in CHANGES[arm]:
+    for change in REFERENCE | CHANGES[arm]:
         path, value = MOVED[change]
         node = cfg
         for name in path.split("."):
@@ -135,14 +135,14 @@ def test_arm_composes(arm, tmp_path):
 
 
 @pytest.mark.parametrize("arm", ARMS)
-def test_an_arm_differs_from_the_control_in_its_change_only(arm, tmp_path):
-    """The control is the Can screen's: tuned_rlpd_can_config with no change."""
-    control = _flat(_compose([OURS, *sorted(COMMON)]))
+def test_an_arm_differs_from_its_reference_in_its_change_only(arm, tmp_path):
+    """The reference is tuned-rlpd-can-bc's config: tuned_rlpd_can_config with the BC term."""
+    reference = _flat(_compose([OURS, *sorted(REFERENCE), *sorted(COMMON)]))
     changed = _flat(_compose(_overrides(arm, tmp_path)))
-    differing = {k for k in control.keys() | changed.keys() if control.get(k) != changed.get(k)}
+    differing = {k for k in reference.keys() | changed.keys() if reference.get(k) != changed.get(k)}
     assert differing - set(NAMING) == {MOVED[c][0] for c in CHANGES[arm]}
-    assert control["agent.critic_target_tau"] == 0.01, "rlpd.py's value, as r1hvijqh ran"
-    assert control["agent.bc_loss_coef"] == 0.0, "as r1hvijqh ran"
+    assert reference["agent.bc_backprop_encoder"] is False, "upstream's default, as kc8z7vsf ran"
+    assert reference["agent.critic_target_tau"] == 0.01, "rlpd.py's value, as kc8z7vsf ran"
 
 
 @pytest.mark.parametrize("arm", ARMS)
