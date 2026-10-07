@@ -76,9 +76,25 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-Nothing. Both GPUs are idle. The four queue runners were stopped on 2026-10-07 and their tmux
-sessions closed; B15's launches start new ones from the main checkout (`tools/gpu_queue.sh` can
-now run from there).
+**The fixed-env baselines** (`fixed-env-baselines-1007`, EXPERIMENTS.md, PRE-REGISTERED and
+LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
+- **GPU 0,** runner `gpu0` (tmux), queue `~/queues/gpu0.txt`: the validation run,
+  `resfit-tuned-rlpd-can` seed 1, `d047it6c`. The other nine runs are queued only once its 20k
+  and 30k evals score 5 of 100.
+- **GPU 1,** tmux `gpu1-bars`: the two bars (done) and then `SMOKE=1` of `equi-residual-square`,
+  for speed and RAM. Then a runner `gpu1` on `~/queues/gpu1.txt`.
+
+**How to follow them:**
+- **Every arm at once, from disk,** live runs included (a run's evals so far, step 0, best, final,
+  and the verdict once it has one):
+  `cd ~/projects/equi-resrl && conda activate residual && PYTHONPATH=$PWD CACHE_DIR=$PWD python tools/baseline_verdict.py`
+- **wandb,** entity `aden-mckinney10-university-of-central-florida`: tuned RLPD in
+  `robomimic-can-final`, group `tuned-rlpd`; residual in `robomimic-square-final`, groups
+  `residual-rl` and `equi-residual-rl`. The groups also hold earlier runs: this batch's names are
+  the arm names plus the seed (`resfit-tuned-rlpd-can-1`), and its notes start with
+  `fixed-env-baselines-1007/`. Watch `eval/success_rate`.
+- **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log`; each launch's console output is
+  the file beside them named after the arm.
 
 ## The machine
 
@@ -119,8 +135,10 @@ now run from there).
 - **Baseline residual TD3 works, in the mismatched env.** Square 0.52 → 0.90 (`870ws2c2`), Can
   0.92 → 1.00 (`msfkjwab`), both single-seed and both with 10 critic heads. The equivariant default
   is 2 heads; our `CriticConfig.num_q` default has been 2 since 2026-04-23.
-- **The base rates, in the mismatched env.** B_sq = 0.508 ± 0.022 and B_can = 0.894 ± 0.014, 500
-  episodes each (2026-09-29 and 2026-10-04 MEASUREMENTs). B15 re-measures both.
+- **The base rates, measured again in the matching env on 2026-10-07:** B_sq = 0.582 ± 0.022 and
+  B_can = 0.852 ± 0.016, 500 episodes each, base policies `v9` and `v7` (EXPERIMENTS.md, LAUNCHED
+  and MEASUREMENT of that date). In the mismatched env they were 0.508 and 0.894. B_can's ten evals
+  are more spread than binomial noise (SD 0.080 against 0.050).
 - **The equivariant implementation is equivariant.** For one and two arms, for every sweep option,
   and for the vanilla actor with every norm:
   - the declared representations match independently derived physics;

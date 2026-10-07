@@ -3921,3 +3921,43 @@ About 6 h per ResFiT run and 19–20 h per equivariant run (0.115 and 0.41 s per
 training run: the two bars, then `SMOKE=1` of `equi-residual-square`, for its speed and RAM
 (the zero-init arm shares both). Then seed 1 of every arm before any seed 2, the equivariant runs
 first on each GPU.
+
+---
+
+## 2026-10-07 — LAUNCHED and MEASUREMENT — the fixed-env baselines: the validation run, and the two bars
+
+From the pre-registration above, at its commit `9cf207d`, in the one launch worktree
+`~/projects/equi-resrl-9cf207d`. Every record is in main.
+
+| Arm | Seed | Runner | wandb | Picked up / training from (EDT) |
+|---|---|---|---|---|
+| `resfit-tuned-rlpd-can` (the validation) | 1 | `gpu0` | **`d047it6c`** ([run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/d047it6c)) | 13:32 / about 13:56 |
+
+- **Its gate said GO with no warning,** in the worktree: Tier 1, 188 passed; Tier 2, 385 passed;
+  the render check passed on Can and Square. Before the commit, the gate had said GO at all four
+  of the arms' task, method and stack combinations (Tier 2 at two of them, as it does not depend
+  on the arm).
+- **The other nine runs wait** for its 20k and 30k evals.
+
+**The bars,** on GPU 1 from the worktree at `9cf207d` (clean), mujoco 3.3.2, `MUJOCO_GL=egl` as
+in the trainer: `eval_base_policy --num-evals 10 --seed 1000`, base policies pinned.
+
+| Bar | Config, base policy | Rates of the ten 50-episode evals | Mean ± binomial SE | Old render (3.8.1) | Change |
+|---|---|---|---|---|---|
+| **B_sq** | `residual_equi_td3_square_config`, `run_3hzs5bz1_best:v9` | 0.64 0.46 0.64 0.68 0.58 0.54 0.56 0.60 0.50 0.62 | **0.582 ± 0.022** | 0.508 ± 0.022 | +0.074, z = 2.35 |
+| **B_can** | `residual_equi_td3_can_config`, `run_xhjdl8a7_best:v7` | 0.68 0.96 0.78 0.86 0.94 0.86 0.88 0.86 0.82 0.88 | **0.852 ± 0.016** | 0.894 ± 0.014 | −0.042, z = −2.00 |
+
+- Records: `outputs/base_rates/Square__3hzs5bz1_best_v9__seed1000.json` and
+  `Can__xhjdl8a7_best_v7__seed1000.json`, with their console logs beside them
+  (`square_v9_seed1000_mujoco332.log`, `can_v7_seed1000_mujoco332.log`). 13:33–13:47 and
+  13:47–13:57.
+- **Prediction 0 holds for Square and fails for Can.** The Square base policy gains in the
+  matching render; the Can one does not, and may lose.
+- **B_can's evals are more spread than binomial noise:** their standard deviation is 0.080 against
+  0.050 for 50 episodes at 0.85 (χ² 22.5 on 9 degrees of freedom), most of it the first eval's
+  0.68, 3.4 binomial SDs below the mean. Without it the mean would be 0.871. Nothing in the record
+  explains it. So B_can's binomial SE understates its uncertainty. The pre-registered rule takes
+  the bar as measured, 0.852, and it stands. B_sq's spread is binomial (0.068 against 0.070).
+- **The rule's numbers, with these bars:** tuned RLPD on Can passes at p ≥ 0.852. A residual arm
+  on Square passes at p − 0.582 ≥ 2·sqrt(p(1−p)/500 + 0.582·0.418/500): at p ≥ 0.644, a margin
+  of about 0.062 over the bar.
