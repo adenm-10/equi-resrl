@@ -17,6 +17,40 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-07 (afternoon) — the render mismatch, and upstream's tuned RLPD learning in its env
+
+**Done**
+
+- **Found why tuned RLPD never learned here** (EXPERIMENTS.md, 2026-10-07 FINDING). Aden asked
+  why Q collapses to 0. On eval rollouts Q was about 0 from the first frame, though that frame is
+  the same scene as a demo's. Comparing demo first frames with env reset frames: our env's
+  mujoco 3.8.1 renders the floor differently from the demos and from mujoco 3.3.2, on the same
+  robosuite commit and assets. Can's front camera differs by 0.0995 per pixel (0.007 within
+  demos); Square's by 0.019, since its floor is a thin strip. Figures in `outputs/diagnostics/`.
+- **Ran upstream's code in its own env** (`zwmk393l`). The README's unpinned install gave torch
+  2.14.1, which cannot load torchcodec 0.4.0 or torchrl 0.9.2's extension; the first launch died.
+  Repaired with torch 2.7.1+cu128 (the README's own index), recorded as the one deviation
+  (EXPERIMENTS.md, LAUNCHED). It reached 0.88 at 20k and 0.80 at 30k on Can (RESULTS,
+  `upstream-clean-1007`), against 0 for the same code in our env (`rdoj0ex8`).
+- **Recorded the BC-encoder and no-warm-up arms** (RESULTS): both 0 at every eval, both in the
+  mismatched env, so their pre-registered next steps are on hold.
+- **Checked the equivariant squash** for Aden: `equi_tanh` bounds each rotating pair (dx, dy and
+  rx, ry) by its length and each scalar on its own, and the pairs are normalized isotropically.
+  54 tests pass.
+- **Aden set the plan** (TODO B15): worktrees into main, the render fixed and on the record, a
+  validation run on Can, base rates again, then ResFiT and equivariant tuned RLPD on Can and
+  residual on Square, with his equivariant design (10 heads, two critic layers with field norm,
+  no actor norm, the squash, a 1e-4 last layer for the residual only).
+- Comparison tooling, outside git: `outputs/diagnostics/plot_env_compare.py` reads offline wandb
+  records directly; `to_webm.sh` converts eval videos for VS Code's preview.
+
+**Open**
+
+- The doc budget is about 430 KB against 150 KB, mostly EXPERIMENTS.md (TODO H5).
+- Disk: 14 GB free; upstream's caches (21 GB) can go.
+
+---
+
 ## 2026-10-07 — τ and BC did not fix tuned RLPD; upstream's code set up out of the box
 
 **Done**

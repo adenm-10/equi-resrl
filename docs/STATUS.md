@@ -1,114 +1,107 @@
 # Status
 
-**Last updated:** 2026-10-07 · **Last verified commit:** the no-warm-up pre-registration
-(EXPERIMENTS.md, 2026-10-07 CODE and PRE-REGISTERED, "with no warm-up")
+**Last updated:** 2026-10-07 · **Last verified commit:** the commit recording the render finding
+(EXPERIMENTS.md, 2026-10-07 FINDING, "our env renders Can's front camera differently from the
+demos", and the RESULTS after it)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**Tuned RLPD on ResFiT's stack does not learn on Can, under our trainer or upstream's**
-(EXPERIMENTS.md, 2026-10-06 RESULTS, the screen). Six 30k-step arms on Can scored 0 in all 1,200
-eval episodes, and our five scored 0 in 750 training episodes. The paper's Tuned RLPD is at about
-0.7 there by 25k. Before that, `8ma5alnm` (Square) and `lg8qad3l` (Can) scored 0 at every eval
-to 150k.
-- **Upstream's own trainer fails the same way.** `train_rlpd_dexmg.py` at its released
-  `rlpd_can_config`, as the paper's launcher runs it, scored 0 at 0, 10k, 20k and 30k, with the
-  same signature. So the failure is not in our no-base-policy mode.
-- **None of the three changes from the residual recipe got it off zero,** alone or together:
-  actor LR 1e-6, a 10k-update critic warm-up, a zero-initialized last layer. They change how
-  fast the actor reaches its Tanh bound, not where it ends up.
-- **The mechanism, now measured.** It is offline RL's extrapolation error, not a Q blowup:
-  - On demo states the critic values the policy's action slightly above the demo's, by about
-    0.024, at every log step of every arm.
-  - The TD target bootstraps through the policy's action, so that margin compounds over each
-    episode. Demo values settle at 0.79–0.85 on average, against the demos' true 0.398, and a simple
-    fixed-point formula predicts them to within 0.05.
-  - The critic's slope at the policy's action is tiny (`dQ_da` about 6e-6), but its sign holds,
-    and Adam moves the actor at its full learning rate along it, to the bound.
-  - The online half is valued at about 0 for any action, correctly: the saturated policy never
-    succeeds. So nothing pulls the actor back toward the demos' actions.
-  - An actor started at the dataset midpoint, with a critic trained first, held the margin at
-    about 0. It drifted out anyway, and the margin turned positive as it did.
-- **Not exploration, and not the demos.** The runs use the same 300 MH demos the BC policies
-  were trained on, and with demos in every batch no online success is needed to see reward.
-- **What could fix it,** from the diagnostics: a BC term on the demo half, as in TD3+BC. The paper's
-  Tuned RLPD does not use one. Our trainer now runs upstream's (`agent.bc_loss_coef`; TODO B14,
-  done). τ 0.005, the paper's text, should not change the fixed point.
-- **Neither got it off zero** (EXPERIMENTS.md, 2026-10-07 RESULTS, "τ 0.005 and a BC term"). τ
-  0.005 changed nothing, as predicted. The BC term held the actor near the demos' actions (0.15
-  per axis against 0.8) and lowered the demo values to about 0.65, but no rollout succeeded, in
-  eval or training. Its imitation is coarse; the BC loss does not train the encoder, and nothing
-  else that does has a signal.
+**Our conda env renders the scene differently from the demos, and tuned RLPD learns once it does
+not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`).
+- **The mismatch.** mujoco 3.8.1, in the `residual` env since 2026-05-21, renders robosuite's floor
+  as darker brownish planks. The demos show light grey tiles, and so does mujoco 3.3.2. Both load
+  robosuite at the same commit (`77a47512`) with identical scene and texture files. Rendering the
+  same seeded scene in both, every pixel off the floor is identical.
+- **Its size,** as the mean absolute pixel difference between demo first frames and env reset
+  frames, front camera:
 
-**Aden's order (2026-10-06):** ResFiT tuned RLPD on Can, then on Square, then the equivariant
-stack on Can, then on Square. Residual RL after.
+  | Task | Within demos | Our env (mujoco 3.8.1) | mujoco 3.3.2 |
+  |---|---|---|---|
+  | Can | 0.007 | 0.0995 | 0.010 |
+  | Square | 0.007 | 0.019 (the floor is a thin strip at the top) | 0.009 |
 
-**No equivariant residual design has yet held its base policy** with its residual executed
-(2026-10-04 RESULTS, the image-fix pair). The tuned-RLPD failure looks like the same pattern, an
-actor that runs to its bound while the critic scores the bound above the data's actions, but that
-is a reading, not a test (TODO B10).
+  The wrist camera matches on both tasks. Figures and scripts: `outputs/diagnostics/` (outside git).
+- **Upstream's tuned RLPD, unmodified, in upstream's env learns Can:** 0 at 10k, 0.88 at 20k, 0.80
+  at 30k (`zwmk393l`). The same code, config and seed in our env scored 0 at every eval
+  (`rdoj0ex8`). Its critic loss sat about 30× ours and its actor's gradients about 10× ours; its
+  actor left the Tanh bound; by 10k its rollouts followed the demos' reach-then-bin sequence.
+- **The reading:** in our env the critic can tell every demo frame from every online frame by the
+  floor. "Demo floor, high value; env floor, zero" then fits all of its data without the action.
+  That accounts for the signature every tuned-RLPD run here showed:
+  - an action-blind critic (`dQ_da` about 6e-6) and an actor at its bound;
+  - Q on online transitions at exactly 0, and on demos at 0.65–0.85;
+  - Q about 0 from the first frame of every eval episode.
+- **Not yet separated** from upstream's env's other differences (torch 2.7.1, torchrl 0.9.2,
+  tensordict 0.9.1, against our 2.6.0, 0.7.0, 0.7.0). Only mujoco changes what the agent sees;
+  the mujoco-only run is next (TODO B15).
+- **Every run of the project so far saw the mismatch,** residual and equivariant included:
+  strongly on Can, mildly on Square. So every tuned-RLPD result from 2026-10-04 to 2026-10-07 (the
+  screen, τ, the BC term, BC-encoder `44enq26h`, no warm-up `hi8t2hps`) says nothing about its
+  change in a matching env. What the mismatch did to the residual and equivariant runs is open.
 
-**Every equivariant run before `e15d36c` acted on near-blank images,** and every one before
-`93a8ad4` trained against a frozen target critic (2026-10-02 and 2026-09-29 CORRECTIONs).
-**Every ResFiT run before 2026-10-06 logged `debug/dQ_da_*` as 0** (2026-10-06 CODE).
+**Aden's plan (2026-10-07), TODO B15:** consolidate the worktrees into main; pin mujoco 3.3.2
+and put the render on each run's record; validate on Can; re-measure the base rates. Then new
+baselines: ResFiT and equivariant tuned RLPD on Can, ResFiT and equivariant residual on Square,
+with the equivariant design Aden set (B15).
+
+**Earlier bugs, still true of the old runs:** every equivariant run before `e15d36c` acted on
+near-blank images, and every one before `93a8ad4` trained against a frozen target critic
+(2026-10-02 and 2026-09-29 CORRECTIONs). Every ResFiT run before 2026-10-06 logged
+`debug/dQ_da_*` as 0 (2026-10-06 CODE).
 
 - **wandb:** every Square equivariant residual run is in group `equi-residual-rl`, and every
   Square BC run in `robomimic-square-bc`. Tuned RLPD is in groups `tuned-rlpd` and
-  `equi-tuned-rlpd`, in `robomimic-{square,can}-final`; upstream's trainer's runs are in
-  `upstream-rlpd`, recorded offline.
+  `equi-tuned-rlpd`, in `robomimic-{square,can}-final`. Upstream's trainer's runs are in
+  `upstream-rlpd` and `upstream-clean`, recorded offline.
 
 **BoxCleanup** has had a smoke run only: 59.8 GiB at the start, projecting to about 82 GiB for a
 full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**The BC term training the encoder, tuned RLPD on Can** (seed-group
-`tuned-rlpd-can-bc-encoder-1007`; EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). One 30k-step arm,
-`tuned-rlpd-can-bc-encoder` (`agent.bc_backprop_encoder=true`, wandb `44enq26h`; read its history
-from wandb's servers, since its local record broke when the disk filled at 08:23), on runner `gpu1`, against
-`tuned-rlpd-can-bc` (`kc8z7vsf`). Off zero iff its 20k and 30k evals score at least 5 of 100.
+Nothing. Both GPUs are idle, and the queue files are empty.
 
-**Tuned RLPD on Can with no warm-up** (seed-group `tuned-rlpd-can-no-warmup-1007`; EXPERIMENTS.md,
-2026-10-07 PRE-REGISTERED). One 30k-step arm, `tuned-rlpd-can-no-warmup`
-(`algo.learning_starts=0`: no random steps, no critic warm-up; wandb `hi8t2hps`), on runner `gpu0`, against the
-screen's control `r1hvijqh`. Same verdict rule.
+## The machine
 
-**Ready, waiting on disk: upstream's code out of the box** (seed-group `upstream-clean-1007`;
-EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). A fresh clone of upstream at `66262b06` in
-`~/projects/resfit-upstream`, in a new conda env built from its README, `resfit-upstream`
-(torchrl 0.9.2 and mujoco 3.3.2, against our 0.7.0 and 3.8.1). Its RLPD script on Can for 30k
-steps, then its residual on Can with our BC policy as the env's control. Launched by hand in tmux,
-not through `gpu_queue.sh`.
-- **Blocked:** each run writes about 21 GB of caches, and 16 GB are free. The disk filled
-  completely for about 2 minutes at 08:23 (EXPERIMENTS.md, 2026-10-07 LAUNCHED); the margin is
-  too thin for upstream's trainer even after the delete below, without also clearing the pip
-  and conda caches (8.4 GB and 3.1 GB). Deleting
-  `local_runs/upstream-rlpd/` (21 GB, read by nothing) frees the room; Aden approved it, but
-  the delete needs his hands (the session's permissions block `rm -rf`).
-
-**RAM:** about 15 GB per Can tuned-RLPD run. Two Square residual runs at 40.3 GiB each fit; a
-third does not.
+- **`residual`** (every run of ours): mujoco 3.8.1 (to be pinned to 3.3.2, B15), torch 2.6.0,
+  torchrl 0.7.0, tensordict 0.7.0, escnn 1.0.11.
+- **`resfit-upstream`** (upstream's clone, `~/projects/resfit-upstream` at `66262b06`): its
+  README's env, with torch 2.7.1+cu128 and torchvision 0.22.1+cu128 in place of the 2.14.1 its
+  unpinned install gives, which cannot load torchcodec 0.4.0 or torchrl 0.9.2's extension. Freeze
+  files beside the clone. Launcher: `~/projects/resfit-upstream-runs/launch.sh`.
+- **RAM:** about 15 GB per Can tuned-RLPD run at 30k. Two Square residual runs at 40.3 GiB each
+  fit; a third does not.
+- **Disk:** 14 GB free. Aden can delete, when convenient: `~/projects/resfit-upstream/local_cache/*`
+  (21 GB, `zwmk393l`'s buffer caches, read by nothing). Once the online cache key records the
+  render (B15), `online_buffer_cache/66c46c51` (16 GB, Square, old render) is read by nothing too.
 
 ## What is established
 
+- **The render mismatch and upstream's result,** above.
+- **The squash is equivariant.** `equi_tanh` commutes with the group and bounds each rotating
+  pair by its length and each scalar on its own. `action_xy` is normalized with one scale shared
+  by x and y and no shift, and `action_rx_ry` by identity, so the bound is a disk in env units.
+  54 tests in `tests/test_equivariance.py` pass (2026-10-07).
 - **The image-fix pair collapsed by its first eval,** both seeds (2026-10-04 RESULTS). With the
-  residual executed, the IID-batch-norm reference does not hold its base policy.
+  residual executed, unbounded (`residual_squash=false`), the IID-batch-norm reference does not
+  hold its base policy. In the mismatched env.
 - **The image-scaling bug and its fix.**
   - `tests/test_obs_formats.py` feeds the env's and the buffer's formats. They give the same encoder
-    features and the same act(), now also for the vanilla agent.
+    features and the same act(), also for the vanilla agent.
   - On two trained checkpoints, the executed residual equals the trained one after the fix: cosine
     1.0000.
 - **The target-critic bug and its fix.** `tests/test_regression_agent.py` shows the old target
   never changing and the new one following its soft updates.
-- **Baseline residual TD3 works.** Square 0.52 → 0.90 (`870ws2c2`), Can 0.92 → 1.00 (`msfkjwab`),
-  both single-seed and both with 10 critic heads. The equivariant default is 2 heads. These are
-  the best policies the project has.
-- **The base rates.** B_sq = 0.508 ± 0.022 and B_can = 0.894 ± 0.014, 500 episodes each
-  (2026-09-29 and 2026-10-04 MEASUREMENTs).
+- **Baseline residual TD3 works, in the mismatched env.** Square 0.52 → 0.90 (`870ws2c2`), Can
+  0.92 → 1.00 (`msfkjwab`), both single-seed and both with 10 critic heads. The equivariant default
+  is 2 heads; our `CriticConfig.num_q` default has been 2 since 2026-04-23.
+- **The base rates, in the mismatched env.** B_sq = 0.508 ± 0.022 and B_can = 0.894 ± 0.014, 500
+  episodes each (2026-09-29 and 2026-10-04 MEASUREMENTs). B15 re-measures both.
 - **The equivariant implementation is equivariant.** For one and two arms, for every sweep option,
-  and now for the vanilla actor with every norm:
+  and for the vanilla actor with every norm:
   - the declared representations match independently derived physics;
   - the actor is equivariant and the critic invariant to < 1e-4, in train and eval mode.
 - **The whole agent is pinned.**
@@ -123,12 +116,14 @@ third does not.
 
 ## What is not
 
-- **Why the executed residual grows.** It grew without bound in the image-fix pair while the
-  critic rated it above the base action (TODO B10). Not established: whether the cause is the
-  unbounded actor (`residual_squash=false`), the two critic heads, or something else.
+- **Whether mujoco alone accounts for upstream's result,** rather than torch, torchrl or
+  tensordict (B15's validation run).
+- **What the render mismatch did to the residual and equivariant runs,** and the base rates under
+  the correct render.
+- **Why the executed residual grows.** It grew to the clip in the image-fix pair, unbounded, while
+  the critic rated it above the base action (TODO B10). B15's equivariant residual arm bounds it.
 - **The base rate of Square is uncertain.** The base-rate script gave 0.508 ± 0.022. The
-  trainer-path step-0 evals pool to 0.549 (439/800). No systematic cause was found. Verdicts use
-  0.508, as pre-registered.
+  trainer-path step-0 evals pool to 0.549 (439/800). No systematic cause was found.
 - **Five high-scoring runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
   `36pfxsww` and `zyed0lew`. The four equivariant ones acted on near-blank images.
 - **`action_scale` bounds the residual only with `residual_squash=True`.** Otherwise the bound is
@@ -138,31 +133,27 @@ third does not.
   tests a geometric prior, and must not be pooled with Can or Square.
 - **`seed` does not reach the environments.** Every episode's initial state is drawn from OS
   entropy, in every run so far, and the decision is to keep it that way (TODO B8).
-- **The Can buffer caches are gone** (TODO H7), and Can needs a re-run with both fixes (TODO B6).
-  Tuned RLPD needs no cache: it builds its buffers in memory.
+- **The buffer cache keys** record neither the normalization path (TODO B7) nor the render (B15).
+  Tuned RLPD builds its buffers in memory; B15's baselines all will.
 - **The gate's RAM estimate is 21 GB per run against a measured 40.3 GiB** (TODO B7, S10). It does
   not count running trainers either.
 - **The scalar ablation is still not usable as a control** (STANDARDS 3.3, TODO P4), and it is
-  residual-only. So no arm yet isolates equivariance in vanilla RL: the ResFiT and equivariant
-  tuned-RLPD arms differ in seven ways. **The gate cannot validate the commit it launches** (TODO R14).
+  residual-only. B15's equivariant arms match ResFiT's choices where equivariance allows, but the
+  stacks still differ in encoder, augmentation and normalization. **The gate cannot validate the
+  commit it launches** (TODO R14).
+- **The equivariant agent logs no critic diagnostics:** the trainer calls `critic_diagnostics` for
+  ResFiT's agent only (B15).
 
 ## The plan, and why
 
-**1. Get ResFiT tuned RLPD learning on Can** (TODO B12). The screen ruled out the three
-recipe changes and showed upstream's trainer fails too; τ 0.005 and a BC term did not fix it
-either. Next: upstream's code in its own environment, which rules the package versions in or
-out. Then the BC loss training the encoder, a longer n-step, or a larger coefficient. A BC term
-makes this TD3+BC-style RLPD, not the paper's Tuned RLPD; whether that is an acceptable comparison
-baseline is Aden's call. An off-zero arm would run 150k against B_can = 0.894.
+**1. B15, in order:** worktrees into main; mujoco 3.3.2 with the render on the record and in the
+gate; tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did; base rates
+again; then the four baselines.
 
-**2. The same on Square,** with what worked on Can.
+**2. Read the residual and equivariant history again** once the baselines report: which
+conclusions survive the render fix.
 
-**3. The equivariant stack on Can, then Square.** It first needs `critic_diagnostics` and its
-design: the actor's norm and output bound, plus whatever the screen settles.
-
-**4. Residual RL after that** (TODO B10): why the executed residual grows to the clip.
-
-**BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
+**3. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
 
 ## Do not delete
 
@@ -171,10 +162,11 @@ design: the actor's norm and output bound, plus whatever the screen settles.
 - `msfkjwab` survives only as `ZXP-S-works:wandb/run-20260226_143630-msfkjwab/`.
 - The BoxCleanup base policy is backed up as `~/equi-resrl-preserve/run_xg0w2r0z_best:v7`; its
   sha256 is in EXPERIMENTS.md, 2026-09-27 CODE.
-- The pinned worktrees `~/projects/equi-resrl-<commit>` hold their runs' `wandb/` folders, and the
-  parked arms launch from `~/projects/equi-resrl-ccff539`.
-- **`rdoj0ex8`, upstream's Can arm,** exists only as its offline record,
-  `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8/`. Its trainer
-  deleted its run folder, and it was never synced.
+- **The 15 pinned worktrees `~/projects/equi-resrl-<commit>` hold 32 local wandb records** in
+  their `wandb/` folders. Move them before removing a worktree (B15). Among them, **`rdoj0ex8`**
+  exists only as `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8/`.
+- **`zwmk393l`,** upstream's run in its env, exists only as its offline record,
+  `~/projects/resfit-upstream/wandb/offline-run-20261007_090736-zwmk393l/`. Never synced.
+- `outputs/diagnostics/`: the render figures and the scripts that made them, cited by the FINDING.
 
 Three runs have already been lost to deletions.

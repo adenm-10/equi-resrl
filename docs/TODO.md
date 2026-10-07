@@ -9,77 +9,85 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
+### B15. Fix the render, then new baselines — NEXT (Aden's plan, 2026-10-07) `[SC]` `[CS]`
+
+Why: our `residual` env's mujoco 3.8.1 renders the floor differently from the demos, and
+upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in ours (EXPERIMENTS.md,
+2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). STATUS has the numbers.
+
+1. **Consolidate the worktrees into main.** The 15 `~/projects/equi-resrl-<commit>` worktrees are
+   clean detached checkouts of commits on main, so there is no code to merge; `sync-free-update`
+   is merged too. What they hold is gitignored run data: 32 local wandb records, some the only
+   copy (`rdoj0ex8`). Inventory each one's ignored content (`wandb/`, `outputs/`, `local_runs/`),
+   move the records into main's `wandb/` or `~/equi-resrl-preserve/`, verify counts and sizes,
+   update STATUS's "Do not delete", then remove the worktrees (Aden's hands: the session cannot
+   `rm -rf`). `~/projects/equi-resrl-ccff539` launches the parked ablations (B0), moot now.
+2. **Fix `tools/gpu_queue.sh`:** it launches even when deleting the queue line fails. On a full
+   disk `sed -i` fails, the line stays first, and it relaunched 44 times on 2026-10-07. Launch only
+   if the delete succeeded; otherwise log, sleep and retry. Its `gpu0.log` has also had no line
+   since the full disk at 08:23 that day; check its append.
+3. **Pin mujoco 3.3.2 in `residual`,** and nothing else. Then:
+   - log the mujoco version in every run's config;
+   - add it to the online buffer cache key, whose caches hold rendered frames;
+   - a gate check in `preflight.py`: demo first frames against env reset frames, front camera, Can
+     and Square, failing above about 2× the within-demo difference (STATUS's table). The scripts
+     behind the FINDING are in `outputs/diagnostics/` (`demo_vs_env.py`, `render_dump.py`);
+   - rerun `preflight.py`; the goldens pin the agent's math and should not move.
+4. **Re-measure B_sq and B_can,** 500 episodes each with `eval_base_policy`, as before.
+5. **The equivariant agent needs `critic_diagnostics`;** the trainer calls it for ResFiT's agent
+   only.
+6. **The baselines,** each pre-registered before launch. 150k steps, 2 seeds, 50-episode evals
+   every 10k, buffers built in memory with no cache reads:
+
+   | Arm | Task | Config | Overrides |
+   |---|---|---|---|
+   | ResFiT tuned RLPD | Can | `tuned_rlpd_can_config` | none |
+   | Equivariant tuned RLPD | Can | `equi_tuned_rlpd_can_config` | the design below; actor init at its default |
+   | ResFiT residual | Square | `residual_td3_square_config` | `agent.critic.num_q=10` (the paper's and `870ws2c2`'s) |
+   | Equivariant residual | Square | `residual_equi_td3_square_config` | the design below; `agent.actor.actor_last_layer_init_scale=1e-4` |
+
+   - **The ResFiT tuned-RLPD arm's seed 1 is the validation:** its 20k and 30k evals must score at
+     least 5 of 100, as `zwmk393l` did. Launch the rest only after it has.
+   - **The equivariant design** (Aden, 2026-10-07), on both equivariant arms:
+     `equivariance.residual_squash=true` (equi_tanh, times `action_scale`: 0.1 for the residual,
+     1.0 vanilla; checked equivariant, STATUS); `agent.critic.num_q=10`;
+     `equivariance.num_critic_layers=2`; `equivariance.critic_norm=field_norm`;
+     `equivariance.actor_norm=none`; the actor at 2 layers × 128 regular fields, like the critic
+     (`num_actor_layers=2`, `actor_degree_channel=128`, `critic_degree_channel=128`, the defaults).
+     The tuned-RLPD actor keeps its default init: it outputs the whole action, not a correction,
+     so it need not start small (Aden).
+   - **A 10-minute smoke run of each equivariant arm first,** for speed and RAM: 10 heads and a
+     second critic layer will be slower than the 0.44 s/step of earlier equivariant runs.
+   - **Verdicts:** tuned RLPD passes iff the mean of its 110k–150k evals is at least the new B_can;
+     a residual arm passes iff that mean beats the new B_sq by at least 2 standard errors.
+   - **Resources:** about 40 GiB per Square residual run and about 25 GB per tuned-RLPD run at
+     150k, so two at a time, one per GPU. About 8 h per ResFiT arm; 18 h or more per equivariant
+     arm.
+
+**Updates:** EXPERIMENTS.md, STATUS.md, CLAUDE.md (setup), tests/README.md (the gate check).
+
 ### B11 — DONE 2026-10-04: the reference with the image fix collapsed, both seeds `[SC]`
 
 `fal5sfot` and `fqo83rvd` (`square-image-fix-1002`) went from 0.46 and 0.52 at step 0 to 0.00 at
 every eval from 10k (EXPERIMENTS.md, 2026-10-04 RESULTS). Executed, the residual grew to the clip
 while the critic rated it above the base action. So, as pre-registered, the IID-batch-norm actor's
 earlier stability came from executing almost no residual, and the equivariant tuned-RLPD arms
-wait for Aden (B12).
+waited for Aden (B12; now B15).
 
-### B12. Tuned RLPD — the ResFiT arms FAILED, and the Can screen found no fix `[SC]` `[CS]`
+### B12 — RESOLVED 2026-10-07: tuned RLPD failed because of our env's render `[SC]` `[CS]`
 
-Vanilla RL with no base policy, as a test of the RL machinery. Plan:
-`docs/plans/2026-10-02-tuned-rlpd.md` (untracked). Pre-registered as `tuned-rlpd-1002`
-(EXPERIMENTS.md, 2026-10-04 PRE-REGISTERED), which holds the design tables and the verdict.
+Every tuned-RLPD arm in our env scored 0 at every eval: `8ma5alnm` and `lg8qad3l` to 150k, the
+Can screen, τ 0.005 and the BC term, the BC term training the encoder (`44enq26h`), and no warm-up
+(`hi8t2hps`) (EXPERIMENTS.md, 2026-10-04 to 2026-10-07 RESULTS). Upstream's code in upstream's env
+reached 0.88 at 20k on Can (`zwmk393l`), against 0 for the same code in ours (`rdoj0ex8`). The
+measured cause is the render (2026-10-07 FINDING). So none of those arms says how its change
+behaves in an env that matches the demos. Next is B15.
+- **Not run:** `clean-residual-can`, the pre-registered env control (it needs about 21 GB of disk).
+  An env where tuned RLPD reaches 0.88 is plainly working; whether to run it anyway is Aden's call.
+- **Moot unless the fixed env still fails:** the warm-up alternatives, a larger BC coefficient,
+  BC pretraining, and the questions for the paper's author (PROGRESS.md, 2026-10-07).
+- Plan doc: `docs/plans/2026-10-02-tuned-rlpd.md` (untracked).
 
-**Aden's order (2026-10-06):** ResFiT on Can, then ResFiT on Square, then the equivariant stack
-on Can, then on Square. Residual RL comes after.
-
-**The ResFiT arms failed** (2026-10-06 RESULTS): `8ma5alnm` (Square) and `lg8qad3l` (Can) were at
-0.00 at every eval, with 0 training successes.
-
-**The Can screen found no fix** (`tuned-rlpd-can-screen-1006`; 2026-10-06 RESULTS, the screen).
-All six 30k-step arms scored 0 at every eval: upstream's own trainer, our control, and actor LR
-1e-6, a 10k critic warm-up and a zero-init last layer, alone and together. Nothing was promoted.
-The diagnostics measured the mechanism: extrapolation error on the demo half, settling at a fixed
-point, with no Q blowup. STATUS, "Where the project is", has the short version.
-
-**τ 0.005 and a BC term did not fix it** (`tuned-rlpd-can-tau-bc-1006`; EXPERIMENTS.md, 2026-10-07
-RESULTS). All three arms at 0. The BC term held the actor near the demos' actions, coarsely, and
-no rollout succeeded.
-
-**Running: the BC term training the encoder** (`tuned-rlpd-can-bc-encoder-1007`; 2026-10-07
-PRE-REGISTERED, "the BC term trains the encoder"), on `gpu1`. When it finishes: a RESULTS entry
-by its rule.
-
-**Running: no warm-up** (`tuned-rlpd-can-no-warmup-1007`; 2026-10-07 PRE-REGISTERED, "with no
-warm-up"), on `gpu0`: the demos in the buffer, no random steps, no critic warm-up. When it
-finishes: a RESULTS entry by its rule.
-- **Warm-up alternatives not yet run** (PROGRESS.md, 2026-10-07): a shorter random warm-up; demos
-  only in each batch until the online buffer fills; warm-up rollouts from a BC-pretrained actor
-  (ResFiT's warm-ups, minus the base policy); episodes started from demo states, which needs the
-  original robomimic files' sim states.
-
-**`tools/gpu_queue.sh` launches even when it cannot delete the queue line** `[CS]`. On a full disk
-`sed -i` fails, the line stays first, and the runner relaunches it every second (44 times on
-2026-10-07, EXPERIMENTS.md LAUNCHED). Fix: launch only if the delete succeeded; otherwise log,
-sleep and retry. Restart the runners from a worktree at the fixed commit (never edit a running
-copy).
-
-**Next: upstream's code out of the box** (`upstream-clean-1007`; 2026-10-07 PRE-REGISTERED). The
-clone and its env are built. It launches once `local_runs/upstream-rlpd/` is deleted (Aden).
-- **Launch `clean-rlpd-can`** in tmux from `~/projects/resfit-upstream`, with the pre-registered
-  command; then `clean-residual-can` when the disk has room again.
-- **Then, by its outcome:** if off zero, find the package (torchrl first) in our env. If not, the
-  candidates from 2026-10-07 RESULTS: a longer n-step, a larger coefficient, BC pretraining of
-  actor and encoder before the online phase. Each needs its own pre-registration.
-- **The warm-ups, for the record** (PROGRESS.md, 2026-10-07): the paper's text read literally
-  (Algorithm 1 without the base policy) gives warm-up actions U(±0.2), not U(±1), plus the code's
-  10k critic warm-up. Only the critic warm-up has been run. Not expected to help; one cheap arm
-  would settle the text-against-code question.
-- **Questions for the paper's author, in Aden's hands:** was Fig. 5's Tuned RLPD made with the
-  released `rlpd_can_config`; with what τ, BC term, warm-up and seeds.
-- **Not chosen on 2026-10-06:** a critic-only LayerNorm (`agent.actor.use_layer_norm=false`)
-  and a lower exploration σ, which has nothing to act on: the online half is valued at 0 for any
-  action.
-- **After an arm passes 150k on Can:** the same on Square; then the equivariant stack.
-- **Before the equivariant arms:** the equivariant agent needs `critic_diagnostics` too (the
-  trainer calls it for ResFiT's agent only), and its design: the actor's norm, its output bound,
-  and whatever a BC term needs. The provisional design (`iid_bn`, `residual_squash=true`) is in
-  `a0353a5`'s `submit.sh`.
-- **For Aden to delete:** `local_runs/upstream-rlpd/`, upstream's buffer caches (about 21 GB).
-  No run reads them.
 **Updates:** EXPERIMENTS.md, STATUS.md.
 
 ### B14. DONE 2026-10-06 — our trainer ignored `agent.bc_loss_coef` `[CS]`
@@ -121,8 +129,10 @@ prediction was never tested.
   above the base action. So no equivariant residual design has yet been stable with its residual
   executed. Why the residual grows is now the question; tuned RLPD (B12) checks the RL machinery
   without the residual first.
-- `actor_norm=none` is still the config default (STANDARDS 1.6). Decide it with the
-  equivariant tuned-RLPD design (B12).
+- `actor_norm=none` is still the config default (STANDARDS 1.6). Decided for the new baselines:
+  `none`, with the residual bounded by `residual_squash=true` (B15).
+- **All of it also ran under the render mismatch** (2026-10-07 FINDING), mildly on Square. B15's
+  equivariant residual arm, bounded and in the fixed env, is the next test.
 **Updates:** EXPERIMENTS.md, ARCHITECTURE.md.
 
 ### B13. Small findings from 2026-10-02 `[CS]` `[SC]`
