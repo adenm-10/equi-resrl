@@ -3492,3 +3492,156 @@ until `upstream-clean-1007` has disk; the two can share it.
   tmux pane and in wandb. Its local record is healthy.
 - **A bug in `tools/gpu_queue.sh`,** found here: it launches even when deleting the line fails
   (TODO).
+
+---
+
+## 2026-10-07 — LAUNCHED — `upstream-clean-1007`'s `clean-rlpd-can`, after a repair to the env
+
+| Arm | GPU | Code | wandb (offline) | Launched (EDT) |
+|---|---|---|---|---|
+| `clean-rlpd-can` | 1, shared with `44enq26h` | upstream `66262b06`, clean | **`zwmk393l`** | 09:07 |
+
+- Through `~/projects/resfit-upstream-runs/launch.sh rlpd 1`, in tmux session `upstream-clean`.
+  Console log `outputs/queue/20261007-090724_clean-rlpd-can-1_gpu1.log`. Its local wandb record is
+  `~/projects/resfit-upstream/wandb/offline-run-20261007_090736-zwmk393l`.
+- **The env as its README builds it could not run.** The README pins no torch, and lerobot asks
+  only for `torch>=2.2.1`, so pip installed today's torch 2.14.1. Against it, the torchcodec 0.4.0
+  that came with it fails to load, and so does torchrl 0.9.2's C++ extension (both undefined
+  symbols). The first launch, at 09:04 (wandb offline `9atavlcs`), died in the first minute,
+  decoding the demos' video while building the offline buffer; nothing trained.
+- **The repair, the one change to the env:** torch 2.7.1+cu128 and torchvision 0.22.1+cu128, from
+  the CUDA 12.8 index. The README's own fix-up step points at that index, and torchcodec 0.4 and
+  torchrl 0.9 target torch 2.7. With them, torchcodec, torchrl's extension and CUDA all load.
+  The freeze after it is `~/projects/resfit-upstream/pip_freeze_resfit-upstream-torch271.txt`;
+  against the first freeze, only torch, torchvision, triton and the CUDA 12 libraries differ.
+- Disk at launch: 38 GB free, after `local_runs/upstream-rlpd/` was deleted.
+
+---
+
+## 2026-10-07 — FINDING — our env renders Can's front camera differently from the demos
+
+**What was measured.** The first frame of 20 demos, spread across the 300, and 20 env reset frames,
+84×84, with a scratch script outside the repo. Each frame went through the same path as in training: demos
+through `LeRobotDataset`, the env through `create_vectorized_env`. The number is the mean absolute
+pixel difference, in [0, 1], between the average frame of each set.
+
+| Camera | Demo half vs demo half | Demo vs our env (mujoco 3.8.1) | Demo vs upstream's env (mujoco 3.3.2) |
+|---|---|---|---|
+| `agentview` (front) | 0.0067 | **0.0995** | 0.0103 |
+| `robot0_eye_in_hand` (wrist) | 0.0434 | 0.0474 | 0.0371 |
+
+- **The difference is the floor.** In the demos and in upstream's env the front camera sees a
+  light grey tiled floor; ours renders it as darker, brownish planks. Rendering the same three
+  seeded reset scenes in both envs (identical `qpos`), every pixel off the floor is identical,
+  and so is every pixel of the wrist camera. The floor alone lowers the front camera's channel
+  means to 0.49/0.44/0.39, against the demos' 0.57/0.53/0.49. `observation.state` at reset is
+  within one demo standard deviation on every axis.
+- Figures, outside git: `outputs/diagnostics/can_render_gap_84.png` (what the agent sees: demo,
+  upstream's env, ours, and the difference) and `can_render_gap_512.png` (the front camera at
+  512×512). Scripts `render_dump.py` and `render_compose.py` beside them.
+- **The cause is mujoco's version.** Both envs load the same robosuite, commit `77a47512`, with
+  identical arena and texture files; the same scene renders differently. Our env has had mujoco
+  3.8.1 since 2026-05-21, so **every run of this project, residual and equivariant included, saw
+  front-camera frames online that differ from its demos'.**
+
+**What it would explain** (a reading, not yet tested): tuned RLPD's critic can tell every demo
+frame from every online frame by the floor alone. "Light floor, high value; dark floor, zero"
+fits all its data without the action, since no online episode has succeeded. That matches what
+the runs show:
+- Q on online transitions settles at exactly 0 within about 2k updates, and Q on demo
+  transitions at 0.65–0.85 (`r1hvijqh`, `kc8z7vsf`, `hi8t2hps`).
+- The critic is blind to the action (dQ/da about 6e-6), so the actor drifts to its Tanh bound.
+- **On every eval rollout Q is about 0 from the first frame** (`r1hvijqh` at 10k, −0.002;
+  `kc8z7vsf` at 30k, 0.002), though a rollout's first frame is the same scene as a demo's.
+- The BC term fits the actor to the demos' frames, and the env shows it another floor.
+
+**What tests it:** `clean-rlpd-can` (above) runs in an env whose frames match the demos, but it
+also differs from ours in torch, torchrl and tensordict. Changing only mujoco in a copy of our env
+would separate the two.
+
+---
+
+## 2026-10-07 — RESULTS — the BC-encoder and no-warm-up arms on Can: neither off zero
+
+| Arm | wandb | Evals at 0 / 10k / 20k / 30k (of 50) | Training episodes with a success | Verdict |
+|---|---|---|---|---|
+| `tuned-rlpd-can-bc-encoder` | `44enq26h` | 0 / 0 / 0 / 0 | 0 of 150 | **not off zero** |
+| `tuned-rlpd-can-no-warmup` | `hi8t2hps` | 0 / 0 / 0 / 0 | 0 of 150 | **not off zero** |
+
+Both finished 30k steps (exit 0): `44enq26h` at 09:13 after 82 min, `hi8t2hps` at 09:41 after
+76 min. Histories read from wandb's servers (`44enq26h`'s local record is broken; see LAUNCHED).
+`hi8t2hps`'s EXIT line is in the `gpu0` tmux pane but not in `outputs/queue/gpu0.log`, which has
+had no line since 08:23:45, during the full disk.
+
+**`44enq26h`, reported, at 1k / 5k / 10k / 20k / 30k:**
+- `rft/bc_loss` 0.40 / 0.29 / 0.34 / 0.32 / 0.34; `debug/policy_data_gap_demo` 0.14 / 0.12 /
+  0.14 / 0.16 / 0.15. **The predicted better imitation did not happen:** neither reached its
+  threshold (0.2 and 0.12) after 5k, so the matching outcome is "not off zero, imitation no
+  better".
+- Q on demos (data / policy): 0.34 / 0.35 rising to 0.67 / 0.69. On online transitions: 0.08–0.18
+  through 5k, then 0 by 20k.
+- `debug/dQ_da_mean_abs` 2.2–2.6e-5, the reference's 2.5e-5. `train/critic_loss` 4e-4 falling to
+  3e-5, and `train/critic_qt` 0.21–0.34, inside [0, 1]: no sign of the encoder interference the
+  entry named as its risk.
+- `train/action_l1_magnitude` 0.59–0.62: the BC term held the actor off its bound throughout.
+
+**`hi8t2hps`, reported:**
+- `train/action_l1_magnitude` 0.84 / 0.92 / 0.88 at 1k / 5k / 10k: near the bound, as predicted.
+- Q on demos (data / policy) 0.74 / 0.77 at 1k, 0.85 / 0.88 at 30k. On online transitions 0.14
+  at 1k, then about 0 from 5k on.
+- `debug/dQ_da_mean_abs` 1.1e-5 at 1k, then 5.7–6.1e-6.
+- **One prediction failed:** `debug/policy_data_gap_online` was 0.82–1.10, not about 0.08. The
+  online half's actions came from earlier versions of an actor that moved between bounds, so the
+  current actor's actions are far from them, noise or not.
+
+**What the outcomes mean,** by the rules decided before launch:
+- **BC-encoder:** "the encoder was not the limit", with a larger coefficient next.
+- **No warm-up:** "the warm-up is not the obstacle", and removing it stays a candidate to pair
+  with whatever makes the actor imitate the demos.
+- **Both next steps are on hold.** Both arms ran in our env, which the FINDING above shows
+  renders the front camera's floor differently from the demos. The BC term fit the actor to
+  frames the env never shows, and the critic can tell demo from online transitions without the
+  action. Until `clean-rlpd-can` and a mujoco-only change in our env say whether that gap is what
+  holds tuned RLPD at zero, neither result says anything about the encoder or the warm-up in an
+  env that matches the demos.
+- One seed each: observations, not comparisons (STANDARDS 5.3).
+
+---
+
+## 2026-10-07 — RESULTS — `upstream-clean-1007`: upstream's tuned RLPD, in upstream's env, is off zero
+
+| Arm | wandb (offline) | Evals at 0 / 10k / 20k / 29,999 (of 50) | Verdict |
+|---|---|---|---|
+| `clean-rlpd-can` | `zwmk393l` | 0 / 0 / **44 / 40** | **off zero:** 84 successes of 100 at 20k and 30k, against a bar of 5 |
+| `clean-residual-can` | not run | — | env validity untested |
+
+- **The run:** finished at 10:14, after 62 min of training (exit clean). Successful eval
+  episodes took 75 steps on average at 20k and 68 at 30k. The paper's Fig. 5 has Tuned RLPD at
+  about 0.7 on Can by 25k, so this is the paper's curve.
+- **Against `rdoj0ex8`,** the same trainer, config and seed in our env: 0 at every eval. Only the
+  env differs (mujoco 3.3.2, torch 2.7.1, torchrl 0.9.2, tensordict 0.9.1 here, against 3.8.1,
+  2.6.0, 0.7.0 and 0.7.0), and only mujoco changes what the agent sees (the FINDING above).
+- **How the two diverged** (`outputs/diagnostics/can_env_compare.png`, with `r1hvijqh` too):
+  - from the first thousand updates, the critic's loss sat at 1–2e-4 here and 5e-6 in ours;
+  - the actor's gradient norm was 0.03–0.1 here, 0.003 in ours;
+  - the actor's mean |action| fell from 0.96 to 0.60 by 15k here, and stayed at 0.80–0.90 in ours.
+- **What the rollouts show:**
+  - At 10k, still 0/50, the arm reached the can, knocked it over and went on to the bins: the
+    demos' sequence without the grasp. In our env the arm drives to one pose and holds it.
+  - Its eval Q started each episode at 0.47–0.55. Our env's runs start it at about 0.
+  - Videos: `outputs/diagnostics/videos/zwmk393l_upstream_env_step*.webm`.
+
+**What the outcome means,** by the rule decided before launch:
+- **"Off zero, env valid: the environment is what differs."** The env-valid half rests on
+  `clean-residual-can`, which has not run: it needs about 21 GB of disk, and 14 GB are free while
+  this run's caches stay. An env in which tuned RLPD reaches 0.88 is plainly working, so the
+  control's purpose, to rule out a broken env, is met another way. Whether to run it anyway is
+  Aden's decision.
+- **The next step departs from the one decided.** The rule named torchrl first. The FINDING,
+  measured since, shows mujoco changes what the agent sees, so mujoco goes first: our env and
+  trainer, with mujoco alone at 3.3.2.
+- **What it says about earlier work:** every tuned-RLPD result in our env (the screen, τ/BC,
+  BC-encoder, no-warm-up) was run where demo and online frames differ. None of them says how
+  those changes behave in an env that matches the demos. The residual and equivariant runs saw
+  the same mismatch; what it did to them is open.
+- One seed: an observation, not a comparison (STANDARDS 5.3). Here the gap is 0 against 0.88.
