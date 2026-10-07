@@ -44,6 +44,7 @@ from resfit.lerobot.utils.load_policy import (
     download_policy_from_wandb,
     git_state,
     load_policy,
+    software_versions,
 )
 from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
     IdentityScaler,
@@ -197,6 +198,7 @@ def main(argv: list[str] | None = None) -> None:
         "mean": mean,
         "se_binomial": float(np.sqrt(mean * (1 - mean) / total)),
         "git": git_state(),
+        "versions": software_versions(),
         "host": socket.gethostname(),
         "started": started.isoformat(timespec="seconds"),
         "finished": datetime.now().isoformat(timespec="seconds"),

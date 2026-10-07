@@ -1,4 +1,4 @@
-"""The ResFiT agent's critic diagnostics, and its dQ_da log.
+"""Both agents' critic diagnostics, and the ResFiT agent's dQ_da log.
 
 critic_diagnostics splits the critic's Q by buffer for the trainer's log: on the online rows and
 on the demo rows, Q of the data's action and Q of the policy's. It was added for the tuned-RLPD
@@ -120,3 +120,101 @@ def test_dq_da_is_logged(residual, device):
     metrics = agent.update(fixed_batch(base_action=residual).to(device), STDDEV, update_actor=True)
     assert metrics["debug/dQ_da_norm"] > 0
     assert metrics["debug/dQ_da_mean_abs"] > 0
+
+
+# ---------------------------------------------------------------------------
+# The equivariant agent's, from 2026-10-07
+# ---------------------------------------------------------------------------
+
+# The equivariant design of the 2026-10-07 baselines (TODO B15): the squash, 10 heads, two critic
+# layers with field norm, no actor norm.
+EQUI_DESIGN = {
+    "equivariance.residual_squash": True,
+    "agent.critic.num_q": 10,
+    "equivariance.num_critic_layers": 2,
+    "equivariance.critic_norm": "field_norm",
+    "equivariance.actor_norm": "none",
+}
+
+
+def _equi_agent(residual: bool, device):
+    from tools.agent_fingerprint import build_reference_agent
+
+    return build_reference_agent(device=str(device), overrides=EQUI_DESIGN, residual_actor=residual)
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("residual", [False, True], ids=["vanilla", "residual"])
+def test_equivariant_critic_diagnostics_report_q_by_buffer(residual, device):
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_clip
+    from resfit.rl_finetuning.off_policy.common_utils import utils
+    from tools.agent_fingerprint import CAMERAS, fixed_batch
+
+    agent = _equi_agent(residual, device)
+    batch = fixed_batch(base_action=residual).to(device)
+    with utils.eval_mode(agent):
+        metrics = agent.critic_diagnostics(batch, NUM_ONLINE)
+
+        keys = [*CAMERAS, "observation.state"] + (["observation.base_action"] if residual else [])
+        obs = {k: batch["obs"][k] for k in keys}
+        with torch.no_grad():
+            obs["actor_feat"], obs["critic_feat"] = agent.enc(obs)
+            layout = agent.actor.action_layout
+            policy = equi_clip(agent.actor(obs["actor_feat"], std=None), layout, bound=1.0)
+            # The action the actor loss scores, by its std=0 path: the same, bit for bit.
+            assert torch.equal(policy, agent._act_default(obs=obs, eval_mode=True, stddev=0.0,
+                                                          clip=None, use_target=False))
+            if residual:
+                policy = equi_clip(obs["observation.base_action"] + policy, layout, bound=1.0)
+
+            def q(action):
+                per_head = agent.critic(obs["critic_feat"], action)
+                assert per_head.shape[0] == EQUI_DESIGN["agent.critic.num_q"]
+                return per_head.squeeze(-1).mean(dim=0)
+
+            q_data, q_policy = q(batch["action"]), q(policy)
+            gap = (policy - batch["action"]).abs().mean(dim=-1)
+
+    expected = {}
+    for name, rows in {"online": slice(0, NUM_ONLINE), "demo": slice(NUM_ONLINE, None)}.items():
+        expected[f"debug/q_data_{name}"] = q_data[rows].mean().item()
+        expected[f"debug/q_policy_{name}"] = q_policy[rows].mean().item()
+        expected[f"debug/policy_data_gap_{name}"] = gap[rows].mean().item()
+    assert metrics.keys() == expected.keys()
+    for key, value in expected.items():
+        assert metrics[key] == pytest.approx(value, abs=1e-6), key
+
+
+@pytest.mark.gpu
+def test_equivariant_critic_diagnostics_skip_an_empty_demo_half(device):
+    from resfit.rl_finetuning.off_policy.common_utils import utils
+    from tools.agent_fingerprint import BATCH, fixed_batch
+
+    agent = _equi_agent(False, device)
+    with utils.eval_mode(agent):
+        metrics = agent.critic_diagnostics(fixed_batch(base_action=False).to(device), BATCH)
+    assert sorted(metrics) == ["debug/policy_data_gap_online", "debug/q_data_online", "debug/q_policy_online"]
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("residual", [False, True], ids=["vanilla", "residual"])
+def test_equivariant_critic_diagnostics_change_nothing(residual, device):
+    """No parameter moves and no random number is drawn. The actor's std=0 path would draw one:
+    tests/test_regression_agent.py shows the updates after it would then differ."""
+    from resfit.rl_finetuning.off_policy.common_utils import utils
+    from tools.agent_fingerprint import fixed_batch
+
+    agent = _equi_agent(residual, device)
+    agent.train(True)
+    batch = fixed_batch(base_action=residual).to(device)
+    before = {k: v.clone() for k, v in agent.state_dict().items()}
+    rng = _rng_states(device)
+    with utils.eval_mode(agent):
+        agent.critic_diagnostics(batch, NUM_ONLINE)
+    assert agent.training, "eval_mode restores train mode"
+    for got, want in zip(_rng_states(device), rng):
+        assert torch.equal(got, want), "a random number was drawn"
+    after = agent.state_dict()
+    assert after.keys() == before.keys()
+    for key, value in after.items():
+        assert torch.equal(value, before[key]), f"{key} changed"

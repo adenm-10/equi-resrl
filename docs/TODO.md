@@ -35,16 +35,15 @@ upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in our
    line is deleted and 5 GB are free, a log line cut off by a full disk no longer swallows the
    next, and it runs from main, safe to edit while running. The `gpu0.log` append was never
    broken: the EXIT line was glued to the cut-off LAUNCH line (the CODE entry's CORRECTION).
-3. **Pin mujoco 3.3.2 in `residual`,** and nothing else. Then:
-   - log the mujoco version in every run's config;
-   - add it to the online buffer cache key, whose caches hold rendered frames;
-   - a gate check in `preflight.py`: demo first frames against env reset frames, front camera, Can
-     and Square, failing above about 2× the within-demo difference (STATUS's table). The scripts
-     behind the FINDING are in `outputs/diagnostics/` (`demo_vs_env.py`, `render_dump.py`);
-   - rerun `preflight.py`; the goldens pin the agent's math and should not move.
+3. **DONE 2026-10-07: mujoco 3.3.2 pinned, and the render on the record and in the gate**
+   (EXPERIMENTS.md, CODE, "mujoco 3.3.2"). `pip freeze` moved by that one line. Every run logs
+   its `versions`; the online cache key records mujoco; the gate fails on another mujoco and on a
+   render that does not match the demos (`tools/render_check.py`), on Can and Square. Its bar is
+   2.5x the within-demo gap, not about 2x: the matching render sits at 2.06x on Can. New:
+   `read_buffer_caches=false`, for the baselines' "no cache reads".
 4. **Re-measure B_sq and B_can,** 500 episodes each with `eval_base_policy`, as before.
-5. **The equivariant agent needs `critic_diagnostics`;** the trainer calls it for ResFiT's agent
-   only.
+5. **DONE 2026-10-07: the equivariant agent logs `critic_diagnostics`** (same CODE entry), and
+   the trainer calls it for both agents.
 6. **The baselines,** each pre-registered before launch. 150k steps, 2 seeds, 50-episode evals
    every 10k, buffers built in memory with no cache reads:
 
@@ -66,12 +65,15 @@ upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in our
      The tuned-RLPD actor keeps its default init: it outputs the whole action, not a correction,
      so it need not start small (Aden).
    - **A 10-minute smoke run of each equivariant arm first,** for speed and RAM: 10 heads and a
-     second critic layer will be slower than the 0.44 s/step of earlier equivariant runs.
+     second critic layer will be slower than the 0.44 s/step of earlier equivariant runs. Measured
+     for the tuned-RLPD arm on 2026-10-07: 0.41 s/step over 800 steps (`rhqmlon0`, CODE, "mujoco
+     3.3.2"), RAM not measured. The residual arm's is still to do.
    - **Verdicts:** tuned RLPD passes iff the mean of its 110k–150k evals is at least the new B_can;
      a residual arm passes iff that mean beats the new B_sq by at least 2 standard errors.
    - **Resources:** about 40 GiB per Square residual run and about 25 GB per tuned-RLPD run at
      150k, so two at a time, one per GPU. About 8 h per ResFiT arm; 18 h or more per equivariant
-     arm.
+     arm. With no cache read, a Square residual run fills its offline buffer in the run: 26.6 min
+     (`u0itew7i`, the same entry).
 
 **Updates:** EXPERIMENTS.md, STATUS.md, CLAUDE.md (setup), tests/README.md (the gate check).
 

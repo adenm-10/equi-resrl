@@ -64,6 +64,7 @@ from resfit.lerobot.utils.load_policy import (
     load_checkpoint,
     log_best_video_to_panel,
     save_checkpoint,
+    software_versions,
     upload_best,
 )
 
@@ -616,6 +617,8 @@ def main(cfg: argparse.Namespace):
 
         # NEW: Log image transforms configuration
         extra_cfg["image_transforms"] = asdict(image_transforms_config)
+        # What the commit does not pin, mujoco above all: its evals render the env (load_policy.py).
+        extra_cfg["versions"] = software_versions()
 
         wandb.init(
             project=cfg.wandb_project,

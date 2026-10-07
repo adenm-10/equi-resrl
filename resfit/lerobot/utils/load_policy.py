@@ -153,6 +153,25 @@ def git_state() -> dict:
     return {"commit": commit, "dirty": dirty}
 
 
+# What the commit does not pin. mujoco renders what the agent sees: 3.8.1 drew the demos' floor
+# differently, and every run before 2026-10-07 had it (EXPERIMENTS.md, 2026-10-07 FINDING).
+# torch, torchrl and tensordict were the rest of the difference to upstream's env then.
+VERSIONED_PACKAGES = ("mujoco", "robosuite", "torch", "torchrl", "tensordict", "escnn")
+
+
+def software_versions() -> dict[str, str | None]:
+    """The installed version of each package in VERSIONED_PACKAGES, None if it is missing."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    def _version(name):
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            return None
+
+    return {name: _version(name) for name in VERSIONED_PACKAGES}
+
+
 def create_run_package() -> Path:
     """Create this run's package and record how it was launched.
 
@@ -173,6 +192,7 @@ def create_run_package() -> Path:
         "host": socket.gethostname(),
         "argv": sys.argv,
         "git": git_state(),
+        "versions": software_versions(),
     }
     manifest_path = package / "manifest.json"
     if manifest_path.exists():

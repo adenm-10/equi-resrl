@@ -56,6 +56,7 @@ from resfit.lerobot.utils.load_policy import (
     finalize_run_package,
     load_policy,
     log_best_video_to_panel,
+    software_versions,
     upload_best,
 )
 from resfit.rl_finetuning.config.residual_td3 import ResidualTD3DexmgConfig, residual_only_fields_set
@@ -337,6 +338,9 @@ def main(cfg: ResidualTD3DexmgConfig):
     if cfg.agent.bc_loss_dynamic:
         # Its weight compares Q under a reference agent's act_method, from IBRL; QAgentConfig has none.
         raise ValueError("agent.bc_loss_dynamic needs IBRL's act_method, which this agent does not have")
+    if cfg.write_buffer_caches and not cfg.read_buffer_caches:
+        # A run that does not read the cache at its key would write over it.
+        raise ValueError("read_buffer_caches=false needs write_buffer_caches=false")
     if not equivariant_run:
         state_standardizer = StateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
@@ -594,10 +598,14 @@ def main(cfg: ResidualTD3DexmgConfig):
         "min_action_range": cfg.offline_data.min_action_range,
         "min_state_std": cfg.offline_data.min_state_std,
         "normalized_actions": True,
-        
+
         # Library versions for compatibility
         "torchrl_version": torchrl.__version__,
         "tensordict_version": tensordict.__version__,
+        # The online buffer holds rendered frames, and mujoco 3.8.1 renders the floor differently
+        # from 3.3.2 and the demos (EXPERIMENTS.md, 2026-10-07 FINDING). From package metadata:
+        # importing mujoco here would come before MUJOCO_GL is set.
+        "mujoco_version": software_versions()["mujoco"],
     }
     if cfg.algo.sampling_strategy == "prioritized_replay":
         online_cache_meta["priority_alpha"] = cfg.algo.priority_alpha
@@ -616,14 +624,16 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     # Attempt to download/extract from HF every run (no-op if already cached)
     dl_dir = None
-    if ONLINE_HF_REPO is not None:
+    if ONLINE_HF_REPO is not None and cfg.read_buffer_caches:
         print(f"Attempting to download online buffer {online_cache_hash} from {ONLINE_HF_REPO}...")
         dl_dir = _hf_download_buffer(ONLINE_HF_REPO, online_cache_hash, ONLINE_CACHE_DIR)
     if dl_dir is not None:
         online_cache_dir = dl_dir
 
     loaded_online_from_cache = False
-    if online_cache_dir.exists():
+    if not cfg.read_buffer_caches:
+        print(f"read_buffer_caches=false: the online buffer is filled in this run; {online_cache_dir} is not read")
+    elif online_cache_dir.exists():
         print(f"{online_cache_dir} found on disk. Attempting to load...")
         online_rb.sampler._empty()
         optimized_replay_buffer_loads(online_rb, online_cache_dir)
@@ -849,7 +859,7 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     # Try to download/extract from the Hub (will no-op if file not there)
     downloaded_dir = None
-    if OFFLINE_HF_REPO is not None:
+    if OFFLINE_HF_REPO is not None and cfg.read_buffer_caches:
         print(f"Attempting to download offline buffer {cache_hash} from {OFFLINE_HF_REPO}...")
         downloaded_dir = _hf_download_buffer(OFFLINE_HF_REPO, cache_hash, OFFLINE_CACHE_DIR)
     if downloaded_dir is not None:
@@ -860,7 +870,9 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     if cfg.algo.offline_fraction > 0.0:
         # Only populate offline buffer if we're using offline data
-        if cache_dir.exists():
+        if not cfg.read_buffer_caches:
+            print(f"read_buffer_caches=false: the offline buffer is filled in this run; {cache_dir} is not read")
+        elif cache_dir.exists():
             print(f"{cache_dir} found on disk. Attempting to load...")
             offline_rb.sampler._empty()
             optimized_replay_buffer_loads(offline_rb, cache_dir)
@@ -1022,6 +1034,8 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Remove notes from config if present
     assert isinstance(_wandb_config, dict)
     _wandb_config["wandb"].pop("notes", None)
+    # Not a config field: what the commit does not pin, mujoco above all (load_policy.py).
+    _wandb_config["versions"] = software_versions()
 
     # Print a nice summary of the config
     print("Launching run with the following config:")
@@ -1362,13 +1376,10 @@ def main(cfg: ResidualTD3DexmgConfig):
             filtered_metrics = {k: v for k, v in metrics.items() if not k.startswith("_")}
             log_dict.update(filtered_metrics)
 
-            # Q split by buffer, on the last update's batch. ResFiT's agent only, for now: the
-            # equivariant agent gets the same method before its tuned-RLPD arms run (TODO B12).
-            critic_split = {}
-            if not equivariant_run:
-                with utils.eval_mode(agent):
-                    critic_split = agent.critic_diagnostics(batch, online_batch_size)
-                log_dict.update(critic_split)
+            # Q split by buffer, on the last update's batch. Both agents, from 2026-10-07.
+            with utils.eval_mode(agent):
+                critic_split = agent.critic_diagnostics(batch, online_batch_size)
+            log_dict.update(critic_split)
 
             # Compute residual action statistics only when logging. Vanilla RL's actor outputs the
             # whole action, logged under upstream RLPD's names.

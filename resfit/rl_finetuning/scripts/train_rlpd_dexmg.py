@@ -37,6 +37,7 @@ from tqdm import tqdm
 
 import wandb
 from resfit.dexmg.environments.dexmg import create_vectorized_env
+from resfit.lerobot.utils.load_policy import software_versions
 from resfit.rl_finetuning.config.rlpd import RLPDDexmgConfig
 from resfit.rl_finetuning.off_policy.common_utils import utils
 from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
@@ -205,6 +206,8 @@ def main(cfg: RLPDDexmgConfig):
     # Remove notes from config if present
     assert isinstance(_wandb_config, dict)
     _wandb_config["wandb"].pop("notes", None)
+    # Not a config field: what the commit does not pin, mujoco above all (load_policy.py).
+    _wandb_config["versions"] = software_versions()
 
     wandb.init(
         id=cfg.wandb.continue_run_id,

@@ -17,6 +17,47 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-07 (evening) — B15 phases 0–3: records in main, mujoco 3.3.2 on the gate
+
+**Done** (EXPERIMENTS.md, the three CODE entries of 2026-10-07 after the RESULTS)
+
+- **Every run record is in main** (Aden: all experiments in one place, fewer worktrees). 34
+  records and their Hydra folders moved out of 14 worktrees and upstream's clone, hashes
+  verified; the three never-synced ones are also in `~/equi-resrl-preserve/`. New runs record
+  into `CACHE_DIR` wherever they launch from. The 15 worktrees hold only code now; removing them
+  is Aden's (TODO B15 has the commands).
+- **The queue runner** launches only once its line is deleted and 5 GB are free, and runs from
+  main. The "broken" `gpu0.log` append was a misreading: the EXIT line was glued to a cut-off line.
+- **mujoco 3.3.2 pinned,** nothing else changed. The gate fails on another version and on a
+  render that does not match the demos. The planned "about 2x" bar would have failed a correct
+  env: the matching render sits at 2.06x on Can (an even colour offset; the demos are video).
+  The bar is 2.5x, set by measuring both versions.
+- **`versions` on every run's record, mujoco in the online cache key, and `read_buffer_caches`**
+  for runs that must not read a cache (both Square residual arms would have read
+  `1d31ed9b`, whose key does not record its normalization path).
+- **The equivariant agent logs `critic_diagnostics`.** A new bit-identity test caught a first
+  version moving torch's RNG through the actor's `std=0` path, which draws a zeroed random
+  number; evals and actor losses take that path in every equivariant run.
+- Deleted, approved: upstream's buffer caches (21 GB) and Square's old-render online cache
+  (16 GB). 51 GB free.
+- **Checked end to end** by two smoke runs from a scratch directory with cache reads off
+  (`u0itew7i`, ResFiT residual on Square; `rhqmlon0`, equivariant tuned RLPD on Can): every record
+  in main, `versions` on both, 0.115 and 0.41 s a step. Square's offline buffer takes 26.6 min to
+  fill without its cache. The gate said GO.
+
+**Decided**
+
+- Aden: fewer worktrees. B15 launches from one, at its launch commit, removed when its runs end.
+- The render bar is 2.5x the within-demo gap (above).
+
+**Open**
+
+- Aden's review of the four arms' designs, before Phase 4 (pre-registration, validation, base
+  rates, smoke runs for speed and RAM).
+- The doc budget is about 450 KB against 150 KB, mostly EXPERIMENTS.md (TODO H5).
+
+---
+
 ## 2026-10-07 (afternoon) — the render mismatch, and upstream's tuned RLPD learning in its env
 
 **Done**

@@ -55,6 +55,11 @@ pip install robomimic --no-deps
 pip install h5py psutil tqdm termcolor tensorboard tensorboardX imageio imageio-ffmpeg matplotlib
 ```
 
+**mujoco is pinned to 3.3.2,** installed alone: `pip install --no-deps mujoco==3.3.2`. 3.8.1 renders
+robosuite's floor differently from the demos, and every run before 2026-10-07 saw that (EXPERIMENTS.md,
+2026-10-07 FINDING). `pip check` then reports dm-control's `mujoco>=3.8.1`; nothing imports dm-control.
+The gate fails on any other mujoco, and checks the render against the demos (`tools/render_check.py`).
+
 ## Session protocol
 
 Three skills in `.claude/skills/` cover this:

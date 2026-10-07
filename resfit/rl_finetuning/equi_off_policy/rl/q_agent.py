@@ -806,6 +806,56 @@ class QAgent(torch.nn.Module):
 
         return metrics
 
+    @torch.no_grad()
+    def critic_diagnostics(self, batch, num_online: int) -> dict[str, float]:
+        """What the critic thinks of the data's actions and of the policy's, on each buffer.
+
+        Mirrors the ResFiT agent's method of the same name (off_policy/rl/q_agent.py), and logs
+        the same keys. Where they differ, this agent's own update decides:
+        - a residual policy's action is combined with the base action by `_combine_actions`,
+          the disk clip its actor loss uses, where ResFiT's clamps each axis;
+        - actions are in this stack's units, which `IdentityScaler` leaves as the env's, so
+          `policy_data_gap` is not on the ResFiT stack's normalized scale;
+        - the policy's action is computed without the equivariant actor's `std=0` path, which
+          draws `torch.randn` and scales it by 0: the same action, but a moved RNG would change
+          every update after it (tests/test_regression_agent.py).
+
+        The batch is the trainer's: online rows [:num_online], then demo rows. Q is the mean over
+        heads; the policy's action is the actor's mean, clipped as its actor loss clips it. Logging
+        only: the caller puts the agent in eval mode, where the crop is centred and nothing draws a
+        random number, so logging does not change what a run computes. The features are computed
+        afresh, as `update` writes its own into the batch's observations.
+        """
+        assert not self.training
+        keys = [*self.rl_cameras, "observation.state"]
+        if self.residual_actor:
+            keys.append("observation.base_action")
+        obs = {k: batch["obs"][k] for k in keys}
+        obs["actor_feat"], obs["critic_feat"] = self.enc(obs)
+
+        data_action = batch["action"]
+        if self.equivariant:
+            policy_action = equi_clip(self.actor(obs["actor_feat"], std=None), self.actor.action_layout, bound=1.0)
+        else:
+            policy_action = self.actor(obs["actor_feat"], 0.0).mean
+        if self.residual_actor:
+            policy_action = self._combine_actions(obs["observation.base_action"], policy_action)
+
+        def q(action):
+            return self.critic(obs["critic_feat"], action).squeeze(-1).mean(dim=0)
+
+        q_data, q_policy = q(data_action), q(policy_action)
+        gap = (policy_action - data_action).abs().mean(dim=-1)
+        halves = {"online": slice(0, num_online), "demo": slice(num_online, None)}
+        metrics = {}
+        for name, rows in halves.items():
+            if q_data[rows].numel() == 0:
+                continue
+            metrics[f"debug/q_data_{name}"] = q_data[rows].mean().item()
+            metrics[f"debug/q_policy_{name}"] = q_policy[rows].mean().item()
+            metrics[f"debug/policy_data_gap_{name}"] = gap[rows].mean().item()
+        return metrics
+
     def step_lr_schedulers(self):
         """Step the learning rate schedulers for warmup."""
         if self.encoder_scheduler is not None:

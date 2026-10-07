@@ -3700,3 +3700,124 @@ appended to the end of it. So that EXIT line is in the log, on the cut-off line'
 
 **No run's numbers change:** nothing here touches the agent, the trainer's computation or a
 config. The gate's goldens pass.
+
+---
+
+## 2026-10-07 — CODE — mujoco 3.3.2, and the render on the record and in the gate
+
+TODO B15 step 3. The `residual` env's mujoco 3.8.1 renders robosuite's floor differently from the
+demos (2026-10-07 FINDING); 3.3.2 matches them.
+
+**The env.** `pip install --no-deps mujoco==3.3.2`, and nothing else: `pip freeze` before and after
+differs in exactly that line (both files in `outputs/env/`, outside git). `pip check` adds
+dm-control 1.0.41's `mujoco>=3.8.1` to the requirements it already reported unmet (lerobot's
+extras, dexmimicgen's numpy pin, lerobot's gymnasium pin); nothing imports dm-control. CLAUDE.md's
+setup now has the line.
+
+**The render, measured** with the new `tools/render_check.py`: the mean absolute difference, per
+pixel and channel, between the average of 40 demo first frames and the average of 40 env reset
+frames, front camera, through the paths training uses. On boce-WS-01, 10 repeats on 3.3.2 and 3 on
+3.8.1 (env resets are unseeded, so the env side varies):
+
+| Task | Between the even and the odd demos | Bar (2.5x) | mujoco 3.3.2 | mujoco 3.8.1 |
+|---|---|---|---|---|
+| Can | 0.0050 | 0.0125 | 0.0103 ± 0.0003 | 0.0977 (0.0973–0.0982) |
+| Square | 0.0052 | 0.0130 | 0.0086 ± 0.0005 | 0.0166 ± 0.0007 |
+
+- **The bar is 2.5x the within-demo gap, not "about 2x" as planned.** Even the matching render
+  differs from the demos by 2.06x on Can, so a 2x bar fails a correct env at random. The leftover
+  difference is an even colour offset, about 0.005 per channel, on static pixels too, and the same
+  under both versions (frames in `outputs/diagnostics/render_frames_mujoco{332,381}.npz`); the
+  demos are stored as video. At 2.5x the matching render passes by 7 standard deviations on Can and
+  9 on Square, and 3.8.1 fails by 5 on Square, where the floor is a thin strip.
+- **The check can fail:** it fails both tasks under 3.8.1. mujoco was put back at 3.8.1 for that
+  measurement only, then at 3.3.2 again; `pip freeze` is back to the pinned state, line for line.
+- **On the gate** (`preflight.py`, Tier 1): any mujoco but 3.3.2 fails it, and the render check
+  runs on Can and Square whatever the launch, in a subprocess (about 75 s), and fails it on either.
+  `tests/test_render_check.py` (Tier 1) pins the arithmetic on synthetic frames.
+
+**On each run's record:** `versions` in its wandb config (all three trainers), its run manifest,
+and `eval_base_policy`'s JSON: mujoco, robosuite, torch, torchrl, tensordict and escnn, from
+package metadata. Not a config field; nothing reads it.
+
+**The online cache key records mujoco,** in the trainer and in `preflight.cache_hashes`, read from
+package metadata: importing mujoco there would come before `MUJOCO_GL` is set. Every online key
+moved; no offline key did. Old to new: residual Can `43637c10` → `48638eb8`, Square `66c46c51` →
+`1683475f`, TwoArmBoxCleanup `5709219c` → `dca5e179`; tuned RLPD Can `3718c816` → `9a511563`
+(ResFiT) and `163d26c0` → `f3250e68` (equivariant), Square `6e94049f` → `e7739da8` and `8e67e7b9` →
+`099fa3d6`. `tests/test_config.py` pins the new ones. The smoke run below printed the key
+preflight's mirror computes at its settings. Square's old online cache `66c46c51`
+(16 GB, frames from 3.8.1, unreachable now) was deleted, with Aden's approval: 51 GB free after.
+
+**New field `read_buffer_caches`,** default true, which is every earlier run's behaviour. False
+fills both buffers in the run and loads no cache, from disk or the Hub. It is for the baselines'
+"no cache reads": a key records neither a residual buffer's normalization path (TODO B7, S9) nor,
+before this commit, mujoco. The trainer refuses it with `write_buffer_caches=true`, which would
+write over a cache it did not read. The gate's Tier 3 now reads both flags from the composed config.
+
+**The smoke runs,** on this commit's code before it was committed (their manifests list it as
+uncommitted changes on `4107466`), recorded offline in wandb project `equi-resrl-smoke`, launched
+from an empty scratch directory with `CACHE_DIR` at main. `u0itew7i` started before the trainer's
+diagnostics call stopped depending on the agent (the next entry), which changes nothing for the
+ResFiT agent. Both set `read_buffer_caches=false
+write_buffer_caches=false`, 300 learning starts and no eval:
+
+| Run | What | Steps | Offline buffer, filled in the run | Speed |
+|---|---|---|---|---|
+| `u0itew7i` | ResFiT residual, Square (`residual_td3_square_config`) | 600, after the 10k-update critic warm-up (200 s) | 80,731 frames in 26.6 min: the base policy labels every frame | 0.115 s a step |
+| `rhqmlon0` | equivariant tuned RLPD, Can, at the baselines' design | 800 | 62,756 frames in 3.1 min | 0.41 s a step (98 ms an update) |
+
+- **Neither read a cache.** `u0itew7i` printed the online key `f1ec1c01`, the one
+  `preflight.cache_hashes` computes at its settings.
+- **Every record is in main:** the wandb records (`wandb/offline-run-20261007_121446-u0itew7i`,
+  `wandb/offline-run-20261007_120927-rhqmlon0`), the Hydra folders (`outputs/2026-10-07/11-47-36`,
+  `12-05-43`) and the run packages (`outputs/runs/equi-resrl-smoke/`). Each scratch directory got
+  one empty `tea_debug.log`, which main's `.gitignore` already lists.
+- **Both records hold `versions`,** manifest and wandb config: mujoco 3.3.2, robosuite 1.5.1, torch
+  2.6.0+cu124, torchrl 0.7.0, tensordict 0.7.0, escnn 1.0.11.
+- **At these speeds** 150k steps take about 5 h (ResFiT residual, Square) and 17 h (equivariant)
+  before evals, with both GPUs and the CPU shared with the gate's tests and the other smoke run.
+
+**The gate said GO on this tree,** at `--task Square --method residual --stack resfit` with the
+ResFiT residual arm's overrides: Tier 1, 178 passed; Tier 2, 354 passed; the render check, Can
+0.0099 against 0.0125 and Square 0.0090 against 0.0129; Tier 3, both caches "not read and not
+written".
+
+**No run's numbers change through the code:** the goldens pass. What changes is the env: from this
+commit every run renders the scene the demos show.
+
+---
+
+## 2026-10-07 — CODE — the equivariant agent logs the critic's Q by buffer
+
+TODO B15 step 5. The equivariant `QAgent` gets `critic_diagnostics`, and the trainer now calls it for
+both agents at every log step: `debug/q_{data,policy}_{online,demo}` and
+`debug/policy_data_gap_{online,demo}`, the diagnostics that measured tuned RLPD's failure
+(2026-10-06 RESULTS, the screen).
+- **It mirrors the ResFiT agent's,** with this agent's own choices where they differ: a residual
+  policy's action is combined with the base action by `_combine_actions`, the disk clip its actor
+  loss uses, not a per-axis clamp; and its actions are in this stack's units, which `IdentityScaler`
+  leaves as the env's, so `policy_data_gap` is not on the ResFiT stack's normalized scale.
+- **Found on the way: the equivariant actor's `std=0` path draws a random number.** It computes
+  `torch.randn_like(mean) * 0`: the action is exact, but torch's RNG moves. A first version of the
+  method called that path, and the new check in `tests/test_regression_agent.py` caught it: after
+  one diagnosed update, every later update differed (268 tensors). The method now takes the
+  actor's mean (`std=None`) and clips it as the `std=0` path does, which gives the same action bit
+  for bit, with no draw.
+- **The same draw is in the actor loss and in every eval's `act()`,** in every equivariant run so
+  far. So an equivariant run's random stream depends on its eval schedule: two runs that differ
+  only in when they evaluate train on different noise after the first eval. Left as it is, since
+  changing it changes every equivariant run's updates; noted in ARCHITECTURE.md, "Known rough
+  edges".
+- **Tests.** `tests/test_regression_agent.py` (Tier 1, CPU): 8 updates with the trainer's log-step
+  diagnostics after each are bit-identical to 8 without, at `target-fix` (the actor's batch norm)
+  and `all-four` (field-norm critic, two critic layers, the squash). `tests/test_critic_diagnostics.py`
+  (Tier 2): at the baselines' equivariant design, the method reports what it says in vanilla and
+  residual mode, its policy action equals the one the actor loss scores, it skips an empty demo
+  half, and it moves no parameter and draws no random number.
+- **The scalar ablation's branch** (`equivariant=False`, residual-only) takes the actor's mean,
+  as its eval does. Checked once by hand, on CPU: the six keys, and no random number drawn. No
+  test covers it, and no planned run uses it.
+- **In the trainer:** `rhqmlon0`, the equivariant smoke run in the entry above, printed
+  `q_demo(data/policy)` and `q_online(data/policy)` at every log step, as the ResFiT agent's runs do.
+- **No earlier run changes:** the ResFiT agent logged these already, and no equivariant run did.

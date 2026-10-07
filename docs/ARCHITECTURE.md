@@ -405,6 +405,24 @@ A vanilla run skips step 1, wraps its envs in `NormalizedVecEnvWrapper` (3), sto
 (6), warms up with uniform random actions (7), and runs no critic warm-up (8), since
 `TunedRLPDConfig` sets none. It builds its buffers in memory: `write_buffer_caches=false`.
 
+**The buffer caches** (steps 6 and 7) are addressed by a hash of what filled them, printed at
+startup and mirrored by `preflight.cache_hashes`. Two top-level fields decide whether a run uses
+them:
+- `write_buffer_caches` (default true): false keeps both buffers in memory. Existing caches are
+  still read.
+- `read_buffer_caches` (default true; from 2026-10-07): false fills both buffers in the run and
+  loads no cache, from disk or the Hub. The trainer refuses it with `write_buffer_caches=true`.
+
+The reason a run may not read a cache: a key does not record everything that filled it. It
+records torchrl's and tensordict's versions, and, since 2026-10-07, mujoco's in the online key,
+whose frames mujoco renders. It does not record a residual buffer's normalization path (TODO B7,
+S9). Square's 6.4 GB offline cache takes about 25 min to rebuild (BC inference on 80,731 frames,
+measured 2026-10-07).
+
+Each run also logs `versions` in its wandb config and run manifest, the packages its commit does
+not pin: mujoco, robosuite, torch, torchrl, tensordict, escnn (`software_versions()` in
+`load_policy.py`). It is not a config field: nothing reads it.
+
 `eval_first: bool = True` means there is an evaluation at step 0. Because
 `agent.actor.actor_last_layer_init_scale = 0.0`, the residual starts at exactly zero, so **the
 step-0 evaluation measures the base BC policy alone.** That number is the baseline every run must
@@ -538,7 +556,11 @@ Recorded so they are not rediscovered. None are blocking.
   incidental rather than meaningful. Carries its own `TODO` upstream.
 - `QAgent._act_default_equi` calls `actor.forward(feat, std=0)` for evaluation. In
   `Actor.forward`, `std=None` returns the unclipped mean while `std=0` returns a clipped mean.
-  Two different code paths for what reads as the same intent.
+  Two different code paths for what reads as the same intent. **And `std=0` draws a random
+  number** (`torch.randn_like(mean) * 0`; found 2026-10-07): the action is exact, but torch's RNG
+  moves. Every eval's `act()` and every actor loss take that path, so an equivariant run's random
+  stream depends on its eval schedule. Left as it is: changing it changes every equivariant run's
+  updates. `critic_diagnostics` avoids it (`std=None`, then the same clip).
 - `networks/ablate_equi_obs_encoder.py` is imported by nothing — the scalar ablation goes through
   `ResObsEnc(equivariant=False)`. It still looks up the pre-bimanual normalizer key
   `action_gripper`, which no longer exists, so wiring it up would raise. It also has the image bug

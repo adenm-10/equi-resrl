@@ -148,29 +148,41 @@ def test_boxcleanup_base_policy_is_pinned():
         assert (base.wt_type, base.wt_version) == ("best", "v7"), name
 
 
-# Buffer cache keys measured on boce-WS-01. The torchrl / tensordict versions are
-# part of the key, so these are stack-specific by design.
-CACHE_STACK = ("0.7.0", "0.7.0")
+# Buffer cache keys measured on boce-WS-01. The torchrl and tensordict versions are part of both
+# keys, and mujoco's of the online key, so these are stack-specific by design.
+CACHE_STACK = ("0.7.0", "0.7.0", "3.3.2")
+
+
+def _cache_stack() -> tuple[str, str, str]:
+    from importlib.metadata import version
+
+    import tensordict
+    import torchrl
+
+    return torchrl.__version__, tensordict.__version__, version("mujoco")
+
+
+# The online keys moved on 2026-10-07, on purpose: they record mujoco, since the online buffer
+# holds rendered frames. Before, at mujoco 3.8.1's frames, they were 43637c10 (Can), 66c46c51
+# (Square) and 5709219c (TwoArmBoxCleanup). The offline keys did not move.
 CACHE_HASHES = {
-    "Can": ("8edf618e", "43637c10"),
-    "Square": ("1d31ed9b", "66c46c51"),
-    "TwoArmBoxCleanup": ("514502d0", "5709219c"),
+    "Can": ("8edf618e", "48638eb8"),
+    "Square": ("1d31ed9b", "1683475f"),
+    "TwoArmBoxCleanup": ("514502d0", "dca5e179"),
 }
 
 
 def test_buffer_cache_keys_are_stable():
     """Refactoring preflight.TASKS must not move an existing cache key.
 
-    Square's 22 GB of buffers are addressed by these hashes; moving one orphans
-    them and forces a multi-hour rebuild.
+    Square's 6.4 GB offline buffer is addressed by its hash; moving it orphans the cache and forces
+    a rebuild. (Square's old online buffer, 66c46c51, holds frames rendered by mujoco 3.8.1, and
+    the key that recorded mujoco orphaned it on purpose.)
     """
-    import tensordict
-    import torchrl
-
     import preflight
 
-    if (torchrl.__version__, tensordict.__version__) != CACHE_STACK:
-        pytest.skip(f"cache keys pinned to torchrl/tensordict {CACHE_STACK}")
+    if _cache_stack() != CACHE_STACK:
+        pytest.skip(f"cache keys pinned to torchrl/tensordict/mujoco {CACHE_STACK}")
 
     for task, expected in CACHE_HASHES.items():
         assert preflight.cache_hashes(task) == expected, f"{task} cache key moved"
@@ -301,22 +313,20 @@ def test_residual_only_fields_are_named():
 # The tuned-RLPD keys by (task, stack). train_residual_td3.py printed the first three in the
 # 2026-10-04 debug runs; Can's equivariant key comes from the same code. They add fields that no
 # residual key has, so the two can never coincide.
+# Online keys before mujoco joined them (2026-10-07): 6e94049f, 8e67e7b9, 3718c816, 163d26c0.
 VANILLA_CACHE_HASHES = {
-    ("Square", "resfit"): ("a2d779c4", "6e94049f"),
-    ("Square", "equi"): ("8b214742", "8e67e7b9"),
-    ("Can", "resfit"): ("83506f61", "3718c816"),
-    ("Can", "equi"): ("e83a0b31", "163d26c0"),
+    ("Square", "resfit"): ("a2d779c4", "e7739da8"),
+    ("Square", "equi"): ("8b214742", "099fa3d6"),
+    ("Can", "resfit"): ("83506f61", "9a511563"),
+    ("Can", "equi"): ("e83a0b31", "f3250e68"),
 }
 
 
 def test_tuned_rlpd_cache_keys_are_their_own():
-    import tensordict
-    import torchrl
-
     import preflight
 
-    if (torchrl.__version__, tensordict.__version__) != CACHE_STACK:
-        pytest.skip(f"cache keys pinned to torchrl/tensordict {CACHE_STACK}")
+    if _cache_stack() != CACHE_STACK:
+        pytest.skip(f"cache keys pinned to torchrl/tensordict/mujoco {CACHE_STACK}")
 
     for (task, stack), expected in VANILLA_CACHE_HASHES.items():
         assert preflight.cache_hashes(task, "tuned-rlpd", stack) == expected, (task, stack)

@@ -3,7 +3,8 @@
 
 Three tiers, cheapest first:
 
-  Tier 1  static      seconds, no GPU   imports, configs, git state, env
+  Tier 1  static      ~2 min            imports, configs, git state, env, mujoco's version,
+                                        and the render against the demos (EGL, one minute)
   Tier 2  construct   ~2 min, GPU       layouts, equivariance, no-op pins, host syncs,
                                         env image format
   Tier 3  resources   seconds           artifacts, buffer caches, RAM, disk
@@ -24,6 +25,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +35,9 @@ REPO = pathlib.Path(__file__).resolve().parent
 # Approximate CPU RAM held per run: the online replay buffer is preallocated at
 # algo.buffer_size, and the offline buffer is loaded alongside it.
 RAM_PER_RUN_GB = 21
+
+# The mujoco whose render matches the demos (tier1_environment, tier1_render).
+MUJOCO = "3.3.2"
 
 PASS, FAIL, WARN, INFO = "PASS", "FAIL", "WARN", "INFO"
 _MARK = {PASS: "  ok  ", FAIL: " FAIL ", WARN: " warn ", INFO: " info "}
@@ -87,6 +92,19 @@ def tier1_environment() -> None:
         else:
             record(WARN, f"{mod} version", f"expected {want}, got {got}")
 
+    # mujoco decides what the agent sees: 3.8.1 renders robosuite's floor differently from the
+    # demos, and tuned RLPD never learned in it (EXPERIMENTS.md, 2026-10-07 FINDING). 3.3.2
+    # matches them. tier1_render measures the match; this keeps the version itself on the gate.
+    try:
+        import mujoco
+        if mujoco.__version__ == MUJOCO:
+            record(PASS, f"mujoco {mujoco.__version__}", "the version whose render matches the demos")
+        else:
+            record(FAIL, "mujoco version", f"expected {MUJOCO}, got {mujoco.__version__}. "
+                   f"Run: pip install --no-deps mujoco=={MUJOCO}")
+    except Exception as exc:
+        record(FAIL, "mujoco import", f"{type(exc).__name__}: {exc}")
+
     try:
         import torch
         if torch.cuda.is_available():
@@ -128,17 +146,18 @@ def tier1_git() -> None:
         record(PASS, "no untracked .py files")
 
 
-def tier1_compose(overrides: list[str]) -> bool:
+def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, bool]]:
     """Compose the exact override set through Hydra without training.
 
     Catches malformed overrides before a launch. Hydra treats a comma in a
     value as a list separator, so `wandb.notes="a, b"` aborts at startup --
-    which cost two failed launches before this check existed.
+    which cost two failed launches before this check existed. Also returns the
+    composed run's two cache flags, for Tier 3; empty without overrides.
     """
     section("Tier 1 - hydra override composition")
     if not overrides:
         record(WARN, "compose", "no overrides passed; skipping (submit.sh passes them)")
-        return True
+        return True, {}
     proc = subprocess.run(
         [sys.executable, "-m", "resfit.rl_finetuning.scripts.train_residual_td3",
          "--cfg", "job", "--resolve", *overrides],
@@ -149,11 +168,38 @@ def tier1_compose(overrides: list[str]) -> bool:
         seed = next((l.strip() for l in proc.stdout.splitlines()
                      if l.startswith("seed:")), "seed: ?")
         record(PASS, "hydra composes", f"{len(overrides)} override(s); {seed}")
-        return True
+        flags = {m.group(1): m.group(2) == "true" for m in re.finditer(
+            r"^((?:read|write)_buffer_caches): (true|false)$", proc.stdout, flags=re.M)}
+        return True, flags
     err = (proc.stderr or proc.stdout).strip().splitlines()
     record(FAIL, "hydra composes",
            "\n".join(f"{' ' * 9}  {l}" for l in err[:6]))
-    return False
+    return False, {}
+
+
+def tier1_render() -> None:
+    """Demo first frames against env reset frames, front camera, Can and Square: tools/render_check.
+
+    Both tasks whatever the launch: they share mujoco, and a render that drifts on one is a sign
+    for all. About a minute, in a subprocess, so the gate's own process never loads a renderer.
+    """
+    section("Tier 1 - render matches the demos")
+    proc = subprocess.run(
+        [sys.executable, "-m", "tools.render_check", "--task", "Can", "--task", "Square", "--json"],
+        cwd=REPO, capture_output=True, text=True, check=False,
+        env={**os.environ, "PYTHONPATH": f"{REPO}:{os.environ.get('PYTHONPATH', '')}"},
+    )
+    found = [json.loads(l) for l in proc.stdout.splitlines() if l.startswith("{")]
+    if len(found) != 2:
+        tail = [l for l in proc.stderr.splitlines() if l.strip()][-3:]
+        record(FAIL, "render check", "did not report both tasks:\n" + "\n".join(
+            f"{' ' * 9}  {l}" for l in tail))
+        return
+    for r in found:
+        record(PASS if r["passed"] else FAIL, f"render: {r['task']}",
+               f"front camera, {r['frames']} frames: demo vs env {r['demo_vs_env'][0]:.4f}, "
+               f"bar {r['bar']:.4f} (2.5x the {r['within_demos']:.4f} between halves of the "
+               f"demos); mujoco {r['mujoco']}")
 
 
 def tier1_pytest() -> bool:
@@ -163,9 +209,10 @@ def tier1_pytest() -> bool:
          "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
          "tests/test_run_package.py", "tests/test_env_wrapper.py",
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
-         "tests/test_tuned_rlpd_verdict.py", "tests/test_gpu_queue.py"],
+         "tests/test_tuned_rlpd_verdict.py", "tests/test_gpu_queue.py",
+         "tests/test_render_check.py"],
         "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
-        " + queue runner",
+        " + queue runner + render check",
     )
 
 
@@ -254,6 +301,8 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tu
     does not record the stack (TODO B7, S9); a tuned-RLPD key adds the fields
     that record it.
     """
+    from importlib.metadata import version
+
     import tensordict
     import torchrl
     t = TASKS[task]
@@ -265,9 +314,10 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tu
     offline = {**common, "dataset_name": t["dataset"], "num_episodes": t["num_episodes"],
                "use_base_policy_for_base_actions": True,
                "base_policy_wandb_id": t["bc"], "batch_size": 128}
+    # The online buffer holds rendered frames, so its key records mujoco (2026-10-07).
     online = {**common, "horizon": t["horizon"], "size": 10_000,
               "buffer_size": 200_000, "batch_size": 128,
-              "random_action_noise_scale": 0.2}
+              "random_action_noise_scale": 0.2, "mujoco_version": version("mujoco")}
     if method == "tuned-rlpd":
         vanilla = {"base_policy": None,
                    "normalization": {"equi": "identity", "resfit": "dataset"}[stack]}
@@ -277,8 +327,12 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tu
 
 
 def tier3_resources(task: str, seeds: int, require_caches: bool = False,
-                    method: str = "residual", stack: str = "equi") -> None:
+                    method: str = "residual", stack: str = "equi",
+                    caches: dict[str, bool] | None = None) -> None:
+    """`caches`: the composed run's read/write_buffer_caches (tier1_compose); config defaults if absent."""
     section(f"Tier 3 - resources for {task} ({method}, {stack} stack)")
+    caches = caches or {}
+    read = caches.get("read_buffer_caches", True)
     t = TASKS[task]
     # The trainer reads caches and probes under CACHE_DIR, which a launch from a
     # pinned worktree points at the main checkout. Look where it will look.
@@ -298,7 +352,12 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False,
         off = cache_root / "offline_buffer_cache" / off_h
         on = cache_root / "online_buffer_cache" / on_h
         off_gb, on_gb = cache_size_estimate(task)
-        if method == "tuned-rlpd":
+        if not read:
+            # The trainer refuses read_buffer_caches=false with write_buffer_caches=true.
+            for name, h in (("offline", off_h), ("online", on_h)):
+                record(INFO, f"{name} buffer cache {h}",
+                       "not read and not written: read_buffer_caches=false fills it in the run")
+        elif method == "tuned-rlpd":
             # write_buffer_caches=false (TunedRLPDConfig): nothing is written, hit or miss.
             for name, h, path in (("offline", off_h, off), ("online", on_h, on)):
                 record(INFO, f"{name} buffer cache {h}",
@@ -414,14 +473,16 @@ def main() -> int:
           f"stack={args.stack}  repo={REPO}")
 
     tier1_environment()
+    tier1_render()
     tier1_git()
-    ok = tier1_compose(args.compose)
+    ok, caches = tier1_compose(args.compose)
     ok = tier1_pytest() and ok
     if not args.skip_tier2:
         ok = tier2() and ok
     else:
         record(WARN, "Tier 2 skipped", "--skip-tier2 was passed; equivariance is unverified")
-    tier3_resources(args.task, args.concurrent_seeds, args.require_caches, args.method, args.stack)
+    tier3_resources(args.task, args.concurrent_seeds, args.require_caches, args.method, args.stack,
+                    caches)
 
     fails = [r for r in results if r[0] == FAIL]
     warns = [r for r in results if r[0] == WARN]

@@ -119,6 +119,9 @@ def test_package_is_named_by_run_id(fake, tmp_path):
     assert manifest["completed"] is False
     assert len(manifest["git"]["commit"]) == 40
     assert isinstance(manifest["git"]["dirty"], list)
+    # What the commit does not pin, mujoco above all (EXPERIMENTS.md, 2026-10-07 FINDING).
+    assert set(manifest["versions"]) == set(lp.VERSIONED_PACKAGES)
+    assert manifest["versions"]["mujoco"], "the render depends on it"
 
 
 def test_resumed_run_keeps_its_folder_and_appends_the_launch(fake):

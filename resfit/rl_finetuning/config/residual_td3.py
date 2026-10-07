@@ -207,6 +207,11 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
 
     # False keeps both replay buffers in memory only. Existing caches are still read.
     write_buffer_caches: bool = True
+    # False fills both replay buffers in the run itself and never loads a cache, from disk or the
+    # Hub. A key does not record everything that filled its cache: not the normalization path
+    # (TODO B7, S9), and before 2026-10-07 not mujoco, whose 3.8.1 rendered other frames. Needs
+    # write_buffer_caches=false, or the run would write over the cache it did not read.
+    read_buffer_caches: bool = True
 
     # Equivariant agent or not
     equivariance: EquivarianceConfig | None = None

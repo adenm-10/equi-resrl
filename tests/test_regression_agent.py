@@ -129,6 +129,38 @@ def test_skipping_metrics_changes_nothing(candidate):
     assert compare_deep(_train(candidate, True), _train(candidate, False)) == []
 
 
+def _train_diagnosed(candidate: str, diagnose: bool) -> dict:
+    """The deep check's 8 updates, with or without the trainer's log-step critic diagnostics after
+    each: QAgent.critic_diagnostics in eval mode, on the batch the update just used."""
+    from resfit.rl_finetuning.off_policy.common_utils import utils
+
+    agent = build_reference_agent(overrides=CANDIDATES[candidate])
+    agent.train(True)
+    _seed(UPDATE_SEED)
+    for k in range(DEEP_UPDATES):
+        batch = fixed_batch(weights=True)
+        metrics = agent.update(batch, stddev=STDDEV, update_actor=(k + 1) % 4 == 0)
+        if diagnose:
+            with utils.eval_mode(agent):
+                agent.critic_diagnostics(batch, num_online=2)
+    out = _leaves("state_dict", agent.state_dict())
+    for name in OPTIMIZERS:
+        out.update(_leaves(name, getattr(agent, name).state_dict()))
+    out.update(_leaves("metrics", metrics))
+    return out
+
+
+@pytest.mark.parametrize("candidate", ["target-fix", "all-four"])
+def test_critic_diagnostics_change_no_update(candidate):
+    """Logging the critic's Q by buffer leaves the equivariant agent's training bit for bit alone.
+
+    The trainer calls it at every log step from 2026-10-07, in eval mode. An escnn layer expands
+    its weights when it enters eval mode, and a batch norm must not update its running statistics
+    there (target-fix has the actor's). all-four has the field-norm critic, two critic layers and
+    the squash, the design of the 2026-10-07 baselines."""
+    assert compare_deep(_train_diagnosed(candidate, True), _train_diagnosed(candidate, False)) == []
+
+
 def test_fingerprint_is_not_vacuous(measured):
     """A zero actor, a zero loss, or a no-op update would pin nothing."""
     assert measured["forward"]["actor"][1] != 0.0, "actor output is zero"

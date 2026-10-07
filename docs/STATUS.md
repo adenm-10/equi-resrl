@@ -1,29 +1,34 @@
 # Status
 
-**Last updated:** 2026-10-07 · **Last verified commit:** the commit recording the render finding
-(EXPERIMENTS.md, 2026-10-07 FINDING, "our env renders Can's front camera differently from the
-demos", and the RESULTS after it)
+**Last updated:** 2026-10-07 · **Last verified commit:** the commit pinning mujoco 3.3.2
+(EXPERIMENTS.md, 2026-10-07 CODE, "mujoco 3.3.2, and the render on the record and in the gate",
+and the CODE entry after it); the gate said GO on its code
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**Our conda env renders the scene differently from the demos, and tuned RLPD learns once it does
-not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`).
-- **The mismatch.** mujoco 3.8.1, in the `residual` env since 2026-05-21, renders robosuite's floor
-  as darker brownish planks. The demos show light grey tiles, and so does mujoco 3.3.2. Both load
-  robosuite at the same commit (`77a47512`) with identical scene and texture files. Rendering the
-  same seeded scene in both, every pixel off the floor is identical.
-- **Its size,** as the mean absolute pixel difference between demo first frames and env reset
-  frames, front camera:
+**Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
+not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
+env is pinned to mujoco 3.3.2, whose render matches the demos, and the gate checks it** (CODE,
+"mujoco 3.3.2").
+- **The mismatch.** mujoco 3.8.1, in the `residual` env from 2026-05-21 to 2026-10-07, renders
+  robosuite's floor as darker brownish planks. The demos show light grey tiles, and so does mujoco
+  3.3.2. Both load robosuite at the same commit (`77a47512`) with identical scene and texture files.
+  Rendering the same seeded scene in both, every pixel off the floor is identical.
+- **Its size,** as the gate's render check measures it (`tools/render_check.py`): the mean absolute
+  pixel difference between the average of 40 demo first frames and of 40 env reset frames, front
+  camera. The check fails above 2.5x the gap between the even and the odd demos:
 
-  | Task | Within demos | Our env (mujoco 3.8.1) | mujoco 3.3.2 |
-  |---|---|---|---|
-  | Can | 0.007 | 0.0995 | 0.010 |
-  | Square | 0.007 | 0.019 (the floor is a thin strip at the top) | 0.009 |
+  | Task | Within demos | Bar | mujoco 3.8.1 | mujoco 3.3.2 (pinned) |
+  |---|---|---|---|---|
+  | Can | 0.0050 | 0.0125 | 0.0977 | 0.0103 ± 0.0003 |
+  | Square | 0.0052 | 0.0130 | 0.0166 ± 0.0007 (the floor is a thin strip) | 0.0086 ± 0.0005 |
 
-  The wrist camera matches on both tasks. Figures and scripts: `outputs/diagnostics/` (outside git).
+  Even the matching render sits at about 2x the within-demo gap (an even colour offset; the demos
+  are stored as video), which is why the bar is 2.5x. The wrist camera matches on both tasks.
+  Figures, frames and scripts: `outputs/diagnostics/` (outside git).
 - **Upstream's tuned RLPD, unmodified, in upstream's env learns Can:** 0 at 10k, 0.88 at 20k, 0.80
   at 30k (`zwmk393l`). The same code, config and seed in our env scored 0 at every eval
   (`rdoj0ex8`). Its critic loss sat about 30× ours and its actor's gradients about 10× ours; its
@@ -35,8 +40,8 @@ not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`).
   - Q on online transitions at exactly 0, and on demos at 0.65–0.85;
   - Q about 0 from the first frame of every eval episode.
 - **Not yet separated** from upstream's env's other differences (torch 2.7.1, torchrl 0.9.2,
-  tensordict 0.9.1, against our 2.6.0, 0.7.0, 0.7.0). Only mujoco changes what the agent sees;
-  the mujoco-only run is next (TODO B15).
+  tensordict 0.9.1, against our 2.6.0, 0.7.0, 0.7.0). Only mujoco changes what the agent sees.
+  B15's validation run, our trainer in our env with mujoco alone changed, separates them.
 - **Every run of the project so far saw the mismatch,** residual and equivariant included:
   strongly on Can, mildly on Square. So every tuned-RLPD result from 2026-10-04 to 2026-10-07 (the
   screen, τ, the BC term, BC-encoder `44enq26h`, no warm-up `hi8t2hps`) says nothing about its
@@ -46,6 +51,11 @@ not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`).
 and put the render on each run's record; validate on Can; re-measure the base rates. Then new
 baselines: ResFiT and equivariant tuned RLPD on Can, ResFiT and equivariant residual on Square,
 with the equivariant design Aden set (B15).
+- **Done 2026-10-07:** every record in main, the queue runner fixed, mujoco pinned and on the
+  gate and the record, `read_buffer_caches` for runs that must not read a cache, and the
+  equivariant agent's critic diagnostics (EXPERIMENTS.md, the three CODE entries of that day).
+- **Next:** Aden reviews the four arms' designs; then their pre-registration, the validation
+  run, and the base rates.
 
 **Earlier bugs, still true of the old runs:** every equivariant run before `e15d36c` acted on
 near-blank images, and every one before `93a8ad4` trained against a frozen target critic
@@ -68,17 +78,19 @@ now run from there).
 
 ## The machine
 
-- **`residual`** (every run of ours): mujoco 3.8.1 (to be pinned to 3.3.2, B15), torch 2.6.0,
-  torchrl 0.7.0, tensordict 0.7.0, escnn 1.0.11.
+- **`residual`** (every run of ours): mujoco 3.3.2 from 2026-10-07 (3.8.1 before, in every
+  earlier run), torch 2.6.0, torchrl 0.7.0, tensordict 0.7.0, escnn 1.0.11. Each run logs these
+  as `versions` in its config.
 - **`resfit-upstream`** (upstream's clone, `~/projects/resfit-upstream` at `66262b06`): its
   README's env, with torch 2.7.1+cu128 and torchvision 0.22.1+cu128 in place of the 2.14.1 its
   unpinned install gives, which cannot load torchcodec 0.4.0 or torchrl 0.9.2's extension. Freeze
   files beside the clone. Launcher: `~/projects/resfit-upstream-runs/launch.sh`.
 - **RAM:** about 15 GB per Can tuned-RLPD run at 30k. Two Square residual runs at 40.3 GiB each
   fit; a third does not.
-- **Disk:** 35 GB free, after upstream's buffer caches (21 GB) were deleted on 2026-10-07. Once the
-  online cache key records the render (B15), `online_buffer_cache/66c46c51` (16 GB, Square, old
-  render) is read by nothing too.
+- **Disk:** 51 GB free, after two cache deletions on 2026-10-07 with Aden's approval: upstream's
+  buffer caches (21 GB) and `online_buffer_cache/66c46c51` (16 GB, Square, frames from mujoco
+  3.8.1, which the new key cannot reach). `offline_buffer_cache/1d31ed9b` (6.4 GB, Square) stays:
+  its key did not move.
 - **Records:** every run's local record is in the main checkout: `wandb/`, `outputs/runs/`,
   `outputs/<date>/<time>/` (Hydra), `outputs/queue/`. A run launched from a pinned worktree writes
   them there too (ARCHITECTURE.md, "Run packages").
@@ -138,22 +150,24 @@ now run from there).
   tests a geometric prior, and must not be pooled with Can or Square.
 - **`seed` does not reach the environments.** Every episode's initial state is drawn from OS
   entropy, in every run so far, and the decision is to keep it that way (TODO B8).
-- **The buffer cache keys** record neither the normalization path (TODO B7) nor the render (B15).
-  Tuned RLPD builds its buffers in memory; B15's baselines all will.
+- **The buffer cache keys** do not record a residual buffer's normalization path (TODO B7). The
+  online key records mujoco from 2026-10-07. `read_buffer_caches=false` keeps a run off every
+  cache; B15's baselines all set it.
 - **The gate's RAM estimate is 21 GB per run against a measured 40.3 GiB** (TODO B7, S10). It does
   not count running trainers either.
 - **The scalar ablation is still not usable as a control** (STANDARDS 3.3, TODO P4), and it is
   residual-only. B15's equivariant arms match ResFiT's choices where equivariance allows, but the
   stacks still differ in encoder, augmentation and normalization. **The gate cannot validate the
   commit it launches** (TODO R14).
-- **The equivariant agent logs no critic diagnostics:** the trainer calls `critic_diagnostics` for
-  ResFiT's agent only (B15).
+- **An equivariant run's random stream depends on its eval schedule:** the actor's `std=0` path,
+  taken by every eval and actor loss, draws a random number it scales by 0 (ARCHITECTURE.md,
+  "Known rough edges"). Left as it is, for comparability.
 
 ## The plan, and why
 
 **1. B15, in order:** worktrees into main; mujoco 3.3.2 with the render on the record and in the
-gate; tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did; base rates
-again; then the four baselines.
+gate (both done); tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did;
+base rates again; then the four baselines.
 
 **2. Read the residual and equivariant history again** once the baselines report: which
 conclusions survive the render fix.
@@ -174,6 +188,9 @@ conclusions survive the render fix.
 - **The 15 pinned worktrees hold no records now.** Their 32 records, and upstream's clone's 2,
   were moved into `wandb/` and `outputs/` on 2026-10-07 (EXPERIMENTS.md, CODE). Removing the
   worktrees is Aden's (TODO B15 has the commands).
-- `outputs/diagnostics/`: the render figures and the scripts that made them, cited by the FINDING.
+- `outputs/diagnostics/`: the render figures and the scripts that made them, cited by the FINDING,
+  and the frames and repeats behind the gate's bar (`render_frames_mujoco{332,381}.npz`,
+  `render_check_mujoco332_repeats10.jsonl`), cited by the 2026-10-07 CODE entry.
+- `outputs/env/`: `pip freeze` of `residual` before and after the mujoco pin.
 
 Three runs have already been lost to deletions.
