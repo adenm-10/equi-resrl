@@ -3645,3 +3645,58 @@ had no line since 08:23:45, during the full disk.
   those changes behave in an env that matches the demos. The residual and equivariant runs saw
   the same mismatch; what it did to them is open.
 - One seed: an observation, not a comparison (STANDARDS 5.3). Here the gap is 0 against 0.88.
+
+---
+
+## 2026-10-07 — CODE — records in main: the worktrees' 34 records moved, and the queue runner fixed
+
+TODO B15, steps 1 and 2. Aden's aim: every experiment in the main checkout, and fewer worktrees.
+
+**The records.**
+- **Moved:** 34 wandb records into `wandb/`, and their 34 Hydra folders into
+  `outputs/<date>/<time>/`. 32 records came from 14 of the 15 pinned worktrees
+  (`~/projects/equi-resrl-<commit>`; `8407c27` had none), 2 from upstream's clone
+  (`~/projects/resfit-upstream`). 68 folders, 822 files, 1.29 GB, renamed within one filesystem,
+  with no name collisions. A sha256 manifest of every file before the move matches every file
+  after it. Manifest and server check in `outputs/worktree-consolidation-20261007/` (outside git).
+- **31 of the 34 runs are on wandb's servers.** The other three are offline records that never
+  reached them, so they are also copied, and checked, to `~/equi-resrl-preserve/wandb-offline-only/`:
+  `rdoj0ex8` (upstream's trainer in our env), `9atavlcs` (the first `clean-rlpd-can` launch, which
+  died at startup) and `zwmk393l` (upstream's trainer in its env).
+- **Nothing else in the worktrees is a record:** bytecode, empty `tea_debug.log` files, an
+  `artifacts` symlink to main's `artifacts/`, and one cached env probe.
+- **New runs record into `CACHE_DIR`,** the main checkout, wherever their code runs from:
+  - wandb's local record, by `wandb.init(dir=...)` in all three trainers;
+  - BC checkpoints, which `download_policy_from_wandb` now downloads to
+    `<CACHE_DIR>/artifacts/<name>:<version>`, wandb's own folder name;
+  - Hydra's folder, by `hydra.run.dir` in `submit.sh`;
+  - the run package and the queue's logs went there already.
+
+  ARCHITECTURE.md, "Run packages". `tests/test_run_package.py` checks the first two. So a launch
+  worktree now holds only code, and can be removed when its runs end.
+- **Deleted, with Aden's approval:** upstream's buffer caches,
+  `~/projects/resfit-upstream/local_cache/{offline,online}_buffer_cache/` (21 GB), which nothing
+  reads. 35 GB free after.
+- **The four queue runners were stopped** with STOP lines and their tmux sessions closed. All
+  four were idle, two in `equi-resrl-b667647` and two in `equi-resrl-187d895`.
+
+**The runner,** `tools/gpu_queue.sh`:
+- **It launches a line only once the line is deleted** (sed's exit status, and a changed checksum),
+  and only with at least 5 GB free (`QUEUE_MIN_FREE_GB`). Otherwise it logs why, leaves the line,
+  and tries again a minute later. On the full disk it launched one arm 44 times.
+- **It can run from main.** Its body is one function, called on the last line, so bash has read
+  all of it before it runs, and an edit to the file cannot reach a running runner. `submit.sh` ends
+  in `exec` for the same reason.
+- **`log()` starts a fresh line** when the log ends without a newline.
+- **The dirty check no longer excuses an untracked `artifacts`:** the symlink was needed only while
+  BC downloads went to the working directory.
+- **`tests/test_gpu_queue.py`,** in Tier 1, 5 tests, each running the real script on a scratch
+  queue with a stub `submit.sh`. On the script before this commit 4 fail; the plain launch passes.
+
+**CORRECTION** to 2026-10-07 RESULTS, "the BC-encoder and no-warm-up arms". It says
+`outputs/queue/gpu0.log` "has had no line since 08:23:45". The append worked. The full disk cut
+the 08:23:45 LAUNCH line off before its newline, and `hi8t2hps`'s EXIT line, at 09:41:54, was
+appended to the end of it. So that EXIT line is in the log, on the cut-off line's row.
+
+**No run's numbers change:** nothing here touches the agent, the trainer's computation or a
+config. The gate's goldens pass.

@@ -74,6 +74,9 @@ OVERRIDES=(
     "seed=${SEED}"
     debug=false
 )
+# Hydra's own folder for the run (.hydra/ and the job log) goes under CACHE_DIR with every other
+# record, not into the launch worktree. It sets where Hydra writes, not the run's config.
+RECORDS=("hydra.run.dir=$(cd "$CACHE_DIR" && pwd)/outputs/\${now:%Y-%m-%d}/\${now:%H-%M-%S}")
 
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
     echo "Running pre-submission gate..."
@@ -86,6 +89,7 @@ fi
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
     echo "DRY_RUN=1: would launch ${NAME} on GPU ${GPU}:"
     printf '    %s\n' "${OVERRIDES[@]}"
+    printf '  with %s\n' "${RECORDS[@]}"
     exit 0
 fi
 
@@ -93,4 +97,5 @@ echo
 echo "Launching ${NAME} on GPU ${GPU} (commit $(git rev-parse --short HEAD))"
 echo
 
-"$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 "${OVERRIDES[@]}"
+# exec: bash reads nothing more of this file once the trainer starts, so a rewrite cannot reach it.
+exec "$PY" -m resfit.rl_finetuning.scripts.train_residual_td3 "${OVERRIDES[@]}" "${RECORDS[@]}"

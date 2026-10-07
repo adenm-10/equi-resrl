@@ -7,6 +7,9 @@ network. The residual round trip builds a small agent on the gate's device.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -134,6 +137,41 @@ def test_run_without_wandb_is_packaged_under_local(fake, tmp_path):
     assert package.parent == tmp_path / "runs" / "local"
     assert _manifest(package)["wandb"] is None
     assert _manifest(package)["uploads"] is False
+
+
+# ---------------------------------------------------------------------------
+# Where a run's records go
+# ---------------------------------------------------------------------------
+
+def test_records_follow_cache_dir_not_the_working_directory(tmp_path):
+    """A run launched from a pinned worktree records into CACHE_DIR, the main checkout."""
+    code = "from resfit.lerobot.utils import load_policy as lp; print(lp.RECORDS_ROOT); print(lp.RUNS_ROOT)"
+    repo = Path(__file__).resolve().parent.parent
+    env = {**os.environ, "CACHE_DIR": str(tmp_path), "PYTHONPATH": str(repo)}
+    out = subprocess.run([sys.executable, "-c", code], env=env, cwd=repo, capture_output=True,
+                         text=True, check=True).stdout.split()
+    assert out == [str(tmp_path), str(tmp_path / "outputs" / "runs")]
+
+
+def test_bc_checkpoints_download_under_the_records_root(tmp_path, monkeypatch):
+    roots = []
+
+    class _Artifact:
+        source_name = "run_abc_best:v3"
+
+        def download(self, root=None):
+            roots.append(root)
+            (Path(root) / "policy").mkdir(parents=True)
+            (Path(root) / "policy" / "config.json").write_text("{}")
+            return root
+
+    monkeypatch.setattr(lp, "RECORDS_ROOT", tmp_path)
+    monkeypatch.setattr(lp, "wandb", SimpleNamespace(
+        Api=lambda: SimpleNamespace(artifact=lambda path: _Artifact())))
+    policy_dir, step = lp.download_policy_from_wandb("proj/abc", step="best")
+    assert roots == [str(tmp_path / "artifacts" / "run_abc_best:v3")], "wandb's folder name, under the root"
+    assert policy_dir == tmp_path / "artifacts" / "run_abc_best:v3" / "policy"
+    assert step == "best"
 
 
 # ---------------------------------------------------------------------------

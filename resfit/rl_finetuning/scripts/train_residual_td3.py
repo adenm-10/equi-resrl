@@ -1037,6 +1037,7 @@ def main(cfg: ResidualTD3DexmgConfig):
         mode=cfg.wandb.mode if not cfg.debug else "disabled",
         notes=cfg.wandb.notes,
         group=cfg.wandb.group,
+        dir=str(_CACHE_ROOT),  # the local record goes to <CACHE_DIR>/wandb/, not the launch checkout
     )
 
     # Log horizon to wandb summary

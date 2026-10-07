@@ -441,7 +441,16 @@ Everything needed is on disk under `wandb/run-*-<run_id>/files/`:
 
 Both trainers write everything a run saves into one folder and keep it after the run:
 `<CACHE_DIR>/outputs/runs/<project>/<wandb_run_id>/`, or `local/<timestamp>/` when wandb is off.
-`CACHE_DIR` defaults to the launch directory. The helpers are at the bottom of
+`CACHE_DIR` defaults to the launch directory.
+
+**Every record lands in the main checkout** (from 2026-10-07). A run launched from a worktree
+pinned to its commit, as `tools/gpu_queue.sh` launches, sets `CACHE_DIR` to the main checkout, and
+writes all it records there: its package (`RUNS_ROOT`), wandb's local record (`wandb.init(dir=...)`
+in all three trainers, so `<CACHE_DIR>/wandb/`), the BC checkpoints it downloads
+(`<CACHE_DIR>/artifacts/`), and Hydra's folder (`submit.sh` passes `hydra.run.dir`, under
+`<CACHE_DIR>/outputs/<date>/<time>/`). The worktree holds only the code, so it can be removed once
+its runs end. Before then, each worktree kept its own `wandb/` and `outputs/`; their 34 records
+were moved into main on 2026-10-07 (EXPERIMENTS.md, CODE). The helpers are at the bottom of
 `resfit/lerobot/utils/load_policy.py`.
 
 | Path | Contents |

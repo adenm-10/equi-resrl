@@ -58,6 +58,7 @@ from resfit.lerobot.policies.factory import make_policy, make_policy_config
 from resfit.lerobot.policies.pretrained import PreTrainedPolicy
 from resfit.lerobot.utils.load_policy import (
     BEST_VIDEO,
+    RECORDS_ROOT,
     create_run_package,
     finalize_run_package,
     load_checkpoint,
@@ -629,6 +630,7 @@ def main(cfg: argparse.Namespace):
             ),
             id=wandb_run_id,
             resume="must" if wandb_run_id else None,
+            dir=str(RECORDS_ROOT),  # the local record goes to <CACHE_DIR>/wandb/
         )
         logger.info(colored("W&B logging enabled", "blue"))
 

@@ -15,17 +15,26 @@ Why: our `residual` env's mujoco 3.8.1 renders the floor differently from the de
 upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in ours (EXPERIMENTS.md,
 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). STATUS has the numbers.
 
-1. **Consolidate the worktrees into main.** The 15 `~/projects/equi-resrl-<commit>` worktrees are
-   clean detached checkouts of commits on main, so there is no code to merge; `sync-free-update`
-   is merged too. What they hold is gitignored run data: 32 local wandb records, some the only
-   copy (`rdoj0ex8`). Inventory each one's ignored content (`wandb/`, `outputs/`, `local_runs/`),
-   move the records into main's `wandb/` or `~/equi-resrl-preserve/`, verify counts and sizes,
-   update STATUS's "Do not delete", then remove the worktrees (Aden's hands: the session cannot
-   `rm -rf`). `~/projects/equi-resrl-ccff539` launches the parked ablations (B0), moot now.
-2. **Fix `tools/gpu_queue.sh`:** it launches even when deleting the queue line fails. On a full
-   disk `sed -i` fails, the line stays first, and it relaunched 44 times on 2026-10-07. Launch only
-   if the delete succeeded; otherwise log, sleep and retry. Its `gpu0.log` has also had no line
-   since the full disk at 08:23 that day; check its append.
+1. **DONE 2026-10-07: the worktrees' records are in main** (EXPERIMENTS.md, CODE, "records in
+   main"). 34 records and 34 Hydra folders moved, hashes verified; the three never-synced records
+   also copied to `~/equi-resrl-preserve/wandb-offline-only/`. New runs record into main wherever
+   they launch from. **Left for Aden: remove the 15 worktrees,** which now hold only code,
+   bytecode and an `artifacts` symlink into main's `artifacts/`. Unlink the symlink first, so
+   nothing can follow it:
+   ```bash
+   cd ~/projects/equi-resrl
+   for w in ~/projects/equi-resrl-*/; do
+       [ -L "$w/artifacts" ] && unlink "$w/artifacts"
+       git worktree remove --force "$w"   # --force: 7dae4925 has an untracked empty tea_debug.log
+   done
+   git worktree prune && git worktree list
+   ```
+   Fewer worktrees from here (Aden, 2026-10-07): B15 launches from one, at its launch commit, removed
+   when its runs end.
+2. **DONE 2026-10-07: `tools/gpu_queue.sh` fixed** (same CODE entry). It launches only once the
+   line is deleted and 5 GB are free, a log line cut off by a full disk no longer swallows the
+   next, and it runs from main, safe to edit while running. The `gpu0.log` append was never
+   broken: the EXIT line was glued to the cut-off LAUNCH line (the CODE entry's CORRECTION).
 3. **Pin mujoco 3.3.2 in `residual`,** and nothing else. Then:
    - log the mujoco version in every run's config;
    - add it to the online buffer cache key, whose caches hold rendered frames;

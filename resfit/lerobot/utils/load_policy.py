@@ -48,7 +48,8 @@ def download_policy_from_wandb(
     artifact_path = f"{project}/{artifact_name}"
     artifact = api.artifact(artifact_path)
 
-    art_dir = Path(artifact.download())
+    # wandb's own default folder name, under RECORDS_ROOT rather than the working directory.
+    art_dir = Path(artifact.download(root=str(RECORDS_ROOT / "artifacts" / artifact.source_name)))
     policy_dir = art_dir / "policy"  # The artifact root already contains the policy files.
 
     if not (policy_dir / "config.json").exists():
@@ -107,8 +108,12 @@ def load_checkpoint(ckpt_dir: Path, policy, optimizer):
 # wandb's own record of the run (wandb_logs/). Kept here because both trainers
 # import this module and download_policy_from_wandb reads the upload written below.
 
-# Resolved at import, like the trainers' _CACHE_ROOT, so a Hydra chdir cannot move it.
-RUNS_ROOT = Path(os.environ.get("CACHE_DIR", ".")).expanduser().resolve() / "outputs" / "runs"
+# Everything a run records lands under CACHE_DIR, the main checkout, whichever checkout the code
+# runs from: its package, wandb's local record, and the BC checkpoints it downloads. So a launch
+# worktree pinned to a commit holds only code. Resolved at import, like the trainers' _CACHE_ROOT,
+# so a Hydra chdir cannot move it.
+RECORDS_ROOT = Path(os.environ.get("CACHE_DIR", ".")).expanduser().resolve()
+RUNS_ROOT = RECORDS_ROOT / "outputs" / "runs"
 
 BEST_VIDEO = "best_eval.mp4"
 WANDB_LOG_FILES = ("config.yaml", "output.log", "wandb-summary.json", "wandb-metadata.json", "requirements.txt")

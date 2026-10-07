@@ -216,6 +216,7 @@ def main(cfg: RLPDDexmgConfig):
         mode=cfg.wandb.mode if not cfg.debug else "disabled",
         notes=cfg.wandb.notes,
         group=cfg.wandb.group,
+        dir=str(_CACHE_ROOT),  # the local record goes to <CACHE_DIR>/wandb/, not the launch checkout
     )
 
     # Create a timestamped folder in CACHE_DIR for all outputs

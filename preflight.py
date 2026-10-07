@@ -163,8 +163,9 @@ def tier1_pytest() -> bool:
          "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
          "tests/test_run_package.py", "tests/test_env_wrapper.py",
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
-         "tests/test_tuned_rlpd_verdict.py"],
-        "imports + config + regression + run package + env wrappers + base-rate eval + verdicts",
+         "tests/test_tuned_rlpd_verdict.py", "tests/test_gpu_queue.py"],
+        "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
+        " + queue runner",
     )
 
 

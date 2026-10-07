@@ -62,7 +62,9 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-Nothing. Both GPUs are idle, and the queue files are empty.
+Nothing. Both GPUs are idle. The four queue runners were stopped on 2026-10-07 and their tmux
+sessions closed; B15's launches start new ones from the main checkout (`tools/gpu_queue.sh` can
+now run from there).
 
 ## The machine
 
@@ -74,9 +76,12 @@ Nothing. Both GPUs are idle, and the queue files are empty.
   files beside the clone. Launcher: `~/projects/resfit-upstream-runs/launch.sh`.
 - **RAM:** about 15 GB per Can tuned-RLPD run at 30k. Two Square residual runs at 40.3 GiB each
   fit; a third does not.
-- **Disk:** 14 GB free. Aden can delete, when convenient: `~/projects/resfit-upstream/local_cache/*`
-  (21 GB, `zwmk393l`'s buffer caches, read by nothing). Once the online cache key records the
-  render (B15), `online_buffer_cache/66c46c51` (16 GB, Square, old render) is read by nothing too.
+- **Disk:** 35 GB free, after upstream's buffer caches (21 GB) were deleted on 2026-10-07. Once the
+  online cache key records the render (B15), `online_buffer_cache/66c46c51` (16 GB, Square, old
+  render) is read by nothing too.
+- **Records:** every run's local record is in the main checkout: `wandb/`, `outputs/runs/`,
+  `outputs/<date>/<time>/` (Hydra), `outputs/queue/`. A run launched from a pinned worktree writes
+  them there too (ARCHITECTURE.md, "Run packages").
 
 ## What is established
 
@@ -162,11 +167,13 @@ conclusions survive the render fix.
 - `msfkjwab` survives only as `ZXP-S-works:wandb/run-20260226_143630-msfkjwab/`.
 - The BoxCleanup base policy is backed up as `~/equi-resrl-preserve/run_xg0w2r0z_best:v7`; its
   sha256 is in EXPERIMENTS.md, 2026-09-27 CODE.
-- **The 15 pinned worktrees `~/projects/equi-resrl-<commit>` hold 32 local wandb records** in
-  their `wandb/` folders. Move them before removing a worktree (B15). Among them, **`rdoj0ex8`**
-  exists only as `~/projects/equi-resrl-187d895/wandb/offline-run-20261006_105334-rdoj0ex8/`.
-- **`zwmk393l`,** upstream's run in its env, exists only as its offline record,
-  `~/projects/resfit-upstream/wandb/offline-run-20261007_090736-zwmk393l/`. Never synced.
+- **Three offline records were never synced,** so their only copies are in `wandb/` and, copied
+  and verified, in `~/equi-resrl-preserve/wandb-offline-only/`: **`rdoj0ex8`** (upstream's
+  trainer in our env), **`zwmk393l`** (upstream's trainer in its env) and `9atavlcs` (that run's
+  first launch, which died at startup).
+- **The 15 pinned worktrees hold no records now.** Their 32 records, and upstream's clone's 2,
+  were moved into `wandb/` and `outputs/` on 2026-10-07 (EXPERIMENTS.md, CODE). Removing the
+  worktrees is Aden's (TODO B15 has the commands).
 - `outputs/diagnostics/`: the render figures and the scripts that made them, cited by the FINDING.
 
 Three runs have already been lost to deletions.
