@@ -4007,3 +4007,18 @@ instead, which runner `gpu1` launched at 14:39. Queues, from `9cf207d`:
   `resfit-tuned-rlpd-can` 2, `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
 - `gpu1`: `equi-residual-square` 1 (launched), `equi-residual-square-zero-init` 1,
   `equi-residual-square` 2, `resfit-residual-square` 2.
+
+---
+
+## 2026-10-07 — LAUNCHED — the fixed-env baselines: `equi-residual-square` seed 1
+
+| Arm | Seed | Runner | Commit | wandb | Picked up / in wandb (EDT) |
+|---|---|---|---|---|---|
+| `equi-residual-square` | 1 | `gpu1` | `9cf207d` | **`kyv7clfc`** ([run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/kyv7clfc)) | 14:39 / 15:28 |
+
+- Its gate said GO with one warning, "BC policy not in artifacts/": a false alarm. The gate looks
+  in the launch worktree, and the trainer loaded main's `artifacts/run_3hzs5bz1_best:v9`, whose
+  files it left untouched (TODO B7).
+- Its offline buffer, 80,731 frames labeled by the base policy, filled in about 27 min after the
+  15-min gate, as the smoke runs measured. 10.1 GiB resident at its first wandb step, beside
+  `d047it6c` at 14.0 GiB.

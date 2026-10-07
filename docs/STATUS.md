@@ -84,7 +84,7 @@ LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
   `equi-tuned-rlpd-can` 1, `resfit-residual-square` 1, `resfit-tuned-rlpd-can` 2,
   `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
 - **GPU 1,** runner `gpu1` (tmux), queue `~/queues/gpu1.txt`: `equi-residual-square` 1 from
-  14:39, then `equi-residual-square-zero-init` 1, `equi-residual-square` 2,
+  14:39 (`kyv7clfc`), then `equi-residual-square-zero-init` 1, `equi-residual-square` 2,
   `resfit-residual-square` 2. The smoke run was stopped to start it (Aden).
 - All ten should finish around 2026-10-10.
 
