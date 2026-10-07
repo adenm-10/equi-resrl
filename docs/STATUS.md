@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-10-06 · **Last verified commit:** the τ/BC pre-registration, on the BC term's
-wiring (EXPERIMENTS.md, 2026-10-06 CODE and PRE-REGISTERED, "τ 0.005 and a BC term")
+**Last updated:** 2026-10-07 · **Last verified commit:** the clean-env pre-registration, after the
+τ/BC RESULTS (EXPERIMENTS.md, 2026-10-07)
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -35,7 +35,12 @@ to 150k.
   were trained on, and with demos in every batch no online success is needed to see reward.
 - **What could fix it,** from the diagnostics: a BC term on the demo half, as in TD3+BC. The paper's
   Tuned RLPD does not use one. Our trainer now runs upstream's (`agent.bc_loss_coef`; TODO B14,
-  done). τ 0.005, the paper's text, should not change the fixed point. Both are running now.
+  done). τ 0.005, the paper's text, should not change the fixed point.
+- **Neither got it off zero** (EXPERIMENTS.md, 2026-10-07 RESULTS, "τ 0.005 and a BC term"). τ
+  0.005 changed nothing, as predicted. The BC term held the actor near the demos' actions (0.15
+  per axis against 0.8) and lowered the demo values to about 0.65, but no rollout succeeded, in
+  eval or training. Its imitation is coarse; the BC loss does not train the encoder, and nothing
+  else that does has a signal.
 
 **Aden's order (2026-10-06):** ResFiT tuned RLPD on Can, then on Square, then the equivariant
 stack on Can, then on Square. Residual RL after.
@@ -59,20 +64,18 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**τ 0.005 and a BC term, tuned RLPD on Can** (seed-group `tuned-rlpd-can-tau-bc-1006`;
-EXPERIMENTS.md, 2026-10-06 PRE-REGISTERED and LAUNCHED). Three 30k-step arms, seed 1, through
-`tools/gpu_queue.sh`, against the screen's control `r1hvijqh`.
+Nothing. The four queue runners (`gpu0`, `gpu1`, `gpu0b`, `gpu1b`) are idle and their queues
+empty.
 
-| Arm | What changes | Runner |
-|---|---|---|
-| `tuned-rlpd-can-tau` | `agent.critic_target_tau=0.005` | `gpu0` |
-| `tuned-rlpd-can-bc` | `agent.bc_loss_coef=0.025` | `gpu1` |
-| `tuned-rlpd-can-tau-bc` | both | `gpu0b` |
-
-- **The verdict per arm:** off zero iff its 20k and 30k evals score at least 5 of 100. What runs
-  next from an off-zero arm is Aden's decision: a BC term is not the paper's Tuned RLPD.
-- **The disk:** upstream's caches, `local_runs/upstream-rlpd/` (about 21 GB), are still there,
-  for Aden to delete (TODO B12). Nothing reads them: our trainer builds its buffers in memory.
+**Ready, waiting on disk: upstream's code out of the box** (seed-group `upstream-clean-1007`;
+EXPERIMENTS.md, 2026-10-07 PRE-REGISTERED). A fresh clone of upstream at `66262b06` in
+`~/projects/resfit-upstream`, in a new conda env built from its README, `resfit-upstream`
+(torchrl 0.9.2 and mujoco 3.3.2, against our 0.7.0 and 3.8.1). Its RLPD script on Can for 30k
+steps, then its residual on Can with our BC policy as the env's control. Launched by hand in tmux,
+not through `gpu_queue.sh`.
+- **Blocked:** each run writes about 21 GB of caches, and 17 GB are free. Deleting
+  `local_runs/upstream-rlpd/` (21 GB, read by nothing) frees the room; Aden approved it, but
+  the delete needs his hands (the session's permissions block `rm -rf`).
 
 **RAM:** about 15 GB per Can tuned-RLPD run. Two Square residual runs at 40.3 GiB each fit; a
 third does not.
@@ -135,10 +138,11 @@ third does not.
 ## The plan, and why
 
 **1. Get ResFiT tuned RLPD learning on Can** (TODO B12). The screen ruled out the three
-recipe changes and showed upstream's trainer fails too. Running now: τ 0.005, a BC term, and both.
-A BC term makes this TD3+BC-style RLPD, not the paper's Tuned RLPD; whether that is an
-acceptable comparison baseline is Aden's call. An off-zero arm would run 150k against
-B_can = 0.894.
+recipe changes and showed upstream's trainer fails too; τ 0.005 and a BC term did not fix it
+either. Next: upstream's code in its own environment, which rules the package versions in or
+out. Then the BC loss training the encoder, a longer n-step, or a larger coefficient. A BC term
+makes this TD3+BC-style RLPD, not the paper's Tuned RLPD; whether that is an acceptable comparison
+baseline is Aden's call. An off-zero arm would run 150k against B_can = 0.894.
 
 **2. The same on Square,** with what worked on Can.
 

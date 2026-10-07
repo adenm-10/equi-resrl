@@ -3177,3 +3177,144 @@ written; 29 GB of disk free.
   was the disk: 30 GB free, and no cache to write.
 - **As pre-registered:** the runners, the arms and the commit all match. The only difference
   from the plan is time: the three gates shared the GPUs, so each took about 17 min.
+
+---
+
+## 2026-10-07 — RESULTS — τ 0.005 and a BC term on Can: no arm off zero
+
+Seed-group `tuned-rlpd-can-tau-bc-1006` (2026-10-06 PRE-REGISTERED and LAUNCHED). All three arms
+ran 30k steps from `ed47957` and exited 0 on 2026-10-06, at 16:13 (`bc`), 16:50 (`tau-bc`) and
+16:51 (`tau`) EDT. Read from each run's local wandb record, in `~/projects/equi-resrl-ed47957/wandb/`.
+Nothing else ran overnight.
+
+| Arm | wandb | Queue time | Evals 0 / 10k / 20k / 30k | Successes, 20k + 30k | Training episodes | `action_l1` at 100 / 1k / 10k | Verdict |
+|---|---|---|---|---|---|---|---|
+| `tuned-rlpd-can-tau` | `ns5mis29` | 126 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 successes in 150 | 0.940 / 0.854 / 0.821 | not off zero |
+| `tuned-rlpd-can-bc` | `kc8z7vsf` | 88 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.550 / 0.587 / 0.614 | not off zero |
+| `tuned-rlpd-can-tau-bc` | `uyputb0l` | 125 min | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.577 / 0.597 / 0.593 | not off zero |
+| control: `r1hvijqh` | | | 0 / 0 / 0 / 0 | 0 of 100 | 0 in 150 | 0.926 / 0.856 / 0.875 | |
+
+Every training episode was a 200-step timeout. Queue time includes each arm's 17-min gate; `bc`
+had GPU 1 to itself, the other two shared GPU 0.
+
+**The diagnostics,** at 10k / 20k / 30k:
+
+| | `tau` | `bc` | `tau-bc` | control |
+|---|---|---|---|---|
+| `debug/q_data_demo` | 0.809 / 0.806 / 0.889 | 0.670 / 0.654 / 0.666 | 0.666 / 0.649 / 0.660 | 0.840 / 0.829 / 0.876 |
+| `debug/q_policy_demo` | 0.832 / 0.830 / 0.917 | 0.685 / 0.669 / 0.683 | 0.683 / 0.665 / 0.678 | 0.866 / 0.852 / 0.902 |
+| `debug/q_data_online` | 0.010 / 0.000 / 0.001 | 0.004 / 0.002 / 0.001 | 0.140 / 0.013 / 0.000 | −0.001 / 0.000 / 0.010 |
+| `debug/policy_data_gap_demo` | 0.84 / 0.82 / 0.84 | 0.15 / 0.14 / 0.15 | 0.16 / 0.15 / 0.15 | 0.90 / 0.78 / 0.78 |
+| `debug/dQ_da_mean_abs` | 6.4e-6 / 6.2e-6 / 5.9e-6 | 2.6e-5 / 2.5e-5 / 2.5e-5 | 3.1e-5 / 2.6e-5 / 2.5e-5 | 6.1e-6 / 6.7e-6 / 6.8e-6 |
+| `rft/bc_loss` | — | 0.34 / 0.29 / 0.31 | 0.36 / 0.30 / 0.32 | — |
+| δ from 5k (positive at) | +0.023 (251/251) | +0.015 (251/251) | +0.015 (251/251) | +0.024 (251/251) |
+
+**Read against the pre-registration:**
+- **`tau`: as predicted.** Not off zero. The demo values settled at 0.81–0.89 (predicted
+  0.75–0.9), with δ positive at every log step. No CORRECTION to the fixed-point reading.
+- **`bc` and `tau-bc`: "a BC arm not off zero, with its gap under 0.3."** The gap was 0.14–0.16
+  from 10k, as predicted. The pre-registered meaning: imitating the demos does not succeed on Can
+  with this actor, and the critic still cannot rank actions.
+- **Wrong, in part:** the prediction that δ would fall to about 0 and the demo values toward
+  0.398. δ fell by a third, to +0.015, not to 0, and the demo values to about 0.65, not 0.4.
+- **The fixed point still accounts for them.** The screen's formula,
+  0.398 + 0.602 · γ³δ / (1 − γ³), predicts 0.86 (`tau`), 0.70 (`bc`) and 0.70 (`tau-bc`) from
+  each arm's δ, against mean demo values from 5k of 0.81, 0.65 and 0.64. About 0.05 high, as on
+  every screen arm.
+- One seed per arm: observations, not comparisons (STANDARDS 5.3).
+
+**What the BC arms add.** Readings, single-seed:
+- **The term reached the actor and held it near the demos' actions,** at 0.15 per axis on demo
+  states against the control's 0.78–0.90, and its actions at 0.6 in size, not the bound.
+- **But the imitation is coarse.** `rft/bc_loss` of about 0.3 sums over 7 axes: a squared error
+  of about 0.045 per axis, so about 0.21 RMS, against demo actions that average 0.32 in size.
+- **A likely reason, untested:** the BC loss does not train the encoder
+  (`bc_backprop_encoder` false, upstream's default). The encoder learns only from the critic,
+  whose slope at the policy's action is nearly flat (2.5e-5, under STANDARDS 6.3's 1e-4). So the
+  actor imitates from features that were never trained to tell the demos' states apart.
+- **The online half still carries no signal.** It is valued at about 0, correctly: no rollout
+  succeeded. `tau-bc`'s online values reached 0.14–0.18 at 5–10k and fell back to 0 by 30k, with
+  no success behind them.
+- **The next candidates the pre-registration named:** a longer n-step, the BC loss training the
+  encoder (`agent.bc_backprop_encoder=true`), a larger coefficient.
+- Packages in `outputs/runs/robomimic-can-final/{ns5mis29,kc8z7vsf,uyputb0l}/`; each manifest
+  records `ed47957`, clean.
+
+---
+
+## 2026-10-07 — PRE-REGISTERED — upstream's code, out of the box: a fresh clone in its README's environment, on Can
+
+**Question** (Aden, 2026-10-07): does upstream's code, cloned fresh and installed as its README
+says, learn on Can with its released RLPD script?
+
+**Why this is not `rdoj0ex8` again.** `rdoj0ex8` ran upstream's trainer and config (2026-10-06
+RESULTS, the screen), but inside our fork and our conda env, and scored 0.
+- **Our fork's code on that path does upstream's math.** A diff of `resfit/` against upstream at
+  `66262b06` finds only:
+  - logging (`dQ_da`, `critic_diagnostics`), and timing code;
+  - `CriticConfig.drop` renamed `dropout`, read nowhere;
+  - `num_q`'s default at 2, which `rdoj0ex8` set back to 10;
+  - the eval video's upload moved;
+  - a patch to torchrl's `PrioritizedSampler` serialization, unused under uniform sampling.
+- **The environment was never tested.** Ours against upstream's README install, as built:
+
+  | | torchrl | tensordict | mujoco | torch | numpy |
+  |---|---|---|---|---|---|
+  | ours (`residual`) | 0.7.0 | 0.7.0 | 3.8.1 | 2.6.0 | 1.26.4 |
+  | upstream's (`resfit-upstream`) | 0.9.2 | 0.9.1 | 3.3.2 | 2.14.1 | 1.26.4 |
+
+  torchrl builds the replay buffers and the n-step returns; mujoco is the physics. robosuite
+  (1.5.1, commit `77a4751`), lerobot (`69901b9`), dexmimicgen and mimicgen are at upstream's
+  pinned commits in both.
+
+**The setup.**
+- **Code:** `~/projects/resfit-upstream`, a clone of `github.com/amazon-far/residual-offpolicy-rl`
+  at `66262b06` (2025-11-17, its latest), unmodified.
+- **Environment:** a new conda env, `resfit-upstream`, built by its README's steps in order.
+  `pip freeze` in `~/projects/resfit-upstream/pip_freeze_resfit-upstream.txt`.
+  - **Deviations:** the env's name; and its setup script's `micromamba install -n residual ffmpeg`
+    line, which fails harmlessly here (no micromamba) and was done with conda, for this env.
+  - robosuite warns that `robosuite_models` is not installed; Can's Panda is built in.
+- **Shared with every run so far:** the dataset (`ankile/robomimic-mh-can-image`, from the same
+  local Hugging Face cache) and wandb's login.
+- **No uploads:** `HF_OFFLINE_BUFFER_REPO` and `HF_ONLINE_BUFFER_REPO` unset, so its trainer writes
+  its buffer caches locally only; wandb offline, since it uploads checkpoints (STANDARDS 6.4).
+  Caches under `CACHE_DIR=~/projects/resfit-upstream/local_cache`, fresh.
+
+**Seed-group `upstream-clean-1007`,** seed 1 per arm, 30k steps, Can. Project `robomimic-can-final`,
+group `upstream-clean`, names `<arm>-1`, notes `upstream-clean-1007/<arm>/seed1`.
+
+| Arm | Command, in the clone, env `resfit-upstream` | Why |
+|---|---|---|
+| `clean-rlpd-can` | `2_can_rlpd.sh`'s: `train_rlpd_dexmg --config-name=rlpd_can_config algo.prefetch_batches=4`, plus `algo.total_timesteps=30000 seed=1 wandb.mode=offline` and the naming | the question |
+| `clean-residual-can` | `train_residual_td3 --config-name=residual_td3_can_config algo.prefetch_batches=4 base_policy.wandb_id=robomimic-can-bc/xhjdl8a7`, plus the same | the control: does the fresh env work at all |
+
+- **Departures from the script, all deliberate:** 30k steps, not 300k (Fig. 5's Tuned RLPD is at
+  about 0.7 on Can by 25k); seed 1 (the script sets none; `rdoj0ex8` ran seed 1); wandb offline and
+  named. The residual arm's base policy is our Can BC policy, where the README says to put one.
+- **The comparisons:** `clean-rlpd-can` against `rdoj0ex8`, the same command in our env;
+  `clean-residual-can` against `msfkjwab`, our residual on Can (0.92 → 1.00 in our env).
+- **Order:** `clean-rlpd-can` first. Each of upstream's trainers writes about 21 GB of caches (a
+  16 GB online buffer, at full capacity), so the residual arm runs only when the disk has room
+  for it.
+
+**The verdict:**
+- **`clean-rlpd-can` is off zero** iff its 20k and 30k evals score at least 5 successes between
+  them, of 100: the screen's rule.
+- **The fresh env is valid** iff `clean-residual-can`'s step-0 eval, the BC policy with a zero
+  residual, scores at least 0.80 (B_can = 0.894, 50 episodes) and the run reaches 30k. Its later
+  evals are reported, deciding nothing.
+
+**What the outcomes mean,** decided now:
+- **Off zero, env valid:** the environment is what differs. Next: find which package, torchrl
+  first, in our env.
+- **Not off zero, env valid:** upstream's released RLPD does not reproduce Fig. 5 on Can even as
+  shipped. What is missing is in config or procedure the release does not include: a question for
+  the paper's author. The BC-encoder arm and the others named on 2026-10-07 stay the next step.
+- **Env not valid** (step-0 under 0.80, or a crash): `clean-rlpd-can` cannot be read until the
+  fresh env is understood.
+- One seed per arm: observations, not comparisons (STANDARDS 5.3).
+
+**Resources.** One GPU at a time. About 15 GB of RAM. Disk: 17 GB free after the env, which is
+too little for 21 GB of caches. It launches once `local_runs/upstream-rlpd/` (21 GB, no longer
+read by anything) is deleted.

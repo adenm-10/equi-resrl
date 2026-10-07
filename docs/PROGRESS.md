@@ -17,6 +17,36 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-07 — τ and BC did not fix tuned RLPD; upstream's code set up out of the box
+
+**Done**
+
+- **Recorded the τ/BC arms** (EXPERIMENTS.md, RESULTS, "τ 0.005 and a BC term"): all three at 0,
+  τ as predicted. The BC term held the actor near the demos, coarsely, with no successes.
+- **Aden's reading:** the training return is 0 throughout, so there is no learning signal; are
+  the demos bad, or the exploration seeding wrong? The demos are not bad: all 300 succeed, BC
+  learns 0.89 from them in this env, and the RL action path matches the residual one. The critic
+  does see their reward. What is missing is contrast, two actions with different outcomes at one
+  state, which only a rollout that sometimes succeeds supplies. A critic warm-up was tested
+  (screen) and cannot supply it.
+- **Diffed our fork against upstream's `66262b06`:** the RLPD path does upstream's math. The
+  untested difference is the package environment (torchrl 0.7.0 vs 0.9.2, mujoco 3.8.1 vs
+  3.3.2).
+- **Cloned upstream fresh and built its env from its README** (`~/projects/resfit-upstream`, env
+  `resfit-upstream`), and pre-registered two runs in it (EXPERIMENTS.md, PRE-REGISTERED,
+  "upstream's code, out of the box").
+- **Checked upstream's trainer for uploads:** it creates public Hugging Face datasets and uploads
+  its buffer caches only when `HF_OFFLINE_BUFFER_REPO` / `HF_ONLINE_BUFFER_REPO` are set. They are
+  not, here.
+
+**Open**
+
+- **The clean-env runs wait on disk:** 17 GB free, 21 GB needed. `local_runs/upstream-rlpd/`
+  (21 GB) is approved for deletion; the session's permissions block `rm -rf`, so Aden deletes it.
+- The doc budget is far over its 150 KB (about 370 KB, mostly EXPERIMENTS.md), as it was before.
+
+---
+
 ## 2026-10-06 (evening) — the BC term wired; τ 0.005 and BC arms launched on Can
 
 **Done**

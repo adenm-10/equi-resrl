@@ -35,14 +35,20 @@ All six 30k-step arms scored 0 at every eval: upstream's own trainer, our contro
 The diagnostics measured the mechanism: extrapolation error on the demo half, settling at a fixed
 point, with no Q blowup. STATUS, "Where the project is", has the short version.
 
-**Running now: τ 0.005 and a BC term** (`tuned-rlpd-can-tau-bc-1006`; EXPERIMENTS.md, 2026-10-06
-PRE-REGISTERED, "τ 0.005 and a BC term"). Three 30k-step arms: `tau`, `bc` (`bc_loss_coef`
-0.025, TD3+BC's balance) and `tau-bc`.
-- **When they finish:** a RESULTS entry by the pre-registered rule, and `/analyze-experiment`.
-  An off-zero arm's 150k run waits for Aden: a BC term is not the paper's Tuned RLPD, so he
-  decides whether it is an acceptable comparison baseline for the equivariant arms.
-- **If no arm gets off zero,** the pre-registration names the next candidates: a longer n-step,
-  the BC loss training the encoder (`agent.bc_backprop_encoder=true`), a larger coefficient.
+**τ 0.005 and a BC term did not fix it** (`tuned-rlpd-can-tau-bc-1006`; EXPERIMENTS.md, 2026-10-07
+RESULTS). All three arms at 0. The BC term held the actor near the demos' actions, coarsely, and
+no rollout succeeded.
+
+**Next: upstream's code out of the box** (`upstream-clean-1007`; 2026-10-07 PRE-REGISTERED). The
+clone and its env are built. It launches once `local_runs/upstream-rlpd/` is deleted (Aden).
+- **Launch `clean-rlpd-can`** in tmux from `~/projects/resfit-upstream`, with the pre-registered
+  command; then `clean-residual-can` when the disk has room again.
+- **Then, by its outcome:** if off zero, find the package (torchrl first) in our env. If not, the
+  candidates from 2026-10-07 RESULTS: the BC loss training the encoder
+  (`agent.bc_backprop_encoder=true`), a longer n-step, a larger coefficient. Each needs its own
+  pre-registration.
+- **Questions for the paper's author, in Aden's hands:** was Fig. 5's Tuned RLPD made with the
+  released `rlpd_can_config`; with what τ, BC term, warm-up and seeds.
 - **Not chosen on 2026-10-06:** a critic-only LayerNorm (`agent.actor.use_layer_norm=false`)
   and a lower exploration σ, which has nothing to act on: the online half is valued at 0 for any
   action.
