@@ -4855,3 +4855,12 @@ failed the identity guard (its message was not kept). Repeated, with every misma
 - **A queue line held:** `9cf207d resfit-residual-square 2`, at the head of `gpu1`, commented out at
   16:55 with a dated note, so GPU 1's two slots go to the re-rendered-demos plan's Can validation run
   and equivariant residual on Square; to be restored once the residual has launched.
+
+---
+
+## 2026-10-08 — NOTE — `496bq48s` (`equi-tuned-rlpd-can-ln-matched` 1) fails its seed-2 rule
+
+At 30k: evals 0.00 at 0, 10k, 20k and 30k; 0 of 165 training episodes succeeded; online over demo
+value −0.01 over (5k, 10k] and −0.00 over (15k, 20k]. Its 20k and 30k evals total 0 of 100: **seed 2
+not queued.** Prediction 3 (no seed 2) holds. Its 60k stop rule stands, due at about 00:30–01:00 on
+2026-10-09 at its present pace.
