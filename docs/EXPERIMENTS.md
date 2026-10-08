@@ -4772,3 +4772,86 @@ are the previous substep's, and `as_stepped` recovers them (a small model, no re
 stepped state may move only the end-effector pose. Rendered in a subprocess, every guard passes on
 Can's first two demos. A built dataset is lossless, complete, and records passing guards and a
 clean commit. The dataset name moves the offline key and no other, and the gate reads it.
+
+---
+
+## 2026-10-08 — NOTE — the re-rendered datasets: built, verified, indistinguishable from the env's frames; the identity guard is not bit-exact on Can's wrist camera
+
+**Built** at `1c9cdbc`, clean, into `~/.cache/huggingface/lerobot/local/`, with every guard passing on
+every demo (each dataset's `meta/rerender.json` holds the full report):
+
+| | Can | Square |
+|---|---|---|
+| Episodes, frames | 300, 62,756 | 300, 80,731 |
+| Actions, done flags, timestamps | the source's, exactly | the source's, exactly |
+| observation.state from each state vs the source's | within 1.2e-7 | within 1.2e-7 |
+| Stepped end-effector position vs the source's | 0.24 mm mean, 1.02 mm max | 0.16 mm mean, 1.65 mm max |
+| Stepped end-effector quaternion, max (up to sign) | 0.0019 | 0.0035 |
+| observation.state statistics, largest change | 5.1e-4 | 4.2e-4 |
+| Identity guard (3 resets, 90 steps) | bit-identical | bit-identical |
+| Size, build time | 1.2 GB, 12 min | 0.97 GB, 14 min |
+
+**Verify:** at 5 episodes spread through each dataset, every stored frame, decoded as the trainer
+decodes it, and every observation.state equals a fresh render.
+
+**Against the env** (the plan's blocking check; all pass):
+- `tools/codec_check.py --rerendered`, 40 re-rendered demo first frames against 40 env resets, raw on
+  both sides: Can 0.49–0.61 on the front camera and 0.50–0.61 on the wrist; Square 0.49–0.66 and
+  0.45–0.56. Every statistic within [0.15, 0.85]. Against the source's coded demos, raw env frames
+  separate at 1.00 on Can's front-camera colour, and Square's front-camera colour detail still
+  separated at 0.82 through the codec switch; re-rendered it is 0.66, so that was the codec, not the
+  scene. Coded env frames separate from the re-rendered demos at 0.00 on colour: the codec switch
+  and the re-rendered demos must not be combined.
+- `tools/render_check.py --rerendered`, 3 repeats: Can's demo-vs-env gap 0.0029–0.0033 against
+  0.0035 between halves of the demos, 0.8–0.9× (against the source: 2.06×); Square 0.0034–0.0042
+  against 0.0045, 0.76–0.93×.
+- What the source's codec changed (`--codec-change`, 10 episodes, the source's frames against
+  renders of the same states): Can front camera 2.7 levels on keyframes and 3.1 on P-frames, 99% of
+  pixels; wrist 2.7 and 3.3, 96%. Square front 1.8 and 2.4, 99%; wrist 1.9 and 2.3, 96%.
+
+**The identity guard is not bit-exact on Can's wrist camera.** One run of the gate's rendered test
+failed the identity guard (its message was not kept). Repeated, with every mismatch recorded:
+- **Size:** in 620 Can observations, 10 wrist frames differed, each in 1–10 pixels along one edge,
+  by 1 level, in runs of consecutive steps; in 750 more, 7. Square: 0 of 620. The front camera and
+  observation.state: never.
+- **Not the reconstruction:** the online env's joint angles one substep before each observation,
+  saved from inside its step, equal `as_stepped`'s within 1.1e-15; every geom, camera and light pose
+  within 2.3e-15 (600 Can steps).
+- **Not the scene:** the list MuJoCo hands the GPU for the wrist camera (each geom's type, object,
+  float32 pose, size, colour and camera distance, the GL cameras and the lights) is bit-identical
+  between the online env and the re-render at all 750 steps, the 7 that differ included.
+- **Not the guard's two envs sharing a GL context:** robosuite makes a context current only when it
+  creates one, so two envs in one process render in whichever was created last. With the online env
+  in its own process (a change to the guard, not yet committed), 2 of 3 runs of 620 observations
+  still failed, by 3 and 4 wrist pixels.
+- **So** the GPU renders the same scene to slightly different pixels on rare frames, most likely
+  depending on what the context drew before. Training's envs render in sequence in their own
+  processes; the datasets were rendered one episode per freshly reset scene. Bit-identical frames
+  every time are out of reach from outside the renderer. The residue is at most 1 level on at most
+  10 pixels of about 1–2% of Can's wrist frames, against the codec's 1.8–3.3 levels on 96–99% of
+  pixels. Whether to relax the guard to it is Aden's call; the plan waits on it.
+
+---
+
+## 2026-10-08 — NOTE — `critic-norm-can-1008`'s rules: `xm9cuo92` stopped at 60k, `gkck6eqp`'s seed 2 queued; a queue line held for the re-rendered demos
+
+- **`xm9cuo92` (`equi-tuned-rlpd-can-nonorm` 1) stopped by its 60k rule:** evals 0.00 at every 10k
+  from 0 to 60k, 0 of 314 training episodes succeeded; online over demo value 0.03 over (5k, 10k] and
+  over (15k, 20k]. SIGINT at 16:54:49, at about 62.8k. **Its exit and run package are unchecked:**
+  the session's permission classifier blocked the command that waited on the process, so Aden
+  confirms the exit (`outputs/queue/gpu1.log`) and the package. One seed, no verdict; its seed 2 was
+  never queued (0 of 100 at 20k and 30k).
+- **`gkck6eqp` (`equi-tuned-rlpd-can-nonorm-democodec` 1) meets its seed-2 rule:** 41 of 50 at 20k
+  and 46 of 50 at 30k, 87 of 100; 216 of 292 training episodes succeeded by 33k. **Seed 2 queued**
+  at 18:48 on `gpu0` as `e3793ce equi-tuned-rlpd-can-nonorm-democodec 2`, ahead of
+  `resfit-tuned-rlpd-can` 2, so it starts when seed 1 ends; not on `gpu1`, whose two slots are kept
+  for the re-rendered-demos plan (TODO B16). Its prediction 2 (no seed 2) failed. Its readout: online
+  over demo 0.41 over (5k, 10k] and 0.65 over (15k, 20k], tied in both.
+- **`496bq48s` (`equi-tuned-rlpd-can-ln-matched` 1) at 20k:** evals 0.00 at 0, 10k and 20k; 0 of 116
+  training episodes succeeded; online over demo −0.01 over (5k, 10k] and −0.00 over (15k, 20k].
+  Prediction 1 (online value at or above 0 by 1k and through 3k): partly. Its mean over the first 1k
+  is −0.045 (`1ddrqdnd` −0.33 at 1k), then +0.07 and +0.03. Prediction 2 (ratio below 0.2 over (5k,
+  10k]) holds. Its seed 2 needs at least 5 of 50 at 30k.
+- **A queue line held:** `9cf207d resfit-residual-square 2`, at the head of `gpu1`, commented out at
+  16:55 with a dated note, so GPU 1's two slots go to the re-rendered-demos plan's Can validation run
+  and equivariant residual on Square; to be restored once the residual has launched.
