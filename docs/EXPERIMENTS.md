@@ -4489,3 +4489,51 @@ iff p (110k–150k, both seeds) ≥ B_can = 0.852. Against `xm9cuo92`, one seed 
 **Resources.** GPU 0, launched by the `gpu0` runner from the line ahead of `resfit-tuned-rlpd-can` 2,
 beside `9phsy6sf` (hand-launched in tmux `resfit-noln`). Two runs on GPU 0 and one on GPU 1. The
 codec costs about 52 ms per env step, so about 15–20% slower than `xm9cuo92`. RAM about 15 GB.
+
+---
+
+## 2026-10-08 — LAUNCHED — `equi-tuned-rlpd-can-nonorm-democodec` 1 (`gkck6eqp`)
+
+From the pre-registration above ("a fourth arm"), at its commit `e3793ce`, in the worktree
+`~/projects/equi-resrl-e3793ce`, by the `gpu0` runner: picked up 11:54, in wandb 12:29
+(**`gkck6eqp`**, [run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/gkck6eqp)).
+- **The gate said GO:** Tier 1 198 passed and 2 skipped, Tier 2 389 passed; the render check passed
+  on both tasks. The run package records `e3793ce`, clean, and mujoco 3.3.2. The online cache key
+  the trainer built (`990f2e7c`) is the one preflight's mirror gives with the switch on.
+- **Before the commit:** a 1,000-step smoke run of the arm exited 0, with no svt-av1 output in its
+  console; env steps took 14.6% of its time (`xm9cuo92`: 6.6%).
+- **Also launched by hand earlier, recorded here:** `resfit-tuned-rlpd-can-nolayernorm` 1 is
+  **`9phsy6sf`** ([run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/9phsy6sf)),
+  from `0a9626f`, in tmux `resfit-noln`, in wandb at 11:31.
+- **The queues:** `gpu0` holds `9cf207d resfit-tuned-rlpd-can` 2, behind this run; `gpu1` holds
+  `9cf207d resfit-residual-square` 2, behind `xm9cuo92`. The four field-norm lines stay commented out.
+
+---
+
+## 2026-10-08 — NOTE — `9phsy6sf`'s actor saturated in its first 200 updates and has had no gradient since
+
+**`resfit-tuned-rlpd-can-nolayernorm` 1, at 29.6k:** evals 0.00 at 0, 10k and 20k; 0 of 148 training
+episodes succeeded (`d047it6c` by 30k: 0.70 at 20k, 0.80 at 30k, 71 of 92 in (20k, 30k]).
+- **Its actor sits at the corners of the action box.** `train/action_l1_magnitude` is exactly 1.000,
+  and `train/actor_grad_norm` reads 0.0000 at every logged step from the first (200) to 29.6k
+  (`d047it6c`: action 0.95 falling to 0.60, gradient 0.015 rising to 0.07). The actor's action has not
+  moved since step 200; `debug/policy_data_gap_online` falls from 1.00 to 0.45 only as the online
+  buffer fills with that action plus noise.
+- **Not at initialization.** Built from the arm's config, its pre-tanh outputs on the reference batch
+  have median |x| 0.06 (d047it6c's config: 0.27). Run for 200 updates on that one batch, all three
+  of d047it6c's config, this arm's, and the critic's LayerNorm alone removed drive the action to
+  the box. The actor's gradient then falls to about 1e-6 by update 25 in this arm and stays there;
+  with the actor's LayerNorms it stays at 1e-3 to 3e-1. So it is the actor's LayerNorms, not the
+  critic's, that keep its tanh out of saturation. The likely mechanism (not isolated): with nothing
+  bounding the scale of each layer's output, Adam's steps on the 20,736-input compression layer
+  grow the pre-tanh activations until tanh's slope is zero.
+- **What it means for the arm's question.** The run does not test the critic's LayerNorm: its critic
+  has been scoring one fixed corner action for 30k steps. Demo value 0.12–0.15 against the demos'
+  mean discounted return of 0.40 is the critic's value of that action from demo states, as TD3's
+  target asks. Its predictions 1 and 2 have failed (2 over (5k, 10k]: −0.023 online), and 3 is
+  moot. A critic-only ablation (`agent.critic.use_layer_norm=false`) would test the critic's
+  LayerNorm with a working actor.
+- **A correction to the fourth arm's stated reason.** Its prediction 1 cites `9phsy6sf`'s start as
+  pointing "at the critic's norm and its starting values more than at the cue". That reading does
+  not hold: `9phsy6sf` failed through its actor. The prediction stands as registered; its reason
+  does not.
