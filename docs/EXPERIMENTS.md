@@ -4283,3 +4283,30 @@ fixed-env baselines' tuned-RLPD runs.
 around 06:00 on 2026-10-09. RAM about 15 GB each, disk about 0.5 GB each. Each launch runs the gate
 first (about 15 min). Queues after these: `resfit-tuned-rlpd-can` 2 on GPU 0, `resfit-residual-square`
 2 on GPU 1; any seed 2 from the rule above goes ahead of them.
+
+---
+
+## 2026-10-08 — LAUNCHED — `critic-norm-can-1008` seed 1 of both arms; `eyyi99q4` stopped, `kyv7clfc` finished
+
+From the pre-registration above, at its commit `6b6df8c`, in the worktree
+`~/projects/equi-resrl-6b6df8c`. Every record is in main.
+
+| Arm | Seed | Runner | wandb | Picked up / in wandb (EDT) |
+|---|---|---|---|---|
+| `equi-tuned-rlpd-can-layernorm` | 1 | `gpu0` | **`1ddrqdnd`** ([run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/1ddrqdnd)) | 09:25 / 09:47 |
+| `equi-tuned-rlpd-can-nonorm` | 1 | `gpu1` | **`xm9cuo92`** ([run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/xm9cuo92)) | 10:10 / 10:32 |
+
+- **Both gates said GO with no warning,** each in the worktree: Tier 1 188 passed, Tier 2 371
+  passed (`1ddrqdnd`'s); the render check passed. Both run packages record `6b6df8c`, clean, and
+  mujoco 3.3.2. Before the commit, `tests/test_sweep_arms.py` passed in full (23, its GPU tests
+  included).
+- **`eyyi99q4` stopped** (DEVIATION above): SIGINT at 09:25:26, exit 130 after 468 min, at step
+  66,999. Evals 0.00 at all seven, 0 to 60k; 0 of 335 training episodes succeeded. Its package was
+  finalized by hand (`finalize_run_package`), as the watcher does after a stop: 1,013 history rows.
+- **`kyv7clfc` finished** (`equi-residual-square` 1): exit 0 at 10:10 after 1,171 min, package
+  complete. Evals 0.60 0.00 0.00 0.02 0.02 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.02 0.00;
+  0.004 over 110k–150k (B_sq 0.582). 9 of 502 training episodes succeeded, 2 of 484 after 5k. Its
+  arm has no verdict: seed 2 is held.
+- **The queues** (`~/queues/gpu{0,1}.txt`), after these: `9cf207d resfit-tuned-rlpd-can 2` on GPU 0
+  and `9cf207d resfit-residual-square 2` on GPU 1; the four field-norm lines are commented out
+  under a note citing the DEVIATION.
