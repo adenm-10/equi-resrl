@@ -4310,3 +4310,21 @@ From the pre-registration above, at its commit `6b6df8c`, in the worktree
 - **The queues** (`~/queues/gpu{0,1}.txt`), after these: `9cf207d resfit-tuned-rlpd-can 2` on GPU 0
   and `9cf207d resfit-residual-square 2` on GPU 1; the four field-norm lines are commented out
   under a note citing the DEVIATION.
+
+---
+
+## 2026-10-08 — AMENDMENT — `critic-norm-can-1008`: `equi-tuned-rlpd-can-layernorm`'s stop check moves to 30k
+
+Aden's call, at about 10:50, with `1ddrqdnd` at about 9k steps and before its 10k eval. **The
+layernorm arm is stopped at its 30k eval if every eval to 30k is 0 and no training episode has
+succeeded by then**: the pre-registered stop rule's condition, checked at 30k instead of 60k. The
+nonorm arm keeps the 60k check, and both arms keep the seed-2 rule at 30k.
+
+Why, from `1ddrqdnd`'s log to 9.1k: once its initial offset fades (TD targets −0.34 over its first
+300 steps, from its heads' starting values; positive by 600–1,000), it follows `eyyi99q4`'s
+trajectory. Over 9k–10k, `q_policy_online` is −0.014 (`eyyi99q4` −0.012 over 6k–8.5k, `d047it6c`
++0.31); `dQ_da_mean_abs` has fallen from 3.6e-5 to 8.6e-6 (`eyyi99q4` 8.8e-6); `actor_grad_norm`
+has fallen to 0.0055 (`d047it6c` 0.057 and rising); 0 of 42 training episodes have succeeded. A
+stop at 30k frees about 3.5 GPU-hours against the 60k check. Its GPU then takes the next line of
+`gpu0`'s queue, `resfit-tuned-rlpd-can` 2; a nonorm seed 2 earned by the rule at 30k goes ahead of
+`resfit-residual-square` 2 on whichever runner frees first.
