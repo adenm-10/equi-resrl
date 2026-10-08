@@ -4373,3 +4373,119 @@ on GPU 0 slow down, so `1ddrqdnd`'s 30k stop check lands later in wall-clock tim
 outcome depends on speed. When `1ddrqdnd` stops, the `gpu0` runner launches
 `resfit-tuned-rlpd-can` 2 on GPU 0 beside this run. Three runs at once need about 45–60 GB of RAM;
 the last gate saw 91 GB available.
+
+---
+
+## 2026-10-08 — DEVIATION — `1ddrqdnd` (`equi-tuned-rlpd-can-layernorm` 1) cut at 16.4k, before its 30k check
+
+Aden's call, at about 11:25, after the analysis of why the failing critics settle at zero online
+value (online value cut off from demo value from the first thousand steps; ResFiT's `d047it6c`
+held 0.21 at 2k and about 0.3 to its first training success at 13.6k, with no reward online in
+between). **The layernorm arm has no verdict, and its seed 2 is not queued.**
+- **Stopped:** SIGINT at 11:26:29, exit 130 after 121 min. Last logged step 16,400. Evals 0.00 at
+  0 and 10k; 0 of 82 training episodes succeeded. Over 14k–15k: `debug/q_data_online` −0.014,
+  `debug/q_data_demo` 0.730, `debug/dQ_da_mean_abs` 7.9e-6 (`eyyi99q4` 8.1e-6 there). Its package
+  was finalized by hand (`finalize_run_package`): 247 history rows.
+- **Its GPU slot goes to a fourth arm** (PRE-REGISTERED below). `resfit-tuned-rlpd-can` 2 was
+  commented out of `gpu0`'s queue just before the SIGINT, so the runner would not take it, and
+  goes back in behind the fourth arm.
+- **Prediction 1 of the pre-registration failed for this arm:** its online value over (5k, 10k]
+  averaged −0.023, not above 0.1.
+
+---
+
+## 2026-10-08 — CODE — `encode_env_frames_like_demos`: the env's camera frames through the demos' video codec
+
+**What it is.** A top-level config field, default `False`. `True` passes every camera frame the env
+returns through the codec that stored the demos, inside the env wrapper
+(`RobosuiteGymWrapper._process_obs`, `resfit/dexmg/environments/demo_codec.py`), so that rollouts,
+evals and the online buffer all see coded frames. The video renders (`render()`) are untouched.
+`False` is every run before 2026-10-08, bit for bit (`tests/test_demo_codec.py`). `True` adds a
+field to the online buffer's cache key, and a key without it stays as it was; preflight's mirror of
+the key (`cache_hashes`) follows.
+
+**Why.** The demos reach the agent through lossy AV1 video and the env's frames do not. On Can's
+front camera that leaves every env frame with about twice the demos' colour detail and an even
+colour offset of about 0.005 per channel, each a perfect separator of env from demo frames (the
+render check's leftover, 2026-10-07; measured per frame on 2026-10-08). A critic that can tell
+online states from demo states can value online states at zero without touching its fit to the
+demos, which is the signature of every failing tuned-RLPD run here.
+
+**The codec, reproduced.** LeRobot's `encode_video_frames` defaults, which wrote the robomimic image
+datasets: PyAV, `libsvtav1`, crf 30, `yuv420p`, `g=2`. ffprobe on the dataset's videos agrees: AV1
+Main, `yuv420p`, TV range, keyframes at frames 0, 2, 4, ..., each followed by one P-frame (about 22
+bytes at an episode's start). Each env frame is coded as a two-frame clip of itself, and the
+keyframe is decoded. A one-frame clip codes it more coarsely: svt-av1 spends more bits on a
+keyframe that a later frame refers to. PyAV's decode gives the dataset loader's demo frames bit for
+bit, on both cameras. About 26 ms a frame, two cameras per env step, deterministic. libaom at crf
+30, tried first, over-smooths Can's front camera and under-smooths Square's.
+
+**Measured** (`tools/codec_check.py`): how well each per-frame statistic separates 40 demo first
+frames (keyframes) from 40 env reset frames, as the area under the ROC curve; 0.5 cannot tell them
+apart, 0 or 1 always can. "Detail" is the power left after a 2×2 box blur.
+
+| Can, front camera | luma detail | cb detail | cr detail | mean R | mean G | mean B |
+|---|---|---|---|---|---|---|
+| raw | 0.65–0.80 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| through a one-frame clip | 0.09 | 0.16 | 0.19 | 0.23 | 0.80 | 0.65 |
+| **through the two-frame clip (the switch)** | 0.45–0.59 | 0.48–0.50 | 0.40–0.47 | 0.48–0.50 | 0.59–0.60 | 0.62–0.64 |
+
+Ranges are over two sets of resets. On the wrist camera, raw: cb 0.98–0.99, cr 0.76–0.80, the
+colour means about 0.5; coded: 0.39 to 0.67 on every statistic. Luma detail on the wrist camera sits
+near 0.65–0.69 either way: env resets are not the demos' start poses, which the wrist camera sees
+close up. On Square's front camera, coded, cb detail still separates at 0.82 (raw 1.00).
+
+**What it does not reproduce.** The demos' odd frames are P-frames, nearly copies of the keyframe
+before them, so half the demo frames show the scene one step late; every coded env frame is a
+keyframe. Nothing here touches the other ways online and demo states can differ: the
+proprioception, the reset poses, and the behaviour itself.
+
+**Tests.** `tests/test_demo_codec.py`, added to the gate's Tier 1: the settings are LeRobot's and the
+dataset's, keyframe pattern included; the decode gives the loader's frames; the wrapper codes its
+frames when asked and is bit-identical when not; the switch moves the online key and no other; the
+trainer passes it to both envs; and, rendered in a subprocess, coded env frames sit within
+[0.15, 0.85] on all twelve statistics while raw ones separate at 0.95 or more on the front camera's
+colour.
+
+---
+
+## 2026-10-08 — PRE-REGISTERED — a fourth arm: the no-norm arm with env frames coded like the demos'
+
+**Question** (Aden, 2026-10-08): with the one known perfect image cue between demo and env frames
+removed (CODE above), does the equivariant critic's online value stay tied to its demo value, as
+`d047it6c`'s did, instead of fading to zero as `xm9cuo92`'s has? `xm9cuo92` (`critic_norm=none`),
+online value over demo value: 0.14 at 2k, 0.15 at 4k, 0.11 at 5k, 0.05 at 6k, 0.04 at 8k, 0.01 at
+10k (0.005 / 0.675). `d047it6c`: 0.30 at 2k, 0.43 at 5k, 0.51 at 10k, before any training success.
+
+**Arm `equi-tuned-rlpd-can-nonorm-democodec`,** seed 1, added to seed-group `critic-norm-can-1008`:
+`--config-name=equi_tuned_rlpd_can_config`, the design (as the other equivariant arms),
+`equivariance.critic_norm=none encode_env_frames_like_demos=true`, plus `algo.total_timesteps=150000
+read_buffer_caches=false write_buffer_caches=false`. Name `equi-tuned-rlpd-can-nonorm-democodec-1`,
+notes `critic-norm-can-1008/equi-tuned-rlpd-can-nonorm-democodec/seed1`, wandb
+`robomimic-can-final` / `tuned-rlpd`. From the commit that adds this entry, in a worktree pinned to
+it.
+- **What varies:** it differs from `xm9cuo92`'s launch in `encode_env_frames_like_demos` only
+  (`tests/test_sweep_arms.py`). Its evals see coded frames too, so its eval scores are the policy's
+  on coded frames: the same task, other observations than every other run's evals.
+- **Config caveats:** as for the other equivariant arms.
+
+**Rules,** as for the other arms: seed 2 iff its 20k and 30k evals total at least 5 of 100; stopped
+at 60k if every eval to then is 0 and no training episode has succeeded; with two seeds, it passes
+iff p (110k–150k, both seeds) ≥ B_can = 0.852. Against `xm9cuo92`, one seed each: an observation
+(STANDARDS 5.3). **The question's own readout:** its online value over its demo value, means over
+(5k, 10k] and over (15k, 20k], each the ratio of the window's mean online and mean demo value.
+"Tied" is at least 0.2 in both windows (`d047it6c` 0.45 and 0.58; `xm9cuo92` 0.03 over (5k, 10k]). Reported at each 10k as for the others, against
+`xm9cuo92` and `d047it6c`.
+
+**Predictions** (Claude's, before launch):
+1. Its online value over demo value is below 0.2 over (5k, 10k]: removing the colour cue alone does
+   not keep the online value up. Low confidence. The reason to expect it: `d047it6c` escaped on
+   these same uncoded frames, and ResFiT's stack without LayerNorm (`9phsy6sf`, 3.4k steps at the
+   time of writing) shows the failing start, on the same frames: online value −0.24 at 1k rising to
+   −0.02 by 4k, demo value 0.21, `dQ_da_mean_abs` falling from 2.8e-5 to 1.4e-5. That points at the
+   critic's norm and its starting values more than at the cue.
+2. It does not meet the seed-2 rule. Low confidence.
+
+**Resources.** GPU 0, launched by the `gpu0` runner from the line ahead of `resfit-tuned-rlpd-can` 2,
+beside `9phsy6sf` (hand-launched in tmux `resfit-noln`). Two runs on GPU 0 and one on GPU 1. The
+codec costs about 52 ms per env step, so about 15–20% slower than `xm9cuo92`. RAM about 15 GB.

@@ -9,7 +9,9 @@
 # Currently configured for: equivariant tuned RLPD on Can without FieldNorm in the critic,
 # pre-registered in docs/EXPERIMENTS.md, "2026-10-08 — PRE-REGISTERED — equivariant tuned RLPD on Can
 # without FieldNorm", and ResFiT's tuned RLPD without LayerNorm, added by "2026-10-08 —
-# PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm" (seed-group
+# PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm", and the no-norm
+# arm with the env's frames through the demos' video codec, added by "2026-10-08 — PRE-REGISTERED —
+# a fourth arm: the no-norm arm with env frames coded like the demos'" (seed-group
 # critic-norm-can-1008). Launch inside tmux from a worktree pinned to
 # a commit, with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
 #
@@ -30,13 +32,16 @@
 # --------
 # train_residual_td3.py for 150k steps, mujoco 3.3.2, both buffers filled in the run
 # (read_buffer_caches=false write_buffer_caches=false). Tuned RLPD on Can: vanilla RL, no base
-# policy. Both arms are the fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) with its critic's
-# FieldNorm replaced, which erased every trivial-type input (2026-10-08 FINDING):
+# policy. The equivariant arms are the fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) with
+# its critic's FieldNorm replaced, which erased every trivial-type input (2026-10-08 FINDING):
 #   equi-tuned-rlpd-can-nonorm      equivariance.critic_norm=none: no norm in the critic.
 #   equi-tuned-rlpd-can-layernorm   equivariance.critic_norm=layer_norm: RegularLayerNorm, a
 #                                   LayerNorm over each sample's whole layer, as ResFiT's critic has.
 #   resfit-tuned-rlpd-can-nolayernorm  the fixed-env baselines' resfit-tuned-rlpd-can (d047it6c) with
 #                                   no LayerNorm in its critic and actor MLPs; its ViTs keep theirs.
+#   equi-tuned-rlpd-can-nonorm-democodec  the nonorm arm (xm9cuo92) with every env camera frame
+#                                   through the demos' video codec (encode_env_frames_like_demos):
+#                                   rollouts, evals and the online buffer.
 # The rest of Aden's design as before: equi_tanh on the actor, 10 critic heads, two hidden layers
 # per head, no norm in the actor. wandb: robomimic-can-final / tuned-rlpd, with the other
 # tuned-RLPD arms.
@@ -85,6 +90,11 @@ case "$ARM" in
     equi-tuned-rlpd-can-layernorm)
         ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
                        equivariance.critic_norm=layer_norm)
+        PROJECT=robomimic-can-final GROUP=tuned-rlpd
+        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
+    equi-tuned-rlpd-can-nonorm-democodec)
+        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
+                       equivariance.critic_norm=none encode_env_frames_like_demos=true)
         PROJECT=robomimic-can-final GROUP=tuned-rlpd
         GATE=(--task Can --method tuned-rlpd --stack equi) ;;
     resfit-tuned-rlpd-can-nolayernorm)

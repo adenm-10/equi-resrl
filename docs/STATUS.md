@@ -1,8 +1,8 @@
 # Status
 
-**Last updated:** 2026-10-08 · **Last verified commit:** the commit pre-registering
-`critic-norm-can-1008` (EXPERIMENTS.md, 2026-10-08 PRE-REGISTERED); `tests/test_sweep_arms.py`
-passed in full, its GPU tests included
+**Last updated:** 2026-10-08, about 12:30 · **Last verified commit:** the commit pre-registering
+the fourth `critic-norm-can-1008` arm (EXPERIMENTS.md, 2026-10-08, "a fourth arm");
+`tests/test_sweep_arms.py` and `tests/test_demo_codec.py` passed in full, GPU tests included
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -14,7 +14,14 @@ the wrist camera, the arm's height or the gripper opening, nor score the z, yaw 
 (EXPERIMENTS.md, 2026-10-08 FINDING): `FieldNorm` erases every trivial-type input. That accounts for
 both equivariant arms' failure in the matching render. `eyyi99q4` was stopped and the four remaining
 field-norm runs held (DEVIATION of that date); equivariant tuned RLPD on Can now runs with
-`critic_norm=none` and `layer_norm` (PRE-REGISTERED, `critic-norm-can-1008`).
+`critic_norm=none` and `layer_norm` (PRE-REGISTERED, `critic-norm-can-1008`). Neither has
+escaped so far: both settle at zero online value, `layer_norm` by 5k (cut at 16.4k, DEVIATION) and
+`none` by 10k. **The working account** (not yet tested): with no reward online, a critic's online
+value is held up only by what it carries over from similar demo states. ResFiT's `d047it6c` carried
+over about 0.3 for 13.6k steps before its first success; the failing critics carry over nothing.
+Two tests run now: the env's frames through the demos' video codec, which removes the one known
+perfect image cue between demo and env frames (CODE and PRE-REGISTERED, "a fourth arm"); and
+ResFiT's stack without LayerNorm, which at 3.4k shows the failing start.
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
@@ -83,22 +90,24 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**Equivariant tuned RLPD on Can without FieldNorm** (`critic-norm-can-1008`, EXPERIMENTS.md,
-2026-10-08 PRE-REGISTERED), seed 1 of each arm, from its launch commit's worktree:
-- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-layernorm` 1, in place of the stopped `eyyi99q4`.
-- **GPU 1,** runner `gpu1`: `equi-tuned-rlpd-can-nonorm` 1, after `kyv7clfc` (`equi-residual-square`
-  1, collapsed from 10k) finishes at about 10:10.
-- About 19–20 h each, so until about 06:00 on 2026-10-09. Seed 2 of an arm is queued iff its 20k
-  and 30k evals total at least 5 of 100; an arm with every eval at 0 and no training success by 60k
-  is stopped.
+**`critic-norm-can-1008`** (EXPERIMENTS.md, 2026-10-08: PRE-REGISTERED, the third and fourth arms,
+the AMENDMENT and the DEVIATION), seed 1 of each arm, 150k steps:
+- **GPU 1,** runner `gpu1`: `equi-tuned-rlpd-can-nonorm` 1, `xm9cuo92`, from `6b6df8c`. 0 at 0 and
+  10k, online value about 0 by 10k.
+- **GPU 0,** by hand in tmux `resfit-noln`: `resfit-tuned-rlpd-can-nolayernorm` 1, `9phsy6sf`, from
+  `0a9626f`.
+- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec` 1 (env frames through the demos'
+  codec), from its launch commit's worktree, in place of the cut layernorm arm (`1ddrqdnd`).
+- Seed 2 of an arm is queued iff its 20k and 30k evals total at least 5 of 100; an arm with every
+  eval at 0 and no training success by 60k is stopped.
 
 **Then the fixed-env baselines' ResFiT seed 2s,** from `~/projects/equi-resrl-9cf207d`:
-`resfit-tuned-rlpd-can` 2 on GPU 0 and `resfit-residual-square` 2 on GPU 1. Done there: `d047it6c`
-(0.972 over 110k–150k) and `oj5k0jqb` (0.800). The batch's equivariant arms have no verdict: the
-four remaining runs are commented out of the queues (DEVIATION, 2026-10-08).
+`resfit-tuned-rlpd-can` 2 on GPU 0, after the codec arm, and `resfit-residual-square` 2 on GPU 1.
+Done there: `d047it6c` (0.972 over 110k–150k) and `oj5k0jqb` (0.800). The batch's equivariant arms
+have no verdict: the four remaining runs are commented out of the queues (DEVIATION, 2026-10-08).
 
 **How to follow them:**
-- **The new arms, from disk,** evals, training successes and the critic diagnostics by window,
+- **The seed group, from disk,** evals, training successes and the critic diagnostics by window,
   against `d047it6c` and `eyyi99q4`:
   `python outputs/diagnostics/equi-critic-1008/report.py` (outside git; its README).
 - **The fixed-env baselines, from disk:**
@@ -106,8 +115,8 @@ four remaining runs are commented out of the queues (DEVIATION, 2026-10-08).
 - **wandb,** entity `aden-mckinney10-university-of-central-florida`: tuned RLPD in
   `robomimic-can-final`, group `tuned-rlpd`; residual in `robomimic-square-final`, groups
   `residual-rl` and `equi-residual-rl`. Names are the arm plus the seed
-  (`equi-tuned-rlpd-can-layernorm-1`); notes start with the seed-group. Watch
-  `eval/success_rate` and `debug/q_data_online`.
+  (`equi-tuned-rlpd-can-nonorm-1`); notes start with the seed-group. Watch `eval/success_rate`,
+  `debug/q_data_online` against `debug/q_data_demo`, and `debug/dQ_da_mean_abs`.
 - **The eval Q-trajectory plots,** one per eval: `outputs/runs/<project>/<id>/outputs/<name>/`.
 - **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log`; each launch's console output is
   the file beside them named after the arm.

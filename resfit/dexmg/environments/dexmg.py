@@ -20,6 +20,8 @@ import torch  # noqa: E402
 from robosuite import load_composite_controller_config, macros  # noqa: E402
 from robosuite.environments.manipulation.manipulation_env import ManipulationEnv  # noqa: E402
 
+from resfit.dexmg.environments.demo_codec import encode_like_demos  # noqa: E402
+
 macros.IMAGE_CONVENTION = "opencv"
 
 
@@ -90,6 +92,7 @@ class RobosuiteGymWrapper:
         camera_size: int = 84,
         render_size: tuple[int, int] | int | None = None,
         env_id: int = 0,
+        encode_frames_like_demos: bool = False,
     ):
         # ------------------------------------------------------------------
         # Allow common aliases used in the Robomimic literature.
@@ -122,6 +125,8 @@ class RobosuiteGymWrapper:
         else:
             self.render_size = render_size
         self.env_id = env_id
+        # True passes each camera frame through the demos' video codec (demo_codec.py).
+        self.encode_frames_like_demos = encode_frames_like_demos
 
         # ------------------------------------------------------------------
         # Episode horizon -- override for some long-running DexMimicGen tasks.
@@ -360,6 +365,8 @@ class RobosuiteGymWrapper:
             # Robosuite images are (H, W, C) in uint8, need (C, H, W) in float32
             if robosuite_key in obs:
                 img = obs[robosuite_key]
+                if self.encode_frames_like_demos:
+                    img = encode_like_demos(img)
                 img = img.astype(np.float32) / 255.0  # Convert to float32 and normalize
                 img = np.transpose(img, (2, 0, 1))  # (H, W, C) -> (C, H, W)
 
@@ -543,6 +550,7 @@ def make_dexmimicgen_env(
     render_size: tuple[int, int] | int | None = None,
     render_gpu_device_id: int = 0,
     env_id: int = 0,
+    encode_frames_like_demos: bool = False,
 ):
     """Factory function to create a DexMimicGen environment for vectorization."""
 
@@ -554,6 +562,7 @@ def make_dexmimicgen_env(
             camera_size=camera_size,
             render_size=render_size,
             env_id=env_id,
+            encode_frames_like_demos=encode_frames_like_demos,
         )
 
     return _make
@@ -629,8 +638,13 @@ def create_vectorized_env(
     render_size: tuple[int, int] | int | None = None,
     debug: bool = False,
     video_key: str = "observation.images.agentview",
+    encode_frames_like_demos: bool = False,
 ) -> VectorizedEnvWrapper:
-    """Create vectorized environment using Gymnasium's vector environments."""
+    """Create vectorized environment using Gymnasium's vector environments.
+
+    `encode_frames_like_demos` passes every camera frame the envs return through the demos' video
+    codec (demo_codec.py). The video renders (`render()`) are not passed through it.
+    """
 
     # Create list of environment factory functions
     env_fns = []
@@ -652,7 +666,8 @@ def create_vectorized_env(
             render_gpu_device_id = visible_device_ids[env_id % num_visible_gpus]
         else:
             render_gpu_device_id = visible_device_ids[0] if visible_device_ids else 0
-        env_fns.append(make_dexmimicgen_env(env_name, camera_size, render_size, render_gpu_device_id, env_id))
+        env_fns.append(make_dexmimicgen_env(env_name, camera_size, render_size, render_gpu_device_id, env_id,
+                                            encode_frames_like_demos))
 
     if debug:
         # Use synchronous vectorized environment for debugging

@@ -213,6 +213,12 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # write_buffer_caches=false, or the run would write over the cache it did not read.
     read_buffer_caches: bool = True
 
+    # True passes every camera frame the env returns through the demos' video codec, so rollouts,
+    # evals and the online buffer see env frames coded as the demo frames are
+    # (resfit/dexmg/environments/demo_codec.py). False, as in every run before 2026-10-08, gives
+    # the renderer's frames as they are.
+    encode_env_frames_like_demos: bool = False
+
     # Equivariant agent or not
     equivariance: EquivarianceConfig | None = None
 

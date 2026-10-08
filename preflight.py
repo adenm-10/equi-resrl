@@ -152,7 +152,8 @@ def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, bool]]:
     Catches malformed overrides before a launch. Hydra treats a comma in a
     value as a list separator, so `wandb.notes="a, b"` aborts at startup --
     which cost two failed launches before this check existed. Also returns the
-    composed run's two cache flags, for Tier 3; empty without overrides.
+    composed run's two cache flags and encode_env_frames_like_demos, which is in
+    the online key, for Tier 3; empty without overrides.
     """
     section("Tier 1 - hydra override composition")
     if not overrides:
@@ -169,7 +170,8 @@ def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, bool]]:
                      if l.startswith("seed:")), "seed: ?")
         record(PASS, "hydra composes", f"{len(overrides)} override(s); {seed}")
         flags = {m.group(1): m.group(2) == "true" for m in re.finditer(
-            r"^((?:read|write)_buffer_caches): (true|false)$", proc.stdout, flags=re.M)}
+            r"^((?:read|write)_buffer_caches|encode_env_frames_like_demos): (true|false)$",
+            proc.stdout, flags=re.M)}
         return True, flags
     err = (proc.stderr or proc.stdout).strip().splitlines()
     record(FAIL, "hydra composes",
@@ -211,7 +213,7 @@ def tier1_pytest() -> bool:
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
          "tests/test_tuned_rlpd_verdict.py", "tests/test_baseline_verdict.py",
          "tests/test_gpu_queue.py",
-         "tests/test_render_check.py"],
+         "tests/test_render_check.py", "tests/test_demo_codec.py"],
         "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
         " + queue runner + render check",
     )
@@ -294,13 +296,14 @@ def _sha8(d: dict) -> str:
     return hashlib.sha1(json.dumps(d, sort_keys=True).encode()).hexdigest()[:8]
 
 
-def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tuple[str, str]:
+def cache_hashes(task: str, method: str = "residual", stack: str = "equi",
+                 encode_env_frames_like_demos: bool = False) -> tuple[str, str]:
     """Mirror the cache keys built in train_residual_td3.py.
 
     Kept in sync by hand. If the hashes reported here do not match what the
     training script prints at startup, this function is stale. A residual key
     does not record the stack (TODO B7, S9); a tuned-RLPD key adds the fields
-    that record it.
+    that record it. Env frames through the demos' codec add a field to the online key.
     """
     from importlib.metadata import version
 
@@ -324,13 +327,16 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi") -> tu
                    "normalization": {"equi": "identity", "resfit": "dataset"}[stack]}
         offline.update(use_base_policy_for_base_actions=False, base_policy_wandb_id=None, **vanilla)
         online.update(random_action_noise_scale=1.0, **vanilla)
+    if encode_env_frames_like_demos:
+        online["encode_env_frames_like_demos"] = True
     return _sha8(offline), _sha8(online)
 
 
 def tier3_resources(task: str, seeds: int, require_caches: bool = False,
                     method: str = "residual", stack: str = "equi",
                     caches: dict[str, bool] | None = None) -> None:
-    """`caches`: the composed run's read/write_buffer_caches (tier1_compose); config defaults if absent."""
+    """`caches`: the composed run's read/write_buffer_caches and encode_env_frames_like_demos
+    (tier1_compose); config defaults if absent."""
     section(f"Tier 3 - resources for {task} ({method}, {stack} stack)")
     caches = caches or {}
     read = caches.get("read_buffer_caches", True)
@@ -349,7 +355,7 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False,
     # -- buffer caches -----------------------------------------------------
     need_gb = 0.0
     try:
-        off_h, on_h = cache_hashes(task, method, stack)
+        off_h, on_h = cache_hashes(task, method, stack, caches.get("encode_env_frames_like_demos", False))
         off = cache_root / "offline_buffer_cache" / off_h
         on = cache_root / "online_buffer_cache" / on_h
         off_gb, on_gb = cache_size_estimate(task)

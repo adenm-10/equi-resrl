@@ -382,6 +382,7 @@ def main(cfg: ResidualTD3DexmgConfig):
             device=device,
             video_key=video_key,
             debug=debug,
+            encode_frames_like_demos=cfg.encode_env_frames_like_demos,
         )
 
         if not residual_run:
@@ -615,6 +616,9 @@ def main(cfg: ResidualTD3DexmgConfig):
     vanilla_cache_fields = {"base_policy": None, "normalization": "identity" if equivariant_run else "dataset"}
     if not residual_run:
         online_cache_meta.update(vanilla_cache_fields)
+    # Frames through the demos' codec are other frames; a key without the field stays as it was.
+    if cfg.encode_env_frames_like_demos:
+        online_cache_meta["encode_env_frames_like_demos"] = True
 
     pprint.pprint(online_cache_meta)
     _online_meta_str = json.dumps(online_cache_meta, sort_keys=True)

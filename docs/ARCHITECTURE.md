@@ -187,6 +187,13 @@ positive coefficient for a residual run (upstream's BC loss asserts a vanilla ac
 equivariant agent (untested), and with no demos in the batch. It refuses `agent.bc_loss_dynamic`
 outright: its weight needs IBRL's `act_method`, which `QAgentConfig` does not have.
 
+**The env's frames through the demos' codec** (`encode_env_frames_like_demos`, top level, from
+2026-10-08, default `False`). `True` passes every camera frame the env returns through the AV1
+codec that stored the demos (`resfit/dexmg/environments/demo_codec.py`), in
+`RobosuiteGymWrapper._process_obs`, so that rollouts, evals and the online buffer see coded frames;
+`render()` does not. It reaches both envs through `get_envs`, and adds a field to the online cache
+key only when on. `False` is every earlier run, bit for bit (EXPERIMENTS.md, 2026-10-08 CODE).
+
 The scalar ablation (`use_equivariant_model=False`) raises at construction if any field that only
 the equivariant networks read is off its default.
 

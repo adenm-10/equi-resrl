@@ -7,9 +7,11 @@ submit.sh's case table is checked here first:
           compose through train_residual_td3's Hydra configs to the
           pre-registered recipe; each arm differs from the fixed-env baselines'
           equi-tuned-rlpd-can (eyyi99q4) in the critic's norm only, and from
-          ResFiT's tuned RLPD in the stack only; the ResFiT arm differs from
-          resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches only;
-          the smoke mode is the arm, briefly; and every arm launches.
+          ResFiT's tuned RLPD in the stack only, the demo-codec arm in its env
+          frames as well; the demo-codec arm differs from the nonorm arm
+          (xm9cuo92) in encode_env_frames_like_demos only; the ResFiT arm differs
+          from resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches
+          only; the smoke mode is the arm, briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses, on the batch its method trains on; an equivariant arm's actor
           is equivariant and its critic invariant, at the arm's own sizes, and
@@ -22,7 +24,9 @@ The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-08
 PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm", and the
 entry adding a third arm): tuned RLPD on Can in the equivariant stack at Aden's
 design, with no norm in the critic, and with RegularLayerNorm in it; and
-ResFiT's tuned RLPD on Can with no LayerNorm in its critic and actor.
+ResFiT's tuned RLPD on Can with no LayerNorm in its critic and actor; and the
+no-norm arm with the env's frames through the demos' video codec (the entry
+adding a fourth arm).
 """
 
 from __future__ import annotations
@@ -45,11 +49,14 @@ COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buff
           "seed=1", "debug=false"}
 DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=10",
           "equivariance.num_critic_layers=2", "equivariance.actor_norm=none"}
-CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm"}
+CODEC_ARM = "equi-tuned-rlpd-can-nonorm-democodec"
+CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm",
+               CODEC_ARM: "none"}
 NO_LAYER_NORM = {"agent.critic.use_layer_norm=false", "agent.actor.use_layer_norm=false"}
+DEMO_CODEC = "encode_env_frames_like_demos"
 LAUNCHED = {
     **{arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
-             *COMMON}
+             *COMMON, *([f"{DEMO_CODEC}=true"] if arm == CODEC_ARM else [])}
        for arm, norm in CRITIC_NORM.items()},
     "resfit-tuned-rlpd-can-nolayernorm": {"--config-name=tuned_rlpd_can_config", *NO_LAYER_NORM,
                                           *COMMON},
@@ -163,7 +170,8 @@ def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     else:
         stack = {"equivariance": None, "agent.critic.use_layer_norm": False,
                  "agent.actor.use_layer_norm": False}
-    expected = {**SHARED, **RECIPE, **stack, "wandb.project": WANDB[0], "wandb.group": WANDB[1],
+    expected = {**SHARED, **RECIPE, **stack, DEMO_CODEC: arm == CODEC_ARM,
+                "wandb.project": WANDB[0], "wandb.group": WANDB[1],
                 "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
@@ -174,12 +182,16 @@ def _differing(a: dict, b: dict) -> set[str]:
     return {k for k in a.keys() | b.keys() if a.get(k) != b.get(k)} - set(NAMING)
 
 
+def _codec(arm: str) -> set[str]:
+    return {DEMO_CODEC} if arm == CODEC_ARM else set()
+
+
 @pytest.mark.parametrize("arm", EQUI_ARMS)
 def test_arm_differs_from_the_baselines_equivariant_arm_in_the_critic_norm_only(arm, tmp_path):
-    """eyyi99q4's launch, with only its critic's FieldNorm replaced."""
+    """eyyi99q4's launch, with only its critic's FieldNorm replaced (and the demo-codec arm's frames)."""
     ours = _flat(_compose(_overrides(arm, tmp_path)))
     theirs = _flat(_compose(BASELINES["equi-tuned-rlpd-can"]))
-    assert _differing(ours, theirs) == {"equivariance.critic_norm"}
+    assert _differing(ours, theirs) == {"equivariance.critic_norm"} | _codec(arm)
 
 
 @pytest.mark.parametrize("arm", EQUI_ARMS)
@@ -187,12 +199,20 @@ def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
     ours = _flat(_compose(_overrides(arm, tmp_path)))
     resfit = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
     outside = {k for k in _differing(ours, resfit) if k != STACK and not k.startswith(STACK + ".")}
-    assert outside == set(), f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}"
+    assert outside == _codec(arm), f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}"
 
 
-def test_the_two_equivariant_arms_differ_in_the_critic_norm_only(tmp_path):
-    a, b = (_flat(_compose(_overrides(arm, tmp_path))) for arm in EQUI_ARMS)
+def test_the_two_critic_norm_arms_differ_in_the_critic_norm_only(tmp_path):
+    a, b = (_flat(_compose(_overrides(arm, tmp_path)))
+            for arm in ("equi-tuned-rlpd-can-nonorm", "equi-tuned-rlpd-can-layernorm"))
     assert _differing(a, b) == {"equivariance.critic_norm"}
+
+
+def test_the_demo_codec_arm_differs_from_the_nonorm_arm_in_its_env_frames_only(tmp_path):
+    """xm9cuo92's arm, with the env's frames through the demos' codec."""
+    ours = _flat(_compose(_overrides(CODEC_ARM, tmp_path)))
+    theirs = _flat(_compose(_overrides("equi-tuned-rlpd-can-nonorm", tmp_path)))
+    assert _differing(ours, theirs) == {DEMO_CODEC}
 
 
 def test_the_resfit_arm_differs_from_d047it6c_in_its_layer_norm_switches_only(tmp_path):
