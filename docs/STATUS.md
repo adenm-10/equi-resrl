@@ -16,7 +16,9 @@ both equivariant arms' failure in the matching render. `eyyi99q4` was stopped an
 field-norm runs held (DEVIATION of that date); equivariant tuned RLPD on Can now runs with
 `critic_norm=none` and `layer_norm` (PRE-REGISTERED, `critic-norm-can-1008`). Neither has
 escaped so far: both settle at zero online value, `layer_norm` by 5k (cut at 16.4k, DEVIATION) and
-`none` by 10k. **The working account** (not yet tested): with no reward online, a critic's online
+`none` by 10k. **With the env's frames through the demos' video codec, the `none` arm learns Can:
+0.94 at 10k** (`gkck6eqp`, one seed; NOTE of 2026-10-08), where the same arm uncoded (`xm9cuo92`)
+scored 0 at every eval to 30k. **The working account,** which that result supports: with no reward online, a critic's online
 value is held up only by what it carries over from similar demo states. ResFiT's `d047it6c` carried
 over about 0.3 for 13.6k steps before its first success; the failing critics carry over nothing.
 Two tests run now: the env's frames through the demos' video codec, which removes the one known

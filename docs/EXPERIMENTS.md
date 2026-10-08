@@ -4636,3 +4636,39 @@ Console: `outputs/queue/20261008-131952_equi-tuned-rlpd-can-ln-matched-1_gpu0.lo
   online cache key the trainer built (`f3250e68`) is preflight's.
 - **Frames uncoded,** as pre-registered (Aden's choice, made before `gkck6eqp`'s first training
   successes at 4.9k and about 5.5k were seen).
+
+---
+
+## 2026-10-08 — NOTE — `gkck6eqp` (env frames through the demos' codec) scores 0.94 at 10k; `xm9cuo92` fails its seed-2 rule
+
+**The first equivariant tuned-RLPD run to learn Can.** `equi-tuned-rlpd-can-nonorm-democodec` 1
+(`gkck6eqp`), at 10.8k: evals 0.00 at 0 and **0.94 at 10k** (47 of 50, on coded frames as
+pre-registered); 36 of 73 training episodes succeeded, the first at step 4,931. One seed.
+
+| Windowed means | 0–2k | 2–4k | 4–6k | 6–8k | 8–10k |
+|---|---|---|---|---|---|
+| `gkck6eqp` online value | 0.083 | 0.173 | 0.171 | 0.227 | 0.266 |
+| `xm9cuo92` online value (same arm, uncoded) | 0.018 | 0.077 | 0.055 | 0.030 | 0.007 |
+| `d047it6c` online value (ResFiT) | 0.106 | 0.253 | 0.286 | 0.292 | 0.308 |
+| `gkck6eqp` critic loss | 6.5e-4 | 3.2e-4 | 2.8e-4 | 2.7e-4 | 2.4e-4 |
+| `xm9cuo92` critic loss | 5.3e-4 | 2.4e-4 | 1.3e-4 | 9.1e-5 | 6.6e-5 |
+| `gkck6eqp` policy-to-demo action gap | 0.545 | 0.375 | 0.314 | 0.332 | 0.317 |
+| `xm9cuo92` policy-to-demo action gap | 0.563 | 0.486 | 0.493 | 0.520 | 0.540 |
+| `gkck6eqp` training successes | 0/10 | 0/10 | 4/11 | 10/16 | 13/17 |
+
+- **The question's readout:** online over demo value over (5k, 10k] is 0.41 (0.231 / 0.567),
+  `d047it6c` 0.45, `xm9cuo92` 0.03: tied. (15k, 20k] is still to come.
+- **The account it bears on** (the PRE-REGISTERED entry's question): the arms differ only in the
+  env's frames. Uncoded, the critic's online value fell to zero and its loss fell 8× below this
+  run's, as a critic that tells online from demo frames apart and values every online frame at
+  zero would; coded, the online value held at ResFiT's share and rose with the first successes.
+  The eval Q-trajectories at 10k rise from 0.3–0.5 at an episode's first frame to about 1.0 at its
+  success (steps 60–120). One seed; the arm's seed 2 is decided by its 30k rule.
+- **Predictions:** 1 (ratio below 0.2 over (5k, 10k]) failed. 2 (no seed 2) is likely to fail.
+- **`xm9cuo92`** (`equi-tuned-rlpd-can-nonorm` 1), at 35k: evals 0.00 at 0, 10k, 20k and 30k; 0 of
+  175 training episodes succeeded. Its 20k and 30k evals total 0 of 100: **seed 2 not queued.** Its
+  60k stop rule stands.
+- **What this does not show yet:** that the policy acts well on uncoded frames (its evals are coded);
+  anything about Square, whose front camera keeps some colour-detail separation after the codec
+  (0.82, CODE above); or how the codec moves a residual run's base policy, which was trained on
+  coded demo frames and has only been measured on uncoded ones (B_can, B_sq).
