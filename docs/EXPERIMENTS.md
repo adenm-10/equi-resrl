@@ -4062,3 +4062,55 @@ starts when `d047it6c` ends, about 19:30. No run's config changes.
   for seed 2. The 0.58 at 70k came while 62 of 67 training episodes in (65k, 70k] succeeded.
 - **`resfit-residual-square` seed 1** launched on `gpu0` at 18:52, the reference for
   `kyv7clfc`. Its gate said GO with the false BC-policy warning (TODO B7).
+
+---
+
+## 2026-10-08 — NOTE — the fixed-env baselines overnight: ResFiT's residual lifts Square; both equivariant arms show the old critic signature
+
+Observations mid-batch, deciding nothing; verdicts wait for both seeds.
+
+| Run | Arm | Evals (0, 10k, …) | 110k–150k mean | Bar |
+|---|---|---|---|---|
+| `d047it6c` | `resfit-tuned-rlpd-can` 1 (done) | 0.00 0.00 0.70 0.80 0.72 0.98 0.82 0.58 0.96 0.88 0.96 1.00 1.00 0.92 1.00 0.94 | 0.972 | 0.852 |
+| `oj5k0jqb` | `resfit-residual-square` 1 (done, 01:37, 404 min) | 0.50 0.30 0.58 0.54 0.40 0.54 0.56 0.64 0.70 0.64 0.76 0.72 0.84 0.90 0.66 0.88 | 0.800 | 0.582 |
+| `kyv7clfc` | `equi-residual-square` 1 (to about 10:00) | 0.60 0.00 0.00 0.02 0.02 0.00 … 0.00 (130k) | — | 0.582 |
+| `eyyi99q4` | `equi-tuned-rlpd-can` 1 (from 01:37) | 0.00 at all six, to 50k | — | 0.852 |
+
+**The residual pair, by window** (means; training successes with exploration noise):
+
+| | `oj5k0jqb` (ResFiT) | `kyv7clfc` (equivariant) |
+|---|---|---|
+| `debug/residual_max_abs`, from 10k | 0.099–0.100 | 0.099–0.100 |
+| `train/residual_l1_magnitude`, (100k, 150k] | 0.083 | 0.034 |
+| `debug/q_data_online`, (0, 5k] → (100k, 150k] | 0.022 → 0.204 | −0.026 → −0.004 (−0.065 at (10k, 20k]) |
+| `debug/q_data_demo` | 0.25 → 0.47 | 0.19 → 0.37 |
+| Training successes, (10k, 20k] / (50k, 100k] / (100k, 150k] | 12/38, 170/247, 223/279 | 0/33, 0/167, 0/108 |
+
+Both residuals reach the 0.1 bound; ResFiT's is the larger. So the size of the residual does not by
+itself explain the collapse. What differs is the critic: ResFiT's values online transitions above
+zero and rising, and its actor's residual helps (0.30 at 10k, then up to 0.90). The equivariant
+one values them at or below zero, which no return in {0, 1} supports.
+
+**The tuned-RLPD pair:** `eyyi99q4` has, in the matching render, the signature every tuned-RLPD
+run had in the old one, which `d047it6c` lost:
+
+| (40k, 60k] | `eyyi99q4` (equivariant) | `d047it6c` (ResFiT) | `r1hvijqh` (ResFiT, old render, 8k–10k) |
+|---|---|---|---|
+| `q_data_online` | −0.003 | 0.481 | −0.002 |
+| `q_data_demo` | 0.72 | 0.63 | 0.81 |
+| `policy_data_gap_demo` | 0.73 | 0.37 | 0.90 |
+| `dQ_da_mean_abs` | 6.8e-6 | 3.0e-5 | 6.7e-6 |
+| `critic_loss` | 2.5e-5 | 1.5e-4 | 1.1e-5 |
+| `train/action_l1_magnitude` | 0.74 | 0.58 | 0.87 |
+| Training successes | 0/273 to 60k | 152/197 in (40k, 60k] | 0 |
+
+**A reading, not yet tested:** the equivariant stack's critic still separates demo frames from
+online ones, by something the render fix did not remove and ResFiT's stack does not see. The
+render check's leftover (an even colour offset of about 0.005 per channel between the video-coded
+demos and the env, 2026-10-07 CODE) and any difference in how the equivariant pipeline treats
+offline and online images (crop, dtype, normalization) are candidates. Checking takes no training
+run: compare the equivariant encoder's inputs and features on offline and online batches.
+
+**Queue change, order only:** `resfit-residual-square` 2 moved to the front of `gpu1`'s queue, ahead
+of `equi-residual-square-zero-init` 1 and `equi-residual-square` 2, so the equivariant runs wait on
+Aden's decision. `kyv7clfc` and `eyyi99q4` run on as pre-registered.

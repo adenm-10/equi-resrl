@@ -80,13 +80,15 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
 - **The validation passed:** `d047it6c` scored 0.70 at 20k and 0.80 at 30k (EXPERIMENTS.md,
   RESULTS of 2026-10-07). It goes on to 150k as seed 1 of its arm.
-- **GPU 0,** runner `gpu0` (tmux), queue `~/queues/gpu0.txt`: `d047it6c` until about 19:30, then
-  `resfit-residual-square` 1 (moved ahead, the reference for `kyv7clfc`'s 0.00 at 10k),
-  `equi-tuned-rlpd-can` 1, `resfit-tuned-rlpd-can` 2,
-  `equi-tuned-rlpd-can` 2, `equi-residual-square-zero-init` 2.
-- **GPU 1,** runner `gpu1` (tmux), queue `~/queues/gpu1.txt`: `equi-residual-square` 1 from
-  14:39 (`kyv7clfc`), then `equi-residual-square-zero-init` 1, `equi-residual-square` 2,
-  `resfit-residual-square` 2. The smoke run was stopped to start it (Aden).
+- **GPU 0,** runner `gpu0`, queue `~/queues/gpu0.txt`: `equi-tuned-rlpd-can` 1 (`eyyi99q4`) from
+  01:37 to about 18:30, then `resfit-tuned-rlpd-can` 2, `equi-tuned-rlpd-can` 2,
+  `equi-residual-square-zero-init` 2. Done: `d047it6c` (0.972 over 110k–150k), `oj5k0jqb`
+  (`resfit-residual-square` 1, 0.800 over 110k–150k).
+- **GPU 1,** runner `gpu1`, queue `~/queues/gpu1.txt`: `equi-residual-square` 1 (`kyv7clfc`,
+  collapsed from 10k) to about 10:00, then `resfit-residual-square` 2 (moved ahead 2026-10-08),
+  `equi-residual-square-zero-init` 1, `equi-residual-square` 2.
+- **Both equivariant arms show the demo-vs-online critic signature** (EXPERIMENTS.md, 2026-10-08
+  NOTE); whether the remaining equivariant runs go ahead is Aden's call.
 - All ten should finish around 2026-10-10.
 
 **How to follow them:**
