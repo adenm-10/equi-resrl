@@ -1,6 +1,6 @@
 """Does the env render the scene the demos show? Demo first frames against env reset frames.
 
-    python -m tools.render_check --task Can --task Square [--frames 40] [--repeats 1] [--json]
+    python -m tools.render_check --task Can --task Square [--frames 40] [--repeats 1] [--rerendered] [--json]
 
 mujoco 3.8.1, in the `residual` env from 2026-05-21 to 2026-10-07, draws robosuite's floor as dark
 planks where the demos show light grey tiles. A critic can then tell every demo frame from every
@@ -25,6 +25,9 @@ even colour offset (about 0.005 per channel, on static pixels too) that both muj
 share; the demos were stored as video. So a 2x bar fails a correct Can env at random. 2.5x clears
 the matching render by 7 sd on Can and 9 on Square, and fails 3.8.1 by 5 sd on Square, where its
 floor is a thin strip.
+
+`--rerendered` takes the demo first frames from the re-rendered datasets (tools/rerender_demos.py),
+rendered by our env and stored losslessly, instead of the source datasets the gate checks against.
 
 preflight.py runs this as a subprocess and fails the gate when a task's gap is above its bar.
 """
@@ -60,10 +63,16 @@ def verdict(demo: torch.Tensor, env: torch.Tensor) -> dict:
             "passed": across <= BAR_FACTOR * within}
 
 
-def demo_first_frames(task: str, n: int) -> torch.Tensor:
+def demo_dataset(task: str, rerendered: bool = False) -> str:
+    from tools.rerender_demos import SOURCES
+
+    return SOURCES[task][3] if rerendered else DATASETS[task]
+
+
+def demo_first_frames(task: str, n: int, rerendered: bool = False) -> torch.Tensor:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
-    ds = LeRobotDataset(DATASETS[task])
+    ds = LeRobotDataset(demo_dataset(task, rerendered))
     starts = ds.episode_data_index["from"]
     episodes = np.linspace(0, ds.meta.total_episodes - 1, n).astype(int)
     return torch.stack([ds[int(starts[ep])][CAMERA].float() for ep in episodes])
@@ -85,13 +94,14 @@ def env_reset_frames(task: str, n: int, shape: torch.Size) -> torch.Tensor:
         venv.close()
 
 
-def measure(task: str, frames: int = FRAMES, repeats: int = 1) -> dict:
+def measure(task: str, frames: int = FRAMES, repeats: int = 1, rerendered: bool = False) -> dict:
     import mujoco
 
-    demo = demo_first_frames(task, frames)
+    demo = demo_first_frames(task, frames, rerendered)
     runs = [verdict(demo, env_reset_frames(task, frames, demo.shape[1:])) for _ in range(repeats)]
     gaps = [r["demo_vs_env"] for r in runs]
-    return {"task": task, "camera": CAMERA, "frames": frames, "mujoco": mujoco.__version__,
+    return {"task": task, "demos": demo_dataset(task, rerendered), "camera": CAMERA, "frames": frames,
+            "mujoco": mujoco.__version__,
             "within_demos": runs[0]["within_demos"], "bar": runs[0]["bar"],
             "demo_vs_env": gaps, "passed": all(r["passed"] for r in runs)}
 
@@ -101,10 +111,11 @@ def main() -> int:
     ap.add_argument("--task", action="append", choices=sorted(DATASETS), required=True)
     ap.add_argument("--frames", type=int, default=FRAMES)
     ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--rerendered", action="store_true", help="demo frames from the re-rendered datasets")
     ap.add_argument("--json", action="store_true", help="print one JSON object per task, last on stdout")
     args = ap.parse_args()
 
-    results = [measure(task, args.frames, args.repeats) for task in args.task]
+    results = [measure(task, args.frames, args.repeats, args.rerendered) for task in args.task]
     for r in results:
         if args.json:
             print(json.dumps(r))

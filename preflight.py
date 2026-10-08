@@ -146,14 +146,15 @@ def tier1_git() -> None:
         record(PASS, "no untracked .py files")
 
 
-def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, bool]]:
+def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, object]]:
     """Compose the exact override set through Hydra without training.
 
     Catches malformed overrides before a launch. Hydra treats a comma in a
     value as a list separator, so `wandb.notes="a, b"` aborts at startup --
     which cost two failed launches before this check existed. Also returns the
-    composed run's two cache flags and encode_env_frames_like_demos, which is in
-    the online key, for Tier 3; empty without overrides.
+    composed run's two cache flags, encode_env_frames_like_demos, which is in
+    the online key, and offline_data.name, which is in the offline key, for
+    Tier 3; empty without overrides.
     """
     section("Tier 1 - hydra override composition")
     if not overrides:
@@ -169,9 +170,12 @@ def tier1_compose(overrides: list[str]) -> tuple[bool, dict[str, bool]]:
         seed = next((l.strip() for l in proc.stdout.splitlines()
                      if l.startswith("seed:")), "seed: ?")
         record(PASS, "hydra composes", f"{len(overrides)} override(s); {seed}")
-        flags = {m.group(1): m.group(2) == "true" for m in re.finditer(
+        flags: dict[str, object] = {m.group(1): m.group(2) == "true" for m in re.finditer(
             r"^((?:read|write)_buffer_caches|encode_env_frames_like_demos): (true|false)$",
             proc.stdout, flags=re.M)}
+        dataset = re.search(r"^offline_data:\n(?:  .*\n)*?  name: (\S+)$", proc.stdout, flags=re.M)
+        if dataset:
+            flags["offline_data.name"] = dataset.group(1)
         return True, flags
     err = (proc.stderr or proc.stdout).strip().splitlines()
     record(FAIL, "hydra composes",
@@ -213,9 +217,9 @@ def tier1_pytest() -> bool:
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
          "tests/test_tuned_rlpd_verdict.py", "tests/test_baseline_verdict.py",
          "tests/test_gpu_queue.py",
-         "tests/test_render_check.py", "tests/test_demo_codec.py"],
+         "tests/test_render_check.py", "tests/test_demo_codec.py", "tests/test_rerender_demos.py"],
         "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
-        " + queue runner + render check",
+        " + queue runner + render check + demo codec + re-rendered demos",
     )
 
 
@@ -297,13 +301,15 @@ def _sha8(d: dict) -> str:
 
 
 def cache_hashes(task: str, method: str = "residual", stack: str = "equi",
-                 encode_env_frames_like_demos: bool = False) -> tuple[str, str]:
+                 encode_env_frames_like_demos: bool = False,
+                 dataset_name: str | None = None) -> tuple[str, str]:
     """Mirror the cache keys built in train_residual_td3.py.
 
     Kept in sync by hand. If the hashes reported here do not match what the
     training script prints at startup, this function is stale. A residual key
     does not record the stack (TODO B7, S9); a tuned-RLPD key adds the fields
     that record it. Env frames through the demos' codec add a field to the online key.
+    `dataset_name` is the run's offline_data.name, the task's dataset if None.
     """
     from importlib.metadata import version
 
@@ -315,7 +321,7 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi",
                   min_action_range=1e-1, min_state_std=1e-1,
                   torchrl_version=torchrl.__version__,
                   tensordict_version=tensordict.__version__)
-    offline = {**common, "dataset_name": t["dataset"], "num_episodes": t["num_episodes"],
+    offline = {**common, "dataset_name": dataset_name or t["dataset"], "num_episodes": t["num_episodes"],
                "use_base_policy_for_base_actions": True,
                "base_policy_wandb_id": t["bc"], "batch_size": 128}
     # The online buffer holds rendered frames, so its key records mujoco (2026-10-07).
@@ -334,9 +340,9 @@ def cache_hashes(task: str, method: str = "residual", stack: str = "equi",
 
 def tier3_resources(task: str, seeds: int, require_caches: bool = False,
                     method: str = "residual", stack: str = "equi",
-                    caches: dict[str, bool] | None = None) -> None:
-    """`caches`: the composed run's read/write_buffer_caches and encode_env_frames_like_demos
-    (tier1_compose); config defaults if absent."""
+                    caches: dict[str, object] | None = None) -> None:
+    """`caches`: the composed run's read/write_buffer_caches, encode_env_frames_like_demos and
+    offline_data.name (tier1_compose); config defaults if absent."""
     section(f"Tier 3 - resources for {task} ({method}, {stack} stack)")
     caches = caches or {}
     read = caches.get("read_buffer_caches", True)
@@ -355,7 +361,8 @@ def tier3_resources(task: str, seeds: int, require_caches: bool = False,
     # -- buffer caches -----------------------------------------------------
     need_gb = 0.0
     try:
-        off_h, on_h = cache_hashes(task, method, stack, caches.get("encode_env_frames_like_demos", False))
+        off_h, on_h = cache_hashes(task, method, stack, caches.get("encode_env_frames_like_demos", False),
+                                   caches.get("offline_data.name"))
         off = cache_root / "offline_buffer_cache" / off_h
         on = cache_root / "online_buffer_cache" / on_h
         off_gb, on_gb = cache_size_estimate(task)

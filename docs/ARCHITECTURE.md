@@ -194,6 +194,17 @@ codec that stored the demos (`resfit/dexmg/environments/demo_codec.py`), in
 `render()` does not. It reaches both envs through `get_envs`, and adds a field to the online cache
 key only when on. `False` is every earlier run, bit for bit (EXPERIMENTS.md, 2026-10-08 CODE).
 
+**Re-rendered demos** (`offline_data.name=local/robomimic-mh-{can,square}-rerendered`, from
+2026-10-08). Local LeRobot datasets in the LeRobot home, built by `tools/rerender_demos.py` from
+robomimic's v1.5 state files: each demo state set into our env's scene and observed through
+`RobosuiteGymWrapper._process_obs`, the frames stored as PNG. Every frame after an episode's first,
+and its observation.state, is taken as robosuite's `step()` leaves the state, with the body
+positions one 2 ms physics substep behind it, as every online observation is; actions, done flags
+and timestamps are the source datasets'. The trainer loads them as it loads the source datasets,
+and the offline cache key records the name; the env and the codec switch are untouched
+(EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered demos"). Provenance: each dataset's
+`meta/rerender.json`.
+
 The scalar ablation (`use_equivariant_model=False`) raises at construction if any field that only
 the equivariant networks read is off its default.
 

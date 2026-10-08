@@ -4672,3 +4672,103 @@ pre-registered); 36 of 73 training episodes succeeded, the first at step 4,931. 
   anything about Square, whose front camera keeps some colour-detail separation after the codec
   (0.82, CODE above); or how the codec moves a residual run's base policy, which was trained on
   coded demo frames and has only been measured on uncoded ones (B_can, B_sq).
+
+---
+
+## 2026-10-08 — CODE — re-rendered demos: the robomimic demos' frames rendered by our env, losslessly, one physics substep late as the env observes
+
+**What it is.** `tools/rerender_demos.py` builds two local LeRobot datasets in the LeRobot home,
+`local/robomimic-mh-can-rerendered` and `local/robomimic-mh-square-rerendered`. A run selects one
+with `offline_data.name`, an existing field: nothing in the trainer or the env changes, and
+`encode_env_frames_like_demos` stays, default off. Nothing is uploaded. Each dataset records its
+provenance in `meta/rerender.json`: the source file and its sha256, every guard's result, robosuite
+and mujoco, and the commit it was built at (this entry's).
+
+**Why.** The demos reach the agent through lossy AV1 video and the env's frames do not, which lets a
+critic tell every demo frame from every online frame (CODE above, and the NOTE on `gkck6eqp`). The
+codec switch removed that cue on Can by coding the online frames, evals included. Re-rendering
+removes it at the source: the demo frames come from the renderer, the code path and the timing the
+online frames come from, uncompressed on both sides (Aden's call, 2026-10-08, for the residual runs).
+
+**How.** robomimic's v1.5 files (`robomimic/robomimic_datasets` at revision `74fa0184`,
+`v1.5/{can,square}/mh/demo_v15.hdf5`, recorded as robosuite 1.5.0) hold every demo's simulator
+state at every step. Each state is set into our env's own scene, and the observation is read
+through `RobosuiteGymWrapper._process_obs`, as every online observation is. Not into the demos'
+saved XML: reloading a scene from XML moves 1–4 front-camera pixels by 1–4 levels, from the
+precision MuJoCo writes numbers at. The frames are stored as PNG inside the parquet files; actions,
+done flags, timestamps and indices are copied from the source datasets.
+
+**One physics substep late: a guard that failed, and the fix.** The first version's identity guard
+(render a state the env reported; the frames must be the ones the env returned) passed at resets
+and failed once the arm had moved. robosuite's `step()` runs 25 MuJoCo substeps of 2 ms. A MuJoCo
+step first computes where every body is from the joint angles, then integrates, which updates the
+joint angles. robosuite's observation timer fires right after the 25th substep (every step: 200 of
+200 on Can, 300 of 300 on Square), and nothing recomputes the positions first. So every online
+camera frame and end-effector pose shows the joint angles one substep (2 ms) before the state the
+simulator holds; the gripper's joint readings are current. `reset()` recomputes the positions
+before it observes, so an episode's first observation is exact. The source datasets' frames were
+rendered from each state with positions recomputed, so mid-episode the demos show the state itself
+and the online frames lag it. On the trainer's step path, full episodes of random actions, online
+observations against renders of the same states:
+
+| Online vs the state itself | Can (200 steps) | Square (300 steps) |
+|---|---|---|
+| Front camera | 186 of 7,056 pixels differ, mean 0.15 levels | 152, mean 0.20 levels |
+| Wrist camera | 3,603 pixels, mean 1.9 levels | 1,327, mean 0.5 levels |
+| End-effector position | 0.73 mm mean, 1.97 max | 0.62 mm mean, 1.95 max |
+
+It has been in every run, ResFiT's included, and `gkck6eqp` learned with it, so it is not what
+blocked learning; it is a mismatch between demo and online data all the same. Of three ways to
+close it (make the env recompute positions before it observes; accept the gap; render the demos as
+the env observes), **Aden chose the third.** The env, the trainer, the base policies and the bars
+B_can and B_sq stay as they are, so every earlier run stays comparable; an exact env would have
+changed what every new run's base policy sees. MuJoCo's Euler integrator moves the joint angles by
+dt times the new velocity after computing the positions, so the previous substep's joint angles are
+the state's moved back by dt × qvel. The tool sets each state, moves the joint angles back one
+substep, recomputes the positions, puts the joint angles back and renders (`as_stepped`). Each
+episode's first frame is rendered from its state, as `reset()` observes; the velocity is exactly
+zero in all 600 demos' first states and in our resets, so the two agree there anyway.
+**observation.state is re-derived the same way, not copied,** because its end-effector pose lags
+online too. It moves from the source's by 0.33 mm on average on Can's first three demos (0.75 mm at
+most; the full figures go in each dataset's `meta/rerender.json`), its gripper readings not at all,
+and its statistics, which the equivariant normalizer reads, move with it. The replay guard still
+holds the observation computed from each state to the source's column.
+
+**Guards,** each of which stops the build:
+- **identity:** an env touched only through the wrapper's `reset()` and `step()`, so robosuite's
+  observation timers run as in training. At 3 resets and after each of 90 random actions, the
+  frames and observation.state rendered from its state, as `reset()` or `step()` leaves it, equal
+  what it returned, bit for bit. Before the fix this failed mid-episode.
+- **layout:** the same joints (13 on Can, 11 on Square) at the same addresses; every demo body is
+  ours and lands within 1e-8 m of where the demos' scene puts it; ours adds only the two mocap target
+  bodies (`left_eef_target`, `right_eef_target`, parked at z = −1 m).
+- **pairing:** all 300 demos of each task pair with the LeRobot episodes: same lengths, actions
+  exactly equal (62,756 frames on Can, 80,731 on Square).
+- **replay:** observation.state computed from each state equals the source's within 1.2e-7,
+  float32's rounding, on every frame of both tasks; the stepped one differs from it only in the
+  end-effector pose, within 5 mm and 0.05 (quaternion, up to sign).
+- **columns,** after writing: the copied columns equal the source's, observation.state is the one
+  rendered, and the action statistics equal the source's.
+- **verify,** after the build: stored frames, decoded as the trainer decodes them, and stored
+  states equal fresh renders.
+
+Layout, pairing and replay passed on every demo of both tasks earlier on 2026-10-08, in a read-only
+run with the identity guard at resets only; the build runs every guard again.
+
+**Not changed: `lite_physics`.** The demo files record `lite_physics=false`; our env runs robosuite
+1.5.1's default, `true`, and robosuite documents `false` as keeping compatibility with datasets
+collected in robosuite 1.4.1 and earlier. It changes the physics (how a state follows from the last),
+not what is rendered from a state, and matching it would change the env for every new run.
+Unmeasured.
+
+**Also in this commit.** `preflight.cache_hashes` takes the run's `offline_data.name`, which the
+trainer puts in the offline cache key, and the gate reads the name from the composed config: the
+re-rendered Can dataset moves equivariant tuned RLPD's offline key from `e83a0b31` to `a1942abb`,
+and no online key moves. `tools/codec_check.py` and `tools/render_check.py` take `--rerendered`,
+which compares env frames with the re-rendered demos instead of the source's.
+
+**Tests.** `tests/test_rerender_demos.py`, in the gate's Tier 1. After a MuJoCo step the positions
+are the previous substep's, and `as_stepped` recovers them (a small model, no renderer). The
+stepped state may move only the end-effector pose. Rendered in a subprocess, every guard passes on
+Can's first two demos. A built dataset is lossless, complete, and records passing guards and a
+clean commit. The dataset name moves the offline key and no other, and the gate reads it.

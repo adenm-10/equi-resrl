@@ -1,8 +1,9 @@
 # Status
 
-**Last updated:** 2026-10-08, about 13:30 · **Last verified commit:** the commit pre-registering
-the fifth `critic-norm-can-1008` arm (EXPERIMENTS.md, 2026-10-08, "a fifth arm");
-`tests/test_sweep_arms.py` and `tests/test_demo_codec.py` passed in full, GPU tests included
+**Last updated:** 2026-10-08, about 16:30 · **Last verified commit:** the commit adding
+`tools/rerender_demos.py` (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered demos");
+`tests/test_rerender_demos.py`, `test_render_check.py`, `test_demo_codec.py` and `test_config.py`
+passed
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -26,6 +27,15 @@ perfect image cue between demo and env frames (CODE and PRE-REGISTERED, "a fourt
 RegularLayerNorm where ResFiT has LayerNorm, in the actor and the critic, with the critic's start
 matched to ResFiT's ("a fifth arm"). ResFiT's stack without LayerNorm (`9phsy6sf`) was stopped: its
 actor saturated in its first 200 updates and never had a gradient again (NOTE and DEVIATION).
+
+**Next, the demos rendered by our env instead of coding the env's frames** (TODO B16; CODE,
+2026-10-08, "re-rendered demos"): `local/robomimic-mh-{can,square}-rerendered`, the robomimic
+demos' states rendered by our env and stored losslessly. Building them found that **every online
+observation after a reset shows the arm one 2 ms physics substep behind the simulator's state**:
+robosuite observes without recomputing positions after its last substep. Up to 2 mm at the gripper
+and a few levels on the wrist camera, in every run so far. The re-rendered demos reproduce it
+(Aden's choice), so they match the online observations bit for bit; the env is unchanged. A
+validation run on Can, then the equivariant residual on Square, follow.
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the

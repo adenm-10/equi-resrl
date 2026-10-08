@@ -1,6 +1,6 @@
 """Can a per-frame statistic tell env frames from demo frames, before and after the demos' codec?
 
-    python -m tools.codec_check --task Can [--frames 40] [--json]
+    python -m tools.codec_check --task Can [--frames 40] [--rerendered] [--json]
 
 The demos reach the agent through a lossy video codec and the env's frames do not. On Can's front
 camera that leaves every env frame with about twice the demos' colour detail and an even colour
@@ -22,6 +22,9 @@ Measured on 2026-10-08, Can, 40 frames (the demos' first frames are keyframes, a
 The wrist camera's raw separation is weaker (cb 0.98, cr 0.76, colour means about 0.55), and the
 codec takes cb to 0.66. Its y detail separates at about 0.65 either way: the env's reset poses are
 not the demos' start poses, which the wrist camera sees close up.
+
+`--rerendered` takes the demo first frames from the re-rendered datasets (tools/rerender_demos.py),
+whose frames come from our renderer losslessly, instead of the source datasets.
 
 Demo frames come through LeRobotDataset and env frames through create_vectorized_env, the paths
 training uses. The env frames are coded here by demo_codec.encode_like_demos; that the env wrapper
@@ -76,10 +79,16 @@ def to_uint8(frames) -> np.ndarray:
     return np.round(x * 255.0).astype(np.uint8)
 
 
-def demo_first_frames(task: str, n: int) -> dict[str, np.ndarray]:
+def demo_dataset(task: str, rerendered: bool = False) -> str:
+    from tools.rerender_demos import SOURCES
+
+    return SOURCES[task][3] if rerendered else DATASETS[task]
+
+
+def demo_first_frames(task: str, n: int, rerendered: bool = False) -> dict[str, np.ndarray]:
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
-    ds = LeRobotDataset(DATASETS[task])
+    ds = LeRobotDataset(demo_dataset(task, rerendered))
     starts = ds.episode_data_index["from"]
     episodes = np.linspace(0, ds.meta.total_episodes - 1, n).astype(int)
     items = [ds[int(starts[ep])] for ep in episodes]
@@ -102,11 +111,11 @@ def env_reset_frames(task: str, n: int) -> dict[str, np.ndarray]:
         venv.close()
 
 
-def measure(task: str, frames: int = FRAMES) -> dict:
+def measure(task: str, frames: int = FRAMES, rerendered: bool = False) -> dict:
     from resfit.dexmg.environments.demo_codec import encode_like_demos
 
-    demo, env = demo_first_frames(task, frames), env_reset_frames(task, frames)
-    out = {"task": task, "frames": frames, "raw": {}, "coded": {}}
+    demo, env = demo_first_frames(task, frames, rerendered), env_reset_frames(task, frames)
+    out = {"task": task, "demos": demo_dataset(task, rerendered), "frames": frames, "raw": {}, "coded": {}}
     for cam in CAMERAS:
         coded = np.stack([encode_like_demos(f.transpose(1, 2, 0)).transpose(2, 0, 1) for f in env[cam]])
         out["raw"][cam] = separation(demo[cam], env[cam])
@@ -118,14 +127,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--task", action="append", choices=sorted(DATASETS), required=True)
     ap.add_argument("--frames", type=int, default=FRAMES)
+    ap.add_argument("--rerendered", action="store_true", help="demo frames from the re-rendered datasets")
     ap.add_argument("--json", action="store_true", help="one JSON line per task")
     args = ap.parse_args()
     for task in args.task:
-        r = measure(task, args.frames)
+        r = measure(task, args.frames, args.rerendered)
         if args.json:
             print(json.dumps(r))
             continue
-        print(f"{task}, {args.frames} demo first frames vs {args.frames} env resets: ROC area per statistic")
+        print(f"{task}, {args.frames} first frames of {r['demos']} vs {args.frames} env resets: ROC area per statistic")
         for cam in CAMERAS:
             print(f"  {cam}")
             for version in ("raw", "coded"):

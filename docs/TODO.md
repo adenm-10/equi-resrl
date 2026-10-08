@@ -9,6 +9,30 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
+### B16. Demos rendered by our env, then the equivariant residual on them — NOW (Aden, 2026-10-08) `[SC]`
+
+Why: the demos' video codec gave the critic a perfect online/demo cue, and coding the env's frames
+to match let equivariant tuned RLPD learn Can (`gkck6eqp`, 0.94 at 10k). Aden chose to fix the
+demos rather than the env for the residual runs (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered
+demos").
+
+1. **DONE 2026-10-08: `tools/rerender_demos.py`,** its guards and tests. Every frame after an
+   episode's first is rendered one physics substep late, as robosuite's `step()` observes (Aden's
+   choice over making the env exact), and observation.state with it.
+2. **Build both datasets** from the tool's commit, then `--verify`; record each
+   `meta/rerender.json`'s figures.
+3. **Check them against the env:** `tools/codec_check.py --rerendered` (all twelve statistics
+   within [0.15, 0.85], both tasks, both cameras; a Square front-camera separation that remains is
+   scene content, and is reported as such), `tools/render_check.py --rerendered` (the demo-vs-env
+   gap down to about the within-demo gap), and `--codec-change` for the record. Blocking.
+4. **One validation run on Can,** pre-registered: `xm9cuo92`'s launch on the re-rendered Can demos,
+   codec off. Passes iff online over demo value is at least 0.2 over (5k, 10k] with training
+   successes. A failure stops the plan for Aden.
+5. **Then the equivariant residual on Square,** pre-registered once step 4's readout is in:
+   `kyv7clfc`'s launch with `critic_norm=none` and the re-rendered Square demos, codec off; B_sq =
+   0.582 stands.
+6. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
+
 ### B15. Fix the render, then new baselines — NEXT (Aden's plan, 2026-10-07) `[SC]` `[CS]`
 
 Why: our `residual` env's mujoco 3.8.1 renders the floor differently from the demos, and
