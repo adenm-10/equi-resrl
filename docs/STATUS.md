@@ -1,13 +1,20 @@
 # Status
 
-**Last updated:** 2026-10-07 · **Last verified commit:** the commit pinning mujoco 3.3.2
-(EXPERIMENTS.md, 2026-10-07 CODE, "mujoco 3.3.2, and the render on the record and in the gate",
-and the CODE entry after it); the gate said GO on its code
+**Last updated:** 2026-10-08 · **Last verified commit:** the commit pre-registering
+`critic-norm-can-1008` (EXPERIMENTS.md, 2026-10-08 PRE-REGISTERED); `tests/test_sweep_arms.py`
+passed in full, its GPU tests included
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
+
+**The equivariant critic at the fixed-env baselines' design (`critic_norm=field_norm`) cannot see
+the wrist camera, the arm's height or the gripper opening, nor score the z, yaw or gripper actions**
+(EXPERIMENTS.md, 2026-10-08 FINDING): `FieldNorm` erases every trivial-type input. That accounts for
+both equivariant arms' failure in the matching render. `eyyi99q4` was stopped and the four remaining
+field-norm runs held (DEVIATION of that date); equivariant tuned RLPD on Can now runs with
+`critic_norm=none` and `layer_norm` (PRE-REGISTERED, `critic-norm-can-1008`).
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
@@ -76,30 +83,32 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**The fixed-env baselines** (`fixed-env-baselines-1007`, EXPERIMENTS.md, PRE-REGISTERED and
-LAUNCHED of 2026-10-07), from the worktree `~/projects/equi-resrl-9cf207d`:
-- **The validation passed:** `d047it6c` scored 0.70 at 20k and 0.80 at 30k (EXPERIMENTS.md,
-  RESULTS of 2026-10-07). It goes on to 150k as seed 1 of its arm.
-- **GPU 0,** runner `gpu0`, queue `~/queues/gpu0.txt`: `equi-tuned-rlpd-can` 1 (`eyyi99q4`) from
-  01:37 to about 18:30, then `resfit-tuned-rlpd-can` 2, `equi-tuned-rlpd-can` 2,
-  `equi-residual-square-zero-init` 2. Done: `d047it6c` (0.972 over 110k–150k), `oj5k0jqb`
-  (`resfit-residual-square` 1, 0.800 over 110k–150k).
-- **GPU 1,** runner `gpu1`, queue `~/queues/gpu1.txt`: `equi-residual-square` 1 (`kyv7clfc`,
-  collapsed from 10k) to about 10:00, then `resfit-residual-square` 2 (moved ahead 2026-10-08),
-  `equi-residual-square-zero-init` 1, `equi-residual-square` 2.
-- **Both equivariant arms show the demo-vs-online critic signature** (EXPERIMENTS.md, 2026-10-08
-  NOTE); whether the remaining equivariant runs go ahead is Aden's call.
-- All ten should finish around 2026-10-10.
+**Equivariant tuned RLPD on Can without FieldNorm** (`critic-norm-can-1008`, EXPERIMENTS.md,
+2026-10-08 PRE-REGISTERED), seed 1 of each arm, from its launch commit's worktree:
+- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-layernorm` 1, in place of the stopped `eyyi99q4`.
+- **GPU 1,** runner `gpu1`: `equi-tuned-rlpd-can-nonorm` 1, after `kyv7clfc` (`equi-residual-square`
+  1, collapsed from 10k) finishes at about 10:10.
+- About 19–20 h each, so until about 06:00 on 2026-10-09. Seed 2 of an arm is queued iff its 20k
+  and 30k evals total at least 5 of 100; an arm with every eval at 0 and no training success by 60k
+  is stopped.
+
+**Then the fixed-env baselines' ResFiT seed 2s,** from `~/projects/equi-resrl-9cf207d`:
+`resfit-tuned-rlpd-can` 2 on GPU 0 and `resfit-residual-square` 2 on GPU 1. Done there: `d047it6c`
+(0.972 over 110k–150k) and `oj5k0jqb` (0.800). The batch's equivariant arms have no verdict: the
+four remaining runs are commented out of the queues (DEVIATION, 2026-10-08).
 
 **How to follow them:**
-- **Every arm at once, from disk,** live runs included (a run's evals so far, step 0, best, final,
-  and the verdict once it has one):
+- **The new arms, from disk,** evals, training successes and the critic diagnostics by window,
+  against `d047it6c` and `eyyi99q4`:
+  `python outputs/diagnostics/equi-critic-1008/report.py` (outside git; its README).
+- **The fixed-env baselines, from disk:**
   `cd ~/projects/equi-resrl && conda activate residual && PYTHONPATH=$PWD CACHE_DIR=$PWD python tools/baseline_verdict.py`
 - **wandb,** entity `aden-mckinney10-university-of-central-florida`: tuned RLPD in
   `robomimic-can-final`, group `tuned-rlpd`; residual in `robomimic-square-final`, groups
-  `residual-rl` and `equi-residual-rl`. The groups also hold earlier runs: this batch's names are
-  the arm names plus the seed (`resfit-tuned-rlpd-can-1`), and its notes start with
-  `fixed-env-baselines-1007/`. Watch `eval/success_rate`.
+  `residual-rl` and `equi-residual-rl`. Names are the arm plus the seed
+  (`equi-tuned-rlpd-can-layernorm-1`); notes start with the seed-group. Watch
+  `eval/success_rate` and `debug/q_data_online`.
+- **The eval Q-trajectory plots,** one per eval: `outputs/runs/<project>/<id>/outputs/<name>/`.
 - **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log`; each launch's console output is
   the file beside them named after the arm.
 

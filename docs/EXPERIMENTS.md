@@ -4114,3 +4114,172 @@ run: compare the equivariant encoder's inputs and features on offline and online
 **Queue change, order only:** `resfit-residual-square` 2 moved to the front of `gpu1`'s queue, ahead
 of `equi-residual-square-zero-init` 1 and `equi-residual-square` 2, so the equivariant runs wait on
 Aden's decision. `kyv7clfc` and `eyyi99q4` run on as pre-registered.
+
+---
+
+## 2026-10-08 — FINDING — the equivariant critic's FieldNorm erases every trivial-type input
+
+Found while debugging the fixed-env baselines' two equivariant arms (NOTE above). With
+`equivariance.critic_norm=field_norm`, Aden's design for that batch, **the critic's Q cannot depend
+on the wrist camera, the arm's height, the gripper opening, or the z, yaw and gripper actions.**
+Analysis scripts, the frames they used and their outputs: `outputs/diagnostics/equi-critic-1008/`
+(outside git; its README has the commands).
+
+**The mechanism.** A trivial-type input reaches a hidden regular field of C8 only as a constant
+over that field's 8 channels: the field's trivial part. `FieldNorm` subtracts each field's trivial
+part, per sample, and adds a learnt constant back. Every hidden `Linear` of the critic (visual
+projection, trunk, each head layer) is followed directly by `FieldNorm`, and the trivial inputs
+enter only at those `Linear`s (the wrist features at the visual projection, proprioception and the
+action at the trunk and again at the heads), so each is erased before any ReLU could mix it into
+the other channels. EQUIVARIANCE.md records that `FieldNorm` removes a regular field's trivial
+part; this is what that does to the critic's inputs.
+
+**The measurement: forward perturbations, not gradients.** The largest change in Q (mean over the
+10 heads) over every 4th frame of demo episode 37 of Square, at the batch's design:
+
+| Input changed | `kyv7clfc`'s critic at step 0 (after 10k warm-up updates) | Fresh, `field_norm` | Fresh, `none` |
+|---|---|---|---|
+| Wrist image to noise / to black | 3.0e-7 / 1.8e-7 | 1.1e-6 / 8.3e-7 | 1.6e-3 / 8.7e-4 |
+| State z +0.2 m | 1.6e-7 | 3.0e-7 | 5.7e-3 |
+| Gripper qpos ±0.02 | 1.2e-7 | 3.7e-7 | 1.3e-2 |
+| Action z +0.5 / yaw +0.5 / gripper sign flipped | 1.9e-7 / 1.5e-7 / 1.8e-7 | 2.7e-7 / 3.7e-7 / 2.7e-7 | 6.7e-3 / 3.4e-3 / 2.1e-2 |
+| State x +0.1 m (an `irrep(1)` input) | 2.3e-3 | 9.6e-3 | 2.6e-3 |
+| Action x +0.5 / rx +0.3 (`irrep(1)`) | 8.4e-2 / 4.6e-3 | 4.3e-2 / 2.2e-2 | 8.7e-3 / 5.8e-3 |
+| Front image to noise | 0.80 | 0.38 | 0.08 |
+
+- At a fresh init `none`, `iid_bn`, `inner_bn` and `layer_norm` (`RegularLayerNorm`, a LayerNorm
+  over each sample's whole layer) all pass every input; only `field_norm` erases them.
+- **The tests could not catch it:** a critic that ignores an input is invariant to it.
+  `tests/test_sweep_arms.py` now checks that every input moves Q and the actor's action, for the
+  arms it launches, and keeps this table's finding as a test of the `field_norm` critic.
+- **The wrist encoder never trained.** Its gradient from one critic-loss backward pass, against
+  the front encoder's, on 64 Can demo frames at a fresh init: 1.0e-9 with `field_norm`, 1.0e-2 with
+  `none`, 1.4e-2 with `layer_norm`; ResFiT's wrist ViT gets 0.82 of its front ViT's. The runs logged
+  the same (`debug/enc_enc_ih_grad_norm` about 1e-9). It is in `encoder_opt`, trained by the critic
+  loss only, and the actor loss detaches the features, as in ResFiT: the wiring is right.
+
+**What it accounts for, read from the logs** (not yet tested by a run without it):
+- **Can (`eyyi99q4`):** the actor's z and gripper outputs get exactly zero gradient from Q, so it
+  cannot learn to descend, grasp or lift, and the critic sees the grasp only through what survives
+  of the front camera. No grasp, no reward, so online Q settles at 0. Eval Q-trajectories at 10k:
+  `d047it6c`'s critic rates its own failing rollouts at 0.45–0.5; `eyyi99q4`'s at −0.005 ± 0.01,
+  with spikes at the same timesteps in all 50 episodes: the arm follows one trajectory wherever the
+  can is.
+- **Square (`kyv7clfc`):** only the residual's xy and rx-ry parts get a gradient, from a critic
+  blind to height, gripper and wrist; they reach the 0.1 disk bound by about 5k. The eval video at
+  10k shows the hand rolled well off vertical, hovering at the nut; at step 0 it grasps, lifts and
+  inserts. The critic's value is flat over the approach: at step 0 it is −0.13 for the first ~100
+  steps of every eval episode, where `oj5k0jqb`'s ramps from about step 40; on demo episodes
+  Q tracks the return (correlation 0.88–0.97) but sits at −0.12 to −0.14 over each episode's first
+  third, where the return is up to 0.43.
+- **So the "same signature as the old render" (NOTE above) is the same symptom from a different
+  cause.**
+
+**Also found, smaller:**
+- **A codec cue separates demo frames from env frames in the matching render.** The demos are AV1
+  `yuv420p` video; env frames are raw renders. Front camera, 40 demo first frames against 40 env
+  resets: fine chroma detail (what 4:2:0 subsampling drops) is 1.95–2.08× higher in env frames on
+  Can and 1.48–1.60× on Square, AUC 1.000 on both; mean colour is 0.004–0.006 higher per channel in
+  env frames, AUC 1.000 on Can and 0.88–0.97 on Square. Round-tripping env frames through `yuv420p`
+  takes the colour offset to chance (AUC 0.29–0.79): **the render check's leftover 0.005 offset is
+  the codec, not the render.** Wrist camera: AUC 0.98 and 0.76 on Can, 0.54 and 0.56 on Square.
+  Both stacks see it, and ResFiT learns Can (0.972). Whether a critic uses it is untested: on
+  `kyv7clfc`'s critic, Q at reset frames was −0.123 on demo frames and −0.127 on env frames (head SD
+  0.011), but reset frames sit in that critic's flat region, so the test is weak.
+- **Proprioception conventions match.** At reset every state dimension overlaps between the demos'
+  first frames and env resets (|difference| at most 0.53 SD, AUC 0.36–0.63); the quaternion is
+  (x, y, z, w) in both, and the gripper qpos identical (±0.02083).
+- **Neither augmentation changes pixel values.** `RandomShiftsAug` is an exact integer shift to
+  5e-6; `CropRandomizer` is exact slicing; the chroma AUC stays 1.000 after either.
+- **The wrist features are small:** RMS 0.17–0.18 against the front's 1.04–1.12, changing by
+  0.01–0.02 over an episode against 0.26–0.34 (`kyv7clfc`, step 0). `ResEncoder76InHand`'s output
+  LayerNorm is commented out.
+- **Three diagnostics mislead.** `debug/enc_normalizer_grad_norm` is an accumulating sum: the
+  normalizer's scale and offset are `nn.Parameter`s (`create_manual`), attached by `set_normalizer`
+  after `_enc_params` and `encoder_opt` are built (`q_agent.py:242,265`; trainer `:527`), so they are
+  never stepped or clipped and their gradients never zeroed. `debug/dQ_da_mean_abs` averages in the
+  three action dimensions that are structurally zero under `field_norm`. `q_data_online` against
+  `q_data_demo` compares states at different stages of their episodes.
+- **A run saves a checkpoint only on a new best eval,** so `eyyi99q4` left none and `kyv7clfc` only
+  its step-0 one.
+
+Earlier runs with a `field_norm` critic (`critic-fn`, `24y42etk` and `konwqk6l`) and actor
+(`actor-fn`, `q12tenbb`) all acted on near-blank images (2026-10-02 CORRECTION), so their results
+say nothing about this.
+
+---
+
+## 2026-10-08 — DEVIATION — `eyyi99q4` stopped, and the four field-norm equivariant runs held
+
+Aden's call, 2026-10-08, after the FINDING above. A departure from the fixed-env baselines'
+pre-registration (2026-10-07): **that batch's two equivariant arms will have no verdict.**
+- **`eyyi99q4`** (`equi-tuned-rlpd-can` 1) is stopped once its replacement's worktree and queue
+  line are ready, at about 67k of 150k: 0 of 50 at all seven evals to 60k, no training success.
+  Its GPU goes to the pre-registration below.
+- **Held,** commented out of the queues with a note: `equi-tuned-rlpd-can` 2,
+  `equi-residual-square` 2 and `equi-residual-square-zero-init` 1 and 2 (about 80 GPU-hours). They
+  run the critic shown blind above. Re-enabling one is a line in a queue file.
+- **`kyv7clfc`** (`equi-residual-square` 1) finishes as pre-registered, at about 10:10.
+- **ResFiT's arms are unchanged:** `resfit-tuned-rlpd-can` 2 and `resfit-residual-square` 2 run
+  after the two new arms, one per GPU, still from `9cf207d`.
+
+---
+
+## 2026-10-08 — PRE-REGISTERED — equivariant tuned RLPD on Can without FieldNorm: no critic norm, and RegularLayerNorm
+
+**Question:** with the critic able to see every input (FINDING above), does equivariant tuned RLPD
+learn Can? Two ways to drop `FieldNorm`, run side by side because ResFiT calls its critic's
+LayerNorm crucial (taken from RLPD, "to mitigate catastrophic over-estimation"; its Fig. 5 ablation,
+of the residual method on Can, falls to about 0 at 10k without it and reaches about 0.6 by 40k and
+about 0.9 by 100k, against about 0.95 by 50k with it).
+
+**Seed-group `critic-norm-can-1008`,** seed 1 per arm, 150k steps, from the commit that adds this
+entry, launched from one worktree pinned to it. Names `<arm>-<seed>`, notes
+`critic-norm-can-1008/<arm>/seed<seed>`. wandb `robomimic-can-final` / `tuned-rlpd`, with the
+fixed-env baselines' tuned-RLPD runs.
+
+| Arm | Overrides on `equi_tuned_rlpd_can_config` | GPU |
+|---|---|---|
+| `equi-tuned-rlpd-can-nonorm` | the design, `equivariance.critic_norm=none` | 1, after `kyv7clfc` |
+| `equi-tuned-rlpd-can-layernorm` | the design, `equivariance.critic_norm=layer_norm` | 0, in place of `eyyi99q4` |
+
+- **The design, otherwise as before:** `equivariance.residual_squash=true agent.critic.num_q=10
+  equivariance.num_critic_layers=2 equivariance.actor_norm=none`, plus `algo.total_timesteps=150000
+  read_buffer_caches=false write_buffer_caches=false`. `critic_norm=none` is the config's default,
+  set explicitly.
+- **What varies:** each arm differs from `eyyi99q4`'s launch in `equivariance.critic_norm` only, and
+  the two arms from each other in it only (`tests/test_sweep_arms.py` pins all three). Against
+  ResFiT's `d047it6c` they differ in the whole stack (ARCHITECTURE.md, "The two stacks side by
+  side"), so nothing here compares stacks or equivariance (STANDARDS 3.3).
+- **Config caveats:** as the fixed-env baselines' (that entry): `equivariance.num_actor_layers` is
+  dead; `agent.actor.dropout`, `agent.critic.dropout` and `agent.critic.orth` do nothing; ResFiT's
+  network fields under `agent` are not read by the equivariant agent.
+
+**Rules:**
+- **Seed 2 of an arm is queued iff its 20k and 30k evals total at least 5 successes of 100,** the
+  validation's rule (2026-10-07). Aden's ask: a second seed if an arm looks successful.
+- **An arm is stopped at 60k if every eval to 60k is 0 and no training episode has succeeded,**
+  where `eyyi99q4` stood at its stop. Its GPU goes to the next queued line.
+- **Verdict, once both seeds have run:** the fixed-env baselines' tuned-RLPD rule. p is the mean of
+  the ten evals at 110k–150k, five per seed, 500 episodes; an arm passes iff p ≥ B_can = 0.852. With
+  one seed, an observation.
+- **Between the two arms:** an observation, deciding nothing (STANDARDS 5.3).
+- **Reported at each 10k,** against `d047it6c` (ResFiT, same recipe) and `eyyi99q4` (field norm, to
+  60k): the eval; training successes; means over the 1k steps before it of `debug/q_data_online`,
+  `debug/q_data_demo`, `debug/policy_data_gap_{online,demo}`, `debug/dQ_da_mean_abs`,
+  `train/critic_loss`, `train/action_l1_magnitude` and `debug/enc_enc_ih_grad_norm`; and the eval
+  Q-trajectory plot.
+
+**Predictions** (Claude's, before launch):
+1. Both arms value online transitions above 0.1 by (5k, 10k] (`eyyi99q4` −0.013, `d047it6c` 0.30),
+   with `dQ_da_mean_abs` above `eyyi99q4`'s 8.8e-6 there. Moderate confidence.
+2. `layernorm` meets the seed-2 rule. Moderate confidence.
+3. `nonorm` meets it too. Low confidence: ResFiT's ablation suggests a slower start without LayerNorm.
+4. Neither arm's seed 1 averages B_can (0.852) over 110k–150k. Low confidence. Other stack
+   differences stand: the disk bound (14.9% of Can's demo xy actions lie outside it), the wrist
+   encoder's 1/100 share of the gradient, and the encoder.
+
+**Resources and order.** About 0.41 s per step plus evals, so about 19–20 h per run, finishing
+around 06:00 on 2026-10-09. RAM about 15 GB each, disk about 0.5 GB each. Each launch runs the gate
+first (about 15 min). Queues after these: `resfit-tuned-rlpd-can` 2 on GPU 0, `resfit-residual-square`
+2 on GPU 1; any seed 2 from the rule above goes ahead of them.

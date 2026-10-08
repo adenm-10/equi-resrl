@@ -5,19 +5,21 @@ submit.sh's case table is checked here first:
 
   Tier 1  its overrides are the pre-registered ones, set no key twice, and
           compose through train_residual_td3's Hydra configs to the
-          pre-registered recipe; within a task, the two stacks' arms differ in
-          the stack only; the zero-init arm differs from its pair in the init
-          only; the smoke mode is the arm, briefly; and every arm launches.
+          pre-registered recipe; each arm differs from the fixed-env baselines'
+          equi-tuned-rlpd-can (eyyi99q4) in the critic's norm only, and from
+          ResFiT's tuned RLPD in the stack only; the smoke mode is the arm,
+          briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
-          losses, on the batch its method trains on; each equivariant arm's
-          actor is equivariant and its critic invariant, at the arm's own
-          sizes; and the zero-init arm's residual starts at exactly zero and
-          leaves it.
+          losses, on the batch its method trains on; its actor is equivariant
+          and its critic invariant, at the arm's own sizes; and every input its
+          critic and actor are given can move their outputs. The FieldNorm
+          critic it replaces could not (2026-10-08 FINDING), and a test here
+          keeps that on record.
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-07
-PRE-REGISTERED, "the fixed-env baselines"): tuned RLPD on Can and residual RL on
-Square, each in ResFiT's stack and the equivariant one at Aden's design, plus
-the equivariant residual with its last layer initialized to zero.
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-08
+PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm"): tuned RLPD
+on Can in the equivariant stack at Aden's design, with no norm in the critic,
+and with RegularLayerNorm in it.
 """
 
 from __future__ import annotations
@@ -33,77 +35,53 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 
-SEED_GROUP = "fixed-env-baselines-1007"
+SEED_GROUP = "critic-norm-can-1008"
 
 # What each arm launches, less the run's name, notes, project and group.
 COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buffer_caches=false",
           "seed=1", "debug=false"}
 DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=10",
-          "equivariance.num_critic_layers=2", "equivariance.critic_norm=field_norm",
-          "equivariance.actor_norm=none"}
-PIN = "base_policy.wt_version=v9"
+          "equivariance.num_critic_layers=2", "equivariance.actor_norm=none"}
+CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm"}
 LAUNCHED = {
-    "resfit-tuned-rlpd-can": {"--config-name=tuned_rlpd_can_config", *COMMON},
-    "equi-tuned-rlpd-can": {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, *COMMON},
-    "resfit-residual-square": {"--config-name=residual_td3_square_config", "agent.critic.num_q=10",
-                               PIN, *COMMON},
-    "equi-residual-square": {"--config-name=residual_equi_td3_square_config", *DESIGN,
-                             "agent.actor.actor_last_layer_init_scale=1e-4", PIN, *COMMON},
-    "equi-residual-square-zero-init": {"--config-name=residual_equi_td3_square_config", *DESIGN,
-                                       "agent.actor.actor_last_layer_init_scale=0.0", PIN, *COMMON},
+    arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
+          *COMMON}
+    for arm, norm in CRITIC_NORM.items()
+}
+# The fixed-env baselines' tuned-RLPD arms as 9cf207d launched them (eyyi99q4, d047it6c), less naming.
+BASELINES = {
+    "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", *sorted(DESIGN),
+                            "equivariance.critic_norm=field_norm", *sorted(COMMON)],
+    "resfit-tuned-rlpd-can": ["--config-name=tuned_rlpd_can_config", *sorted(COMMON)],
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
-# Where each kind of run has gone before (Aden, 2026-10-07).
-WANDB = {
-    "resfit-tuned-rlpd-can": ("robomimic-can-final", "tuned-rlpd"),
-    "equi-tuned-rlpd-can": ("robomimic-can-final", "tuned-rlpd"),
-    "resfit-residual-square": ("robomimic-square-final", "residual-rl"),
-    "equi-residual-square": ("robomimic-square-final", "equi-residual-rl"),
-    "equi-residual-square-zero-init": ("robomimic-square-final", "equi-residual-rl"),
-}
-TASK = {arm: "Can" if arm.endswith("-can") else "Square" for arm in LAUNCHED}
+# Where the tuned-RLPD arms have gone before (Aden, 2026-10-07).
+WANDB = ("robomimic-can-final", "tuned-rlpd")
 
-# The composed config every arm must have, then each method's recipe: the pre-registration's numbers.
+# The composed config every arm must have: the fixed-env baselines' tuned-RLPD recipe, and the
+# equivariant design with its critic norm replaced.
 SHARED = {
     "algo.total_timesteps": 150_000, "read_buffer_caches": False, "write_buffer_caches": False,
     "agent.critic.num_q": 10, "algo.n_step": 3, "algo.gamma": 0.99, "algo.batch_size": 256,
     "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4, "algo.buffer_size": 200_000,
     "algo.learning_starts": 10_000, "num_envs": 1, "eval_first": True,
     "eval_interval_every_steps": 10_000, "eval_num_episodes": 50, "seed": 1, "debug": False,
-    "wandb.mode": "online",
+    "wandb.mode": "online", "task": "Can", "offline_data.name": "ankile/robomimic-mh-can-image",
 }
 RECIPE = {
-    "tuned-rlpd": {
-        "base_policy": None, "algo.critic_warmup_steps": 0, "agent.actor_lr": 1e-4,
-        "agent.critic_target_tau": 0.01, "algo.stddev_min": 0.1, "algo.stddev_max": 0.1,
-        "agent.actor.action_scale": 1.0, "algo.random_action_noise_scale": 1.0,
-        "algo.use_base_policy_for_warmup": False,
-        "agent.actor.actor_last_layer_init_scale": None,
-    },
-    "residual": {
-        "base_policy.wandb_id": "robomimic-square-bc/3hzs5bz1", "base_policy.wt_type": "best",
-        "base_policy.wt_version": "v9", "algo.critic_warmup_steps": 10_000,
-        "agent.actor_lr": 1e-6, "agent.critic_target_tau": 0.005, "algo.stddev_min": 0.05,
-        "algo.stddev_max": 0.05, "agent.actor.action_scale": 0.1,
-        "algo.random_action_noise_scale": 0.2, "algo.use_base_policy_for_warmup": True,
-        "offline_data.use_base_policy_for_base_actions": True,
-    },
+    "base_policy": None, "algo.critic_warmup_steps": 0, "agent.actor_lr": 1e-4,
+    "agent.critic_target_tau": 0.01, "algo.stddev_min": 0.1, "algo.stddev_max": 0.1,
+    "agent.actor.action_scale": 1.0, "algo.random_action_noise_scale": 1.0,
+    "algo.use_base_policy_for_warmup": False, "agent.actor.actor_last_layer_init_scale": None,
 }
-INIT = {"resfit-residual-square": 0.0, "equi-residual-square": 1e-4,
-        "equi-residual-square-zero-init": 0.0}
 EQUI_DESIGN = {
     "equivariance.N": 8, "equivariance.use_equivariant_model": True,
     "equivariance.residual_squash": True, "equivariance.num_critic_layers": 2,
-    "equivariance.critic_norm": "field_norm", "equivariance.actor_norm": "none",
-    "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
-    "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
+    "equivariance.actor_norm": "none", "equivariance.actor_degree_channel": 128,
+    "equivariance.critic_degree_channel": 128, "equivariance.frozen_target_critic": False,
+    "equivariance.float_images_as_uint8": False,
 }
-# Within a task the stacks share everything but these (ARCHITECTURE.md, "The two stacks side by
-# side"), and the residual arms also their last layer's init.
 STACK = "equivariance"
-PAIRS = [("resfit-tuned-rlpd-can", "equi-tuned-rlpd-can"),
-         ("resfit-residual-square", "equi-residual-square"),
-         ("resfit-residual-square", "equi-residual-square-zero-init")]
 
 
 def case_table_arms(script: str) -> list[str]:
@@ -173,37 +151,37 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    method = "tuned-rlpd" if "tuned-rlpd" in arm else "residual"
-    expected = {**SHARED, **RECIPE[method], "task": TASK[arm],
-                "wandb.project": WANDB[arm][0], "wandb.group": WANDB[arm][1],
-                "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1",
-                **({"agent.actor.actor_last_layer_init_scale": INIT[arm]} if arm in INIT else {})}
-    if arm.startswith("equi-"):
-        expected.update(EQUI_DESIGN)
-    else:
-        expected["equivariance"] = None
+    expected = {**SHARED, **RECIPE, **EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm],
+                "wandb.project": WANDB[0], "wandb.group": WANDB[1],
+                "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
-    assert flat["offline_data.name"] == f"ankile/robomimic-mh-{TASK[arm].lower()}-image"
     assert "," not in flat["wandb.notes"], "hydra splits on commas"
 
 
-@pytest.mark.parametrize("pair", PAIRS, ids=[b for _, b in PAIRS])
-def test_a_tasks_arms_differ_in_the_stack_only(pair, tmp_path):
-    resfit, equi = (_flat(_compose(_overrides(arm, tmp_path))) for arm in pair)
-    differing = {k for k in resfit.keys() | equi.keys() if resfit.get(k) != equi.get(k)}
-    allowed = {k for k in differing if k == STACK or k.startswith(STACK + ".")}
-    allowed |= {"wandb.name", "wandb.notes", "wandb.project", "wandb.group"}
-    if pair[1] in INIT and INIT[pair[0]] != INIT[pair[1]]:
-        allowed.add("agent.actor.actor_last_layer_init_scale")
-    assert differing - allowed == set(), f"{pair}: the recipe differs in {sorted(differing - allowed)}"
+def _differing(a: dict, b: dict) -> set[str]:
+    return {k for k in a.keys() | b.keys() if a.get(k) != b.get(k)} - set(NAMING)
 
 
-def test_zero_init_differs_from_its_pair_in_the_init_only(tmp_path):
-    ours, zero = (_flat(_compose(_overrides(arm, tmp_path)))
-                  for arm in ("equi-residual-square", "equi-residual-square-zero-init"))
-    differing = {k for k in ours.keys() | zero.keys() if ours.get(k) != zero.get(k)}
-    assert differing == {"agent.actor.actor_last_layer_init_scale", "wandb.name", "wandb.notes"}
+@pytest.mark.parametrize("arm", ARMS)
+def test_arm_differs_from_the_baselines_equivariant_arm_in_the_critic_norm_only(arm, tmp_path):
+    """eyyi99q4's launch, with only its critic's FieldNorm replaced."""
+    ours = _flat(_compose(_overrides(arm, tmp_path)))
+    theirs = _flat(_compose(BASELINES["equi-tuned-rlpd-can"]))
+    assert _differing(ours, theirs) == {"equivariance.critic_norm"}
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
+    ours = _flat(_compose(_overrides(arm, tmp_path)))
+    resfit = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
+    outside = {k for k in _differing(ours, resfit) if k != STACK and not k.startswith(STACK + ".")}
+    assert outside == set(), f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}"
+
+
+def test_the_two_arms_differ_in_the_critic_norm_only(tmp_path):
+    a, b = (_flat(_compose(_overrides(arm, tmp_path))) for arm in ARMS)
+    assert _differing(a, b) == {"equivariance.critic_norm"}
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -289,7 +267,7 @@ def test_arm_builds_and_updates(arm, tmp_path, device):
     assert torch.isfinite(action).all(), f"{arm}: non-finite eval action"
 
 
-EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-")]
+EQUI_ARMS = ARMS  # every arm is equivariant
 
 
 @pytest.mark.gpu
@@ -337,36 +315,85 @@ def test_equivariant_arm_commutes_with_the_group(arm, training, tmp_path, device
             assert err < TOL, f"{arm}: critic not invariant at k={k}: {err:.2e}"
 
 
-@pytest.mark.gpu
-@pytest.mark.slow
-def test_zero_init_residual_starts_at_zero_and_leaves_it(tmp_path, device):
-    """Its step-0 action is exactly the base policy's, and the first actor step moves it.
+# Changes to one input of the reference batch, each large against that input's range. Every input
+# reaches the critic and the actor; the trivial-type ones are the wrist camera, the arm's height,
+# the gripper opening, and the z, yaw and gripper actions.
+SEES = 1e-4  # every input moves Q by at least 1.1e-3 without FieldNorm, a trivial one by at most
+             # 6.7e-6 with it (2026-10-08, on this batch at init)
+TRIVIAL_INPUTS = ("wrist image", "state z", "state gripper", "action z", "action yaw", "action gripper")
 
-    The other equivariant residual arm's actor has the same modules and shapes, and only that
-    arm's equivariance is checked on a nonzero output."""
+
+def _input_changes():
+    from tools.agent_fingerprint import CAMERAS
+
+    def image(cam):
+        return lambda obs, act: obs.__setitem__(cam, obs[cam].new_zeros(obs[cam].shape))
+
+    def state(i, by):
+        return lambda obs, act: obs.__setitem__("observation.state", obs["observation.state"].index_add(
+            1, obs["observation.state"].new_tensor([i], dtype=int),
+            obs["observation.state"].new_full((obs["observation.state"].shape[0], 1), by)))
+
+    def action(i):
+        return lambda obs, act: act.__setitem__((slice(None), i), act[:, i] + 0.5)
+
+    return {
+        "front image": image(CAMERAS[0]), "wrist image": image(CAMERAS[1]),
+        "state x": state(0, 0.1), "state z": state(2, 0.2), "state gripper": state(7, 0.02),
+        "action x": action(0), "action rx": action(3), "action z": action(2),
+        "action yaw": action(5), "action gripper": action(6),
+    }
+
+
+def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
+    """Per input change, the largest change in Q (mean over heads) and in the actor's mean action."""
     import torch
 
-    from tools.agent_fingerprint import STDDEV, fixed_batch
+    from tools.agent_fingerprint import fixed_batch
 
-    zero = _agent(_compose(_overrides("equi-residual-square-zero-init", tmp_path)), device)
-    ours = _agent(_compose(_overrides("equi-residual-square", tmp_path)), device)
-    assert {k: v.shape for k, v in zero.state_dict().items()} == \
-           {k: v.shape for k, v in ours.state_dict().items()}
+    torch.manual_seed(0)
+    agent = _agent(cfg, device)
+    agent.train(False)  # QAgent.train returns None
 
-    def residual(agent):
-        batch = fixed_batch().to(device)
-        keys = [*agent.rl_cameras, "observation.state", "observation.base_action"]
-        obs = {k: batch["obs"][k] for k in keys}
-        agent.train(False)
+    def outputs(change=None):
+        batch = fixed_batch(base_action=False).to(device)
+        obs = {k: v.clone() for k, v in batch["obs"].items()}
+        act = batch["action"].clone()
+        if change is not None:
+            change(obs, act)
         with torch.no_grad():
-            feat, _ = agent.enc(obs)
-            out = agent.actor(feat, std=None)
-        agent.train(True)
-        return out
+            actor_feat, critic_feat = agent.enc(obs)
+            return agent.critic(critic_feat, act).mean(dim=0), agent.actor(actor_feat, std=None)
 
-    assert torch.equal(residual(zero), torch.zeros_like(residual(zero)))
-    for k in range(4):  # the fourth updates the actor, as in training
-        metrics = zero.update(fixed_batch(weights=True).to(device), stddev=STDDEV, update_actor=k == 3)
-    moved = residual(zero)
-    assert torch.isfinite(moved).all() and moved.abs().max().item() > 0, "the residual did not move"
-    assert math.isfinite(metrics["train/actor_loss_base"])
+    q0, pi0 = outputs()
+    changes = {}
+    for name, change in _input_changes().items():
+        q, pi = outputs(change)
+        changes[name] = ((q - q0).abs().max().item(), (pi - pi0).abs().max().item())
+    return changes
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+@pytest.mark.parametrize("arm", ARMS)
+def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
+    """Invariance tests pass on a network that ignores an input, so this checks what they cannot."""
+    changes = _output_changes(_compose(_overrides(arm, tmp_path)), device)
+    blind_q = {k: f"{dq:.1e}" for k, (dq, _) in changes.items() if dq <= SEES}
+    assert not blind_q, f"{arm}: Q does not move with {blind_q}"
+    blind_pi = {k: f"{dpi:.1e}" for k, (_, dpi) in changes.items()
+                if not k.startswith("action") and dpi <= SEES}
+    assert not blind_pi, f"{arm}: the actor does not move with {blind_pi}"
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+def test_the_field_norm_critic_these_arms_replace_is_blind_to_every_trivial_input(device):
+    """eyyi99q4's critic: FieldNorm subtracts each regular field's trivial part, which is all a
+    trivial-type input contributes to it (2026-10-08 FINDING). The rotating inputs still reach Q."""
+    changes = _output_changes(_compose(BASELINES["equi-tuned-rlpd-can"]), device)
+    for name, (dq, _) in changes.items():
+        if name in TRIVIAL_INPUTS:
+            assert dq < SEES, f"field norm's Q moved by {dq:.1e} with {name}"
+        else:
+            assert dq > SEES, f"field norm's Q did not move with {name}: {dq:.1e}"
