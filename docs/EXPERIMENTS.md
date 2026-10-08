@@ -4620,3 +4620,19 @@ steps (`1ddrqdnd` −0.33 at 1k, −0.08 at 2k; `d047it6c` +0.005 and +0.21).
 one launch at a time and is busy with `gkck6eqp`. Its console goes to `outputs/queue/` like a runner
 launch's. About 0.41 s per step alone, slower shared. `resfit-tuned-rlpd-can` 2 stays queued on
 `gpu0` behind `gkck6eqp`.
+
+---
+
+## 2026-10-08 — LAUNCHED — `equi-tuned-rlpd-can-ln-matched` 1 (`496bq48s`)
+
+From the pre-registration above ("a fifth arm"), at its commit `6e61e65`, in the worktree
+`~/projects/equi-resrl-6e61e65`, by hand in tmux `ln-matched` on GPU 0, beside `gkck6eqp`: launched
+13:19, in wandb 13:48 (**`496bq48s`**,
+[run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-can-final/runs/496bq48s)).
+Console: `outputs/queue/20261008-131952_equi-tuned-rlpd-can-ln-matched-1_gpu0.log`.
+- **The gate said GO:** Tier 1 198 passed and 2 skipped, Tier 2 402 passed; the render check passed
+  on both tasks. Before the commit, `tests/test_sweep_arms.py` and `tests/test_demo_codec.py` passed
+  in full (63, GPU tests included). The run package records `6e61e65`, clean, and mujoco 3.3.2; the
+  online cache key the trainer built (`f3250e68`) is preflight's.
+- **Frames uncoded,** as pre-registered (Aden's choice, made before `gkck6eqp`'s first training
+  successes at 4.9k and about 5.5k were seen).
