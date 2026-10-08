@@ -7,19 +7,22 @@ submit.sh's case table is checked here first:
           compose through train_residual_td3's Hydra configs to the
           pre-registered recipe; each arm differs from the fixed-env baselines'
           equi-tuned-rlpd-can (eyyi99q4) in the critic's norm only, and from
-          ResFiT's tuned RLPD in the stack only; the smoke mode is the arm,
-          briefly; and every arm launches.
+          ResFiT's tuned RLPD in the stack only; the ResFiT arm differs from
+          resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches only;
+          the smoke mode is the arm, briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
-          losses, on the batch its method trains on; its actor is equivariant
-          and its critic invariant, at the arm's own sizes; and every input its
-          critic and actor are given can move their outputs. The FieldNorm
-          critic it replaces could not (2026-10-08 FINDING), and a test here
-          keeps that on record.
+          losses, on the batch its method trains on; an equivariant arm's actor
+          is equivariant and its critic invariant, at the arm's own sizes, and
+          every input its critic and actor are given can move their outputs (the
+          FieldNorm critic they replace could not, 2026-10-08 FINDING, and a
+          test here keeps that on record); the ResFiT arm has no LayerNorm in its
+          critic or actor, and its ViTs keep theirs.
 
 The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-08
-PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm"): tuned RLPD
-on Can in the equivariant stack at Aden's design, with no norm in the critic,
-and with RegularLayerNorm in it.
+PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm", and the
+entry adding a third arm): tuned RLPD on Can in the equivariant stack at Aden's
+design, with no norm in the critic, and with RegularLayerNorm in it; and
+ResFiT's tuned RLPD on Can with no LayerNorm in its critic and actor.
 """
 
 from __future__ import annotations
@@ -43,10 +46,13 @@ COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buff
 DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=10",
           "equivariance.num_critic_layers=2", "equivariance.actor_norm=none"}
 CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm"}
+NO_LAYER_NORM = {"agent.critic.use_layer_norm=false", "agent.actor.use_layer_norm=false"}
 LAUNCHED = {
-    arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
-          *COMMON}
-    for arm, norm in CRITIC_NORM.items()
+    **{arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
+             *COMMON}
+       for arm, norm in CRITIC_NORM.items()},
+    "resfit-tuned-rlpd-can-nolayernorm": {"--config-name=tuned_rlpd_can_config", *NO_LAYER_NORM,
+                                          *COMMON},
 }
 # The fixed-env baselines' tuned-RLPD arms as 9cf207d launched them (eyyi99q4, d047it6c), less naming.
 BASELINES = {
@@ -91,6 +97,7 @@ def case_table_arms(script: str) -> list[str]:
 
 
 ARMS = case_table_arms(SUBMIT.read_text())
+EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-")]
 
 
 def _overrides(arm: str, tmp_path: pathlib.Path, **env_extra) -> list[str]:
@@ -151,8 +158,12 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    expected = {**SHARED, **RECIPE, **EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm],
-                "wandb.project": WANDB[0], "wandb.group": WANDB[1],
+    if arm in CRITIC_NORM:
+        stack = {**EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm]}
+    else:
+        stack = {"equivariance": None, "agent.critic.use_layer_norm": False,
+                 "agent.actor.use_layer_norm": False}
+    expected = {**SHARED, **RECIPE, **stack, "wandb.project": WANDB[0], "wandb.group": WANDB[1],
                 "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
@@ -163,7 +174,7 @@ def _differing(a: dict, b: dict) -> set[str]:
     return {k for k in a.keys() | b.keys() if a.get(k) != b.get(k)} - set(NAMING)
 
 
-@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("arm", EQUI_ARMS)
 def test_arm_differs_from_the_baselines_equivariant_arm_in_the_critic_norm_only(arm, tmp_path):
     """eyyi99q4's launch, with only its critic's FieldNorm replaced."""
     ours = _flat(_compose(_overrides(arm, tmp_path)))
@@ -171,7 +182,7 @@ def test_arm_differs_from_the_baselines_equivariant_arm_in_the_critic_norm_only(
     assert _differing(ours, theirs) == {"equivariance.critic_norm"}
 
 
-@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("arm", EQUI_ARMS)
 def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
     ours = _flat(_compose(_overrides(arm, tmp_path)))
     resfit = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
@@ -179,9 +190,15 @@ def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
     assert outside == set(), f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}"
 
 
-def test_the_two_arms_differ_in_the_critic_norm_only(tmp_path):
-    a, b = (_flat(_compose(_overrides(arm, tmp_path))) for arm in ARMS)
+def test_the_two_equivariant_arms_differ_in_the_critic_norm_only(tmp_path):
+    a, b = (_flat(_compose(_overrides(arm, tmp_path))) for arm in EQUI_ARMS)
     assert _differing(a, b) == {"equivariance.critic_norm"}
+
+
+def test_the_resfit_arm_differs_from_d047it6c_in_its_layer_norm_switches_only(tmp_path):
+    ours = _flat(_compose(_overrides("resfit-tuned-rlpd-can-nolayernorm", tmp_path)))
+    theirs = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
+    assert _differing(ours, theirs) == {"agent.critic.use_layer_norm", "agent.actor.use_layer_norm"}
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -267,7 +284,6 @@ def test_arm_builds_and_updates(arm, tmp_path, device):
     assert torch.isfinite(action).all(), f"{arm}: non-finite eval action"
 
 
-EQUI_ARMS = ARMS  # every arm is equivariant
 
 
 @pytest.mark.gpu
@@ -375,7 +391,7 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
 
 @pytest.mark.gpu
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("arm", EQUI_ARMS)
 def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
     """Invariance tests pass on a network that ignores an input, so this checks what they cannot."""
     changes = _output_changes(_compose(_overrides(arm, tmp_path)), device)
@@ -397,3 +413,20 @@ def test_the_field_norm_critic_these_arms_replace_is_blind_to_every_trivial_inpu
             assert dq < SEES, f"field norm's Q moved by {dq:.1e} with {name}"
         else:
             assert dq > SEES, f"field norm's Q did not move with {name}: {dq:.1e}"
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+def test_the_resfit_arm_has_no_layer_norm_in_its_critic_or_actor(tmp_path, device):
+    """ResFiT's ablation of "the layer norm for the actor and critic MLPs": its ViTs keep theirs."""
+    import torch
+
+    agent = _agent(_compose(_overrides("resfit-tuned-rlpd-can-nolayernorm", tmp_path)), device)
+    reference = _agent(_compose(BASELINES["resfit-tuned-rlpd-can"]), device)
+
+    def layer_norms(module):
+        return sum(isinstance(m, torch.nn.LayerNorm) for m in module.modules())
+
+    assert (layer_norms(reference.critic), layer_norms(reference.actor)) == (3, 3)
+    assert (layer_norms(agent.critic), layer_norms(agent.actor)) == (0, 0)
+    assert sum(layer_norms(e) for e in agent.encoders) == sum(layer_norms(e) for e in reference.encoders) > 0

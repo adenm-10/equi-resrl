@@ -4328,3 +4328,48 @@ has fallen to 0.0055 (`d047it6c` 0.057 and rising); 0 of 42 training episodes ha
 stop at 30k frees about 3.5 GPU-hours against the 60k check. Its GPU then takes the next line of
 `gpu0`'s queue, `resfit-tuned-rlpd-can` 2; a nonorm seed 2 earned by the rule at 30k goes ahead of
 `resfit-residual-square` 2 on whichever runner frees first.
+
+---
+
+## 2026-10-08 — PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm
+
+**Question** (Aden, 2026-10-08): does ResFiT's stack need LayerNorm in its critic and actor MLPs to
+learn Can by tuned RLPD? ResFiT calls the critic's LayerNorm crucial, but ablated it only for its
+residual method (Fig. 5). In the equivariant stack, at the time of writing, the `layer_norm` arm
+(`1ddrqdnd`, at about 10k) has settled at zero online value and the `none` arm (`xm9cuo92`, at about
+3.4k) values online transitions at +0.07 to +0.11.
+
+**Arm `resfit-tuned-rlpd-can-nolayernorm`,** seed 1, added to seed-group `critic-norm-can-1008`:
+`--config-name=tuned_rlpd_can_config agent.critic.use_layer_norm=false agent.actor.use_layer_norm=false`
+plus `algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false`. Name
+`resfit-tuned-rlpd-can-nolayernorm-1`, notes `critic-norm-can-1008/resfit-tuned-rlpd-can-nolayernorm/seed1`,
+wandb `robomimic-can-final` / `tuned-rlpd`. From the commit that adds this entry, in a worktree
+pinned to it.
+- **What varies:** it differs from `d047it6c`'s launch in those two switches only
+  (`tests/test_sweep_arms.py`). Built, its critic has 0 LayerNorms (3 in `d047it6c`'s: the trunk
+  projection and both head layers) and its actor 0 (3: the compression and both hidden layers); its
+  two ViTs keep their 6. This is ResFiT's own ablation, "the layer norm for the actor and critic MLPs".
+- **Config caveats:** `agent.critic.orth` does nothing (2026-10-06 CORRECTION); `agent.actor.dropout`
+  and `agent.critic.dropout` do nothing (TODO B13). The 2026-10-08 audit also lists
+  `critic.norm_weight`, `critic.feature_dim`, `actor.max_action_norm`, `vit.patch_size` and
+  `vit.stride` as unread by this agent (not independently checked).
+
+**Rules,** as for the other two arms: seed 2 is queued iff its 20k and 30k evals total at least 5
+of 100; it is stopped at 60k if every eval to then is 0 and no training episode has succeeded; with
+two seeds, it passes iff p (110k–150k, both seeds) ≥ B_can = 0.852. Against `d047it6c` it is one
+seed each: an observation (STANDARDS 5.3). Reported at each 10k as for the others, against
+`d047it6c`.
+
+**Predictions** (Claude's, before launch):
+1. It meets the seed-2 rule. Moderate confidence: ResFiT's residual ablation without LayerNorm
+   still reached about 0.6 on Can by 40k.
+2. Its online value is above 0.1 over (5k, 10k], as `d047it6c`'s was (0.30). Moderate confidence.
+3. Its mean over 110k–150k is below `d047it6c`'s 0.972. Low confidence.
+
+**Resources: a deviation from one run per GPU** (Aden's call). It shares GPU 0 with `1ddrqdnd`,
+launched by hand in its own tmux session (`resfit-noln`) rather than by the `gpu0` runner, which
+runs one launch at a time; its console goes to `outputs/queue/` like a runner launch's. Both runs
+on GPU 0 slow down, so `1ddrqdnd`'s 30k stop check lands later in wall-clock time; neither run's
+outcome depends on speed. When `1ddrqdnd` stops, the `gpu0` runner launches
+`resfit-tuned-rlpd-can` 2 on GPU 0 beside this run. Three runs at once need about 45–60 GB of RAM;
+the last gate saw 91 GB available.

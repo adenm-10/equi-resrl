@@ -8,7 +8,9 @@
 #
 # Currently configured for: equivariant tuned RLPD on Can without FieldNorm in the critic,
 # pre-registered in docs/EXPERIMENTS.md, "2026-10-08 — PRE-REGISTERED — equivariant tuned RLPD on Can
-# without FieldNorm" (seed-group critic-norm-can-1008). Launch inside tmux from a worktree pinned to
+# without FieldNorm", and ResFiT's tuned RLPD without LayerNorm, added by "2026-10-08 —
+# PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm" (seed-group
+# critic-norm-can-1008). Launch inside tmux from a worktree pinned to
 # a commit, with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
@@ -33,6 +35,8 @@
 #   equi-tuned-rlpd-can-nonorm      equivariance.critic_norm=none: no norm in the critic.
 #   equi-tuned-rlpd-can-layernorm   equivariance.critic_norm=layer_norm: RegularLayerNorm, a
 #                                   LayerNorm over each sample's whole layer, as ResFiT's critic has.
+#   resfit-tuned-rlpd-can-nolayernorm  the fixed-env baselines' resfit-tuned-rlpd-can (d047it6c) with
+#                                   no LayerNorm in its critic and actor MLPs; its ViTs keep theirs.
 # The rest of Aden's design as before: equi_tanh on the actor, 10 critic heads, two hidden layers
 # per head, no norm in the actor. wandb: robomimic-can-final / tuned-rlpd, with the other
 # tuned-RLPD arms.
@@ -83,6 +87,11 @@ case "$ARM" in
                        equivariance.critic_norm=layer_norm)
         PROJECT=robomimic-can-final GROUP=tuned-rlpd
         GATE=(--task Can --method tuned-rlpd --stack equi) ;;
+    resfit-tuned-rlpd-can-nolayernorm)
+        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.critic.use_layer_norm=false
+                       agent.actor.use_layer_norm=false)
+        PROJECT=robomimic-can-final GROUP=tuned-rlpd
+        GATE=(--task Can --method tuned-rlpd --stack resfit) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
