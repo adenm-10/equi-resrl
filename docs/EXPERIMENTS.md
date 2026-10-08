@@ -4537,3 +4537,86 @@ episodes succeeded (`d047it6c` by 30k: 0.70 at 20k, 0.80 at 30k, 71 of 92 in (20
   pointing "at the critic's norm and its starting values more than at the cue". That reading does
   not hold: `9phsy6sf` failed through its actor. The prediction stands as registered; its reason
   does not.
+
+---
+
+## 2026-10-08 — DEVIATION — `9phsy6sf` (`resfit-tuned-rlpd-can-nolayernorm` 1) stopped at 33.9k
+
+Aden's call, at about 13:00, after the NOTE above: its actor has had no gradient since step 200, so
+the run cannot test its question, and it shared GPU 0 with `gkck6eqp`. A departure from its
+pre-registered 60k stop rule. **The arm has no verdict, and its seed 2 is not queued** (its 20k and
+30k evals total 0 of 100, so the rule would not have queued it either).
+- **Stopped:** SIGINT at 13:04:51, exit 130. Last logged step 33,900. Evals 0.00 at 0, 10k, 20k and
+  30k; 0 of 169 training episodes succeeded. Package finalized by hand: 509 history rows. Its tmux
+  session `resfit-noln` is closed.
+- **Its slot on GPU 0 goes to the fifth arm** (PRE-REGISTERED below).
+
+---
+
+## 2026-10-08 — PRE-REGISTERED — a fifth arm: RegularLayerNorm in the actor and the critic, its start matched to ResFiT's
+
+**Question** (Aden, 2026-10-08): with the equivariant LayerNorm where ResFiT's `use_layer_norm` puts
+LayerNorm, in the actor and the critic, and starting where ResFiT's critic starts, does equivariant
+tuned RLPD learn Can, and does its critic keep a positive online value?
+
+**Where the norms go.** ResFiT's switch puts a LayerNorm after every hidden Linear of its actor (the
+compression and two hidden layers: 3) and of its critic (the input projection and each head's two
+hidden layers); its ViTs keep their own either way. `equivariance.actor_norm` and `critic_norm` put
+the norm after every hidden Linear of the equivariant actor (visual projection, trunk, hidden layer:
+3) and critic (visual projection, trunk, each head's two: 2 + 2 per head). Two differences remain:
+the equivariant critic has a trunk layer ResFiT's lacks (one more norm before the heads), and each
+head's last hidden layer goes norm → max over the group → Linear, where ResFiT's goes LayerNorm →
+ReLU → Linear. `RegularLayerNorm` is ResFiT's LayerNorm with one learnt scale and shift per regular
+field instead of per channel, which equivariance requires. FieldNorm is not used: it erases every
+trivial-type input (2026-10-08 FINDING), and Aden chose this arm alone.
+
+**Why the start is matched.** Measured at init on the reference batch, 5 seeds each: the SD across
+the 10 heads of each head's mean Q, and the mean of the min over pairs of heads (the TD target's
+pessimism before γ).
+
+| Critic at init | Spread across heads | Min of two heads |
+|---|---|---|
+| ResFiT, LayerNorm (`d047it6c`) | 0.298 ± 0.048 | −0.145 |
+| ResFiT, critic LayerNorm off | 0.328 ± 0.050 | −0.154 |
+| Equivariant, `critic_norm=none` (`xm9cuo92`) | 0.476 ± 0.481 | −0.087 |
+| Equivariant, `critic_norm=layer_norm` (`1ddrqdnd`) | 1.024 ± 0.071 | −0.375 |
+| **Equivariant, `layer_norm`, `critic_last_layer_init_scale=0.3`** | **0.307 ± 0.021** | **−0.113** |
+
+The unscaled RegularLayerNorm critic starts 3.4× as spread as ResFiT's, from escnn's initialization
+of each head's last Linear and the positive features the max over the group gives after a norm;
+ResFiT's own LayerNorm barely moves its spread. A scale of 0.3 on each head's last Linear (an
+existing field) matches ResFiT's. The actor's norm does not touch the critic's start.
+
+**Arm `equi-tuned-rlpd-can-ln-matched`,** seed 1, added to seed-group `critic-norm-can-1008`:
+`--config-name=equi_tuned_rlpd_can_config equivariance.residual_squash=true agent.critic.num_q=10
+equivariance.num_critic_layers=2 equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
+equivariance.critic_last_layer_init_scale=0.3`, plus `algo.total_timesteps=150000
+read_buffer_caches=false write_buffer_caches=false`. Env frames uncoded, as `xm9cuo92` and
+`1ddrqdnd` (Aden's choice). Name `equi-tuned-rlpd-can-ln-matched-1`, notes
+`critic-norm-can-1008/equi-tuned-rlpd-can-ln-matched/seed1`, wandb `robomimic-can-final` /
+`tuned-rlpd`. From the commit that adds this entry, in a worktree pinned to it.
+- **What varies:** against `1ddrqdnd`'s launch, `equivariance.actor_norm` and
+  `critic_last_layer_init_scale` only; against `xm9cuo92`'s, those and `critic_norm`
+  (`tests/test_sweep_arms.py`, which also checks the start against ResFiT's on the GPU and the norm
+  after every hidden Linear). Two changes against `1ddrqdnd`: if this arm differs from it, this
+  entry cannot say which change did it.
+
+**Rules,** as for the other arms: seed 2 iff its 20k and 30k evals total at least 5 of 100; stopped
+at 60k if every eval to then is 0 and no training episode has succeeded; with two seeds, it passes
+iff p (110k–150k, both seeds) ≥ B_can = 0.852. Against `xm9cuo92`, `1ddrqdnd` and `d047it6c`, one
+seed each: an observation (STANDARDS 5.3). Readouts as the fourth arm's: online value over demo
+value, the ratio of the window means over (5k, 10k] and (15k, 20k] (`d047it6c` 0.45 and 0.58;
+`xm9cuo92` 0.03 over (5k, 10k]; `1ddrqdnd` −0.03 and −0.02); and its online value over its first 3k
+steps (`1ddrqdnd` −0.33 at 1k, −0.08 at 2k; `d047it6c` +0.005 and +0.21).
+
+**Predictions** (Claude's, before launch):
+1. Its online value is at or above 0 by 1k and stays at or above 0 through 3k, unlike `1ddrqdnd`'s.
+   Moderate confidence: the start that drove `1ddrqdnd` negative is gone.
+2. Its online-over-demo ratio over (5k, 10k] is below 0.2. Low confidence: `xm9cuo92`, which also
+   starts without the offset (min of two −0.087), fell to 0.03.
+3. It does not meet the seed-2 rule. Low confidence.
+
+**Resources.** GPU 0, beside `gkck6eqp`, launched by hand in tmux `ln-matched`: the `gpu0` runner runs
+one launch at a time and is busy with `gkck6eqp`. Its console goes to `outputs/queue/` like a runner
+launch's. About 0.41 s per step alone, slower shared. `resfit-tuned-rlpd-can` 2 stays queued on
+`gpu0` behind `gkck6eqp`.

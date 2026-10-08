@@ -11,8 +11,10 @@
 # without FieldNorm", and ResFiT's tuned RLPD without LayerNorm, added by "2026-10-08 —
 # PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm", and the no-norm
 # arm with the env's frames through the demos' video codec, added by "2026-10-08 — PRE-REGISTERED —
-# a fourth arm: the no-norm arm with env frames coded like the demos'" (seed-group
-# critic-norm-can-1008). Launch inside tmux from a worktree pinned to
+# a fourth arm: the no-norm arm with env frames coded like the demos'", and RegularLayerNorm where
+# ResFiT has LayerNorm, added by "2026-10-08 — PRE-REGISTERED — a fifth arm: RegularLayerNorm in the
+# actor and the critic, its start matched to ResFiT's" (seed-group critic-norm-can-1008). Launch
+# inside tmux from a worktree pinned to
 # a commit, with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
@@ -42,6 +44,10 @@
 #   equi-tuned-rlpd-can-nonorm-democodec  the nonorm arm (xm9cuo92) with every env camera frame
 #                                   through the demos' video codec (encode_env_frames_like_demos):
 #                                   rollouts, evals and the online buffer.
+#   equi-tuned-rlpd-can-ln-matched  RegularLayerNorm after every hidden Linear of the actor and the
+#                                   critic, where ResFiT's use_layer_norm puts LayerNorm, and each
+#                                   critic head's last Linear scaled by 0.3 at init, which matches
+#                                   the heads' starting spread to ResFiT's.
 # The rest of Aden's design as before: equi_tanh on the actor, 10 critic heads, two hidden layers
 # per head, no norm in the actor. wandb: robomimic-can-final / tuned-rlpd, with the other
 # tuned-RLPD arms.
@@ -95,6 +101,14 @@ case "$ARM" in
     equi-tuned-rlpd-can-nonorm-democodec)
         ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
                        equivariance.critic_norm=none encode_env_frames_like_demos=true)
+        PROJECT=robomimic-can-final GROUP=tuned-rlpd
+        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
+    equi-tuned-rlpd-can-ln-matched)
+        # RegularLayerNorm in the actor too, so not "${DESIGN[@]}", which sets actor_norm=none.
+        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config equivariance.residual_squash=true
+                       agent.critic.num_q=10 equivariance.num_critic_layers=2
+                       equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
+                       equivariance.critic_last_layer_init_scale=0.3)
         PROJECT=robomimic-can-final GROUP=tuned-rlpd
         GATE=(--task Can --method tuned-rlpd --stack equi) ;;
     resfit-tuned-rlpd-can-nolayernorm)

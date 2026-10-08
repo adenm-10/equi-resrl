@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-10-08, about 12:30 · **Last verified commit:** the commit pre-registering
-the fourth `critic-norm-can-1008` arm (EXPERIMENTS.md, 2026-10-08, "a fourth arm");
+**Last updated:** 2026-10-08, about 13:30 · **Last verified commit:** the commit pre-registering
+the fifth `critic-norm-can-1008` arm (EXPERIMENTS.md, 2026-10-08, "a fifth arm");
 `tests/test_sweep_arms.py` and `tests/test_demo_codec.py` passed in full, GPU tests included
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
@@ -21,7 +21,9 @@ value is held up only by what it carries over from similar demo states. ResFiT's
 over about 0.3 for 13.6k steps before its first success; the failing critics carry over nothing.
 Two tests run now: the env's frames through the demos' video codec, which removes the one known
 perfect image cue between demo and env frames (CODE and PRE-REGISTERED, "a fourth arm"); and
-ResFiT's stack without LayerNorm, which at 3.4k shows the failing start.
+RegularLayerNorm where ResFiT has LayerNorm, in the actor and the critic, with the critic's start
+matched to ResFiT's ("a fifth arm"). ResFiT's stack without LayerNorm (`9phsy6sf`) was stopped: its
+actor saturated in its first 200 updates and never had a gradient again (NOTE and DEVIATION).
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
@@ -94,10 +96,11 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 the AMENDMENT and the DEVIATION), seed 1 of each arm, 150k steps:
 - **GPU 1,** runner `gpu1`: `equi-tuned-rlpd-can-nonorm` 1, `xm9cuo92`, from `6b6df8c`. 0 at 0 and
   10k, online value about 0 by 10k.
-- **GPU 0,** by hand in tmux `resfit-noln`: `resfit-tuned-rlpd-can-nolayernorm` 1, `9phsy6sf`, from
-  `0a9626f`.
-- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec` 1 (env frames through the demos'
-  codec), from its launch commit's worktree, in place of the cut layernorm arm (`1ddrqdnd`).
+- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec` 1, `gkck6eqp` (env frames through
+  the demos' codec), from `e3793ce`, in place of the cut layernorm arm (`1ddrqdnd`).
+- **GPU 0,** by hand in tmux `ln-matched`: `equi-tuned-rlpd-can-ln-matched` 1 (RegularLayerNorm in
+  the actor and critic, the critic's start matched to ResFiT's), from its launch commit's worktree,
+  in place of the stopped `9phsy6sf`.
 - Seed 2 of an arm is queued iff its 20k and 30k evals total at least 5 of 100; an arm with every
   eval at 0 and no training success by 60k is stopped.
 

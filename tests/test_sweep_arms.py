@@ -9,16 +9,20 @@ submit.sh's case table is checked here first:
           equi-tuned-rlpd-can (eyyi99q4) in the critic's norm only, and from
           ResFiT's tuned RLPD in the stack only, the demo-codec arm in its env
           frames as well; the demo-codec arm differs from the nonorm arm
-          (xm9cuo92) in encode_env_frames_like_demos only; the ResFiT arm differs
-          from resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches
-          only; the smoke mode is the arm, briefly; and every arm launches.
+          (xm9cuo92) in encode_env_frames_like_demos only; the matched-LayerNorm
+          arm differs from the layernorm arm (1ddrqdnd) in the actor's norm and
+          the critic heads' init scale only; the ResFiT arm differs from
+          resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches only;
+          the smoke mode is the arm, briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses, on the batch its method trains on; an equivariant arm's actor
           is equivariant and its critic invariant, at the arm's own sizes, and
           every input its critic and actor are given can move their outputs (the
           FieldNorm critic they replace could not, 2026-10-08 FINDING, and a
           test here keeps that on record); the ResFiT arm has no LayerNorm in its
-          critic or actor, and its ViTs keep theirs.
+          critic or actor, and its ViTs keep theirs; the matched-LayerNorm arm's
+          critic heads start as spread as ResFiT's, and has RegularLayerNorm at
+          every hidden layer of its actor and critic.
 
 The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-08
 PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm", and the
@@ -26,7 +30,8 @@ entry adding a third arm): tuned RLPD on Can in the equivariant stack at Aden's
 design, with no norm in the critic, and with RegularLayerNorm in it; and
 ResFiT's tuned RLPD on Can with no LayerNorm in its critic and actor; and the
 no-norm arm with the env's frames through the demos' video codec (the entry
-adding a fourth arm).
+adding a fourth arm); and RegularLayerNorm in the actor and the critic, with
+the critic heads' start matched to ResFiT's (the entry adding a fifth arm).
 """
 
 from __future__ import annotations
@@ -50,14 +55,20 @@ COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buff
 DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=10",
           "equivariance.num_critic_layers=2", "equivariance.actor_norm=none"}
 CODEC_ARM = "equi-tuned-rlpd-can-nonorm-democodec"
+LN_ARM = "equi-tuned-rlpd-can-ln-matched"
 CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm",
-               CODEC_ARM: "none"}
+               CODEC_ARM: "none", LN_ARM: "layer_norm"}
+# The matched-LayerNorm arm's actor norm and critic head init scale; every other arm keeps the design's.
+LN_MATCHED = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_last_layer_init_scale": 0.3}
 NO_LAYER_NORM = {"agent.critic.use_layer_norm=false", "agent.actor.use_layer_norm=false"}
 DEMO_CODEC = "encode_env_frames_like_demos"
 LAUNCHED = {
     **{arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
              *COMMON, *([f"{DEMO_CODEC}=true"] if arm == CODEC_ARM else [])}
-       for arm, norm in CRITIC_NORM.items()},
+       for arm, norm in CRITIC_NORM.items() if arm != LN_ARM},
+    LN_ARM: {"--config-name=equi_tuned_rlpd_can_config",
+             *(o for o in DESIGN if not o.startswith("equivariance.actor_norm=")),
+             "equivariance.critic_norm=layer_norm", *(f"{k}={v}" for k, v in LN_MATCHED.items()), *COMMON},
     "resfit-tuned-rlpd-can-nolayernorm": {"--config-name=tuned_rlpd_can_config", *NO_LAYER_NORM,
                                           *COMMON},
 }
@@ -166,7 +177,8 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
     if arm in CRITIC_NORM:
-        stack = {**EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm]}
+        stack = {**EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm],
+                 "equivariance.critic_last_layer_init_scale": None, **(LN_MATCHED if arm == LN_ARM else {})}
     else:
         stack = {"equivariance": None, "agent.critic.use_layer_norm": False,
                  "agent.actor.use_layer_norm": False}
@@ -183,7 +195,8 @@ def _differing(a: dict, b: dict) -> set[str]:
 
 
 def _codec(arm: str) -> set[str]:
-    return {DEMO_CODEC} if arm == CODEC_ARM else set()
+    """What an arm changes beyond the critic's norm: the codec arm its frames, the LN arm its actor and start."""
+    return {DEMO_CODEC} if arm == CODEC_ARM else set(LN_MATCHED) if arm == LN_ARM else set()
 
 
 @pytest.mark.parametrize("arm", EQUI_ARMS)
@@ -199,13 +212,21 @@ def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
     ours = _flat(_compose(_overrides(arm, tmp_path)))
     resfit = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
     outside = {k for k in _differing(ours, resfit) if k != STACK and not k.startswith(STACK + ".")}
-    assert outside == _codec(arm), f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}"
+    assert outside == _codec(arm) - set(LN_MATCHED), (
+        f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}")
 
 
 def test_the_two_critic_norm_arms_differ_in_the_critic_norm_only(tmp_path):
     a, b = (_flat(_compose(_overrides(arm, tmp_path)))
             for arm in ("equi-tuned-rlpd-can-nonorm", "equi-tuned-rlpd-can-layernorm"))
     assert _differing(a, b) == {"equivariance.critic_norm"}
+
+
+def test_the_matched_ln_arm_differs_from_the_layernorm_arm_in_its_actor_norm_and_start_only(tmp_path):
+    """1ddrqdnd's launch, with RegularLayerNorm in the actor too and the critic heads' start scaled."""
+    ours = _flat(_compose(_overrides(LN_ARM, tmp_path)))
+    theirs = _flat(_compose(_overrides("equi-tuned-rlpd-can-layernorm", tmp_path)))
+    assert _differing(ours, theirs) == set(LN_MATCHED)
 
 
 def test_the_demo_codec_arm_differs_from_the_nonorm_arm_in_its_env_frames_only(tmp_path):
@@ -450,3 +471,63 @@ def test_the_resfit_arm_has_no_layer_norm_in_its_critic_or_actor(tmp_path, devic
     assert (layer_norms(reference.critic), layer_norms(reference.actor)) == (3, 3)
     assert (layer_norms(agent.critic), layer_norms(agent.actor)) == (0, 0)
     assert sum(layer_norms(e) for e in agent.encoders) == sum(layer_norms(e) for e in reference.encoders) > 0
+
+
+def _head_spread(cfg, device, seeds=5) -> float:
+    """The critic heads' starting spread: the SD across heads of each head's mean Q on the
+    reference batch, in train mode, averaged over `seeds` initializations."""
+    import torch
+
+    from tools.agent_fingerprint import fixed_batch
+
+    spreads = []
+    for seed in range(seeds):
+        torch.manual_seed(seed)
+        agent = _agent(cfg, device)
+        agent.train(True)
+        batch = fixed_batch(base_action=False).to(device)
+        obs = dict(batch["obs"])
+        with torch.no_grad():
+            if cfg.equivariance is None:
+                q = agent.critic(agent._encode(obs, augment=False), obs["observation.state"], batch["action"])
+            else:
+                q = agent.critic(agent.enc(obs)[1], batch["action"])
+        spreads.append(q.squeeze(-1).mean(dim=1).std().item())
+    return sum(spreads) / len(spreads)
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+def test_the_matched_ln_arm_starts_as_spread_as_resfits_critic(tmp_path, device):
+    """Measured 2026-10-08, 5 seeds: ResFiT 0.298, this arm 0.307; RegularLayerNorm unscaled 1.02,
+    which made the min-of-2 target -0.375 against ResFiT's -0.145 (the fifth arm's entry)."""
+    ours = _head_spread(_compose(_overrides(LN_ARM, tmp_path)), device)
+    resfit = _head_spread(_compose(BASELINES["resfit-tuned-rlpd-can"]), device)
+    unscaled = _head_spread(_compose(_overrides("equi-tuned-rlpd-can-layernorm", tmp_path)), device)
+    assert 0.75 < ours / resfit < 1.33, (ours, resfit)
+    assert unscaled / resfit > 2.5, (unscaled, resfit)  # what the scale is there to remove
+
+
+@pytest.mark.gpu
+def test_the_matched_ln_arm_has_regular_layer_norm_after_every_hidden_linear(tmp_path, device):
+    """Where ResFiT's use_layer_norm puts LayerNorm: after every hidden Linear of the actor (its
+    visual projection, trunk and hidden layer) and of the critic (its visual projection, trunk
+    and each head's two), and nowhere else."""
+    import torch
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import RegularLayerNorm
+
+    cfg = _compose(_overrides(LN_ARM, tmp_path))
+    agent = _agent(cfg, device)
+    heads = cfg.agent.critic.num_q
+    for name, module, hidden, outputs in (("actor", agent.actor, 3, 1),
+                                          ("critic", agent.critic, 2 + 2 * heads, heads)):
+        # Each Linear and what follows it, as each Sequential lists them (modules() would
+        # descend into escnn's Linear).
+        pairs = [(a, b) for seq in module.modules() if isinstance(seq, torch.nn.Sequential)
+                 for a, b in zip(list(seq.children()), list(seq.children())[1:] + [None])]
+        linears = [b for a, b in pairs if isinstance(a, enn.Linear)]
+        assert len(linears) == hidden + outputs, (name, len(linears))
+        assert sum(isinstance(b, RegularLayerNorm) for b in linears) == hidden, name
+        assert sum(isinstance(m, RegularLayerNorm) for m in module.modules()) == hidden, name
