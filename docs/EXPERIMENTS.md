@@ -5009,3 +5009,55 @@ buffer (about 25 min for the residual, which labels it with the base policy). In
 the residual took 0.35 s per step through its warm-up, alone on GPU 1. Tuned RLPD took 0.51 s per
 step while sharing GPU 1 with the residual's buffer fill. Shared, 100k is expected in about a day.
 GPU 0 keeps `gkck6eqp` (then its seed 2) and `resfit-residual-square` 2.
+
+---
+
+## 2026-10-09 — LAUNCHED — `square-rerendered-1009` seed 1 (`6ng62tpm`, `vc5o977f`); `resfit-residual-square` 2 (`s8opblsd`)
+
+From the pre-registration above, at its commit `eb90a0c`, in the worktree `~/projects/equi-resrl-eb90a0c`,
+by hand on GPU 1 through `submit.sh` (wrapper: console to `outputs/queue/`, then an `EXIT` line).
+- **`equi-residual-square-rerendered` 1:** tmux `sq-res`, launched 09:49, gate GO 10:05, in wandb
+  11:03 after labelling its demo buffer with the base policy (**`6ng62tpm`**,
+  [run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/6ng62tpm)).
+  Console `outputs/queue/20261009-094910_equi-residual-square-rerendered-1_gpu1.log`.
+- **`equi-tuned-rlpd-square-rerendered` 1:** tmux `sq-trlpd`, launched 09:49, in wandb 10:17
+  (**`vc5o977f`**,
+  [run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/vc5o977f)).
+  Console `outputs/queue/20261009-094919_equi-tuned-rlpd-square-rerendered-1_gpu1.log`. Step 0: 0 of
+  50. At 6.6k, online value 0.15 against demo value 0.56.
+- **The gate said GO** for both: Tier 1 206 passed and 2 skipped, Tier 2 372 passed, the render
+  check passed. The residual's one warning is the BC policy not being in the worktree's
+  `artifacts/` (TODO, the gate's BC-policy check); it downloaded `v9`. Both run packages record
+  `eb90a0c`, clean, and mujoco 3.3.2. The cache keys each trainer built are preflight's: residual
+  offline `c293a914`, online `1683475f`; tuned RLPD offline `be8abb63`, online `099fa3d6`. Neither
+  read nor wrote a cache.
+- **`resfit-residual-square` 2** (fixed-env baselines, from `9cf207d`, by hand on GPU 0 in tmux
+  `resfit-sq2`, launched 08:37; DEVIATION and NOTE above): gate GO (Tier 1 188 passed and 2
+  skipped, Tier 2 385 passed), in wandb 09:49 (**`s8opblsd`**). Evals 0.68 at step 0, 0.22 at 10k
+  (seed 1, `oj5k0jqb`: 0.50, then 0.30 at 10k, then 0.800 over 110k–150k).
+- **RAM.** Four trainers (three on Square) use 105 of 125 GB at 11:05. A Square run's main process
+  grows from about 10 to about 25 GB by 150k (`oj5k0jqb`, `kyv7clfc`, from wandb's system
+  metrics), so the machine is expected to run 5–10 GB into swap (225 GB) early on 2026-10-10,
+  until `s8opblsd` ends at 150k. Aden was told and left the queue as it is.
+
+---
+
+## 2026-10-09 — AMENDMENT and CODE — the residual's 100k check at one standard error; a watcher enforces the seed group's rules
+
+- **The amendment** (Aden, about 11:25, before the residual's step-0 eval was logged, and so before
+  any of its results): the residual passes its 100k check iff its 60k–100k evals clear B_sq by one
+  standard error, p − 0.582 ≥ sqrt(p(1−p)/250 + 0.582·0.418/500): **at least 155 of 250 (0.62)**,
+  in place of two standard errors (165 of 250). Why: `oj5k0jqb`, ResFiT's own residual, scored
+  exactly 165 there, so the pre-registered check would have stopped an equivariant residual that
+  learns at all more slowly than ResFiT's. The cost: a residual that only holds the base policy
+  passes with about a 16% chance, and gets a seed 2. Every other rule stands.
+- **`tools/square_rerendered_watch.py`,** in tmux `sq-watch` from the main checkout at the commit
+  that adds this entry, enforces the rules so no one has to watch: SIGINT on the residual's
+  collapse, on a failed 100k check, and at convergence from 150k. It logs a passed 100k check as
+  due its seed 2, which it does not launch: GPU and RAM need a human. It logs a critic value above
+  1.5 once per run, and finalizes the package of a run it stopped. Every action goes to
+  `outputs/queue/watch.log`. It reuses `tools/run_watch.py`'s trainer discovery, package lookup and
+  log. `tests/test_square_rerendered_watch.py` checks its rules on `oj5k0jqb`'s and `kyv7clfc`'s eval
+  sequences: `oj5k0jqb` passes the 100k check and is still rising at 150k, `kyv7clfc` is stopped at
+  30k, tuned RLPD is never stopped for collapse, and 155 of 250 passes where 154 does not. Before
+  launch it read both live records.

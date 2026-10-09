@@ -110,11 +110,15 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 and tuned RLPD on Square, on the re-rendered demos"), seed 1 of each arm, up to 300k steps, on
 GPU 1, by hand in tmux `sq-res` and `sq-trlpd`, from the launch commit's worktree. Aden's design:
 no norm anywhere in the equivariant networks, the actor squashed, 5 critic heads of one hidden
-layer, the residual's last layer at 1e-4. The residual is stopped on collapse (three evals in a row
-at or below 0.05) or at 100k unless its 60k–100k evals reach 165 of 250. Tuned RLPD is stopped at
-100k unless an eval reaches 0.04 or 5 training episodes have succeeded. An arm that trains runs
-until convergence (from 150k) or 300k, and gets a seed 2. **If neither trains by 100k,** the plan
-regroups (TODO B16).
+layer, the residual's last layer at 1e-4. Residual `6ng62tpm`, tuned RLPD `vc5o977f`. The residual
+is stopped on collapse (three evals in a row at or below 0.05) or at 100k unless its 60k–100k evals
+reach 155 of 250 (B_sq + 1 SE; AMENDMENT of 2026-10-09). Tuned RLPD is stopped at 100k unless an
+eval reaches 0.04 or 5 training episodes have succeeded. An arm that trains runs until convergence
+(from 150k) or 300k, and is due a seed 2. **The watcher `tools/square_rerendered_watch.py`** (tmux
+`sq-watch`) applies these stops and logs every action, a due seed 2 and a critic value above 1.5 to
+`outputs/queue/watch.log`; **seed 2s are launched by a human.** **If neither trains by 100k,** the
+plan regroups (TODO B16). RAM is tight: about 5–10 GB into swap is expected early on 2026-10-10,
+until `resfit-residual-square` 2 ends.
 
 **`critic-norm-can-1008`'s last arm,** GPU 0, runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec`
 1, `gkck6eqp` (env frames through the demos' codec), from `e3793ce`, 0.94 at 10k. Its seed 2 is
@@ -123,8 +127,8 @@ p (110k–150k) ≥ B_can = 0.852. The group's other arms are stopped without a 
 (no norm, frames uncoded) at 60k, its critic diverging; `496bq48s` (RegularLayerNorm) at 109.4k;
 `9phsy6sf` (ResFiT, no LayerNorm) at 33.9k.
 
-**`resfit-residual-square` 2,** GPU 0, by hand in tmux `resfit-sq2`, from `~/projects/equi-resrl-9cf207d`
-(fixed-env baselines; seed 1 `oj5k0jqb`, 0.800 over 110k–150k).
+**`resfit-residual-square` 2,** `s8opblsd`, GPU 0, by hand in tmux `resfit-sq2`, from
+`~/projects/equi-resrl-9cf207d` (fixed-env baselines; seed 1 `oj5k0jqb`, 0.800 over 110k–150k).
 
 **How to follow them:**
 - **wandb,** entity `aden-mckinney10-university-of-central-florida`: residual in
