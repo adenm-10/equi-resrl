@@ -22,20 +22,22 @@ escaped so far: both settle at zero online value, `layer_norm` by 5k (cut at 16.
 scored 0 at every eval to 30k. **The working account,** which that result supports: with no reward online, a critic's online
 value is held up only by what it carries over from similar demo states. ResFiT's `d047it6c` carried
 over about 0.3 for 13.6k steps before its first success; the failing critics carry over nothing.
-Two tests run now: the env's frames through the demos' video codec, which removes the one known
-perfect image cue between demo and env frames (CODE and PRE-REGISTERED, "a fourth arm"); and
-RegularLayerNorm where ResFiT has LayerNorm, in the actor and the critic, with the critic's start
-matched to ResFiT's ("a fifth arm"). ResFiT's stack without LayerNorm (`9phsy6sf`) was stopped: its
-actor saturated in its first 200 updates and never had a gradient again (NOTE and DEVIATION).
+Of the two tests that followed, the codec learned (`gkck6eqp`, above) and RegularLayerNorm with the
+critic's start matched to ResFiT's did not (`496bq48s`, 0 at every eval to 100k). ResFiT's stack
+without LayerNorm (`9phsy6sf`) was stopped: its actor saturated in its first 200 updates and never
+had a gradient again. `xm9cuo92`'s critic, with no norm and stuck at zero, diverged from 54k
+(2026-10-09 NOTE); `gkck6eqp`'s, the same critic learning, stayed bounded.
 
-**Next, the demos rendered by our env instead of coding the env's frames** (TODO B16; CODE,
-2026-10-08, "re-rendered demos"): `local/robomimic-mh-{can,square}-rerendered`, the robomimic
-demos' states rendered by our env and stored losslessly. Building them found that **every online
+**The demos are now rendered by our env** (TODO B16; CODE, 2026-10-08, "re-rendered demos"):
+`local/robomimic-mh-{can,square}-rerendered`, the robomimic demos' states rendered by our env and
+stored losslessly, built and verified (NOTE, 2026-10-08). Building them found that **every online
 observation after a reset shows the arm one 2 ms physics substep behind the simulator's state**:
 robosuite observes without recomputing positions after its last substep. Up to 2 mm at the gripper
 and a few levels on the wrist camera, in every run so far. The re-rendered demos reproduce it
-(Aden's choice), so they match the online observations bit for bit; the env is unchanged. A
-validation run on Can, then the equivariant residual on Square, follow.
+(Aden's choice); the env is unchanged. They match the online observations exactly in state, and in
+frames up to the GPU's own residue (1 level on a few edge pixels of about 1–2% of Can's wrist
+frames; 2026-10-09 CODE). **The equivariant residual and equivariant tuned RLPD on Square run on
+them now** (Running now). Aden skipped the planned validation run on Can (2026-10-09).
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
@@ -104,37 +106,39 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**`critic-norm-can-1008`** (EXPERIMENTS.md, 2026-10-08: PRE-REGISTERED, the third and fourth arms,
-the AMENDMENT and the DEVIATION), seed 1 of each arm, 150k steps:
-- **GPU 1,** runner `gpu1`: `equi-tuned-rlpd-can-nonorm` 1, `xm9cuo92`, from `6b6df8c`. 0 at 0 and
-  10k, online value about 0 by 10k.
-- **GPU 0,** runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec` 1, `gkck6eqp` (env frames through
-  the demos' codec), from `e3793ce`, in place of the cut layernorm arm (`1ddrqdnd`).
-- **GPU 0,** by hand in tmux `ln-matched`: `equi-tuned-rlpd-can-ln-matched` 1 (RegularLayerNorm in
-  the actor and critic, the critic's start matched to ResFiT's), from its launch commit's worktree,
-  in place of the stopped `9phsy6sf`.
-- Seed 2 of an arm is queued iff its 20k and 30k evals total at least 5 of 100; an arm with every
-  eval at 0 and no training success by 60k is stopped.
+**`square-rerendered-1009`** (EXPERIMENTS.md, 2026-10-09 PRE-REGISTERED, "the equivariant residual
+and tuned RLPD on Square, on the re-rendered demos"), seed 1 of each arm, up to 300k steps, on
+GPU 1, by hand in tmux `sq-res` and `sq-trlpd`, from the launch commit's worktree. Aden's design:
+no norm anywhere in the equivariant networks, the actor squashed, 5 critic heads of one hidden
+layer, the residual's last layer at 1e-4. The residual is stopped on collapse (three evals in a row
+at or below 0.05) or at 100k unless its 60k–100k evals reach 165 of 250. Tuned RLPD is stopped at
+100k unless an eval reaches 0.04 or 5 training episodes have succeeded. An arm that trains runs
+until convergence (from 150k) or 300k, and gets a seed 2. **If neither trains by 100k,** the plan
+regroups (TODO B16).
 
-**Then the fixed-env baselines' ResFiT seed 2s,** from `~/projects/equi-resrl-9cf207d`:
-`resfit-tuned-rlpd-can` 2 on GPU 0, after the codec arm, and `resfit-residual-square` 2 on GPU 1.
-Done there: `d047it6c` (0.972 over 110k–150k) and `oj5k0jqb` (0.800). The batch's equivariant arms
-have no verdict: the four remaining runs are commented out of the queues (DEVIATION, 2026-10-08).
+**`critic-norm-can-1008`'s last arm,** GPU 0, runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec`
+1, `gkck6eqp` (env frames through the demos' codec), from `e3793ce`, 0.94 at 10k. Its seed 2 is
+queued next on `gpu0`, then `resfit-tuned-rlpd-can` 2 from `9cf207d`. The verdict needs both seeds:
+p (110k–150k) ≥ B_can = 0.852. The group's other arms are stopped without a verdict: `xm9cuo92`
+(no norm, frames uncoded) at 60k, its critic diverging; `496bq48s` (RegularLayerNorm) at 109.4k;
+`9phsy6sf` (ResFiT, no LayerNorm) at 33.9k.
+
+**`resfit-residual-square` 2,** GPU 0, by hand in tmux `resfit-sq2`, from `~/projects/equi-resrl-9cf207d`
+(fixed-env baselines; seed 1 `oj5k0jqb`, 0.800 over 110k–150k).
 
 **How to follow them:**
-- **The seed group, from disk,** evals, training successes and the critic diagnostics by window,
-  against `d047it6c` and `eyyi99q4`:
-  `python outputs/diagnostics/equi-critic-1008/report.py` (outside git; its README).
-- **The fixed-env baselines, from disk:**
+- **wandb,** entity `aden-mckinney10-university-of-central-florida`: residual in
+  `robomimic-square-final`, groups `equi-residual-rl` and `residual-rl`; tuned RLPD in
+  `robomimic-square-final` and `robomimic-can-final`, group `tuned-rlpd`. Names are the arm plus
+  the seed (`equi-residual-square-rerendered-1`); notes start with the seed-group. Watch
+  `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo` (above 1.5 is a diverging
+  critic), and `debug/dQ_da_mean_abs`.
+- **The Can seed group, from disk:** `python outputs/diagnostics/equi-critic-1008/report.py`
+  (outside git; its README). **The fixed-env baselines:**
   `cd ~/projects/equi-resrl && conda activate residual && PYTHONPATH=$PWD CACHE_DIR=$PWD python tools/baseline_verdict.py`
-- **wandb,** entity `aden-mckinney10-university-of-central-florida`: tuned RLPD in
-  `robomimic-can-final`, group `tuned-rlpd`; residual in `robomimic-square-final`, groups
-  `residual-rl` and `equi-residual-rl`. Names are the arm plus the seed
-  (`equi-tuned-rlpd-can-nonorm-1`); notes start with the seed-group. Watch `eval/success_rate`,
-  `debug/q_data_online` against `debug/q_data_demo`, and `debug/dQ_da_mean_abs`.
 - **The eval Q-trajectory plots,** one per eval: `outputs/runs/<project>/<id>/outputs/<name>/`.
-- **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log`; each launch's console output is
-  the file beside them named after the arm.
+- **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log` for runner launches; every
+  launch's console, by hand or by runner, is the file in `outputs/queue/` named after the arm.
 
 ## The machine
 

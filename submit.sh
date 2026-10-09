@@ -2,55 +2,43 @@
 # Rewritable submission script. Overwrite this in place for each new experiment.
 # The durable record is docs/EXPERIMENTS.md plus the resolved config in wandb.
 #
-#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh equi-tuned-rlpd-can-nonorm 1 1
-#   DRY_RUN=1 ./submit.sh equi-tuned-rlpd-can-nonorm 1 # run the gate for that arm, then stop
+#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh equi-residual-square-rerendered 1 1
+#   DRY_RUN=1 ./submit.sh equi-residual-square-rerendered 1  # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                   # escape hatch, discouraged
 #
-# Currently configured for: equivariant tuned RLPD on Can without FieldNorm in the critic,
-# pre-registered in docs/EXPERIMENTS.md, "2026-10-08 — PRE-REGISTERED — equivariant tuned RLPD on Can
-# without FieldNorm", and ResFiT's tuned RLPD without LayerNorm, added by "2026-10-08 —
-# PRE-REGISTERED — a third arm: ResFiT's tuned RLPD on Can without LayerNorm", and the no-norm
-# arm with the env's frames through the demos' video codec, added by "2026-10-08 — PRE-REGISTERED —
-# a fourth arm: the no-norm arm with env frames coded like the demos'", and RegularLayerNorm where
-# ResFiT has LayerNorm, added by "2026-10-08 — PRE-REGISTERED — a fifth arm: RegularLayerNorm in the
-# actor and the critic, its start matched to ResFiT's" (seed-group critic-norm-can-1008). Launch
-# inside tmux from a worktree pinned to
-# a commit, with CACHE_DIR pointing at the main checkout; tools/gpu_queue.sh does all three.
+# Currently configured for: the equivariant residual and equivariant tuned RLPD on Square, on the
+# re-rendered demos (seed-group square-rerendered-1009), pre-registered in docs/EXPERIMENTS.md,
+# "2026-10-09 — PRE-REGISTERED — the equivariant residual and tuned RLPD on Square, on the
+# re-rendered demos". Launch inside tmux from a worktree pinned to a commit, with CACHE_DIR
+# pointing at the main checkout; tools/gpu_queue.sh does all three.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
 #                                            # learning starts, no eval, recorded offline in
 #                                            # wandb project equi-resrl-smoke: speed and RAM
 #
-# Earlier experiments launch from the commits they ran at: the fixed-env baselines
-# (fixed-env-baselines-1007) from 9cf207d, tuned RLPD on Can with no warm-up
-# (tuned-rlpd-can-no-warmup-1007) from f581d9c, the BC term training the encoder
-# (tuned-rlpd-can-bc-encoder-1007) from 05fd8d0, τ and the BC term (tuned-rlpd-can-tau-bc-1006)
-# from ed47957, the Can screen (tuned-rlpd-can-screen-1006) from 187d895, tuned-rlpd-1002 from
-# a0353a5, the image-fix pair from b667647, and the parked Square ablations from ccff539. Upstream's
-# code out of the box (upstream-clean-1007) does not launch from here:
-# ~/projects/resfit-upstream-runs/launch.sh runs it, in its own clone and env.
+# Earlier experiments launch from the commits they ran at: critic-norm-can-1008's arms from
+# 6b6df8c (nonorm, layernorm), 0a9626f (resfit-tuned-rlpd-can-nolayernorm), e3793ce (the demo-codec
+# arm) and 6e61e65 (ln-matched); the fixed-env baselines (fixed-env-baselines-1007) from 9cf207d,
+# tuned RLPD on Can with no warm-up (tuned-rlpd-can-no-warmup-1007) from f581d9c, the BC term
+# training the encoder (tuned-rlpd-can-bc-encoder-1007) from 05fd8d0, τ and the BC term
+# (tuned-rlpd-can-tau-bc-1006) from ed47957, the Can screen (tuned-rlpd-can-screen-1006) from
+# 187d895, tuned-rlpd-1002 from a0353a5, the image-fix pair from b667647, and the parked Square
+# ablations from ccff539. Upstream's code out of the box (upstream-clean-1007) does not launch from
+# here: ~/projects/resfit-upstream-runs/launch.sh runs it, in its own clone and env.
 #
 # THE ARMS
 # --------
-# train_residual_td3.py for 150k steps, mujoco 3.3.2, both buffers filled in the run
-# (read_buffer_caches=false write_buffer_caches=false). Tuned RLPD on Can: vanilla RL, no base
-# policy. The equivariant arms are the fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) with
-# its critic's FieldNorm replaced, which erased every trivial-type input (2026-10-08 FINDING):
-#   equi-tuned-rlpd-can-nonorm      equivariance.critic_norm=none: no norm in the critic.
-#   equi-tuned-rlpd-can-layernorm   equivariance.critic_norm=layer_norm: RegularLayerNorm, a
-#                                   LayerNorm over each sample's whole layer, as ResFiT's critic has.
-#   resfit-tuned-rlpd-can-nolayernorm  the fixed-env baselines' resfit-tuned-rlpd-can (d047it6c) with
-#                                   no LayerNorm in its critic and actor MLPs; its ViTs keep theirs.
-#   equi-tuned-rlpd-can-nonorm-democodec  the nonorm arm (xm9cuo92) with every env camera frame
-#                                   through the demos' video codec (encode_env_frames_like_demos):
-#                                   rollouts, evals and the online buffer.
-#   equi-tuned-rlpd-can-ln-matched  RegularLayerNorm after every hidden Linear of the actor and the
-#                                   critic, where ResFiT's use_layer_norm puts LayerNorm, and each
-#                                   critic head's last Linear scaled by 0.3 at init, which matches
-#                                   the heads' starting spread to ResFiT's.
-# The rest of Aden's design as before: equi_tanh on the actor, 10 critic heads, two hidden layers
-# per head, no norm in the actor. wandb: robomimic-can-final / tuned-rlpd, with the other
-# tuned-RLPD arms.
+# train_residual_td3.py on Square for up to 300k steps (the configs' default), mujoco 3.3.2, both
+# buffers filled in the run (read_buffer_caches=false write_buffer_caches=false), the demos
+# re-rendered by our env (offline_data.name=local/robomimic-mh-square-rerendered, built by
+# tools/rerender_demos.py), the env's frames uncoded. Aden's design, 2026-10-09: no norm anywhere
+# in the equivariant networks (the default), the actor squashed by equi_tanh, 5 critic heads of one
+# hidden layer each (the default); everything else at each config's default.
+#   equi-residual-square-rerendered    residual_equi_td3_square_config: the residual on the v9 BC
+#                                      policy, its actor's last layer at 1e-4 at init.
+#                                      wandb robomimic-square-final / equi-residual-rl.
+#   equi-tuned-rlpd-square-rerendered  equi_tuned_rlpd_square_config: tuned RLPD, vanilla RL, no
+#                                      base policy. wandb robomimic-square-final / tuned-rlpd.
 
 set -euo pipefail
 
@@ -79,43 +67,23 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     exit 1
 fi
 
-SEED_GROUP=critic-norm-can-1008
+SEED_GROUP=square-rerendered-1009
 DESIGN=(
     equivariance.residual_squash=true
-    agent.critic.num_q=10
-    equivariance.num_critic_layers=2
-    equivariance.actor_norm=none
+    agent.critic.num_q=5
 )
+DEMOS=offline_data.name=local/robomimic-mh-square-rerendered
 
 case "$ARM" in
-    equi-tuned-rlpd-can-nonorm)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
-                       equivariance.critic_norm=none)
-        PROJECT=robomimic-can-final GROUP=tuned-rlpd
-        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
-    equi-tuned-rlpd-can-layernorm)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
-                       equivariance.critic_norm=layer_norm)
-        PROJECT=robomimic-can-final GROUP=tuned-rlpd
-        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
-    equi-tuned-rlpd-can-nonorm-democodec)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config "${DESIGN[@]}"
-                       equivariance.critic_norm=none encode_env_frames_like_demos=true)
-        PROJECT=robomimic-can-final GROUP=tuned-rlpd
-        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
-    equi-tuned-rlpd-can-ln-matched)
-        # RegularLayerNorm in the actor too, so not "${DESIGN[@]}", which sets actor_norm=none.
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_can_config equivariance.residual_squash=true
-                       agent.critic.num_q=10 equivariance.num_critic_layers=2
-                       equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
-                       equivariance.critic_last_layer_init_scale=0.3)
-        PROJECT=robomimic-can-final GROUP=tuned-rlpd
-        GATE=(--task Can --method tuned-rlpd --stack equi) ;;
-    resfit-tuned-rlpd-can-nolayernorm)
-        ARM_OVERRIDES=(--config-name=tuned_rlpd_can_config agent.critic.use_layer_norm=false
-                       agent.actor.use_layer_norm=false)
-        PROJECT=robomimic-can-final GROUP=tuned-rlpd
-        GATE=(--task Can --method tuned-rlpd --stack resfit) ;;
+    equi-residual-square-rerendered)
+        ARM_OVERRIDES=(--config-name=residual_equi_td3_square_config "${DESIGN[@]}"
+                       agent.actor.actor_last_layer_init_scale=1e-4 base_policy.wt_version=v9 "$DEMOS")
+        PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
+    equi-tuned-rlpd-square-rerendered)
+        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_square_config "${DESIGN[@]}" "$DEMOS")
+        PROJECT=robomimic-square-final GROUP=tuned-rlpd
+        GATE=(--task Square --method tuned-rlpd --stack equi) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
@@ -129,7 +97,7 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
     RUN_LENGTH=(algo.learning_starts=300 eval_first=false eval_interval_every_steps=100000
                 wandb.mode=offline)
 else
-    NAME="${ARM}-${SEED}" NOTES="${SEED_GROUP}/${ARM}/seed${SEED}" STEPS=150000
+    NAME="${ARM}-${SEED}" NOTES="${SEED_GROUP}/${ARM}/seed${SEED}" STEPS=300000
     RUN_LENGTH=()
 fi
 NAMING=("wandb.project=${PROJECT}" "wandb.group=${GROUP}" "wandb.name=${NAME}" "wandb.notes=${NOTES}")

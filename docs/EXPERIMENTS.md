@@ -4887,3 +4887,125 @@ on rare Can wrist frames (NOTE of 2026-10-08 on the re-rendered datasets):
 The datasets are not rebuilt: their rendering code is unchanged, they were built at `1c9cdbc` under
 the stricter guard, which they passed, and `meta/rerender.json` records that guard's report.
 `tests/test_rerender_demos.py` accepts either report.
+
+---
+
+## 2026-10-09 — DEVIATION and NOTE — `496bq48s` stopped 49k past its stop rule; `xm9cuo92`'s critic diverged before its stop; both packages finalized; `resfit-residual-square` 2 launched on GPU 0
+
+- **`496bq48s` (`equi-tuned-rlpd-can-ln-matched` 1) stopped at 109.4k, not at 60k.** Its 60k rule
+  was met at about 00:30 (evals 0.00 at every 10k from 0 to 60k, no training success), but nobody
+  stopped it: on 2026-10-08 the session's permission classifier had blocked a follow-up to stopping
+  `xm9cuo92`, so Claude left the next stop to Aden, who was away. It ran on with evals 0.00 to 100k
+  and 0 of 536 training episodes succeeding; the extra 49k change nothing about the arm. SIGINT at
+  08:35:30 on Aden's OK; console `EXIT 130`. One seed, no verdict, no seed 2.
+- **`xm9cuo92` (`equi-tuned-rlpd-can-nonorm` 1) exited 130 at 16:54:52** on 2026-10-08, as the
+  `gpu1` runner logged.
+- **`xm9cuo92`'s critic diverged in its last 9k steps.** Its demo value (`q_demo`, the console's
+  data value) sat at 0.68–0.72 from 40k to 52.5k, crossed 1 at 54.4k, 10 at 55.5k and 100 at 57.5k,
+  and reached 310 by 63.2k, with critic losses of 5–430; its online value rose from 0.02 to 2–6. A
+  0/1-reward return cannot exceed 1. No norm in its critic, and its online value stuck at zero for
+  50k steps before. **`gkck6eqp`,** the same arm with the env's frames coded, which learned, stayed
+  bounded through 96.7k (demo value at most 0.72, online 0.63, critic loss at most 0.0017), and so
+  did `496bq48s` (RegularLayerNorm; at most 0.80). So a critic with no norm can stay bounded while
+  it learns, and has diverged once while stuck; the runs pre-registered below watch for it.
+- **Both packages finalized** with `finalize_run_package`, as the trainer does at a normal exit:
+  `xm9cuo92` 949 history rows to 63.2k, `496bq48s` 1,642 rows to 109.4k.
+- **`9cf207d resfit-residual-square 2`,** held on `gpu1` since 2026-10-08 16:55 so GPU 1's two slots
+  could go to the re-rendered-demos runs, was launched by hand on GPU 0 instead, in `496bq48s`'s
+  slot (tmux `resfit-sq2`, from `~/projects/equi-resrl-9cf207d`, 08:37), on Aden's OK. Its `gpu1`
+  line stays commented out with a note saying so.
+
+---
+
+## 2026-10-09 — PRE-REGISTERED — the equivariant residual and tuned RLPD on Square, on the re-rendered demos
+
+**Question** (Aden, 2026-10-09): on demos that match the env's observations (2026-10-08 CODE,
+"re-rendered demos"), with no norm in the equivariant networks, does the equivariant residual lift
+the Square base policy, and does equivariant tuned RLPD learn Square at all? If neither shows
+training signal by 100k, the plan regroups: equivariant tuned RLPD made to learn Square first, and
+ablations on Can, the residual's norm among them, to set the residual's design (Aden expects some
+choices, norm among them, to come out differently for a residual).
+
+**Seed-group `square-rerendered-1009`,** seed 1 of each arm, from the commit that adds this entry,
+in a worktree pinned to it. Names `<arm>-<seed>`, notes `square-rerendered-1009/<arm>/seed<seed>`.
+
+**The design, both arms** (Aden's, 2026-10-09): no norm in the actor, the critic or the encoder (the
+configs' default); the actor's mean squashed by `equi_tanh`, as every equivariant run since the
+fixed-env baselines (`equivariance.residual_squash=true`); 5 critic heads (`agent.critic.num_q=5`)
+of one hidden layer each (the default); N = 8. The residual's last layer starts at 1e-4 of escnn's
+scale, not at zero: Aden had trouble with the equivariant actor's last layer at exactly zero some
+months ago. Shared: Square, mujoco 3.3.2, `offline_data.name=local/robomimic-mh-square-rerendered`,
+env frames uncoded, both buffers filled in the run (`read_buffer_caches=false
+write_buffer_caches=false`), and `algo.total_timesteps=300000`, the configs' default, as the cap for
+"until convergence". Every schedule runs on fixed step counts, not the run length, so a 300k run is
+a 150k run through 150k.
+
+| Arm | Config | Overrides beyond the shared ones | wandb project / group |
+|---|---|---|---|
+| `equi-residual-square-rerendered` | `residual_equi_td3_square_config` | the design, `agent.actor.actor_last_layer_init_scale=1e-4`, `base_policy.wt_version=v9` | `robomimic-square-final` / `equi-residual-rl` |
+| `equi-tuned-rlpd-square-rerendered` | `equi_tuned_rlpd_square_config` | the design | `robomimic-square-final` / `tuned-rlpd` |
+
+Everything else is each config's default (the residual: actor lr 1e-6, action scale 0.1, 10k
+critic warm-up on the base policy; tuned RLPD: actor lr 1e-4, action scale 1.0, no warm-up).
+`tests/test_sweep_arms.py` pins each arm to its config's defaults but for these overrides.
+
+- **What varies.** The residual arm against `kyv7clfc`'s launch (`equi-residual-square` 1, 0.004
+  over 110k–150k): the critic's norm (FieldNorm, which erased every trivial input, to none), its
+  heads (10 to 5) and depth (2 hidden layers to 1), the demos, and the run length. Five changes: if
+  it differs from `kyv7clfc`, this entry cannot say which did it. Against `oj5k0jqb` (ResFiT's
+  residual on Square, 0.800 over 110k–150k): the stack and the demos (it trained on the original
+  coded demos); one seed each, an observation. Tuned RLPD has no Square reference: no tuned RLPD has
+  learned Square in our trainer, and `8ma5alnm` (2026-10-04) ran in the mismatched render. Its
+  context is `gkck6eqp`, the same stack learning Can with 10 heads of 2 layers on coded env frames.
+
+**Rules.**
+- **Residual, collapse:** stopped at the third eval in a row at or below 0.05. It starts at the base
+  policy, so this means it is not training (`kyv7clfc` read 0.00 from 10k).
+- **Residual, at 100k:** training iff the mean p of its evals at 60k–100k (5 × 50 episodes) clears
+  B_sq = 0.582 by two standard errors, p − 0.582 ≥ 2·sqrt(p(1−p)/250 + 0.582·0.418/500): **at least
+  165 of 250 (0.66).** Else stopped. For calibration: `oj5k0jqb`'s evals over the same window are
+  0.56 0.64 0.70 0.64 0.76, 165 of 250, so ResFiT's own run meets this with no margin.
+- **Tuned RLPD, at 100k:** training iff any eval is at least 0.04 or at least 5 training episodes
+  have succeeded. Else stopped.
+- **Convergence,** from 150k, at each eval: stopped once the mean of its last 5 evals no longer
+  beats the mean of the 5 before by two standard errors (sqrt(p₁(1−p₁)/250 + p₂(1−p₂)/250));
+  else run to 300k.
+- **Seed 2 of an arm iff it passes its 100k check,** launched from this commit.
+- **Verdict** (two seeds): an arm beats the base policy iff the mean over its last 5 evals, both
+  seeds (500 episodes), clears B_sq by two standard errors: at least 0.644. The 110k–150k window is
+  reported beside it, for comparison with `oj5k0jqb`.
+- **A critic that diverges** (`debug/q_data_demo` or `debug/q_data_online` above 1.5; a 0/1-reward
+  return cannot exceed 1, and `xm9cuo92`'s critic diverged while stuck, 2026-10-09 NOTE) is reported
+  to Aden when seen. It is not a stop rule.
+- **Readouts,** in NOTEs at 10k, 50k, the 100k decision and convergence: evals and training
+  successes; tuned RLPD's online over demo value over (5k, 10k] (on Can, `gkck6eqp` 0.41 and
+  `d047it6c` 0.45; `xm9cuo92`, stuck, 0.03); the residual's `residual_l2` against its action scale,
+  and `dQ_da_mean_abs`.
+
+**Predictions** (Claude's, before launch):
+1. The residual's step-0 eval is within the base policy's spread (0.46–0.70, its ten evals for
+   B_sq). High confidence: its `residual_l1` was 1e-4 at the smoke run's step 100.
+2. The residual does not collapse by 30k, unlike `kyv7clfc`. Low-to-moderate confidence: its critic
+   now sees every input and its demos match the env, but nothing equivariant has yet improved on a
+   base policy in the matching env.
+3. The residual passes its 100k check. Low confidence: ResFiT's own run meets it with no margin.
+4. Tuned RLPD's online over demo value over (5k, 10k] is above 0.2. Moderate confidence: on Can,
+   the frames matching was what kept it up.
+5. Tuned RLPD passes its 100k check. Low confidence: no tuned RLPD has learned Square here.
+
+**Checks before the commit.** A 1,000-step smoke run of each arm on GPU 1 exited 0 (packages in
+`outputs/runs/equi-resrl-smoke/`: residual `rol02bhz`, tuned RLPD `twrhpz36`). The residual
+started at `residual_l1` 1e-4 and its value near 0.18; tuned RLPD's values stayed below 0.7.
+`tests/test_sweep_arms.py` passed in full, its GPU tests included (24). Its input-reach test now
+reads the actor before the squash and the action scale. Read after them, at escnn's init, the
+residual's change with the gripper was 6e-5, under the test's 1e-4. Before them it is 7.5e-4 and
+grows in proportion to the change (twice the change, 1.5e-3; ten times, 7.2e-3). So the 6e-5 was the
+squash at |mu| up to about 3 and the 0.1 scale, which shrink every input's change alike, not a
+blind input.
+
+**Resources.** Both on GPU 1, launched by hand in tmux (`sq-res`, `sq-trlpd`) through `submit.sh`,
+which runs the gate, with consoles in `outputs/queue/`. Each first fills its 80,731-frame demo
+buffer (about 25 min for the residual, which labels it with the base policy). In the smoke runs,
+the residual took 0.35 s per step through its warm-up, alone on GPU 1. Tuned RLPD took 0.51 s per
+step while sharing GPU 1 with the residual's buffer fill. Shared, 100k is expected in about a day.
+GPU 0 keeps `gkck6eqp` (then its seed 2) and `resfit-residual-square` 2.

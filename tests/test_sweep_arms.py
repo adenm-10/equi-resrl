@@ -5,33 +5,23 @@ submit.sh's case table is checked here first:
 
   Tier 1  its overrides are the pre-registered ones, set no key twice, and
           compose through train_residual_td3's Hydra configs to the
-          pre-registered recipe; each arm differs from the fixed-env baselines'
-          equi-tuned-rlpd-can (eyyi99q4) in the critic's norm only, and from
-          ResFiT's tuned RLPD in the stack only, the demo-codec arm in its env
-          frames as well; the demo-codec arm differs from the nonorm arm
-          (xm9cuo92) in encode_env_frames_like_demos only; the matched-LayerNorm
-          arm differs from the layernorm arm (1ddrqdnd) in the actor's norm and
-          the critic heads' init scale only; the ResFiT arm differs from
-          resfit-tuned-rlpd-can (d047it6c) in its two LayerNorm switches only;
-          the smoke mode is the arm, briefly; and every arm launches.
+          pre-registered recipe: its config's defaults but for its listed
+          overrides; the two arms share the networks' design (no norm, the
+          squashed actor, 5 critic heads of one hidden layer); the residual
+          arm differs from the fixed-env baselines' equi-residual-square
+          (kyv7clfc) in the critic's norm, heads and depth, the demos and the
+          run length only; the dataset each arm loads is built; the smoke
+          mode is the arm, briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
-          losses, on the batch its method trains on; an equivariant arm's actor
-          is equivariant and its critic invariant, at the arm's own sizes, and
-          every input its critic and actor are given can move their outputs (the
-          FieldNorm critic they replace could not, 2026-10-08 FINDING, and a
-          test here keeps that on record); the ResFiT arm has no LayerNorm in its
-          critic or actor, and its ViTs keep theirs; the matched-LayerNorm arm's
-          critic heads start as spread as ResFiT's, and has RegularLayerNorm at
-          every hidden layer of its actor and critic.
+          losses, on the batch its method trains on; its actor is equivariant
+          and its critic invariant, at the arm's own sizes, and every input its
+          critic and actor are given can move their outputs (the FieldNorm
+          critic of the fixed-env baselines could not, 2026-10-08 FINDING, and
+          a test here keeps that on record).
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-08
-PRE-REGISTERED, "equivariant tuned RLPD on Can without FieldNorm", and the
-entry adding a third arm): tuned RLPD on Can in the equivariant stack at Aden's
-design, with no norm in the critic, and with RegularLayerNorm in it; and
-ResFiT's tuned RLPD on Can with no LayerNorm in its critic and actor; and the
-no-norm arm with the env's frames through the demos' video codec (the entry
-adding a fourth arm); and RegularLayerNorm in the actor and the critic, with
-the critic heads' start matched to ResFiT's (the entry adding a fifth arm).
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-09
+PRE-REGISTERED, "the equivariant residual and tuned RLPD on Square, on the
+re-rendered demos").
 """
 
 from __future__ import annotations
@@ -46,66 +36,72 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
+LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
 
-SEED_GROUP = "critic-norm-can-1008"
+SEED_GROUP = "square-rerendered-1009"
 
+RESIDUAL = "equi-residual-square-rerendered"
+TUNED = "equi-tuned-rlpd-square-rerendered"
+CONFIGS = {RESIDUAL: "residual_equi_td3_square_config", TUNED: "equi_tuned_rlpd_square_config"}
+DEMOS = "local/robomimic-mh-square-rerendered"
 # What each arm launches, less the run's name, notes, project and group.
-COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buffer_caches=false",
+COMMON = {"algo.total_timesteps=300000", "read_buffer_caches=false", "write_buffer_caches=false",
           "seed=1", "debug=false"}
-DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=10",
-          "equivariance.num_critic_layers=2", "equivariance.actor_norm=none"}
-CODEC_ARM = "equi-tuned-rlpd-can-nonorm-democodec"
-LN_ARM = "equi-tuned-rlpd-can-ln-matched"
-CRITIC_NORM = {"equi-tuned-rlpd-can-nonorm": "none", "equi-tuned-rlpd-can-layernorm": "layer_norm",
-               CODEC_ARM: "none", LN_ARM: "layer_norm"}
-# The matched-LayerNorm arm's actor norm and critic head init scale; every other arm keeps the design's.
-LN_MATCHED = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_last_layer_init_scale": 0.3}
-NO_LAYER_NORM = {"agent.critic.use_layer_norm=false", "agent.actor.use_layer_norm=false"}
-DEMO_CODEC = "encode_env_frames_like_demos"
+DESIGN = {"equivariance.residual_squash=true", "agent.critic.num_q=5"}
 LAUNCHED = {
-    **{arm: {"--config-name=equi_tuned_rlpd_can_config", *DESIGN, f"equivariance.critic_norm={norm}",
-             *COMMON, *([f"{DEMO_CODEC}=true"] if arm == CODEC_ARM else [])}
-       for arm, norm in CRITIC_NORM.items() if arm != LN_ARM},
-    LN_ARM: {"--config-name=equi_tuned_rlpd_can_config",
-             *(o for o in DESIGN if not o.startswith("equivariance.actor_norm=")),
-             "equivariance.critic_norm=layer_norm", *(f"{k}={v}" for k, v in LN_MATCHED.items()), *COMMON},
-    "resfit-tuned-rlpd-can-nolayernorm": {"--config-name=tuned_rlpd_can_config", *NO_LAYER_NORM,
-                                          *COMMON},
+    RESIDUAL: {f"--config-name={CONFIGS[RESIDUAL]}", *DESIGN, "agent.actor.actor_last_layer_init_scale=1e-4",
+               "base_policy.wt_version=v9", f"offline_data.name={DEMOS}", *COMMON},
+    TUNED: {f"--config-name={CONFIGS[TUNED]}", *DESIGN, f"offline_data.name={DEMOS}", *COMMON},
 }
-# The fixed-env baselines' tuned-RLPD arms as 9cf207d launched them (eyyi99q4, d047it6c), less naming.
+# Earlier launches, less naming: the fixed-env baselines' equi-residual-square (kyv7clfc) and
+# equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched them.
+BASELINE_DESIGN = ["equivariance.residual_squash=true", "agent.critic.num_q=10", "equivariance.num_critic_layers=2",
+                   "equivariance.critic_norm=field_norm", "equivariance.actor_norm=none"]
 BASELINES = {
-    "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", *sorted(DESIGN),
-                            "equivariance.critic_norm=field_norm", *sorted(COMMON)],
-    "resfit-tuned-rlpd-can": ["--config-name=tuned_rlpd_can_config", *sorted(COMMON)],
+    "equi-residual-square": ["--config-name=residual_equi_td3_square_config", *BASELINE_DESIGN,
+                             "agent.actor.actor_last_layer_init_scale=1e-4", "base_policy.wt_version=v9",
+                             "algo.total_timesteps=150000", "read_buffer_caches=false",
+                             "write_buffer_caches=false", "seed=1", "debug=false"],
+    "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", *BASELINE_DESIGN,
+                            "algo.total_timesteps=150000", "read_buffer_caches=false",
+                            "write_buffer_caches=false", "seed=1", "debug=false"],
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
-# Where the tuned-RLPD arms have gone before (Aden, 2026-10-07).
-WANDB = ("robomimic-can-final", "tuned-rlpd")
+WANDB = {RESIDUAL: ("robomimic-square-final", "equi-residual-rl"), TUNED: ("robomimic-square-final", "tuned-rlpd")}
 
-# The composed config every arm must have: the fixed-env baselines' tuned-RLPD recipe, and the
-# equivariant design with its critic norm replaced.
+# The composed config both arms must have.
 SHARED = {
-    "algo.total_timesteps": 150_000, "read_buffer_caches": False, "write_buffer_caches": False,
-    "agent.critic.num_q": 10, "algo.n_step": 3, "algo.gamma": 0.99, "algo.batch_size": 256,
-    "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4, "algo.buffer_size": 200_000,
-    "algo.learning_starts": 10_000, "num_envs": 1, "eval_first": True,
+    "task": "Square", "offline_data.name": DEMOS, "algo.total_timesteps": 300_000,
+    "read_buffer_caches": False, "write_buffer_caches": False, "algo.n_step": 3, "algo.gamma": 0.99,
+    "algo.batch_size": 256, "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4,
+    "algo.buffer_size": 200_000, "algo.learning_starts": 10_000, "num_envs": 1, "eval_first": True,
     "eval_interval_every_steps": 10_000, "eval_num_episodes": 50, "seed": 1, "debug": False,
-    "wandb.mode": "online", "task": "Can", "offline_data.name": "ankile/robomimic-mh-can-image",
-}
-RECIPE = {
-    "base_policy": None, "algo.critic_warmup_steps": 0, "agent.actor_lr": 1e-4,
-    "agent.critic_target_tau": 0.01, "algo.stddev_min": 0.1, "algo.stddev_max": 0.1,
-    "agent.actor.action_scale": 1.0, "algo.random_action_noise_scale": 1.0,
-    "algo.use_base_policy_for_warmup": False, "agent.actor.actor_last_layer_init_scale": None,
-}
-EQUI_DESIGN = {
-    "equivariance.N": 8, "equivariance.use_equivariant_model": True,
-    "equivariance.residual_squash": True, "equivariance.num_critic_layers": 2,
-    "equivariance.actor_norm": "none", "equivariance.actor_degree_channel": 128,
-    "equivariance.critic_degree_channel": 128, "equivariance.frozen_target_critic": False,
+    "wandb.mode": "online", "encode_env_frames_like_demos": False,
+    "equivariance.N": 8, "equivariance.use_equivariant_model": True, "equivariance.residual_squash": True,
+    "agent.critic.num_q": 5, "equivariance.num_critic_layers": 1, "equivariance.actor_norm": "none",
+    "equivariance.critic_norm": "none", "equivariance.encoder_norm": "none",
+    "equivariance.critic_last_layer_init_scale": None, "equivariance.frozen_target_critic": False,
     "equivariance.float_images_as_uint8": False,
 }
-STACK = "equivariance"
+RECIPE = {
+    RESIDUAL: {"base_policy.wandb_id": "robomimic-square-bc/3hzs5bz1", "base_policy.wt_type": "best",
+               "base_policy.wt_version": "v9", "offline_data.use_base_policy_for_base_actions": True,
+               "algo.critic_warmup_steps": 10_000, "agent.actor_lr": 1e-6, "agent.critic_target_tau": 0.005,
+               "algo.stddev_min": 0.05, "algo.stddev_max": 0.05, "agent.actor.action_scale": 0.1,
+               "algo.random_action_noise_scale": 0.2, "algo.use_base_policy_for_warmup": True,
+               "agent.actor.actor_last_layer_init_scale": 1e-4},
+    TUNED: {"base_policy": None, "offline_data.use_base_policy_for_base_actions": False,
+            "algo.critic_warmup_steps": 0, "agent.actor_lr": 1e-4, "agent.critic_target_tau": 0.01,
+            "algo.stddev_min": 0.1, "algo.stddev_max": 0.1, "agent.actor.action_scale": 1.0,
+            "algo.random_action_noise_scale": 1.0, "algo.use_base_policy_for_warmup": False,
+            "agent.actor.actor_last_layer_init_scale": None},
+}
+# Each arm's changes from its config's defaults, as composed paths (the defaults leave seed unset).
+FROM_DEFAULTS = {
+    RESIDUAL: {"equivariance.residual_squash", "agent.critic.num_q", "agent.actor.actor_last_layer_init_scale",
+               "base_policy.wt_version", "offline_data.name", "read_buffer_caches", "write_buffer_caches", "seed"},
+    TUNED: {"equivariance.residual_squash", "agent.critic.num_q", "offline_data.name", "read_buffer_caches", "seed"},
+}
 
 
 def case_table_arms(script: str) -> list[str]:
@@ -116,6 +112,7 @@ def case_table_arms(script: str) -> list[str]:
 
 ARMS = case_table_arms(SUBMIT.read_text())
 EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-")]
+STACK = "equivariance"
 
 
 def _overrides(arm: str, tmp_path: pathlib.Path, **env_extra) -> list[str]:
@@ -176,14 +173,7 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    if arm in CRITIC_NORM:
-        stack = {**EQUI_DESIGN, "equivariance.critic_norm": CRITIC_NORM[arm],
-                 "equivariance.critic_last_layer_init_scale": None, **(LN_MATCHED if arm == LN_ARM else {})}
-    else:
-        stack = {"equivariance": None, "agent.critic.use_layer_norm": False,
-                 "agent.actor.use_layer_norm": False}
-    expected = {**SHARED, **RECIPE, **stack, DEMO_CODEC: arm == CODEC_ARM,
-                "wandb.project": WANDB[0], "wandb.group": WANDB[1],
+    expected = {**SHARED, **RECIPE[arm], "wandb.project": WANDB[arm][0], "wandb.group": WANDB[arm][1],
                 "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
@@ -194,52 +184,33 @@ def _differing(a: dict, b: dict) -> set[str]:
     return {k for k in a.keys() | b.keys() if a.get(k) != b.get(k)} - set(NAMING)
 
 
-def _codec(arm: str) -> set[str]:
-    """What an arm changes beyond the critic's norm: the codec arm its frames, the LN arm its actor and start."""
-    return {DEMO_CODEC} if arm == CODEC_ARM else set(LN_MATCHED) if arm == LN_ARM else set()
-
-
-@pytest.mark.parametrize("arm", EQUI_ARMS)
-def test_arm_differs_from_the_baselines_equivariant_arm_in_the_critic_norm_only(arm, tmp_path):
-    """eyyi99q4's launch, with only its critic's FieldNorm replaced (and the demo-codec arm's frames)."""
+@pytest.mark.parametrize("arm", ARMS)
+def test_arm_is_its_configs_defaults_but_for_its_overrides(arm, tmp_path):
     ours = _flat(_compose(_overrides(arm, tmp_path)))
-    theirs = _flat(_compose(BASELINES["equi-tuned-rlpd-can"]))
-    assert _differing(ours, theirs) == {"equivariance.critic_norm"} | _codec(arm)
+    defaults = _flat(_compose([f"--config-name={CONFIGS[arm]}"]))
+    assert _differing(ours, defaults) == FROM_DEFAULTS[arm]
 
 
-@pytest.mark.parametrize("arm", EQUI_ARMS)
-def test_arm_differs_from_resfits_tuned_rlpd_in_the_stack_only(arm, tmp_path):
-    ours = _flat(_compose(_overrides(arm, tmp_path)))
-    resfit = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
-    outside = {k for k in _differing(ours, resfit) if k != STACK and not k.startswith(STACK + ".")}
-    assert outside == _codec(arm) - set(LN_MATCHED), (
-        f"{arm}: the recipe differs from ResFiT's in {sorted(outside)}")
+def test_the_two_arms_share_the_networks_design(tmp_path):
+    a, b = (_flat(_compose(_overrides(arm, tmp_path))) for arm in (RESIDUAL, TUNED))
+    design = [k for k in a if k.startswith(STACK + ".")] + ["agent.critic.num_q"]
+    assert {k: a[k] for k in design} == {k: b.get(k) for k in design}
 
 
-def test_the_two_critic_norm_arms_differ_in_the_critic_norm_only(tmp_path):
-    a, b = (_flat(_compose(_overrides(arm, tmp_path)))
-            for arm in ("equi-tuned-rlpd-can-nonorm", "equi-tuned-rlpd-can-layernorm"))
-    assert _differing(a, b) == {"equivariance.critic_norm"}
+def test_the_residual_arm_differs_from_kyv7clfc_in_its_critic_demos_and_length_only(tmp_path):
+    """kyv7clfc's launch, with no norm, 5 heads of one hidden layer, the re-rendered demos and 300k steps."""
+    ours = _flat(_compose(_overrides(RESIDUAL, tmp_path)))
+    theirs = _flat(_compose(BASELINES["equi-residual-square"]))
+    assert _differing(ours, theirs) == {"equivariance.critic_norm", "agent.critic.num_q",
+                                        "equivariance.num_critic_layers", "offline_data.name",
+                                        "algo.total_timesteps"}
 
 
-def test_the_matched_ln_arm_differs_from_the_layernorm_arm_in_its_actor_norm_and_start_only(tmp_path):
-    """1ddrqdnd's launch, with RegularLayerNorm in the actor too and the critic heads' start scaled."""
-    ours = _flat(_compose(_overrides(LN_ARM, tmp_path)))
-    theirs = _flat(_compose(_overrides("equi-tuned-rlpd-can-layernorm", tmp_path)))
-    assert _differing(ours, theirs) == set(LN_MATCHED)
-
-
-def test_the_demo_codec_arm_differs_from_the_nonorm_arm_in_its_env_frames_only(tmp_path):
-    """xm9cuo92's arm, with the env's frames through the demos' codec."""
-    ours = _flat(_compose(_overrides(CODEC_ARM, tmp_path)))
-    theirs = _flat(_compose(_overrides("equi-tuned-rlpd-can-nonorm", tmp_path)))
-    assert _differing(ours, theirs) == {DEMO_CODEC}
-
-
-def test_the_resfit_arm_differs_from_d047it6c_in_its_layer_norm_switches_only(tmp_path):
-    ours = _flat(_compose(_overrides("resfit-tuned-rlpd-can-nolayernorm", tmp_path)))
-    theirs = _flat(_compose(BASELINES["resfit-tuned-rlpd-can"]))
-    assert _differing(ours, theirs) == {"agent.critic.use_layer_norm", "agent.actor.use_layer_norm"}
+@pytest.mark.parametrize("arm", ARMS)
+def test_the_dataset_each_arm_loads_is_built(arm):
+    """A local dataset the trainer cannot find is a launch that dies at startup."""
+    root = LEROBOT_HOME / DEMOS
+    assert (root / "meta/info.json").exists() and (root / "meta/rerender.json").exists(), root
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -403,17 +374,31 @@ def _input_changes():
 
 
 def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
-    """Per input change, the largest change in Q (mean over heads) and in the actor's mean action."""
+    """Per input change, the largest change in Q (mean over heads) and in the actor's mean action.
+
+    A residual actor's last layer starts scaled down (1e-4), and its mean is squashed and multiplied
+    by its action scale (0.1); each is a fixed map on the output that shrinks every input's change
+    alike. What reaches the actor is a property of its layers, so it is built at escnn's own init and
+    read before the squash and the scale. (Read after them, at escnn's init, the residual's change
+    with the gripper was 6e-5: the layers' 7.5e-4, which grows with the gripper's change, squashed at
+    |mu| up to about 3 and scaled by 0.1; 2026-10-09.)
+    """
     import torch
+    from omegaconf import open_dict
 
     from tools.agent_fingerprint import fixed_batch
 
+    residual = cfg.base_policy is not None
+    with open_dict(cfg):
+        cfg.agent.actor.actor_last_layer_init_scale = None
+        cfg.agent.actor.action_scale = 1.0
+        cfg.equivariance.residual_squash = False
     torch.manual_seed(0)
     agent = _agent(cfg, device)
     agent.train(False)  # QAgent.train returns None
 
     def outputs(change=None):
-        batch = fixed_batch(base_action=False).to(device)
+        batch = fixed_batch(base_action=residual).to(device)
         obs = {k: v.clone() for k, v in batch["obs"].items()}
         act = batch["action"].clone()
         if change is not None:
@@ -454,80 +439,3 @@ def test_the_field_norm_critic_these_arms_replace_is_blind_to_every_trivial_inpu
             assert dq < SEES, f"field norm's Q moved by {dq:.1e} with {name}"
         else:
             assert dq > SEES, f"field norm's Q did not move with {name}: {dq:.1e}"
-
-
-@pytest.mark.gpu
-@pytest.mark.slow
-def test_the_resfit_arm_has_no_layer_norm_in_its_critic_or_actor(tmp_path, device):
-    """ResFiT's ablation of "the layer norm for the actor and critic MLPs": its ViTs keep theirs."""
-    import torch
-
-    agent = _agent(_compose(_overrides("resfit-tuned-rlpd-can-nolayernorm", tmp_path)), device)
-    reference = _agent(_compose(BASELINES["resfit-tuned-rlpd-can"]), device)
-
-    def layer_norms(module):
-        return sum(isinstance(m, torch.nn.LayerNorm) for m in module.modules())
-
-    assert (layer_norms(reference.critic), layer_norms(reference.actor)) == (3, 3)
-    assert (layer_norms(agent.critic), layer_norms(agent.actor)) == (0, 0)
-    assert sum(layer_norms(e) for e in agent.encoders) == sum(layer_norms(e) for e in reference.encoders) > 0
-
-
-def _head_spread(cfg, device, seeds=5) -> float:
-    """The critic heads' starting spread: the SD across heads of each head's mean Q on the
-    reference batch, in train mode, averaged over `seeds` initializations."""
-    import torch
-
-    from tools.agent_fingerprint import fixed_batch
-
-    spreads = []
-    for seed in range(seeds):
-        torch.manual_seed(seed)
-        agent = _agent(cfg, device)
-        agent.train(True)
-        batch = fixed_batch(base_action=False).to(device)
-        obs = dict(batch["obs"])
-        with torch.no_grad():
-            if cfg.equivariance is None:
-                q = agent.critic(agent._encode(obs, augment=False), obs["observation.state"], batch["action"])
-            else:
-                q = agent.critic(agent.enc(obs)[1], batch["action"])
-        spreads.append(q.squeeze(-1).mean(dim=1).std().item())
-    return sum(spreads) / len(spreads)
-
-
-@pytest.mark.gpu
-@pytest.mark.slow
-def test_the_matched_ln_arm_starts_as_spread_as_resfits_critic(tmp_path, device):
-    """Measured 2026-10-08, 5 seeds: ResFiT 0.298, this arm 0.307; RegularLayerNorm unscaled 1.02,
-    which made the min-of-2 target -0.375 against ResFiT's -0.145 (the fifth arm's entry)."""
-    ours = _head_spread(_compose(_overrides(LN_ARM, tmp_path)), device)
-    resfit = _head_spread(_compose(BASELINES["resfit-tuned-rlpd-can"]), device)
-    unscaled = _head_spread(_compose(_overrides("equi-tuned-rlpd-can-layernorm", tmp_path)), device)
-    assert 0.75 < ours / resfit < 1.33, (ours, resfit)
-    assert unscaled / resfit > 2.5, (unscaled, resfit)  # what the scale is there to remove
-
-
-@pytest.mark.gpu
-def test_the_matched_ln_arm_has_regular_layer_norm_after_every_hidden_linear(tmp_path, device):
-    """Where ResFiT's use_layer_norm puts LayerNorm: after every hidden Linear of the actor (its
-    visual projection, trunk and hidden layer) and of the critic (its visual projection, trunk
-    and each head's two), and nowhere else."""
-    import torch
-    from escnn import nn as enn
-
-    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import RegularLayerNorm
-
-    cfg = _compose(_overrides(LN_ARM, tmp_path))
-    agent = _agent(cfg, device)
-    heads = cfg.agent.critic.num_q
-    for name, module, hidden, outputs in (("actor", agent.actor, 3, 1),
-                                          ("critic", agent.critic, 2 + 2 * heads, heads)):
-        # Each Linear and what follows it, as each Sequential lists them (modules() would
-        # descend into escnn's Linear).
-        pairs = [(a, b) for seq in module.modules() if isinstance(seq, torch.nn.Sequential)
-                 for a, b in zip(list(seq.children()), list(seq.children())[1:] + [None])]
-        linears = [b for a, b in pairs if isinstance(a, enn.Linear)]
-        assert len(linears) == hidden + outputs, (name, len(linears))
-        assert sum(isinstance(b, RegularLayerNorm) for b in linears) == hidden, name
-        assert sum(isinstance(m, RegularLayerNorm) for m in module.modules()) == hidden, name

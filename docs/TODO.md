@@ -19,19 +19,25 @@ demos").
 1. **DONE 2026-10-08: `tools/rerender_demos.py`,** its guards and tests. Every frame after an
    episode's first is rendered one physics substep late, as robosuite's `step()` observes (Aden's
    choice over making the env exact), and observation.state with it.
-2. **Build both datasets** from the tool's commit, then `--verify`; record each
-   `meta/rerender.json`'s figures.
-3. **Check them against the env:** `tools/codec_check.py --rerendered` (all twelve statistics
-   within [0.15, 0.85], both tasks, both cameras; a Square front-camera separation that remains is
-   scene content, and is reported as such), `tools/render_check.py --rerendered` (the demo-vs-env
-   gap down to about the within-demo gap), and `--codec-change` for the record. Blocking.
-4. **One validation run on Can,** pre-registered: `xm9cuo92`'s launch on the re-rendered Can demos,
-   codec off. Passes iff online over demo value is at least 0.2 over (5k, 10k] with training
-   successes. A failure stops the plan for Aden.
-5. **Then the equivariant residual on Square,** pre-registered once step 4's readout is in:
-   `kyv7clfc`'s launch with `critic_norm=none` and the re-rendered Square demos, codec off; B_sq =
-   0.582 stands.
-6. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
+2. **DONE 2026-10-08: both datasets built and verified** (EXPERIMENTS.md, NOTE, "the re-rendered
+   datasets"); the figures are in each `meta/rerender.json`.
+3. **DONE 2026-10-08: checked against the env.** No frame statistic tells them from env frames;
+   the identity guard allows the GPU's 1-level residue (2026-10-09 CODE, Aden's option A).
+4. **Skipped (Aden, 2026-10-09): the validation run on Can.** The Square runs went ahead directly.
+5. **NOW: the equivariant residual and equivariant tuned RLPD on Square** (EXPERIMENTS.md,
+   2026-10-09 PRE-REGISTERED, `square-rerendered-1009`). Aden's design: no norms, the actor
+   squashed, 5 critic heads of one hidden layer, the residual's last layer at 1e-4. NOTEs at 10k,
+   50k, the 100k decision and convergence, each with the stop and seed-2 rules applied.
+6. **If neither trains by 100k, regroup** (Aden, 2026-10-09):
+   - Get equivariant tuned RLPD to learn Square. Start with a ResFiT tuned RLPD Square reference in
+     the fixed env, since none has learned Square in our trainer. Then the design that learned Can
+     (`gkck6eqp`: squashed actor, 10 heads of 2 layers), and changes from there.
+   - Ablations on Can, to set the residual's design. Tuned RLPD from `gkck6eqp`'s setup on the
+     re-rendered Can demos: norm (none or RegularLayerNorm), the squash, head count, head depth, and
+     N = 8, 4 or no equivariance. Norm also on the equivariant residual on Can
+     (`residual_equi_td3_can_config`), since Aden expects it may come out differently for a
+     residual. Caveat: Can's base policy is at 0.852, so a residual has little room to show a gain.
+7. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
 
 ### B15. Fix the render, then new baselines — NEXT (Aden's plan, 2026-10-07) `[SC]` `[CS]`
 
