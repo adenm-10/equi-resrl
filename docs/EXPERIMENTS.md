@@ -4864,3 +4864,26 @@ At 30k: evals 0.00 at 0, 10k, 20k and 30k; 0 of 165 training episodes succeeded;
 value −0.01 over (5k, 10k] and −0.00 over (15k, 20k]. Its 20k and 30k evals total 0 of 100: **seed 2
 not queued.** Prediction 3 (no seed 2) holds. Its 60k stop rule stands, due at about 00:30–01:00 on
 2026-10-09 at its present pace.
+
+---
+
+## 2026-10-09 — CODE — the identity guard allows the GPU's residue, and runs its online env in its own process
+
+Aden chose option A (2026-10-09) for the identity guard of `tools/rerender_demos.py`, which failed
+on rare Can wrist frames (NOTE of 2026-10-08 on the re-rendered datasets):
+- **observation.state must still be exactly equal;** each frame must be bit-identical except for at
+  most 32 pixels each off by at most 1 level (`FRAME_TOL_PIXELS`, `FRAME_TOL_LEVELS`). Measured: at
+  most 10 pixels, 1 level, in about 1–2% of Can's wrist frames, on scenes the GPU was handed
+  float32-identical. The report counts the frames that were not bit-identical and the most pixels
+  any differed in.
+- **The guard's online env runs in its own process,** as each training env does: robosuite makes a
+  GL context current only when it creates one, so two envs in one process render in whichever was
+  created last. That was not the residue's cause (it persisted), but the guard should not depend on
+  it.
+- **A standing test,** `test_env_frames_cannot_be_told_from_rerendered_demo_frames` (Tier 1): raw env
+  frames against the re-rendered Can demos' first frames sit within [0.15, 0.85] on all twelve
+  `tools/codec_check.py` statistics.
+
+The datasets are not rebuilt: their rendering code is unchanged, they were built at `1c9cdbc` under
+the stricter guard, which they passed, and `meta/rerender.json` records that guard's report.
+`tests/test_rerender_demos.py` accepts either report.

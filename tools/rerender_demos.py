@@ -28,15 +28,20 @@ gripper's joint readings, read from the joint angles, are current. reset() recom
 before it observes. So each episode's first frame is rendered from its state, and every later frame
 as step() leaves the state: body positions from the previous substep's joint angles, which MuJoCo's
 Euler integrator makes the state's own moved back by dt times its velocity (`as_stepped`). Against
-the trainer's own step(), over full episodes of random actions, that gives bit-identical frames
-and an equal observation.state at every step; rendered from the state itself instead, about 150
+the trainer's own step(), over full episodes of random actions, that gives an equal
+observation.state at every step and the same frames, bar the GPU's residue below; rendered from the state itself instead, about 150
 front-camera and 1,300-3,600 wrist-camera pixels differ, and the end-effector pose sits 0.6-0.7 mm
 away on average (EXPERIMENTS.md, 2026-10-08 CODE, the re-rendered demos).
 
 Guards, each of which stops the build:
   identity    frames and observation.state rendered from a state are those the trainer's step path
-              returned in it, bit for bit: an env stepped only through the wrapper's reset() and
-              step(), at its resets and after each of its random actions;
+              returned in it: an env alone in its own process, as each training env is, stepped
+              only through the wrapper's reset() and step(), at its resets and after each of its
+              random actions. observation.state exactly; each frame bit for bit except for at most
+              FRAME_TOL_PIXELS pixels each off by at most FRAME_TOL_LEVELS. The GPU renders an
+              identical scene (the same geom list, cameras and lights, float32 for float32) a level
+              apart on a few edge pixels of about 1-2% of Can's wrist frames (EXPERIMENTS.md,
+              2026-10-08 NOTE on the re-rendered datasets), which nothing outside it can remove;
   layout      the demos' joints are ours, in order and at the same qpos/qvel addresses; every body
               of theirs is ours and lands at the same place from the same state; ours adds only
               mocap bodies;
@@ -83,6 +88,8 @@ BODY_TOL = 1e-5      # body positions under the two scenes: XML precision is abo
 EEF_POS, EEF_QUAT, GRIPPER = slice(0, 3), slice(3, 7), slice(7, 9)
 LAG_POS_TOL = 5e-3   # m in one 2 ms substep; random actions reach 2.0e-3
 LAG_QUAT_TOL = 5e-2  # quaternion distance, up to sign, in one substep
+FRAME_TOL_LEVELS = 1  # the GPU's residue on an identical scene: 1 level...
+FRAME_TOL_PIXELS = 32  # ...on at most 10 pixels of a frame, as measured
 IMAGE_FEATURE = {"dtype": "image", "shape": (84, 84, 3), "names": ["height", "width", "channel"]}
 
 
@@ -215,39 +222,76 @@ def render_states(w, states: np.ndarray) -> tuple[dict[str, np.ndarray], np.ndar
 # Guards
 # ---------------------------------------------------------------------------
 
+def _online_env(task: str, gpu: int, conn) -> None:
+    """An env alone in its process, as each training env is, driven over `conn`: ("reset", None) or
+    ("step", action) returns its frames, observation.state, flattened state and whether the episode
+    ended; anything else closes it.
+
+    robosuite makes a GL context current only when it creates one, so two envs in one process both
+    render in whichever context was created last. Here the env renders only in its own.
+    """
+    w = make_env(task, gpu)
+    try:
+        while True:
+            cmd, action = conn.recv()
+            if cmd == "reset":
+                processed, _ = w.reset()
+                ended = False
+            elif cmd == "step":
+                processed, _, terminated, truncated, _ = w.step(action)
+                ended = terminated or truncated
+            else:
+                return
+            frames, state_obs = as_frames(w, processed)
+            conn.send((frames, state_obs, w.env.sim.get_state().flatten(), ended))
+    finally:
+        w.close()
+        conn.close()
+
+
 def check_identity(task: str, gpu: int, w, trials: int = 3, steps: int = 30, seed: int = 0) -> dict:
     """Frames and observation.state rendered from a state equal those the trainer's step path returned
-    in it, bit for bit, at each reset and after each random action.
+    in it, at each reset and after each random action: observation.state exactly, frames up to the
+    GPU's residue (FRAME_TOL_LEVELS on at most FRAME_TOL_PIXELS pixels).
 
-    The online env is touched only through the wrapper's reset() and step(), so robosuite's
-    observable timers, which pick the substep an observation is taken at, run as in training.
+    The online env runs in its own process (`_online_env`) and is touched only through the wrapper's
+    reset() and step(), so its GL context and robosuite's observable timers, which pick the substep
+    an observation is taken at, are as in training.
     """
-    online = make_env(task, gpu)
+    import multiprocessing
+
+    ctx = multiprocessing.get_context("spawn")
+    conn, child = ctx.Pipe()
+    proc = ctx.Process(target=_online_env, args=(task, gpu, child), daemon=True)
+    proc.start()
     rng = np.random.default_rng(seed)
-    resets = steps_checked = 0
+    resets = steps_checked = not_exact = most_pixels = 0
     try:
         for _ in range(trials):
-            processed, _ = online.reset()
             for t in range(steps + 1):
-                if t > 0:
-                    processed, _, terminated, truncated, _ = online.step(rng.uniform(-1, 1, online.env.action_dim))
-                want, want_p = as_frames(online, processed)
-                state = online.env.sim.get_state().flatten()
+                conn.send(("reset", None) if t == 0 else ("step", rng.uniform(-1, 1, w.env.action_dim)))
+                want, want_p, state, ended = conn.recv()
                 w.env.reset()  # another placement first: the state alone sets what is rendered
                 (set_state if t == 0 else set_state_as_stepped)(w, state)
                 got, got_p = observe(w)
                 where = "at a reset" if t == 0 else f"after step {t}"
                 for c in want:
                     n = int((want[c] != got[c]).any(-1).sum())
-                    guard(n == 0, f"identity: {c} differs at {n} pixels {where}")
+                    levels = int(np.abs(want[c].astype(int) - got[c].astype(int)).max())
+                    guard(n <= FRAME_TOL_PIXELS and levels <= FRAME_TOL_LEVELS,
+                          f"identity: {c} differs at {n} pixels, by up to {levels} levels, {where}")
+                    not_exact, most_pixels = not_exact + (n > 0), max(most_pixels, n)
                 guard(np.array_equal(want_p, got_p), f"identity: observation.state differs {where}")
                 resets, steps_checked = resets + (t == 0), steps_checked + (t > 0)
-                if t > 0 and (terminated or truncated):
+                if ended:
                     break
     finally:
-        online.close()
-    return {"resets": resets, "steps": steps_checked, "bit_identical": True,
-            "online_path": "RobosuiteGymWrapper.reset/step"}
+        conn.send(("close", None))
+        proc.join(timeout=60)
+    return {"resets": resets, "steps": steps_checked, "state_exact": True,
+            "frames_not_bit_identical": not_exact, "most_pixels_differing": most_pixels,
+            "frame_tolerance": {"levels": FRAME_TOL_LEVELS, "pixels": FRAME_TOL_PIXELS},
+            "online_path": "RobosuiteGymWrapper.reset/step, in its own process"}
 
 
 def check_layout(w, xml: str, sample_states: list[np.ndarray]) -> dict:

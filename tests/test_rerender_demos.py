@@ -4,9 +4,10 @@ an episode's first one physics substep late, as the env observes.
 After a MuJoCo step the body positions are one substep behind the state, and the tool's `as_stepped`
 recovers them from the state alone (a small model, no renderer). Rendered in a subprocess, as the
 gate runs tools/render_check.py, every guard passes on Can's first demos: frames and
-observation.state rendered from a state are those the trainer's step path returned in it, bit for
-bit; the demos pair with the LeRobot episodes and replay their observation.state. A built dataset,
-where one exists, is lossless, complete, and records passing guards and the commit it was built at.
+observation.state rendered from a state are those the trainer's step path returned in it, the state
+exactly and the frames up to the GPU's residue; the demos pair with the LeRobot episodes and replay
+their observation.state. A built dataset, where one exists, is lossless, complete, and records
+passing guards and the commit it was built at; raw env frames cannot be told from its demo frames.
 """
 
 from __future__ import annotations
@@ -106,7 +107,9 @@ def test_every_guard_passes_on_cans_first_demos():
     assert len(found) == 1, proc.stderr[-2000:]
     r = found[0]
     assert "guard_failed" not in r, r
-    assert r["identity"]["bit_identical"] and r["identity"]["resets"] == 3 and r["identity"]["steps"] == 90
+    identity = r["identity"]
+    assert identity["state_exact"] and identity["resets"] == 3 and identity["steps"] == 90
+    assert identity["most_pixels_differing"] <= rr.FRAME_TOL_PIXELS
     assert r["pairing"] == {"episodes": 2, "frames": r["pairing"]["frames"], "actions_exact": True}
     assert r["replay"]["max_proprio_diff"] <= rr.PROPRIO_TOL
     assert r["stepped_state"]["gripper_unchanged"]
@@ -123,7 +126,10 @@ def test_a_built_dataset_is_lossless_complete_and_records_passing_guards(task):
     source = json.loads((LEROBOT_HOME / rr.SOURCES[task][0] / "meta/info.json").read_text())
     assert report["commit"]["dirty"] == [], report["commit"]
     assert report["versions"]["mujoco"] == mujoco.__version__
-    assert report["identity"]["bit_identical"] and report["pairing"]["actions_exact"]
+    identity = report["identity"]  # 1c9cdbc's guard, which built both datasets, required bit-identity
+    assert identity.get("bit_identical") or (identity["state_exact"]
+                                             and identity["most_pixels_differing"] <= rr.FRAME_TOL_PIXELS)
+    assert report["pairing"]["actions_exact"]
     assert report["replay"]["max_proprio_diff"] <= rr.PROPRIO_TOL
     assert report["columns"]["copied_columns_equal"] and report["columns"]["state_is_rendered"]
     for counts in ((report["pairing"]["episodes"], report["pairing"]["frames"]),
@@ -150,3 +156,24 @@ def test_the_gate_reads_the_runs_dataset_name():
     ok, flags = preflight.tier1_compose(["--config-name=equi_tuned_rlpd_can_config",
                                          f"offline_data.name={rr.SOURCES['Can'][3]}"])
     assert ok and flags["offline_data.name"] == rr.SOURCES["Can"][3]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not (LEROBOT_HOME / rr.SOURCES["Can"][3] / "meta/rerender.json").exists(),
+                    reason="the re-rendered Can dataset is not built")
+def test_env_frames_cannot_be_told_from_rerendered_demo_frames():
+    """Raw env reset frames against the re-rendered demos' first frames: no statistic of
+    tools/codec_check.py separates them, on either camera (it separates raw env frames from the
+    source's coded demos at 0.95 or more, tests/test_demo_codec.py). Bounds as there: 4.5 standard
+    errors at 30 frames a side. Measured on 2026-10-08 at 40 frames: Can 0.49-0.61, Square 0.45-0.66."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "tools.codec_check", "--task", "Can", "--frames", "30", "--rerendered", "--json"],
+        cwd=REPO, capture_output=True, text=True, check=False,
+        env={**os.environ, "PYTHONPATH": f"{REPO}:{os.environ.get('PYTHONPATH', '')}"},
+    )
+    found = [json.loads(line) for line in proc.stdout.splitlines() if line.startswith("{")]
+    assert len(found) == 1, proc.stderr[-2000:]
+    assert found[0]["demos"] == rr.SOURCES["Can"][3]
+    for cam, by_stat in found[0]["raw"].items():
+        for stat, area in by_stat.items():
+            assert 0.15 <= area <= 0.85, (cam, stat, area)
