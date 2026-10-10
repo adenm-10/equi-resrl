@@ -5186,3 +5186,231 @@ target, and any critic value above 1 is the critic's own error.
 - **Online:** robosuite's sparse 0/1 reward, a success terminates the episode, and a timeout cuts the
   bootstrap (`dexmg.py`, `MultiStepTransform`'s `nonterminal`).
 - **The lower end:** every reward is at least 0, so a target below 0 is also the critic's error.
+
+---
+
+## 2026-10-10 — LAUNCHED — `equi-tuned-rlpd-square-rerendered` 2 (`6yh4l5mq`), the anchor's seed 2
+
+Due by `square-rerendered-1009`'s rule (its seed 1, `vc5o977f`, passed its 100k check), from that
+pre-registration's commit `eb90a0c`, in the worktree `~/projects/equi-resrl-eb90a0c`, by hand on
+GPU 1 through `submit.sh` in tmux `sq-trlpd-a`: launched 09:11, gate GO 09:28, in wandb 09:33
+(**`6yh4l5mq`**,
+[run](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/6yh4l5mq)).
+Console `outputs/queue/20261010-091117_equi-tuned-rlpd-square-rerendered-2_gpu1.log`.
+- **The gate said GO:** Tier 1 206 passed and 2 skipped, Tier 2 372 passed, the render check
+  passed (Can 0.0103, Square 0.0093 against bars 0.0125 and 0.0129). Its one warning is the disk
+  (40 GB free; no cache to write). The run package records `eb90a0c`, clean, and mujoco 3.3.2.
+  Cache keys as `vc5o977f`'s (offline `be8abb63`, online `099fa3d6`), neither read nor written.
+- **Its rules** are `square-rerendered-1009`'s as amended this morning (the divergence stop, the
+  `q_policy_*` flag): the running watcher applies the earlier ones until it is restarted on the code
+  of the 2026-10-10 CODE entry below. It is also the anchor of `square-trlpd-stab-1010` (PRE-REGISTERED
+  below): whether `vc5o977f`'s runaway repeats.
+
+---
+
+## 2026-10-10 — CODE — a LayerNorm on each critic head's pooled features; the watcher by seed group, with the divergence stop; the critic's start, measured
+
+- **`equivariance.critic_pooled_norm`**, `"none"` (the default) or `"layer_norm"`: `TrivialLayerNorm`
+  (`equi_rl_utils.py`), torch's LayerNorm with its per-channel scale and shift, on each critic head's
+  pooled features, between `GroupPooling` and the output Linear (`EquiHeadMLP`, `critic.py`).
+  - Aden's design, preserved in TODO P3.4 from the deleted `rl_utils.py`, where it never ran. The
+    field check is stricter: every field trivial, not merely one-dimensional, since C8 also has a
+    one-dimensional sign irrep, which is not invariant.
+  - The pooled features are invariant, so the critic stays invariant. The norm bounds each head's Q
+    by its own and the output Linear's weights, whatever the input: |Q| ≤ ‖w ⊙ γ‖√d + |w·β| + |b|.
+    That is RLPD's reason (Ball et al., 2023) for a LayerNorm before the critic's last layer.
+  - At `"none"` the critic is every earlier run's, bit for bit: `test_regression_agent.py` and
+    `test_regression_single_arm.py` pass (14). The scalar ablation refuses the field
+    (`EQUIVARIANT_ONLY_FIELDS`). ARCHITECTURE.md (provenance table, head diagram) and EQUIVARIANCE.md
+    ("Where a norm may go") updated.
+- **Tests.**
+  - `test_equivariance.py`: the critic is invariant to < 1e-4 with the field on, alone and with
+    RegularLayerNorm, in train and eval mode, for one and two arms. `TrivialLayerNorm` is torch's
+    LayerNorm and refuses a non-trivial field. The bound holds at input scales 1, 1e3 and 1e6, where
+    without the norm Q grows past 1e3 times it.
+  - `test_no_ops.py`: one `TrivialLayerNorm` per head, right after its pooling and right before its
+    output Linear, and none at the default. And `agent.clip_q_target_to_reward_range` clamps the
+    equivariant critic's TD target to [0, 1]: with the target critic made to say 100, every clamped
+    target is exactly 1 and the unclamped ones are above 50. No test had covered the clamp on this
+    path.
+  - `test_config.py`: the default. `tools/agent_fingerprint.py`: two candidates, `pooled-ln` and
+    `actor-critic-ln`; `test_sync_free.py`: their updates, and `clipq`'s, make no host sync (8
+    passed).
+- **`tools/square_rerendered_watch.py`, by seed group:** `--group square-rerendered-1009` or
+  `--group square-trlpd-stab-1010` (`GROUPS`), one code path. The second group's four arms follow
+  tuned RLPD's rules. It adds the morning's AMENDMENT: the divergence stop, and `q_policy_demo` and
+  `q_policy_online` read for it and for the 1.5 flag. Each log line names its group.
+  `test_square_rerendered_watch.py`: the stop on synthetic histories (three evals at or below 0.05,
+  every row above 10 over the 5k before, the largest of the four values per row); `vc5o977f`'s whole
+  record, replayed, is flagged at 99.1k and stopped at 120k; the new arms are never stopped for
+  collapse.
+- **`tools/critic_start.py`:** the critic's starting spread across heads and its min-of-two
+  pessimism, the measurement behind `496bq48s`'s start on 2026-10-08 (its code lived in a
+  `tests/test_sweep_arms.py` since rewritten). On a real batch (256 transitions of the re-rendered
+  demos, through the trainer's normalizer) or the reference batch. `--match-to` prints the
+  last-layer scale that matches a config's spread; scaling the last Linear by s scales every head's
+  Q, and both numbers, by s exactly.
+- **`tools/rerender_demos.py`: a gate on GPU 0 no longer hangs.**
+  - The identity guard's online env runs in its own process (since `01f7c8c`) and inherits the
+    wrapper's `MUJOCO_EGL_DEVICE_ID`, which was the tool's fixed `--gpu 1`. robosuite refuses at
+    import a device outside `CUDA_VISIBLE_DEVICES`, so under `CUDA_VISIBLE_DEVICES=0`, as
+    `submit.sh` sets it for GPU 0, that env died at import. The guard then waited on it forever:
+    the parent kept its own copy of the child's end of the pipe, so it never saw the pipe close.
+  - Every gate since `01f7c8c` ran on GPU 1, where the guard passes. Found when this entry's Tier 1,
+    run on GPU 0, reached its 40-minute timeout in `test_every_guard_passes_on_cans_first_demos`.
+  - Now the render device defaults to the trainer's (the first of `CUDA_VISIBLE_DEVICES`, else 1
+    as before), an explicit `--gpu` outside it is refused, and a dead online env raises at once. On
+    GPU 1 the guard runs as before. It changes only where a check renders, so the built datasets
+    are untouched.
+  - `test_rerender_demos.py`: `test_the_render_device_is_the_trainers`. On GPU 0 the guard passes
+    on Can's first demos: 3 resets and 90 steps, the state exact and every frame bit-identical.
+- **`tests/test_sweep_arms.py` and `submit.sh`,** rewritten for `square-trlpd-stab-1010` (PRE-REGISTERED
+  below). Each arm composes to the anchor's launch but for its one change (and the two normed arms'
+  start). The anchor is what `vc5o977f`'s package says it launched with. The normed arms start as
+  spread as the anchor on the pre-registered measurement, and each arm's norms sit where they are
+  meant to. 26 Tier-1 tests and the GPU tier pass.
+
+---
+
+## 2026-10-10 — PRE-REGISTERED — stabilizing equivariant tuned RLPD on Square
+
+**Question** (Aden, 2026-10-10): `vc5o977f`, equivariant tuned RLPD on Square, learned to 0.50 at
+80k and then its critic ran away (demo value 212 against a ceiling of 1; NOTE above), with
+gradient-norm clipping already on. Does clamping the TD target, a LayerNorm on each critic head's
+pooled features, or LayerNorm where ResFiT has it keep the critic bounded and the policy learning?
+Does `gkck6eqp`'s larger critic, which stayed bounded on Can, avoid the runaway on its own? And does
+the runaway repeat at the anchor's design (its seed 2, `6yh4l5mq`, LAUNCHED above)?
+
+**Seed-group `square-trlpd-stab-1010`,** four arms, seed 1 each, from the commit that adds this
+entry, in a worktree pinned to it. Names `<arm>-<seed>`, notes `square-trlpd-stab-1010/<arm>/seed<seed>`,
+wandb `robomimic-square-final` / `tuned-rlpd`. Two seeds per arm, as every group since 2026-10-07
+(STANDARDS 5.3 asks three).
+
+**Shared, `vc5o977f`'s launch exactly:** `--config-name=equi_tuned_rlpd_square_config
+equivariance.residual_squash=true offline_data.name=local/robomimic-mh-square-rerendered
+algo.total_timesteps=300000 read_buffer_caches=false write_buffer_caches=false seed=<seed>`, and
+`agent.critic.num_q=5` except in E: no norm, N = 8, one hidden layer per head, frames uncoded, every
+other field at the config's default. `tests/test_sweep_arms.py` pins each arm to the anchor but for
+its change, and the anchor to `vc5o977f`'s recorded launch.
+
+| Arm | Change from the anchor | Why |
+|---|---|---|
+| `equi-tuned-rlpd-square-clipq` | `agent.clip_q_target_to_reward_range=true` | Every correct target lies in [0, 1] (MEASUREMENT above), so the clamp cuts only the critic's error out of what it bootstraps from |
+| `equi-tuned-rlpd-square-pooledln` | `equivariance.critic_pooled_norm=layer_norm`, `equivariance.critic_last_layer_init_scale=0.8835` | Bounds each head's Q whatever the input, as RLPD's LayerNorm before the last layer does (CODE above) |
+| `equi-tuned-rlpd-square-ln` | `equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm`, `equivariance.critic_last_layer_init_scale=0.8168` | RegularLayerNorm wherever ResFiT's `use_layer_norm` puts LayerNorm (as `496bq48s`, on Can): after every hidden Linear of the actor (3) and the critic (visual projection, trunk, each head's one) |
+| `equi-tuned-rlpd-square-10x2` | `agent.critic.num_q=10 equivariance.num_critic_layers=2` | `gkck6eqp`'s critic, which stayed bounded while it learned Can |
+
+Aden's decisions (2026-10-10): D covers the actor and critic sites only. ResFiT's ViT encoders have
+their own LayerNorms, and the equivariant CNN encoder has no LayerNorm option, so "D + encoder" is a
+second-wave candidate if D helps. D keeps one hidden layer per head. The normed arms' starts are
+matched to the anchor's. E is included.
+
+**The starts,** `tools/critic_start.py`, real batch (256 transitions of the re-rendered Square
+demos), train mode, 20 seeds; ± is the SD across seeds:
+
+| Critic at init | Spread across heads | Min of two heads |
+|---|---|---|
+| Anchor: no norm, 5 heads × 1 layer (also `clipq`) | 0.731 ± 0.509 | −0.357 |
+| `pooledln` unscaled | 0.827 ± 0.269 | −0.450 |
+| **`pooledln`, scale 0.8835** | **0.731** | **−0.397** |
+| `ln` unscaled | 0.895 ± 0.289 | −0.480 |
+| **`ln`, scale 0.8168** | **0.731** | **−0.392** |
+| `10x2` (default init, not matched) | 0.588 ± 0.390 | −0.277 |
+
+- The plan named 5 seeds. Over 5 seeds the anchor's spread was 0.689, `pooledln` 0.933, `ln`
+  1.089 and `10x2` 0.518, which would have set scales of 0.738 and 0.633. The anchor's spread varies
+  by seed with an SD of about 0.5, so a 5-seed mean is uncertain by about ±0.23; 20 seeds were used
+  instead.
+- On Square the norms move the start far less than RegularLayerNorm did on Can's reference batch
+  (2.1× there; 1.13× and 1.22× here). Both are matched, so that each normed arm differs from the
+  anchor in its norm alone.
+- **At the same seed, `clipq`'s initial weights are the anchor's bit for bit,** and `pooledln`'s and
+  `ln`'s are the anchor's exactly but for their norms (identity at init: they draw no random numbers)
+  and the scaled last layer. Checked tensor by tensor at seed 1, the seed `vc5o977f` ran with. So
+  each of the three starts from `vc5o977f`'s own initial weights; the episodes still differ, since
+  `seed` does not reach the envs.
+
+**What varies:** each arm against the anchor (`vc5o977f`, `6yh4l5mq`): its one change, plus the
+matched start for `pooledln` and `ln`. Between two arms, two changes: an observation, not a
+comparison.
+
+**Rules.**
+- **Learning check at 100k,** `vc5o977f`'s: an eval to 100k of at least 0.04, or at least 5
+  training successes to 100k. Fail: stopped, no seed 2.
+- **Divergence stop:** at an eval, once every logged critic value in the 5,000 steps before it is
+  above 10 (the largest of `q_data_demo`, `q_data_online`, `q_policy_demo` and `q_policy_online` in
+  each row) and the last three evals are at or below 0.05 (the morning's AMENDMENT, the same rule).
+- **Convergence from 150k:** stopped once the mean of its last 5 evals no longer beats the mean of
+  the 5 before by two standard errors; else on to 300k.
+- **Seed 2 of an arm iff its seed 1 passes the learning check,** from this commit, launched by hand
+  into the first free slot. E's seed 1 takes the first slot that frees, then the seed 2s in the
+  order their seed 1s passed. The watcher (`--group square-trlpd-stab-1010`) enforces the stops and
+  logs which seed 2s are due.
+- **Verdict per arm, two seeds.** It *stabilizes* iff both seeds pass the learning check, no
+  `q_data_*` or `q_policy_*` value exceeds 1.5 on either seed through 150k, and its pooled
+  110k–150k mean holds its pooled 60k–100k mean: p_late ≥ p_mid − 2·sqrt(p_late(1−p_late)/500 +
+  p_mid(1−p_mid)/500), 500 episodes each. An arm whose seed 1 fails the learning check has no
+  verdict: it did not learn, so there was nothing to stabilize.
+- **Reported beside it, deciding nothing:**
+  - its pooled 60k–100k mean against the anchor's two seeds (`vc5o977f` 0.296), i.e. whether the
+    change slows learning;
+  - best eval, and the first step at which any critic value exceeds 1 and 1.5;
+  - peak `q_data_*` and `q_policy_*`, and online over demo value over (5k, 10k] (`vc5o977f` 0.26);
+  - action magnitude (it rose 0.48 → 0.66 before `vc5o977f`'s runaway), and training successes per
+    10k.
+- **Reading it:** if the anchor's seed 2 does not diverge by 150k, the runaway is not reliable at
+  this design, "no divergence" in an arm is weak evidence, and the window condition carries the
+  verdict.
+
+**Predictions** (Claude's, before launch):
+1. The anchor's seed 2 (`6yh4l5mq`) has a critic value above 1.5 by 150k. Moderate confidence: one
+   of one diverged; the mechanism is unknown.
+2. `clipq`'s `q_data_*` stay at or below 1.5 through 150k. High confidence: every target is clamped
+   to at most 1. Whether it keeps what it learns: no prediction.
+3. `pooledln` has no critic value above 1.5 through 150k, and its pooled 60k–100k mean is within 2
+   SE of the anchor's. Moderate confidence.
+4. `ln` learns slower than the anchor (pooled 60k–100k below the anchor's by more than 2 SE). Low
+   confidence: RegularLayerNorm has not learned in any run of ours, but has only run on uncoded
+   frames.
+5. `10x2` has no critic value above 1.5 through 150k. Low-to-moderate confidence.
+6. At least one arm stabilizes by the verdict. Moderate confidence.
+
+**Resources.**
+- Two runs per GPU: about 9.7 GB of GPU memory each (the trainer about 3.8 GB, and each of its nine
+  env workers about 0.66 GB, since they render on the GPU), against 23.5 GB.
+- About 28 GB of RAM per run at start and 37 GB at 150k: `vc5o977f`'s main process went from 11 to
+  19 GB, plus about 17 GB of env workers. So the anchor and three arms at once go about 25 GB into
+  swap late on, mostly idle eval workers. A fifth run does not fit.
+- Placement: GPU 1 has the anchor (since 09:33) and `clipq`; GPU 0 has `pooledln` and `ln`.
+  `10x2` waits for the first slot to free, then the seed 2s.
+- The gate's RAM check (`--concurrent-seeds`, 21 GB a run against 85% of MemAvailable) counts the
+  runs not yet going, since those already running are out of MemAvailable. `submit.sh` takes it
+  from `CONCURRENT` (default 1): 3, 2 and 1 for `clipq`, `pooledln` and `ln`, launched one after
+  another, each once the one before is training, then 1 for every later launch. At 4, as
+  `submit.sh` was first written, it counted the anchor twice and would have refused every launch
+  (84 GB against 0.85 × 91). Its 21 GB a run is below the 28–37 GB measured above, so the swap
+  estimate above, not the check, is the one to go by.
+- Shared, about 0.55–0.6 s per step, so 100k in about 16 h and 150k in about a day.
+- Launched by hand in tmux through `submit.sh`, which runs the gate, from the worktree pinned to
+  this commit. Consoles go to `outputs/queue/`.
+
+**Checks before the commit.**
+- **Smoke runs:** a 1,000-step smoke run of each arm exited 0, from the main checkout with this
+  entry's code uncommitted (packages in `outputs/runs/equi-resrl-smoke/`): `clipq` `prwxyasb`,
+  `pooledln` `ya80bsff`, `ln` `0qhqq0p3`, `10x2` `061xa5q5`.
+  - 0.38–0.73 s per step, by how many shared GPU 0; main-process RSS 10.2–10.3 GB.
+  - Every critic value stayed below 0.7.
+  - **`pooledln`'s online value stayed below 0 through the smoke's 700 updates** (−0.08 at step 100,
+    −0.17 at 1,000). The anchor's own smoke (`twrhpz36`) and `10x2`'s also started negative but
+    crossed 0 by step 500. One short run; its (5k, 10k] online-over-demo readout will say whether
+    it lasts.
+  - A first `pooledln` smoke (`nsytas18`) died of CUDA out-of-memory, with four smoke runs and the
+    GPU tests sharing GPU 0. That is how the per-run GPU memory above was found.
+- **Tests:** `tests/test_sweep_arms.py` passed in full (26 Tier-1 tests, and 23 on the GPU,
+  including the matched starts and each arm's norm placement). So did the CODE entry's tests, the
+  regression goldens (14), the sync-free census of the new candidates (8), and
+  `test_square_rerendered_watch.py` (8). Then the gate's two pytest tiers in full on GPU 0: Tier 2
+  418 passed (25 min, beside Tier 1), and Tier 1, with `test_square_rerendered_watch.py`, 215
+  passed and 2 skipped (3 min), once the re-render guard's hang was fixed (CODE above). The first
+  Tier 1 run had stopped at its 40-minute timeout in that guard. `tests/test_sweep_arms.py` passed
+  again (49) with `submit.sh` final.

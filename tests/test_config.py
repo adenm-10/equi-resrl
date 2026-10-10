@@ -235,6 +235,7 @@ def test_equivariant_defaults_build_the_reference_network(name):
     """
     eq = _node(name).equivariance
     assert (eq.actor_norm, eq.critic_norm, eq.encoder_norm) == ("none", "none", "none")
+    assert eq.critic_pooled_norm == "none"   # added 2026-10-10; no run before had a pooled norm
     assert eq.critic_orth_init is False and eq.encoder_orth_init is False
     assert eq.critic_last_layer_init_scale is None
     assert eq.use_visual_proj is True and eq.residual_squash is False

@@ -1,14 +1,31 @@
 # Status
 
-**Last updated:** 2026-10-08, about 16:30 · **Last verified commit:** the commit adding
-`tools/rerender_demos.py` (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered demos");
-`tests/test_rerender_demos.py`, `test_render_check.py`, `test_demo_codec.py` and `test_config.py`
-passed
+**Last updated:** 2026-10-10, about 10:00 · **Last verified commit:** the commit pre-registering
+`square-trlpd-stab-1010` (EXPERIMENTS.md, 2026-10-10 CODE and PRE-REGISTERED); the regression
+goldens, `test_equivariance.py`, `test_no_ops.py`, `test_sync_free.py`, `test_sweep_arms.py` and
+`test_square_rerendered_watch.py` passed
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
+
+**On the re-rendered Square demos (`square-rerendered-1009`, seed 1), the two equivariant arms
+failed in different ways** (EXPERIMENTS.md, 2026-10-10 NOTE):
+- **The equivariant residual collapsed by its first eval** (`6ng62tpm`: 0.62, then 0.02, 0, 0;
+  stopped at 30k), as `kyv7clfc` did with FieldNorm. Its critic carries no value to online states
+  (online value 0.005, then negative, against demo value 0.23–0.26), and its residual breaks the
+  policy while smaller than ResFiT's, which only dents it.
+- **Equivariant tuned RLPD learned Square, the first tuned RLPD to do so in our trainer** (`vc5o977f`:
+  0.50 at 80k), **then its critic ran away** from about 92k (demo value 212 at peak; a target here
+  cannot exceed 1, 2026-10-10 MEASUREMENT) and every eval from 100k was 0. Gradient clipping at 1.0
+  was on throughout.
+- **Now running: `square-trlpd-stab-1010`** (2026-10-10 PRE-REGISTERED): four ways to keep that
+  critic bounded, each one change from `vc5o977f` (Running now). Every other run was cancelled on
+  2026-10-10 (DEVIATION), leaving `critic-norm-can-1008`'s democodec arm and the fixed-env
+  baselines' ResFiT Can arm without verdicts.
+- **The fixed-env baselines' ResFiT residual arm passes** (`oj5k0jqb` 0.800 and `s8opblsd` 0.628
+  over 110k–150k, pooled 0.714 against B_sq = 0.582), but the seeds differ by about 4 SE.
 
 **The equivariant critic at the fixed-env baselines' design (`critic_norm=field_norm`) cannot see
 the wrist camera, the arm's height or the gripper opening, nor score the z, yaw or gripper actions**
@@ -36,8 +53,8 @@ robosuite observes without recomputing positions after its last substep. Up to 2
 and a few levels on the wrist camera, in every run so far. The re-rendered demos reproduce it
 (Aden's choice); the env is unchanged. They match the online observations exactly in state, and in
 frames up to the GPU's own residue (1 level on a few edge pixels of about 1–2% of Can's wrist
-frames; 2026-10-09 CODE). **The equivariant residual and equivariant tuned RLPD on Square run on
-them now** (Running now). Aden skipped the planned validation run on Can (2026-10-09).
+frames; 2026-10-09 CODE). Every Square run since 2026-10-09 trains on them. Aden skipped the
+planned validation run on Can (2026-10-09).
 
 **Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
 not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
@@ -106,43 +123,36 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**`square-rerendered-1009`** (EXPERIMENTS.md, 2026-10-09 PRE-REGISTERED, "the equivariant residual
-and tuned RLPD on Square, on the re-rendered demos"), seed 1 of each arm, up to 300k steps, on
-GPU 1, by hand in tmux `sq-res` and `sq-trlpd`, from the launch commit's worktree. Aden's design:
-no norm anywhere in the equivariant networks, the actor squashed, 5 critic heads of one hidden
-layer, the residual's last layer at 1e-4. Residual `6ng62tpm`, tuned RLPD `vc5o977f`. The residual
-is stopped on collapse (three evals in a row at or below 0.05) or at 100k unless its 60k–100k evals
-reach 155 of 250 (B_sq + 1 SE; AMENDMENT of 2026-10-09). Tuned RLPD is stopped at 100k unless an
-eval reaches 0.04 or 5 training episodes have succeeded. An arm that trains runs until convergence
-(from 150k) or 300k, and is due a seed 2. **The watcher `tools/square_rerendered_watch.py`** (tmux
-`sq-watch`) applies these stops and logs every action, a due seed 2 and a critic value above 1.5 to
-`outputs/queue/watch.log`; **seed 2s are launched by a human.** **If neither trains by 100k,** the
-plan regroups (TODO B16). RAM is tight: about 5–10 GB into swap is expected early on 2026-10-10,
-until `resfit-residual-square` 2 ends.
+**`square-trlpd-stab-1010`** (EXPERIMENTS.md, 2026-10-10 PRE-REGISTERED, "stabilizing equivariant
+tuned RLPD on Square"), and its anchor. Every arm is `vc5o977f`'s launch plus one change, on the
+re-rendered Square demos, up to 300k steps, two runs per GPU:
 
-**`critic-norm-can-1008`'s last arm,** GPU 0, runner `gpu0`: `equi-tuned-rlpd-can-nonorm-democodec`
-1, `gkck6eqp` (env frames through the demos' codec), from `e3793ce`, 0.94 at 10k. Its seed 2 is
-queued next on `gpu0`, then `resfit-tuned-rlpd-can` 2 from `9cf207d`. The verdict needs both seeds:
-p (110k–150k) ≥ B_can = 0.852. The group's other arms are stopped without a verdict: `xm9cuo92`
-(no norm, frames uncoded) at 60k, its critic diverging; `496bq48s` (RegularLayerNorm) at 109.4k;
-`9phsy6sf` (ResFiT, no LayerNorm) at 33.9k.
+| Arm | Change from `vc5o977f` | Where |
+|---|---|---|
+| anchor, `equi-tuned-rlpd-square-rerendered` 2 (`6yh4l5mq`) | none: its seed 2, from `eb90a0c` | GPU 1, tmux `sq-trlpd-a` |
+| `equi-tuned-rlpd-square-clipq` 1 | TD target clamped to [0, 1] | GPU 1 |
+| `equi-tuned-rlpd-square-pooledln` 1 | LayerNorm on each head's pooled features (`TrivialLayerNorm`), start matched | GPU 0 |
+| `equi-tuned-rlpd-square-ln` 1 | RegularLayerNorm where ResFiT has LayerNorm, actor and critic, start matched | GPU 0 |
+| `equi-tuned-rlpd-square-10x2` 1 | `gkck6eqp`'s critic, 10 heads of 2 layers | queued for the first free slot |
 
-**`resfit-residual-square` 2,** `s8opblsd`, GPU 0, by hand in tmux `resfit-sq2`, from
-`~/projects/equi-resrl-9cf207d` (fixed-env baselines; seed 1 `oj5k0jqb`, 0.800 over 110k–150k).
+- **Rules** (enforced by `tools/square_rerendered_watch.py`, one instance per group, tmux
+  `sq-watch` for `square-rerendered-1009` and `sq-watch2` for `square-trlpd-stab-1010`):
+  - the 100k learning check (an eval of 0.04 or 5 training successes by 100k);
+  - the divergence stop (every critic value over 10 for the 5k before an eval, and three evals at
+    or below 0.05);
+  - convergence from 150k.
 
-**How to follow them:**
-- **wandb,** entity `aden-mckinney10-university-of-central-florida`: residual in
-  `robomimic-square-final`, groups `equi-residual-rl` and `residual-rl`; tuned RLPD in
-  `robomimic-square-final` and `robomimic-can-final`, group `tuned-rlpd`. Names are the arm plus
-  the seed (`equi-residual-square-rerendered-1`); notes start with the seed-group. Watch
-  `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo` (above 1.5 is a diverging
-  critic), and `debug/dQ_da_mean_abs`.
-- **The Can seed group, from disk:** `python outputs/diagnostics/equi-critic-1008/report.py`
-  (outside git; its README). **The fixed-env baselines:**
-  `cd ~/projects/equi-resrl && conda activate residual && PYTHONPATH=$PWD CACHE_DIR=$PWD python tools/baseline_verdict.py`
-- **The eval Q-trajectory plots,** one per eval: `outputs/runs/<project>/<id>/outputs/<name>/`.
-- **Launches and exits:** `outputs/queue/gpu0.log` and `gpu1.log` for runner launches; every
-  launch's console, by hand or by runner, is the file in `outputs/queue/` named after the arm.
+  Seed 2 of an arm iff its seed 1 passes; **seed 2s and E are launched by hand** into free slots.
+  The verdict needs both seeds: no critic value above 1.5 through 150k, and the 110k–150k window
+  holding the 60k–100k one.
+- **Resources:** about 28 GB of RAM per run at start and 37 GB at 150k (`vc5o977f`'s main process 11
+  to 19 GB, plus about 17 GB of env workers), so four at once go about 25 GB into swap late on. A
+  fifth does not fit. About 9.9 GB of GPU memory per run (its env workers render on the GPU too),
+  so two per GPU.
+- **How to follow them:** wandb `robomimic-square-final`, group `tuned-rlpd`, notes starting with
+  the seed group. `outputs/queue/watch.log` has every watcher action; consoles are in
+  `outputs/queue/`. Watch `eval/success_rate`, `debug/q_data_*` and `debug/q_policy_*` (above 1 is
+  the critic's error), and `debug/residual_mean_abs` (the action's size in tuned RLPD).
 
 ## The machine
 
@@ -234,6 +244,10 @@ p (110k–150k) ≥ B_can = 0.852. The group's other arms are stopped without a 
   "Known rough edges"). Left as it is, for comparability.
 
 ## The plan, and why
+
+**0. Now (2026-10-10):** `square-trlpd-stab-1010` (Running now). A stabilizer that holds is then
+tried on Can, and in the residual, whose own failure (no value carried online) these arms do not
+address (TODO B16).
 
 **1. B15, in order:** worktrees into main; mujoco 3.3.2 with the render on the record and in the
 gate (both done); tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did;

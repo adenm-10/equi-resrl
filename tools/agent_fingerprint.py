@@ -79,6 +79,10 @@ def _candidates() -> dict[str, dict[str, object]]:
     The normalization arms of 2026-10-01 are each one change off target-fix:
     the actor's IID batch norm replaced by FieldNorm or InnerBatchNorm, or
     InnerBatchNorm added after the encoder's convs.
+
+    The two network changes of square-trlpd-stab-1010 (2026-10-10), each one
+    change off "default": LayerNorm on each critic head's pooled features, and
+    RegularLayerNorm after every hidden Linear of the actor and the critic.
     """
     fn = {"equivariance.critic_norm": "field_norm"}
     clipq = {"agent.clip_q_target_to_reward_range": True}
@@ -97,6 +101,9 @@ def _candidates() -> dict[str, dict[str, object]]:
     out["actor-fn"] = {"equivariance.actor_norm": "field_norm"}
     out["actor-inner"] = {"equivariance.actor_norm": "inner_bn"}
     out["enc-inner"] = {"equivariance.encoder_norm": "inner_bn"}
+    out["pooled-ln"] = {**new_default, "equivariance.critic_pooled_norm": "layer_norm"}
+    out["actor-critic-ln"] = {"equivariance.actor_norm": "layer_norm",
+                              "equivariance.critic_norm": "layer_norm"}
     return out
 
 

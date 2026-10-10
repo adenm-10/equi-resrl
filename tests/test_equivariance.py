@@ -309,6 +309,8 @@ CRITIC_OPTIONS = {
     "no-visual-proj": dict(use_visual_proj=False),
     "orth-init": dict(orth_init=True),
     "small-last-layer": dict(last_layer_init_scale=1e-3),
+    "pooled-layer-norm": dict(pooled_norm="layer_norm"),
+    "layer-norm+pooled-layer-norm": dict(norm="layer_norm", pooled_norm="layer_norm"),
 }
 ENCODER_OPTIONS = {
     "inner-bn": dict(norm="inner_bn"),
@@ -413,6 +415,69 @@ def test_regular_layer_norm_is_torch_layer_norm_at_init(obs_enc, device):
     x = _feat(obs_enc, [("regular", 16)], device, seed=15) * 3 + 1
     out = RegularLayerNorm(ftype).to(device)(enn.GeometricTensor(x, ftype)).tensor
     torch.testing.assert_close(out, torch.nn.functional.layer_norm(x, (x.shape[1],)))
+
+
+@pytest.mark.gpu
+def test_trivial_layer_norm_is_torch_layer_norm(obs_enc, device):
+    """TrivialLayerNorm is torch's LayerNorm, per-channel scale and shift included, and refuses
+    any field that is not trivial."""
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import TrivialLayerNorm
+
+    group = obs_enc.group
+    ftype = enn.FieldType(group, 16 * [group.trivial_repr])
+    norm = TrivialLayerNorm(ftype).to(device)
+    with torch.no_grad():
+        norm.norm.weight.uniform_(0.5, 2.0)
+        norm.norm.bias.uniform_(-1.0, 1.0)
+    x = _feat(obs_enc, [("trivial", 16)], device, seed=16) * 3 + 1
+    expected = torch.nn.functional.layer_norm(x, (16,), norm.norm.weight, norm.norm.bias)
+    torch.testing.assert_close(norm(enn.GeometricTensor(x, ftype)).tensor, expected)
+    with pytest.raises(AssertionError, match="trivial fields only"):
+        TrivialLayerNorm(enn.FieldType(group, 2 * [group.regular_repr]))
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("norm", ["none", "layer_norm"])
+def test_pooled_layer_norm_bounds_q_whatever_the_input(obs_enc, arm_spec, device, norm):
+    """The claim critic_pooled_norm="layer_norm" rests on (EXPERIMENTS.md, 2026-10-10 CODE): each
+    head's Q is at most ||w * gamma|| sqrt(d) + |w . beta| + |b| in size, for its output Linear's
+    weights w and bias b and the norm's scale gamma and shift beta over d pooled channels, however
+    large the input. Without the norm Q grows with the input."""
+    from escnn import nn as enn
+
+    from tests.conftest import build_critic
+
+    critic = build_critic(obs_enc, device, pooled_norm="layer_norm", norm=norm, num_q=3).train(False)
+    for head in critic.q_ensemble.heads:   # a learnt-looking scale and shift, not the init's 1 and 0
+        layer_norm = head.net[-2].norm
+        with torch.no_grad():
+            layer_norm.weight.uniform_(0.5, 2.0)
+            layer_norm.bias.uniform_(-1.0, 1.0)
+    bound = []
+    for head in critic.q_ensemble.heads:
+        layer_norm, out = head.net[-2].norm, head.net[-1]
+        matrix, bias = out.expand_parameters()   # the output Linear as a plain [1, d] matrix
+        w = matrix.reshape(-1)
+        b = bias.reshape(()) if bias is not None else w.new_tensor(0.0)
+        d = layer_norm.normalized_shape[0]
+        bound.append(((w * layer_norm.weight).norm() * d ** 0.5 + (w * layer_norm.bias).sum().abs()
+                      + b.abs()).item())
+    bound = torch.tensor(bound, device=device).view(-1, 1, 1)
+
+    feat_layout, act_layout = _critic_layout(arm_spec), _action_layout(arm_spec)
+    reference = build_critic(obs_enc, device, norm=norm, num_q=3).train(False)
+    for scale in (1.0, 1e3, 1e6):
+        feat = _feat(obs_enc, feat_layout, device, seed=17) * scale
+        act = _feat(obs_enc, act_layout, device, seed=18) * scale
+        with torch.no_grad():
+            q = critic(enn.GeometricTensor(feat, obs_enc.enc_out_type_critic), act)
+            q_without = reference(enn.GeometricTensor(feat, obs_enc.enc_out_type_critic), act)
+        assert torch.isfinite(q).all()
+        assert (q.abs() <= bound * (1 + 1e-4)).all(), f"Q above its bound at input scale {scale:g}"
+    if norm == "none":   # with no norm anywhere the unnormed critic is positively homogeneous
+        assert q_without.abs().max().item() > 1e3 * bound.max().item()
 
 
 @pytest.mark.gpu

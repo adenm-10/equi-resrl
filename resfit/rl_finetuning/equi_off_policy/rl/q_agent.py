@@ -27,8 +27,9 @@ from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_critic import Critic as
 
 # EquivarianceConfig fields that only the equivariant networks read.
 EQUIVARIANT_ONLY_FIELDS = (
-    "actor_norm", "critic_norm", "encoder_norm", "critic_orth_init", "encoder_orth_init",
-    "critic_last_layer_init_scale", "use_visual_proj", "residual_squash", "frozen_target_critic",
+    "actor_norm", "critic_norm", "critic_pooled_norm", "encoder_norm", "critic_orth_init",
+    "encoder_orth_init", "critic_last_layer_init_scale", "use_visual_proj", "residual_squash",
+    "frozen_target_critic",
 )
 
 
@@ -141,6 +142,7 @@ class QAgent(torch.nn.Module):
                 loss_cfg=loss,
                 num_q=num_q,
                 norm=self.equi_cfg.critic_norm,
+                pooled_norm=self.equi_cfg.critic_pooled_norm,
                 orth_init=self.equi_cfg.critic_orth_init,
                 last_layer_init_scale=self.equi_cfg.critic_last_layer_init_scale,
                 use_visual_proj=self.equi_cfg.use_visual_proj,

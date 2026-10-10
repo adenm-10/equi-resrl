@@ -717,6 +717,36 @@ class RegularLayerNorm(torch.nn.Module):
         return GeometricTensor(t.reshape(x.tensor.shape), self.out_type, x.coords)
 
 
+class TrivialLayerNorm(torch.nn.Module):
+    """torch.nn.LayerNorm, per-channel scale and shift included, for flat GeometricTensors of
+    trivial fields.
+
+    The group acts on a trivial field as the identity, so any map of trivial fields to trivial
+    fields is invariant, torch's own LayerNorm among them. In the critic it sits after
+    GroupPooling, whose output is trivial, and before each head's output Linear, the place of
+    RLPD's LayerNorm before its last layer. There it bounds Q whatever the input:
+    |Q| <= ||w * gamma|| sqrt(d) + |w . beta| + |b| for the output Linear's weights w and bias b
+    and this norm's scale gamma and shift beta over d channels.
+
+    Aden's design, preserved in TODO P3.4 from the deleted rl_utils.py, where it never ran. Its
+    field check is stricter here: trivial, not merely one-dimensional, since C_N for even N also
+    has a one-dimensional sign irrep, which is not invariant.
+    """
+
+    def __init__(self, in_type: enn.FieldType, eps: float = 1e-5):
+        super().__init__()
+        reps = in_type.representations
+        assert reps and all(r.is_trivial() for r in reps), (
+            f"TrivialLayerNorm needs trivial fields only, got {in_type}")
+        self.in_type = self.out_type = in_type
+        self.norm = torch.nn.LayerNorm(in_type.size, eps=eps)
+
+    def forward(self, x: GeometricTensor) -> GeometricTensor:
+        assert x.type == self.in_type
+        assert x.tensor.dim() == 2, f"flat [B, C] features only, got shape {tuple(x.tensor.shape)}"
+        return GeometricTensor(self.norm(x.tensor), self.out_type, x.coords)
+
+
 class RegularInnerBatchNorm(torch.nn.Module):
     """escnn's InnerBatchNorm for regular fields, flat or spatial, without host syncs.
 
@@ -769,6 +799,22 @@ def hidden_norm(kind: str, field_type: FieldType) -> list[torch.nn.Module]:
     if kind == "field_norm":
         return [FieldNorm(field_type)]
     raise ValueError(f"unknown hidden norm {kind!r}; expected one of {HIDDEN_NORMS}")
+
+
+POOLED_NORMS = ("none", "layer_norm")
+
+
+def pooled_feature_norm(kind: str, field_type: FieldType) -> list[torch.nn.Module]:
+    """The normalization of a critic head's pooled, invariant features, before its output Linear.
+
+    A list to splice into a Sequential, empty for "none", so that a head without it keeps the
+    module indices and parameters every earlier run had.
+    """
+    if kind == "none":
+        return []
+    if kind == "layer_norm":
+        return [TrivialLayerNorm(field_type)]
+    raise ValueError(f"unknown pooled-feature norm {kind!r}; expected one of {POOLED_NORMS}")
 
 
 """Equivariant initialization utilities.

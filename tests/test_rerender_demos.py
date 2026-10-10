@@ -95,6 +95,17 @@ def test_the_stepped_state_may_move_only_the_end_effector_pose():
         rr.stepped_change(far, exact)
 
 
+def test_the_render_device_is_the_trainers(monkeypatch):
+    # The online env's process inherits the wrapper's MUJOCO_EGL_DEVICE_ID, which robosuite refuses at
+    # import outside CUDA_VISIBLE_DEVICES. At a fixed device 1, under CUDA_VISIBLE_DEVICES=0 (a gate on
+    # GPU 0), that env died and the identity guard waited on it until killed (2026-10-10).
+    for visible, device in (("0", 0), ("1", 1), ("1,0", 1)):
+        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", visible)
+        assert rr.render_device() == device
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES")
+    assert rr.render_device() == 1
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(not _have_sources("Can"), reason="Can's robomimic file or LeRobot dataset is not cached")
 def test_every_guard_passes_on_cans_first_demos():

@@ -17,10 +17,11 @@ class EquiHeadMLP(torch.nn.Module):
     rather than equivariant (STANDARDS 2.2). Each hidden Linear is followed by
     `norm`, and every hidden layer but the last by a ReLU: with one hidden layer,
     as every run before 2026-09-29 had, the pooling's max is the only
-    nonlinearity.
+    nonlinearity. `pooled_norm` (POOLED_NORMS) normalizes the pooled features,
+    which are invariant, before the output Linear.
     """
 
-    def __init__(self, in_type, hidden_type, out_type, num_layers: int, norm: str):
+    def __init__(self, in_type, hidden_type, out_type, num_layers: int, norm: str, pooled_norm: str):
         super().__init__()
         assert num_layers >= 1, f"a Q head needs a hidden layer, got num_layers={num_layers}"
 
@@ -36,6 +37,7 @@ class EquiHeadMLP(torch.nn.Module):
         # escnn's GroupPooling, minus its GPU-scalar slicing: escnn_fixes.py.
         gpool = GroupPooling(hidden_type)
         layers.append(gpool)
+        layers += pooled_feature_norm(pooled_norm, gpool.out_type)
         layers.append(nn.Linear(gpool.out_type, out_type, initialize=True))
         self.net = torch.nn.Sequential(*layers)
 
@@ -44,10 +46,11 @@ class EquiHeadMLP(torch.nn.Module):
 
 
 class EquiQEnsemble(torch.nn.Module):
-    def __init__(self, in_type, hidden_type, out_type, num_layers: int, num_heads: int, norm: str):
+    def __init__(self, in_type, hidden_type, out_type, num_layers: int, num_heads: int, norm: str,
+                 pooled_norm: str):
         super().__init__()
         self.heads = torch.nn.ModuleList([
-            EquiHeadMLP(in_type, hidden_type, out_type, num_layers, norm)
+            EquiHeadMLP(in_type, hidden_type, out_type, num_layers, norm, pooled_norm)
             for _ in range(num_heads)
         ])
 
@@ -59,7 +62,8 @@ class Critic(torch.nn.Module):
     """The invariant critic: Q(g.s, g.a) = Q(s, a).
 
     visual projection -> trunk projection -> an ensemble of num_q heads, each
-    hidden layer followed by `norm` (HIDDEN_NORMS).
+    hidden layer followed by `norm` (HIDDEN_NORMS) and each head's pooled
+    features by `pooled_norm` (POOLED_NORMS).
     """
 
     def __init__(self,
@@ -72,6 +76,7 @@ class Critic(torch.nn.Module):
                  num_q: int,
                  dropout: float,
                  norm: str,
+                 pooled_norm: str,
                  orth_init: bool,
                  last_layer_init_scale: float | None,
                  use_visual_proj: bool,
@@ -121,6 +126,7 @@ class Critic(torch.nn.Module):
             num_layers  = num_layers,
             num_heads   = num_q,
             norm        = norm,
+            pooled_norm = pooled_norm,
         )
 
         # Delta-orthonormal init draws from numpy's global RNG, so turning it on

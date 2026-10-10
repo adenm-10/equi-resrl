@@ -169,6 +169,51 @@ def test_critic_norm_reaches_every_hidden_layer(obs_enc, device, kind, num_layer
 
 
 @pytest.mark.gpu
+@pytest.mark.parametrize("num_layers", [1, 2])
+def test_critic_pooled_norm_sits_between_each_heads_pooling_and_output(obs_enc, device, num_layers):
+    """critic_pooled_norm="layer_norm" adds one TrivialLayerNorm per head, right after its
+    GroupPooling and right before its output Linear; "none" adds nothing, so the default critic
+    keeps every parameter it had."""
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.common_utils.escnn_fixes import GroupPooling
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import TrivialLayerNorm
+
+    critic = _build_critic(obs_enc, device, pooled_norm="layer_norm", num_layers=num_layers, num_q=3)
+    assert _count(critic, TrivialLayerNorm) == 3
+    for head in critic.q_ensemble.heads:
+        assert isinstance(head.net[-3], GroupPooling)
+        assert isinstance(head.net[-2], TrivialLayerNorm)
+        assert isinstance(head.net[-1], enn.Linear)
+    plain = _build_critic(obs_enc, device, num_layers=num_layers, num_q=3)
+    assert _count(plain, TrivialLayerNorm) == 0
+    assert _shapes_only(plain) != _shapes_only(critic)
+    with pytest.raises(ValueError, match="unknown pooled-feature norm"):
+        _build_critic(obs_enc, device, pooled_norm="field_norm")
+
+
+def test_clip_q_target_clamps_the_equivariant_critics_target():
+    """agent.clip_q_target_to_reward_range clamps the equivariant critic's TD target to [0, 1],
+    the range of every correct target under the sparse 0/1 reward (EXPERIMENTS.md, 2026-10-10
+    MEASUREMENT); off, the target follows the target critic. With the target critic made to say
+    100, the clamped targets are all exactly 1 and the unclamped ones far above it."""
+    from tools.agent_fingerprint import STDDEV, build_reference_agent, fixed_batch
+
+    targets = {}
+    for clip in (False, True):
+        agent = build_reference_agent(overrides={"equivariance.actor_norm": "none",
+                                                 "agent.clip_q_target_to_reward_range": clip})
+        with torch.no_grad():
+            for head in agent.critic_target.q_ensemble.heads:
+                head.net[-1].bias.fill_(100.0)
+        metrics = agent.update(fixed_batch(weights=True), stddev=STDDEV, update_actor=False,
+                               compute_metrics=True)
+        targets[clip] = metrics["_target_q"]
+    assert torch.equal(targets[True], torch.ones_like(targets[True]))
+    assert targets[False].max().item() > 50
+
+
+@pytest.mark.gpu
 def test_reference_critic_has_no_norm(obs_enc, device):
     from escnn import nn as enn
 

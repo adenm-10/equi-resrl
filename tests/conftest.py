@@ -125,6 +125,7 @@ def build_critic(obs_enc, device, **kw):
         num_q=2,
         dropout=0.0,
         norm="none",
+        pooled_norm="none",
         orth_init=False,
         last_layer_init_scale=None,
         use_visual_proj=True,

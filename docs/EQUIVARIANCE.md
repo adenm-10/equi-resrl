@@ -132,6 +132,18 @@ change when the group permutes them. After pooling, the feature type is all-triv
 `GroupPooling` is load-bearing and must be preserved when refactoring the critic. But it is **not**
 the change that fixed the collapse — see below.
 
+**Where a norm may go follows from this.** Before the pooling, a norm must commute with the group's
+permutation of each regular field's channels: `RegularLayerNorm` does (one mean and variance over
+all of a sample's channels, one scale and shift per field), torch's per-channel LayerNorm does not.
+After the pooling every feature is invariant, so any map of them is, torch's own LayerNorm with its
+per-channel scale and shift included: that is `TrivialLayerNorm` (`critic_pooled_norm=layer_norm`,
+from 2026-10-10). Its check is that every field is trivial, not merely one-dimensional: C8 also has
+a one-dimensional sign irrep, which is not invariant. `FieldNorm` cannot go there: it would zero
+all-trivial features. Where the equivariant stack has LayerNorm against ResFiT's: ResFiT's
+`use_layer_norm` puts one after every hidden Linear of its actor and critic, and its ViT encoders
+have their own; `actor_norm` and `critic_norm` (`layer_norm`) cover the first, plus the trunk layer
+ResFiT's critic lacks; the equivariant CNN encoder has no LayerNorm option.
+
 ### What actually changed between the collapsed runs and the successful one
 
 **Rewritten 2026-09-16 after `z8yoqylh` was recovered from disk. The previous version of this
@@ -394,8 +406,10 @@ mind if the equivariant advantage turns out smaller than the SO(2) paper's.
   RL code. `critic_norm` (2026-09-29) adds it after every hidden layer, before the pooling. The
   sweep's `critic-ln` was stopped without a verdict and `critic-iid` never launched. `critic-fn`
   did not advance, but under the image bug.
-  `TrivialLayerNorm` — written by Aden, never run, preserved in TODO P3.4 — is the correct layer for
-  the all-trivial features that `GroupPooling` produces, since escnn's `FieldNorm` would zero them.
-  Restoring critic normalization is scheduled for P3.4, whose gate needs re-deciding (TODO P3).
+  `TrivialLayerNorm` — written by Aden, preserved in TODO P3.4 — is the correct layer for the
+  all-trivial features that `GroupPooling` produces, since escnn's `FieldNorm` would zero them. It
+  is `critic_pooled_norm=layer_norm` from 2026-10-10, first run in `square-trlpd-stab-1010`
+  (EXPERIMENTS.md, 2026-10-10 PRE-REGISTERED), with RegularLayerNorm before the pooling as a
+  separate arm.
 - The in-hand camera is invariant, which is correct, but it means half the visual input carries no
   symmetry information. How much does the equivariant agentview branch actually contribute?

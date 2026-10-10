@@ -143,6 +143,19 @@ def _np_dtype(dtype: str):
 # Rendering
 # ---------------------------------------------------------------------------
 
+def visible_gpus() -> list[int]:
+    return [int(d) for d in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if d.strip()]
+
+
+def render_device() -> int:
+    """The trainer's render device (`create_vectorized_env`): the first of CUDA_VISIBLE_DEVICES, or 1 if unset.
+
+    The wrapper sets MUJOCO_EGL_DEVICE_ID, which the online env's process inherits (`check_identity`),
+    and robosuite refuses at import one that is not in CUDA_VISIBLE_DEVICES.
+    """
+    return (visible_gpus() or [1])[0]
+
+
 def make_env(task: str, gpu: int):
     os.environ["MUJOCO_GL"] = "egl"  # as the trainer sets it, before robosuite is imported
     from resfit.dexmg.environments.dexmg import RobosuiteGymWrapper
@@ -264,6 +277,7 @@ def check_identity(task: str, gpu: int, w, trials: int = 3, steps: int = 30, see
     conn, child = ctx.Pipe()
     proc = ctx.Process(target=_online_env, args=(task, gpu, child), daemon=True)
     proc.start()
+    child.close()  # the online env holds its own end, so recv() raises if it dies rather than waits forever
     rng = np.random.default_rng(seed)
     resets = steps_checked = not_exact = most_pixels = 0
     try:
@@ -286,7 +300,8 @@ def check_identity(task: str, gpu: int, w, trials: int = 3, steps: int = 30, see
                 if ended:
                     break
     finally:
-        conn.send(("close", None))
+        if proc.is_alive():
+            conn.send(("close", None))
         proc.join(timeout=60)
     return {"resets": resets, "steps": steps_checked, "state_exact": True,
             "frames_not_bit_identical": not_exact, "most_pixels_differing": most_pixels,
@@ -534,7 +549,8 @@ def _commit() -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--task", choices=sorted(SOURCES), required=True)
-    ap.add_argument("--gpu", type=int, default=1, help="EGL render device")
+    ap.add_argument("--gpu", type=int, default=render_device(),
+                    help="EGL render device; by default the trainer's, the first of CUDA_VISIBLE_DEVICES, or 1")
     ap.add_argument("--episodes", type=int, default=None,
                     help="only the first N (check-only/build), or N spread (verify, codec-change)")
     ap.add_argument("--root", type=Path, default=None, help="the dataset here instead of the LeRobot home (tests)")
@@ -544,6 +560,9 @@ def main() -> int:
     mode.add_argument("--codec-change", action="store_true", help="measure what the source's codec changed")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
+    if visible_gpus() and args.gpu not in visible_gpus():
+        ap.error(f"--gpu {args.gpu} is not in CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}, "
+                 "which robosuite requires of the online env's render device")
     try:
         if args.verify:
             report = verify(args.task, args.gpu, args.episodes or 5, args.root)

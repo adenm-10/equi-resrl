@@ -154,6 +154,7 @@ makes each row executable.
 | `use_norms` | `True` | — | — | — | **Scalar ablation only** from 2026-09-29. Before, it reached two of the actor's three norm sites and set the encoder's last conv to `bias=not use_norms` |
 | `actor_norm` | `none` | — | — | all 3 sites | **Live** from 2026-09-29. Every run before 2026-09-30 had `iid_bn`, the default until then |
 | `critic_norm` | `none` | — | every hidden layer | — | **Live** from 2026-09-29 |
+| `critic_pooled_norm` | `none` | — | each head, between `GroupPooling` and its output Linear | — | **Live** from 2026-10-10 |
 | `encoder_norm` | `none` | every agentview conv | — | — | **Live** from 2026-09-29. Every conv is bias-free whatever its value |
 | `use_orth_init` | `True` | — | — | live | **Live**, actor only |
 | `critic_orth_init` | `False` | — | live | — | **Live** from 2026-09-29 |
@@ -215,8 +216,14 @@ Critic Q-head, per ensemble member
 
 ```
 [Linear(→ hidden, regular repr) → critic_norm → ReLU] × (num_critic_layers − 1)
-→ Linear(→ hidden, regular repr) → critic_norm → GroupPooling → Linear(pooled → 1, trivial repr)
+→ Linear(→ hidden, regular repr) → critic_norm → GroupPooling [→ TrivialLayerNorm]
+→ Linear(pooled → 1, trivial repr)
 ```
+
+`TrivialLayerNorm` is there only with `critic_pooled_norm=layer_norm` (from 2026-10-10): torch's own
+LayerNorm on the pooled features, which are invariant, so it needs no equivariant form. It bounds
+each head's Q by its output Linear's and its own weights, whatever the input (RLPD's reason for a
+LayerNorm before the critic's last layer).
 
 At the default (one hidden layer, no norm) that is `Linear → GroupPooling → Linear`, with no
 activation before the pooling. `GroupPooling` (a max over the group channels of each field) is
@@ -241,7 +248,9 @@ Normalization options (`equi_rl_utils.hidden_norm`): `iid_bn` is escnn's `IIDBat
 `layer_norm` is `RegularLayerNorm`, one mean and variance over all of a sample's channels, as
 ResFiT's LayerNorm, with a scale and shift shared by each field's channels; `field_norm` is
 `FieldNorm`, which normalizes each field by its own statistics. The encoder's `inner_bn` is escnn's
-`InnerBatchNorm`. The ResFiT baseline has LayerNorm after every hidden layer of its actor and critic.
+`InnerBatchNorm`. After pooling (`equi_rl_utils.pooled_feature_norm`), `critic_pooled_norm=layer_norm`
+is `TrivialLayerNorm`. The ResFiT baseline has LayerNorm after every hidden layer of its actor and
+critic, and inside its ViT encoders, where the equivariant CNN encoder has no LayerNorm option.
 
 ## The two stacks side by side
 

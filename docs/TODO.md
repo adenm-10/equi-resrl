@@ -24,19 +24,34 @@ demos").
 3. **DONE 2026-10-08: checked against the env.** No frame statistic tells them from env frames;
    the identity guard allows the GPU's 1-level residue (2026-10-09 CODE, Aden's option A).
 4. **Skipped (Aden, 2026-10-09): the validation run on Can.** The Square runs went ahead directly.
-5. **NOW: the equivariant residual and equivariant tuned RLPD on Square** (EXPERIMENTS.md,
-   2026-10-09 PRE-REGISTERED, `square-rerendered-1009`). Aden's design: no norms, the actor
-   squashed, 5 critic heads of one hidden layer, the residual's last layer at 1e-4. NOTEs at 10k,
-   50k, the 100k decision and convergence, each with the stop and seed-2 rules applied.
-6. **If neither trains by 100k, regroup** (Aden, 2026-10-09):
-   - Get equivariant tuned RLPD to learn Square. Start with a ResFiT tuned RLPD Square reference in
-     the fixed env, since none has learned Square in our trainer. Then the design that learned Can
-     (`gkck6eqp`: squashed actor, 10 heads of 2 layers), and changes from there.
-   - Ablations on Can, to set the residual's design. Tuned RLPD from `gkck6eqp`'s setup on the
-     re-rendered Can demos: norm (none or RegularLayerNorm), the squash, head count, head depth, and
-     N = 8, 4 or no equivariance. Norm also on the equivariant residual on Can
-     (`residual_equi_td3_can_config`), since Aden expects it may come out differently for a
-     residual. Caveat: Can's base policy is at 0.852, so a residual has little room to show a gain.
+5. **DONE 2026-10-10: the equivariant residual and equivariant tuned RLPD on Square**
+   (`square-rerendered-1009` seed 1; EXPERIMENTS.md, 2026-10-10 NOTE). The residual collapsed by
+   its first eval (`6ng62tpm`). Tuned RLPD learned to 0.50 at 80k, then its critic ran away from
+   about 92k and every eval from 100k was 0 (`vc5o977f`). Its seed 2 (`6yh4l5mq`) runs as the
+   anchor of item 5b.
+5b. **NOW: stabilizing equivariant tuned RLPD on Square** (EXPERIMENTS.md, 2026-10-10
+   PRE-REGISTERED, `square-trlpd-stab-1010`; Aden, 2026-10-10). Four arms, each one change from
+   `vc5o977f`:
+   - the TD target clamped to [0, 1];
+   - LayerNorm on each head's pooled features (`TrivialLayerNorm`, P3.4);
+   - RegularLayerNorm where ResFiT has LayerNorm;
+   - `gkck6eqp`'s 10 × 2 critic.
+
+   NOTEs at 10k, 50k, the 100k checks and the end. Seed 2s, and the fourth arm, by hand into free
+   slots. **Second-wave candidates** (Aden's call, from what the first shows): the clamp and the
+   pooled norm together; the LayerNorm arm plus per-pixel LayerNorm in the encoders, where
+   ResFiT's ViTs have theirs (new code: `ENCODER_NORMS` has none). Then a stabilizer that holds is
+   tried on Can and in the residual.
+6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
+   it is not triggered as written, but its residual half stands: **the residual's collapse is a
+   different failure** (no value carried to online states; online value negative by 20k), which
+   item 5b does not address. Ablations on Can, to set the residual's design: norm (none or
+   RegularLayerNorm), the squash, head count, head depth, and N = 8, 4 or no equivariance. Norm
+   also on the equivariant residual on Can (`residual_equi_td3_can_config`), since Aden expects it
+   may come out differently for a residual. Caveat: Can's base policy is at 0.852, so a residual
+   has little room to show a gain. Claude's suggestion (2026-10-10): the equivariant residual on
+   Can with the critic that learned Can on both seeds. If it still collapses, the fault is in the
+   residual's path, not the critic design.
 7. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
 
 ### B15. Fix the render, then new baselines — NEXT (Aden's plan, 2026-10-07) `[SC]` `[CS]`
@@ -379,6 +394,25 @@ Three options:
 
 **Updates:** CLAUDE.md.
 
+### H9. `debug/enc_normalizer_grad_norm` is a running sum, not a gradient norm `[CS]` `[HI]` (found 2026-10-10)
+
+The equivariant normalizer is attached (`train_residual_td3.py:528`) after the agent has built its
+optimizers and its clip list (`q_agent.py:242, 265`). So its parameters, which require grad, take
+gradients that no optimizer steps, no clip touches, and nothing ever zeroes. The logged norm is
+their running sum: it climbs steadily in every run (0.2 to 1.07 in `gkck6eqp`) and reached 3e3 in
+`vc5o977f`. Harmless to training: the normalization never moves. Fix: `requires_grad_(False)` on
+them in `set_normalizer`, checked bit for bit by the regression goldens. Kept out of
+`square-trlpd-stab-1010`'s commit to keep its diff to the arms. **Updates:** ARCHITECTURE.md
+("Known rough edges").
+
+### H10. The gate's subprocesses have no timeout `[CS]` (found 2026-10-10)
+
+`preflight.py` runs its pytest tiers and the render check through `subprocess.run` with no
+timeout, so a test that hangs holds up the launch with nothing printed. On 2026-10-10 the identity
+guard of `tools/rerender_demos.py` would have done that on GPU 0 (EXPERIMENTS.md, 2026-10-10 CODE;
+fixed there). Fix: a timeout on each tier, generous against its usual time (Tier 1 about 3 min,
+Tier 2 about 25 on a shared GPU), that records FAIL with the test that was running.
+
 ### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
 
 From `docs/plans/2026-09-30-sync-free-update.md` (untracked).
@@ -590,6 +624,11 @@ implement it or make the config reject it.
 ---
 
 ### P3.4 Restore normalization to the critic head, using `TrivialLayerNorm` `[CS]`
+
+**2026-10-10: built and running.** `equivariance.critic_pooled_norm=layer_norm` is this
+`TrivialLayerNorm`, with the field check made strict (trivial, not one-dimensional; C8 has a
+one-dimensional sign irrep). Its first run is `square-trlpd-stab-1010`'s `pooledln` arm
+(EXPERIMENTS.md, 2026-10-10 CODE and PRE-REGISTERED).
 
 **2026-09-29:** the sweep's `critic-ln` and `critic-iid` arms add normalization before the
 pooling (`RegularLayerNorm`, `IIDBatchNorm1d`). `TrivialLayerNorm`, after the pooling, stays

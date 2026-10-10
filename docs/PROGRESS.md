@@ -17,6 +17,57 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-10 — the Square results; every other run cancelled; four ways to keep tuned RLPD's critic bounded
+
+(No entries were written here for 2026-10-08 and 2026-10-09; EXPERIMENTS.md and STATUS.md carry
+those sessions.)
+
+**Found** (EXPERIMENTS.md, 2026-10-10 NOTEs and MEASUREMENT)
+
+- On the re-rendered Square demos, the equivariant residual collapsed by its first eval
+  (`6ng62tpm`). Equivariant tuned RLPD learned to 0.50 at 80k, the first tuned RLPD to learn Square
+  in our trainer, and then its critic ran away (demo value 212; `vc5o977f`), with gradient clipping
+  on. The two are different failures: the residual's critic carries no value online, tuned RLPD's
+  carries value and then diverges.
+- The fixed-env baselines' ResFiT residual arm passes (0.714 pooled), but its seeds differ by about
+  4 SE.
+- No TD target can exceed 1, on the demos (`tools/target_bound.py`) or online. So the clamp is
+  exact, and any critic value above 1 is the critic's error.
+- `debug/enc_normalizer_grad_norm` is a running sum of gradients nothing uses (TODO H9).
+
+**Done**
+
+- Every other run cancelled (Aden): `juhq4p36` stopped at 122.6k, `resfit-tuned-rlpd-can` 2 taken
+  off the queue (DEVIATION).
+- `square-rerendered-1009` amended with a divergence stop before tuned RLPD's seed 2 (`6yh4l5mq`,
+  the new group's anchor) launched.
+- `equivariance.critic_pooled_norm`: `TrivialLayerNorm`, Aden's P3.4 design, after each head's
+  pooling. Tests for invariance and for the bound on Q it gives.
+- The watcher runs per seed group and has the divergence stop. `tools/critic_start.py` measures a
+  critic's start; tests pin both.
+- `square-trlpd-stab-1010` pre-registered (CODE, PRE-REGISTERED): clamp, pooled LayerNorm,
+  RegularLayerNorm where ResFiT has LayerNorm, and `gkck6eqp`'s 10 × 2 critic, each one change from
+  `vc5o977f`.
+- A gate on GPU 0 would have hung in Tier 1, in `tools/rerender_demos.py`'s identity guard. Its
+  online env asked for render device 1 outside `CUDA_VISIBLE_DEVICES=0` and died at import, and the
+  guard waited on it with no timeout. Every gate since `01f7c8c` had run on GPU 1. Fixed: the device
+  is now the trainer's, and a dead env raises (CODE).
+- `submit.sh`'s RAM check counts the runs not yet going (`CONCURRENT`). At a fixed 4 it counted the
+  anchor twice and would have refused every launch.
+
+**Decided** (Aden)
+
+- The plan in `docs/plans/2026-10-10-equi-trlpd-square-stabilizers.md` (local):
+  - the LayerNorm arm at the actor and critic sites only, one hidden layer per head;
+  - the normed arms' starts matched to the anchor's;
+  - the divergence stop;
+  - only these runs on the machine;
+  - the 10 × 2 arm included.
+- Matched over 20 seeds rather than the plan's 5 (Claude). The anchor's start varies too much by
+  seed for 5 to pin it.
+
+---
+
 ## 2026-10-07 (evening) — B15 phases 0–3: records in main, mujoco 3.3.2 on the gate
 
 **Done** (EXPERIMENTS.md, the three CODE entries of 2026-10-07 after the RESULTS)

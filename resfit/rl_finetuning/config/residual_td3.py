@@ -82,6 +82,11 @@ class EquivarianceConfig:
     actor_norm: str = "none"
     critic_norm: str = "none"
     encoder_norm: str = "none"
+    # Normalization of each critic head's pooled features, after GroupPooling and before its
+    # output Linear: "none", or "layer_norm" (torch's LayerNorm; the features are invariant,
+    # so any norm is allowed there). It bounds Q whatever the input, as RLPD's LayerNorm
+    # before its critic's last layer does. EXPERIMENTS.md, 2026-10-10 CODE.
+    critic_pooled_norm: str = "none"
     critic_orth_init: bool = False
     encoder_orth_init: bool = False
     # Scales each critic head's final Linear at init; None keeps escnn's init.

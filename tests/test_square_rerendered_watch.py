@@ -1,17 +1,33 @@
-"""tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended.
+"""tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended,
+and square-trlpd-stab-1010's, which are its tuned-RLPD rules.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
-110k-150k) and kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k).
+110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
+(equivariant tuned RLPD on Square, whose critic diverged from about 92k), whose whole record is
+replayed when its run package is on this machine.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
-from square_rerendered_watch import RESIDUAL, TUNED, decide  # noqa: E402
+from square_rerendered_watch import (  # noqa: E402
+    GROUPS,
+    Q_DIVERGED,
+    Q_KEYS,
+    RESIDUAL,
+    STABILIZERS,
+    TUNED,
+    decide,
+)
+
+VC5O977F = Path(__file__).resolve().parent.parent / "outputs/runs/robomimic-square-final/vc5o977f"
 
 OJ5K0JQB = [0.50, 0.30, 0.58, 0.54, 0.40, 0.54, 0.56, 0.64, 0.70, 0.64, 0.76, 0.72, 0.84, 0.90, 0.66, 0.88]
 KYV7CLFC = [0.60, 0.00, 0.00, 0.02, 0.02, 0.00, 0.00]
@@ -61,3 +77,53 @@ def test_convergence_from_150k_is_the_last_five_not_beating_the_five_before_by_t
     assert decide(TUNED, evals([0.0] * 16), 5, True)[0] == "stop"
     # Not before 150k.
     assert decide(RESIDUAL, evals([0.70] * 15), 0, True)[0] is None
+
+
+def _qs(start: int, stop: int, value: float, every: int = 100):
+    return [(step, key, value) for step in range(start, stop + 1, every) for key in Q_KEYS]
+
+
+def test_a_diverged_critic_stops_the_run_once_three_evals_are_at_zero():
+    peaked = [0.0, 0.0, 0.06, 0.2, 0.26, 0.28, 0.3, 0.44, 0.5, 0.24]
+    runaway = _qs(0, 99_900, 0.5) + _qs(100_000, 130_000, 50.0)
+    for arm in (TUNED, *STABILIZERS):
+        # 100k and 110k at zero: two evals, not three.
+        assert decide(arm, evals(peaked + [0.0, 0.0]), 104, True, runaway)[0] is None
+        action, why = decide(arm, evals(peaked + [0.0, 0.0, 0.0]), 104, True, runaway)
+        assert action == "stop" and "critic diverged by 120000" in why
+    # Every row in the 5k before the eval must be above 10: one row at 9 holds it off.
+    dip = [q for q in runaway if q[0] != 118_000] + [(118_000, key, 9.0) for key in Q_KEYS]
+    assert decide(TUNED, evals(peaked + [0.0] * 3), 104, True, dip)[0] is None
+    # A runaway critic whose evals still score is left running.
+    assert decide(TUNED, evals(peaked + [0.0, 0.0, 0.1]), 104, True, runaway)[0] is None
+    # The largest of the four values in a row counts: one key above 10 is enough.
+    one_key = [(step, Q_KEYS[3], 50.0) for step in range(100_000, 130_001, 100)]
+    assert decide(TUNED, evals(peaked + [0.0] * 3), 104, True, one_key)[0] == "stop"
+
+
+def test_the_stabilizer_arms_follow_tuned_rlpds_rules():
+    assert GROUPS["square-trlpd-stab-1010"] == STABILIZERS and len(STABILIZERS) == 4
+    for arm in STABILIZERS:
+        assert decide(arm, evals([0.0] * 10), 0, False)[0] is None      # never stopped for collapse
+        assert decide(arm, evals([0.0] * 11), 4, False)[0] == "stop"    # fails its 100k check
+        assert decide(arm, evals([0.0] * 11), 5, False)[0] == "passed"
+        assert decide(arm, evals([0.0] * 16), 5, True)[0] == "stop"     # converged
+
+
+@pytest.mark.skipif(not (VC5O977F / "wandb_logs/metrics.jsonl").exists(), reason="vc5o977f's package is not here")
+def test_vc5o977f_replayed_is_flagged_at_99100_and_stopped_at_120000():
+    rows = [json.loads(line) for line in open(VC5O977F / "wandb_logs/metrics.jsonl")]
+    all_evals = sorted((int(r["_step"]), float(r["eval/success_rate"])) for r in rows
+                       if r.get("eval/success_rate") is not None)
+    all_qs = [(int(r["_step"]), key, float(r[key])) for r in rows for key in Q_KEYS
+              if isinstance(r.get(key), (int, float))]
+    assert min(step for step, _, value in all_qs if value > Q_DIVERGED) == 99_100
+    passed, stops = False, []
+    for i in range(1, len(all_evals) + 1):
+        upto = all_evals[i - 1][0]
+        action, why = decide(TUNED, all_evals[:i], 104, passed, [q for q in all_qs if q[0] <= upto])
+        passed = passed or action == "passed"
+        if action == "stop":
+            stops.append((upto, why))
+    assert passed
+    assert stops[0][0] == 120_000 and "critic diverged" in stops[0][1]
