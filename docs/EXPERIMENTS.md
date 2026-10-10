@@ -5061,3 +5061,128 @@ by hand on GPU 1 through `submit.sh` (wrapper: console to `outputs/queue/`, then
   sequences: `oj5k0jqb` passes the 100k check and is still rising at 150k, `kyv7clfc` is stopped at
   30k, tuned RLPD is never stopped for collapse, and 155 of 250 passes where 154 does not. Before
   launch it read both live records.
+
+---
+
+## 2026-10-10 — NOTE — `square-rerendered-1009` seed 1: the residual collapsed by 10k; tuned RLPD learned Square to 0.50, then its critic diverged
+
+The NOTEs pre-registered at 10k, 50k and the 100k decision fell overnight and were not written as
+they fell; this one gives each readout, from the run packages (`wandb_logs/metrics.jsonl`) and
+`outputs/queue/watch.log`. Config caveats: none; every override is live at `eb90a0c` (provenance
+table) and `tests/test_sweep_arms.py` pinned both arms.
+
+**`6ng62tpm` (`equi-residual-square-rerendered` 1): collapsed, stopped at 30.3k.**
+- Evals 0.62 at step 0, 0.02 at 10k, 0.00 at 20k and 30k. The watcher sent SIGINT at 17:18:50 on
+  2026-10-09 by the collapse rule and finalized the package at 17:19:50.
+- Training episodes: 8 of 35 succeeded over 0–10k (the critic warm-up, on the base policy), 0 of 68
+  over 10k–30k.
+- `residual_l1` 0.028 over (5k, 10k] and 0.050 over (25k, 30k], against the action scale 0.1: not
+  at its bound. Over 10k–30k it averaged 0.043–0.048, below ResFiT's residual at the same steps
+  (`oj5k0jqb` 0.061–0.067), which dipped and recovered. `dQ_da_mean_abs` 8e-5, then 7e-5 (`oj5k0jqb`
+  1.0e-4 to 7.5e-5).
+- Online value 0.005 over (5k, 10k], −0.007 over (15k, 20k], −0.020 over (25k, 30k], against demo
+  value 0.23, 0.25, 0.26: online over demo 0.02 over (5k, 10k] (`oj5k0jqb` 0.14, `s8opblsd` 0.17).
+- Predictions: 1 (step-0 within 0.46–0.70) holds; 2 (no collapse by 30k) fails; 3 (passes its 100k
+  check) fails, as it never reached it. Same outcome as `kyv7clfc` (0.60, then 0.00 from 10k)
+  despite five changes from it (critic norm, heads, depth, demos, length).
+
+**`vc5o977f` (`equi-tuned-rlpd-square-rerendered` 1): learned, passed its 100k check, diverged, stopped at 150k.**
+- Evals 0.00 0.00 0.06 0.20 0.26 0.28 0.30 0.44 **0.50** (80k) 0.24 (90k), then 0.00 at every
+  eval from 100k to 150k. Training successes per 10k: 0/33, 1/33, 3/35, 9/38, 13/39, 13/42, 20/45,
+  21/47, 22/47, 2/34, then 0 of about 33 in each 10k from 100k. **The first tuned RLPD to learn
+  Square in our trainer.**
+- 100k check passed (watcher, 22:59:48): best eval 0.50 against 0.04, 104 training successes
+  against 5. **Seed 2 is due** by the pre-registered rule.
+- **The critic diverged.** Demo value 0.58–0.62 and critic loss 2–4e-4 from 5k to 90k. A drift from
+  about 86k: critic loss about 1.5×, online value 0.28 to 0.31 by 90k, action magnitude 0.48 to
+  0.50. The 90k eval (0.24 against 0.50 at 80k, about 2.8 SE) came in the drift, before any value
+  passed 1. Then a runaway from about 92k: a critic value first above 1 at 97.9k, above 1.5 at
+  99.1k (the watcher's FLAG, `q_data_demo` 1.83), above 10 at 100.0k, above 100 at 108.7k. Peaks:
+  `q_data_demo` 212 and `q_policy_demo` 222 (135.3k), `q_data_online` 25 and `q_policy_online` 27
+  (146.2k), critic loss 165 (129.4k). A target here cannot exceed 1 (2026-10-10 MEASUREMENT, below).
+  `dQ_da_mean_abs` 3e-5 to 90k, then 1.5–3.2e-3. Gradient-norm clipping at 1.0 was on for the
+  actor, critic and encoder throughout (`q_agent.py:503-504`).
+- Stopped at 150k by the convergence rule (03:40:01 on 2026-10-10: last five evals 0.000 against
+  0.296 for the five before), the rule as written, though the run had collapsed, not converged.
+  Package finalized at 03:41:01.
+- Readouts: online over demo 0.26 over (5k, 10k] and 0.41 over (45k, 50k]. Prediction 4 (above 0.2
+  over (5k, 10k]) holds; prediction 5 (passes its 100k check) holds.
+- The second no-norm equivariant critic to diverge: `xm9cuo92` (Can, uncoded frames) diverged while
+  stuck at zero (2026-10-09 NOTE); this one diverged after learning. `gkck6eqp` and `juhq4p36`
+  (Can, coded frames, 10 heads of 2 layers) stayed bounded while learning. So the 2026-10-09
+  NOTE's "a critic with no norm can stay bounded while it learns" held on Can, not here. Task, head
+  count and depth, and demos all differ between them.
+
+**The two arms fail differently.** The residual's critic carries no value to online states (its
+online value goes negative) and the residual breaks the policy while smaller than ResFiT's, which
+does not; tuned RLPD's critic carries value, learns, then runs away. A stabilizer for the second
+says nothing about the first.
+
+---
+
+## 2026-10-10 — NOTE — `resfit-residual-square` 2 (`s8opblsd`) finished: the fixed-env baselines' ResFiT residual arm passes; `gkck6eqp` finished
+
+- **`s8opblsd`** (from `9cf207d`, GPU 0, tmux `resfit-sq2`) exited 0 at 21:42 on 2026-10-09, at
+  150k. Evals 0.68 0.22 0.28 0.20 0.40 0.44 0.32 0.44 0.68 0.54 0.48 0.60 0.68 0.66 0.58 0.62;
+  110k–150k 157 of 250 (0.628). Its best (0.68) is its step-0.
+- **The arm's verdict** (`tools/baseline_verdict.py`, the 2026-10-07 rule, both seeds' ten evals at
+  110k–150k): **passes**, p = 0.714 (357 of 500), +0.132 on B_sq = 0.582 against the 0.060 of two
+  SE. The pass rests on seed 1: `oj5k0jqb` 0.800, `s8opblsd` 0.628, a gap of about 4.3 SE of their
+  difference, so the seeds differ by more than binomial noise. Alone, `s8opblsd` is about 1.2 SE
+  above B_sq. The weaker seed also carried less value online: online over demo 0.25 over
+  (140k, 150k], against 0.47 for `oj5k0jqb`.
+- **`gkck6eqp`** (`equi-tuned-rlpd-can-nonorm-democodec` 1, from `e3793ce`) exited 0 at 17:00:31 on
+  2026-10-09, at 150k. Evals 0.00 0.94 0.82 0.92 0.96 0.82 0.90 0.98 1.00 0.88 1.00 0.96 0.98 0.94
+  0.98 0.96; 110k–150k 241 of 250 (0.964). Its critic stayed bounded: demo value at most 0.73,
+  online at most 0.68, critic loss at most 0.0026.
+
+---
+
+## 2026-10-10 — DEVIATION — every other run cancelled: `juhq4p36` stopped at 122.6k, `resfit-tuned-rlpd-can` 2 never launched
+
+Aden's instruction (2026-10-10): stop every running run and run only the four arms planned for
+equivariant tuned RLPD on Square plus a fifth (PRE-REGISTERED below, `square-trlpd-stab-1010`).
+- **`9cf207d resfit-tuned-rlpd-can 2`** commented out of `~/queues/gpu0.txt` at 09:02, with a dated
+  note, before the run ahead of it was stopped, so the `gpu0` runner could not launch it. **The
+  fixed-env baselines' ResFiT tuned-RLPD Can arm stays at one seed (`d047it6c`) and has no verdict.**
+- **`juhq4p36`** (`equi-tuned-rlpd-can-nonorm-democodec` 2, from `e3793ce`, launched by the `gpu0`
+  runner at 17:00:31 on 2026-10-09, in wandb 17:35): SIGINT at 09:02:25, exit 130 at 09:02:28
+  (`gpu0.log`), at 122.6k. Package finalized by hand at 09:02:57 (2,578 history rows to 122.6k).
+  Evals 0.00 0.68 0.88 0.98 0.94 0.90 0.96 0.82 0.86 0.90 0.94 0.80 0.92 (0–120k); 1,184 of 1,361
+  training episodes succeeded; critic bounded (demo value at most 0.68, online at most 0.63, loss at
+  most 0.0021). **`critic-norm-can-1008`'s democodec arm has no verdict:** the rule pools both
+  seeds' 110k–150k evals against B_can = 0.852 (426 of 500). Seed 1 has 241 of 250; seed 2 had 86 of
+  the 100 episodes it reached, and needed 99 of its last 150. Claude advised letting it finish
+  (about 12:30; nothing planned could use the GPU before the evening); Aden chose to stop it.
+- The `gpu0` and `gpu1` runners keep running with no active line.
+
+---
+
+## 2026-10-10 — AMENDMENT — `square-rerendered-1009`: a divergence stop, before tuned RLPD's seed 2 launches
+
+Aden's decision (2026-10-10), made before `equi-tuned-rlpd-square-rerendered` 2 launched, and so
+before any of its results:
+- **Divergence stop:** a run is stopped at an eval once every logged critic value in the 5,000 steps
+  before it is above 10 (the largest of `debug/q_data_demo`, `q_data_online`, `q_policy_demo` and
+  `q_policy_online`, each row) and its last three evals are at or below 0.05. A target here cannot
+  exceed 1. Replayed on `vc5o977f`, it fires at 120k (evals 0.00 at 100k, 110k and 120k), 30k steps
+  before the convergence rule stopped it; that run never came back from the state.
+- **The 1.5 flag** reads `q_policy_demo` and `q_policy_online` too, not only `q_data_*`.
+- Every other rule stands. The watcher enforces these once it is rewritten (2026-10-10 CODE, below);
+  until then it applies the rules it has.
+
+---
+
+## 2026-10-10 — MEASUREMENT — the TD target cannot exceed 1, on the demos or online
+
+So a clamp of the target to [0, 1] (`agent.clip_q_target_to_reward_range`) never cuts a correct
+target, and any critic value above 1 is the critic's own error.
+- **The demos:** every re-rendered demo ends with several frames flagged done (Square: 5 in 289
+  episodes, 6 in 11; Can: 5 in 292, 6 in 8), and the trainer gives each such transition reward 1.
+  Through the trainer's own buffer and `MultiStepTransform` (n = 3, γ = 0.99; `tools/target_bound.py`,
+  new), each done ends its own trajectory. The largest n-step reward is 1.0, no rewarded transition
+  bootstraps (0 of 80,429 stored on Square, 0 of 62,454 on Can), and the largest target with every
+  bootstrapped value at 1 is exactly 1.0. The n-step rewards seen are 0, 0.9801, 0.99 and 1.
+- **Online:** robosuite's sparse 0/1 reward, a success terminates the episode, and a timeout cuts the
+  bootstrap (`dexmg.py`, `MultiStepTransform`'s `nonterminal`).
+- **The lower end:** every reward is at least 0, so a target below 0 is also the critic's error.
