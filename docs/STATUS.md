@@ -1,9 +1,8 @@
 # Status
 
-**Last updated:** 2026-10-10, about 10:00 · **Last verified commit:** the commit pre-registering
-`square-trlpd-stab-1010` (EXPERIMENTS.md, 2026-10-10 CODE and PRE-REGISTERED); the regression
-goldens, `test_equivariance.py`, `test_no_ops.py`, `test_sync_free.py`, `test_sweep_arms.py` and
-`test_square_rerendered_watch.py` passed
+**Last updated:** 2026-10-10, about 12:45 · **Last verified commit:** `6b2acc6`, pre-registering
+`square-trlpd-stab-1010` (EXPERIMENTS.md, 2026-10-10 CODE and PRE-REGISTERED): the gate's Tier 1
+and Tier 2 passed in full on GPU 0, and the gate said GO for each of the three arms launched from it
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -125,15 +124,16 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 **`square-trlpd-stab-1010`** (EXPERIMENTS.md, 2026-10-10 PRE-REGISTERED, "stabilizing equivariant
 tuned RLPD on Square"), and its anchor. Every arm is `vc5o977f`'s launch plus one change, on the
-re-rendered Square demos, up to 300k steps, two runs per GPU:
+re-rendered Square demos, up to 300k steps, two runs per GPU. The arms run from `6b2acc6` in the
+worktree `~/projects/equi-resrl-6b2acc6` (2026-10-10 LAUNCHED entries):
 
-| Arm | Change from `vc5o977f` | Where |
-|---|---|---|
-| anchor, `equi-tuned-rlpd-square-rerendered` 2 (`6yh4l5mq`) | none: its seed 2, from `eb90a0c` | GPU 1, tmux `sq-trlpd-a` |
-| `equi-tuned-rlpd-square-clipq` 1 | TD target clamped to [0, 1] | GPU 1 |
-| `equi-tuned-rlpd-square-pooledln` 1 | LayerNorm on each head's pooled features (`TrivialLayerNorm`), start matched | GPU 0 |
-| `equi-tuned-rlpd-square-ln` 1 | RegularLayerNorm where ResFiT has LayerNorm, actor and critic, start matched | GPU 0 |
-| `equi-tuned-rlpd-square-10x2` 1 | `gkck6eqp`'s critic, 10 heads of 2 layers | queued for the first free slot |
+| Arm | Change from `vc5o977f` | Run | Where |
+|---|---|---|---|
+| anchor, `equi-tuned-rlpd-square-rerendered` 2 | none: its seed 2, from `eb90a0c` | `6yh4l5mq`, from 09:33 | GPU 1, tmux `sq-trlpd-a` |
+| `equi-tuned-rlpd-square-clipq` 1 | TD target clamped to [0, 1] | `jdu1nkxw`, from 11:39 | GPU 1, tmux `sq-trlpd-b` |
+| `equi-tuned-rlpd-square-pooledln` 1 | LayerNorm on each head's pooled features (`TrivialLayerNorm`), start matched | `lclh933n`, from 12:06 | GPU 0, tmux `sq-trlpd-c` |
+| `equi-tuned-rlpd-square-ln` 1 | RegularLayerNorm where ResFiT has LayerNorm, actor and critic, start matched | `0avs073d`, from 12:40 | GPU 0, tmux `sq-trlpd-d` |
+| `equi-tuned-rlpd-square-10x2` 1 | `gkck6eqp`'s critic, 10 heads of 2 layers | not yet | the first slot to free |
 
 - **Rules** (enforced by `tools/square_rerendered_watch.py`, one instance per group, tmux
   `sq-watch` for `square-rerendered-1009` and `sq-watch2` for `square-trlpd-stab-1010`):

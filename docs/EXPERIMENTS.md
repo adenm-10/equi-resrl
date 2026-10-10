@@ -5414,3 +5414,41 @@ comparison.
   passed and 2 skipped (3 min), once the re-render guard's hang was fixed (CODE above). The first
   Tier 1 run had stopped at its 40-minute timeout in that guard. `tests/test_sweep_arms.py` passed
   again (49) with `submit.sh` final.
+
+---
+
+## 2026-10-10 — LAUNCHED — `square-trlpd-stab-1010` seed 1: `clipq` (`jdu1nkxw`), `pooledln` (`lclh933n`), `ln` (`0avs073d`)
+
+From `6b2acc6` (PRE-REGISTERED above), in the worktree `~/projects/equi-resrl-6b2acc6`, by hand
+through `submit.sh` in tmux, one after another, each once the gate before it had said GO
+(`CONCURRENT` 3, 2 and 1; the pre-registration's resources). Consoles in `outputs/queue/`.
+
+| Arm | GPU, tmux | Launched | Gate GO | In wandb | Run |
+|---|---|---|---|---|---|
+| `equi-tuned-rlpd-square-clipq` 1 | 1, `sq-trlpd-b` | 11:02 | 11:32 | 11:39 | [**`jdu1nkxw`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/jdu1nkxw) |
+| `equi-tuned-rlpd-square-pooledln` 1 | 0, `sq-trlpd-c` | 11:32 | 12:01 | 12:06 | [**`lclh933n`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/lclh933n) |
+| `equi-tuned-rlpd-square-ln` 1 | 0, `sq-trlpd-d` | 12:02 | 12:32 | 12:40 | [**`0avs073d`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/0avs073d) |
+
+- **The gate said GO for each:**
+  - Tier 1: 207 passed and 2 skipped.
+  - Tier 2: 417 passed and 1 skipped, in 25–27 min.
+  - Render check passed: Can 0.0098–0.0102 and Square 0.0081–0.0089, against bars of 0.0125 and
+    0.0129.
+  - RAM headroom: 98, 70 and 46 GB available, against 63, 42 and 21 GB.
+  - Its one warning each: the disk (39 GB free; no cache to write).
+  - The Tier 2 skip is `test_the_anchor_is_what_vc5o977f_launched_with`. It looked for
+    `vc5o977f`'s run package under the worktree, which has no `outputs/`. It passed from the main
+    checkout at this code (PRE-REGISTERED, the checks before the commit), and from `ae39bd9` it
+    looks under `CACHE_DIR`.
+- **Run packages:** each records `6b2acc6`, clean, and mujoco 3.3.2, and its argv carries its arm's
+  change: `clipq`'s run name ends `_clipT`; `pooledln` has `critic_pooled_norm=layer_norm` and
+  scale 0.8835; `ln` has both norms and scale 0.8168. Each step-0 eval is 0.00, as for every tuned
+  RLPD run (no base policy).
+- **Watchers,** both run from the worktree:
+  - `sq-watch` (`--group square-rerendered-1009`) was restarted at 11:01 on this commit's code, so
+    the anchor (`6yh4l5mq`) now has the divergence stop and the `q_policy_*` flag.
+  - `sq-watch2` (`--group square-trlpd-stab-1010`) has run from 11:01, and tracked each arm within a
+    minute of its run package.
+- **Resources at 12:40,** with the four runs up: 100 GB of RAM used, 23 GB available, swap
+  untouched; GPU 0 16.6 GB, GPU 1 19.7 GB.
+- **`10x2`** waits for the first slot to free, then the seed 2s, as pre-registered.

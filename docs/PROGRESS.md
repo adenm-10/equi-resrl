@@ -54,6 +54,9 @@ those sessions.)
   is now the trainer's, and a dead env raises (CODE).
 - `submit.sh`'s RAM check counts the runs not yet going (`CONCURRENT`). At a fixed 4 it counted the
   anchor twice and would have refused every launch.
+- Launched from `6b2acc6`, one after another: `clipq` (`jdu1nkxw`), `pooledln` (`lclh933n`) and `ln`
+  (`0avs073d`), beside the anchor (`6yh4l5mq`). Both watchers run from the worktree, and the
+  anchor's now has the divergence stop. `10x2` waits for a free slot.
 
 **Decided** (Aden)
 
