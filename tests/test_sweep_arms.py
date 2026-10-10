@@ -33,6 +33,8 @@ import subprocess
 
 import pytest
 
+from resfit.lerobot.utils.load_policy import RUNS_ROOT
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
@@ -82,7 +84,8 @@ BASELINES = {
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
 WANDB = ("robomimic-square-final", "tuned-rlpd")
-VC5O977F = REPO / "outputs/runs/robomimic-square-final/vc5o977f/manifest.json"
+# Under CACHE_DIR, where every run package lives: a launch worktree has no outputs/.
+VC5O977F = RUNS_ROOT / "robomimic-square-final/vc5o977f/manifest.json"
 
 # The composed config every arm must have.
 SHARED = {

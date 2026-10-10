@@ -27,7 +27,9 @@ from square_rerendered_watch import (  # noqa: E402
     decide,
 )
 
-VC5O977F = Path(__file__).resolve().parent.parent / "outputs/runs/robomimic-square-final/vc5o977f"
+from resfit.lerobot.utils.load_policy import RUNS_ROOT  # noqa: E402
+
+VC5O977F = RUNS_ROOT / "robomimic-square-final/vc5o977f"  # under CACHE_DIR: a launch worktree has no outputs/
 
 OJ5K0JQB = [0.50, 0.30, 0.58, 0.54, 0.40, 0.54, 0.56, 0.64, 0.70, 0.64, 0.76, 0.72, 0.84, 0.90, 0.66, 0.88]
 KYV7CLFC = [0.60, 0.00, 0.00, 0.02, 0.02, 0.00, 0.00]
