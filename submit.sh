@@ -2,22 +2,23 @@
 # Rewritable submission script. Overwrite this in place for each new experiment.
 # The durable record is docs/EXPERIMENTS.md plus the resolved config in wandb.
 #
-#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh equi-tuned-rlpd-square-clipq 1 0
-#   DRY_RUN=1 ./submit.sh equi-tuned-rlpd-square-clipq 1  # run the gate for that arm, then stop
+#   ./submit.sh <arm> <seed> [gpu]                     # e.g. ./submit.sh equi-residual-square-init0 1 1
+#   DRY_RUN=1 ./submit.sh equi-residual-square-init0 1  # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                   # escape hatch, discouraged
 #
-# Currently configured for: stabilizing equivariant tuned RLPD on Square (seed-group
-# square-trlpd-stab-1010), pre-registered in docs/EXPERIMENTS.md, "2026-10-10 — PRE-REGISTERED —
-# stabilizing equivariant tuned RLPD on Square". Launch inside tmux from a worktree pinned to a
-# commit, with CACHE_DIR pointing at the main checkout.
+# Currently configured for: the equivariant residual on Square, its actor's last layer at zero and
+# a 50k critic warm-up (seed-group square-residual-start-1011), pre-registered in docs/EXPERIMENTS.md,
+# "2026-10-11 — PRE-REGISTERED — the equivariant residual on Square: its actor's last layer at zero,
+# and a 50k critic warm-up". Launch inside tmux from a worktree pinned to a commit, with CACHE_DIR
+# pointing at the main checkout.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
 #                                            # learning starts, no eval, recorded offline in
 #                                            # wandb project equi-resrl-smoke: speed and RAM
 #
-# Earlier experiments launch from the commits they ran at: square-rerendered-1009's arms (its
-# anchor for this group, equi-tuned-rlpd-square-rerendered, among them) from eb90a0c;
-# critic-norm-can-1008's arms from 6b6df8c (nonorm, layernorm), 0a9626f
+# Earlier experiments launch from the commits they ran at: square-trlpd-stab-1010's arms from
+# 6b2acc6; square-rerendered-1009's arms (this group's anchor, equi-residual-square-rerendered,
+# among them) from eb90a0c; critic-norm-can-1008's arms from 6b6df8c (nonorm, layernorm), 0a9626f
 # (resfit-tuned-rlpd-can-nolayernorm), e3793ce (the demo-codec arm) and 6e61e65 (ln-matched); the
 # fixed-env baselines (fixed-env-baselines-1007) from 9cf207d, tuned RLPD on Can with no warm-up
 # (tuned-rlpd-can-no-warmup-1007) from f581d9c, the BC term training the encoder
@@ -29,23 +30,19 @@
 #
 # THE ARMS
 # --------
-# train_residual_td3.py, equi_tuned_rlpd_square_config, on Square for up to 300k steps (the
+# train_residual_td3.py, residual_equi_td3_square_config, on Square for up to 300k steps (the
 # config's default), mujoco 3.3.2, both buffers filled in the run (read_buffer_caches=false
 # write_buffer_caches=false), the demos re-rendered by our env
 # (offline_data.name=local/robomimic-mh-square-rerendered), the env's frames uncoded, the actor
-# squashed by equi_tanh (equivariance.residual_squash=true), no norm unless an arm says otherwise.
-# Each arm is vc5o977f's launch (equi-tuned-rlpd-square-rerendered 1, eb90a0c) plus one change;
-# wandb robomimic-square-final / tuned-rlpd.
-#   equi-tuned-rlpd-square-clipq     5 heads of one hidden layer; the TD target clamped to [0, 1]
-#                                    (agent.clip_q_target_to_reward_range=true).
-#   equi-tuned-rlpd-square-pooledln  5 heads of one hidden layer; LayerNorm on each head's pooled
-#                                    features (equivariance.critic_pooled_norm=layer_norm), each
-#                                    head's last Linear scaled at init to start as spread as the
-#                                    anchor's critic.
-#   equi-tuned-rlpd-square-ln        5 heads of one hidden layer; RegularLayerNorm after every
-#                                    hidden Linear of the actor and the critic, where ResFiT's
-#                                    use_layer_norm puts LayerNorm, the start matched likewise.
-#   equi-tuned-rlpd-square-10x2      10 heads of two hidden layers each, gkck6eqp's critic.
+# squashed by equi_tanh (equivariance.residual_squash=true), 5 critic heads of one hidden layer
+# (agent.critic.num_q=5), no norm, the BC policy v9. Each arm is 6ng62tpm's launch
+# (equi-residual-square-rerendered 1, eb90a0c) plus one change; wandb robomimic-square-final /
+# equi-residual-rl.
+#   equi-residual-square-init0      the actor's last layer starts at exactly zero
+#                                   (agent.actor.actor_last_layer_init_scale=0.0, the config's
+#                                   default and ResFiT's) in place of 6ng62tpm's 1e-4.
+#   equi-residual-square-warmup50k  50,000 critic-only updates before the actor's first
+#                                   (algo.critic_warmup_steps=50000) in place of 10,000.
 
 set -euo pipefail
 
@@ -74,36 +71,25 @@ if ! "$PY" -c "import torchrl, escnn" >/dev/null 2>&1; then
     exit 1
 fi
 
-SEED_GROUP=square-trlpd-stab-1010
-SQUASH=equivariance.residual_squash=true
-FIVE_HEADS=agent.critic.num_q=5
-DEMOS=offline_data.name=local/robomimic-mh-square-rerendered
-# Each head's last Linear at init, scaled to start as spread as the anchor's critic (tools/critic_start.py).
-POOLED_LN_SCALE=0.8835
-LN_SCALE=0.8168
+SEED_GROUP=square-residual-start-1011
+# 6ng62tpm's launch, less its actor's last-layer scale: the anchor every arm is one change from.
+ANCHOR=(--config-name=residual_equi_td3_square_config equivariance.residual_squash=true
+        agent.critic.num_q=5 base_policy.wt_version=v9
+        offline_data.name=local/robomimic-mh-square-rerendered)
 
 case "$ARM" in
-    equi-tuned-rlpd-square-clipq)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_square_config "$SQUASH" "$FIVE_HEADS" "$DEMOS"
-                       agent.clip_q_target_to_reward_range=true) ;;
-    equi-tuned-rlpd-square-pooledln)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_square_config "$SQUASH" "$FIVE_HEADS" "$DEMOS"
-                       equivariance.critic_pooled_norm=layer_norm
-                       "equivariance.critic_last_layer_init_scale=${POOLED_LN_SCALE}") ;;
-    equi-tuned-rlpd-square-ln)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_square_config "$SQUASH" "$FIVE_HEADS" "$DEMOS"
-                       equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
-                       "equivariance.critic_last_layer_init_scale=${LN_SCALE}") ;;
-    equi-tuned-rlpd-square-10x2)
-        ARM_OVERRIDES=(--config-name=equi_tuned_rlpd_square_config "$SQUASH" "$DEMOS"
-                       agent.critic.num_q=10 equivariance.num_critic_layers=2) ;;
+    equi-residual-square-init0)
+        ARM_OVERRIDES=("${ANCHOR[@]}" agent.actor.actor_last_layer_init_scale=0.0) ;;
+    equi-residual-square-warmup50k)
+        ARM_OVERRIDES=("${ANCHOR[@]}" agent.actor.actor_last_layer_init_scale=1e-4
+                       algo.critic_warmup_steps=50000) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
         ;;
 esac
-PROJECT=robomimic-square-final GROUP=tuned-rlpd
-GATE=(--task Square --method tuned-rlpd --stack equi)
+PROJECT=robomimic-square-final GROUP=equi-residual-rl
+GATE=(--task Square --method residual --stack equi)
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
     # The arm as it launches, briefly, and kept apart from the real runs' records.
@@ -134,8 +120,8 @@ RECORDS=("hydra.run.dir=$(cd "$CACHE_DIR" && pwd)/outputs/\${now:%Y-%m-%d}/\${no
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
     echo "Running pre-submission gate..."
     # CONCURRENT: the runs not yet going that will be once this wave is up, this one included (runs
-    # already going are out of MemAvailable already): 3, 2 and 1 for clipq, pooledln and ln, each
-    # launched once the one before is training, then 1 (the pre-registration's resources).
+    # already going are out of MemAvailable already): 2 for each arm, both launched at once (the
+    # pre-registration's resources).
     "$PY" preflight.py "${GATE[@]}" --concurrent-seeds "${CONCURRENT:-1}" --compose "${OVERRIDES[@]}"
 else
     echo "WARNING: preflight gate skipped via SKIP_PREFLIGHT=1"

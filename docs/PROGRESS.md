@@ -17,6 +17,36 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-11 — the stabilizer runs past 150k; two runs stopped for RAM; the equivariant residual's start and warm-up, pre-registered
+
+**Found**
+
+- No critic diverged in `square-trlpd-stab-1010` or the anchor's seed 2 through 150k (2026-10-11
+  DEVIATION and NOTE). All four seed 1s passed the learning check, and `ln` converged at 160k.
+- `6ng62tpm`'s critic ignored its own online successes: its online value was 0.005 over (5k, 10k],
+  while its online episodes over 0–5k earned 0.127. ResFiT's residual's online value tracks what
+  its online episodes earn. The equivariant residual's actor is not more aggressive than ResFiT's:
+  its residual was a third of ResFiT's at 5k, and its actor's gradient 10–25× smaller.
+- The equivariant residual runs start the actor's last layer at 1e-4 by an override. The config's
+  default, ResFiT's runs and ARCHITECTURE.md's step-0 claim are all 0.0.
+
+**Done**
+
+- `6yh4l5mq` and `lclh933n` stopped by hand past 150k (Aden), to free RAM for the residual runs.
+- `square-residual-start-1011` pre-registered: `init0` and `warmup50k`.
+  - Rewrote `submit.sh` and `tests/test_sweep_arms.py` for it. The new tests check that each arm
+    starts from `6ng62tpm`'s weights, and that `init0`'s residual is exactly zero and learns from
+    there.
+  - Added the watcher's group.
+  - The critic warm-up's console line now prints the critic's value on each buffer.
+
+**Decided**
+
+- Aden: stop pooledln and the anchor's seed 2, and keep `clipq`.
+- Aden: both residual arms. Claude chose 50k updates for "longer".
+
+---
+
 ## 2026-10-10 — the Square results; every other run cancelled; four ways to keep tuned RLPD's critic bounded
 
 (No entries were written here for 2026-10-08 and 2026-10-09; EXPERIMENTS.md and STATUS.md carry

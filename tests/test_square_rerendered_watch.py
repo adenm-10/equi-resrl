@@ -1,5 +1,6 @@
 """tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended,
-and square-trlpd-stab-1010's, which are its tuned-RLPD rules.
+square-trlpd-stab-1010's, which are its tuned-RLPD rules, and square-residual-start-1011's, which are
+its residual rules.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -22,6 +23,7 @@ from square_rerendered_watch import (  # noqa: E402
     Q_DIVERGED,
     Q_KEYS,
     RESIDUAL,
+    RESIDUAL_STARTS,
     STABILIZERS,
     TUNED,
     decide,
@@ -110,6 +112,15 @@ def test_the_stabilizer_arms_follow_tuned_rlpds_rules():
         assert decide(arm, evals([0.0] * 11), 4, False)[0] == "stop"    # fails its 100k check
         assert decide(arm, evals([0.0] * 11), 5, False)[0] == "passed"
         assert decide(arm, evals([0.0] * 16), 5, True)[0] == "stop"     # converged
+
+
+def test_the_residual_start_arms_follow_the_residuals_rules():
+    assert GROUPS["square-residual-start-1011"] == RESIDUAL_STARTS and len(RESIDUAL_STARTS) == 2
+    for arm in RESIDUAL_STARTS:
+        assert decide(arm, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"  # collapsed at 30k
+        assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
+        assert decide(arm, evals(OJ5K0JQB[:11]), 0, False)[0] == "passed"  # 165 of 250
+        assert decide(arm, evals([0.58] * 11), 0, False)[0] == "stop"      # the base policy held
 
 
 @pytest.mark.skipif(not (VC5O977F / "wandb_logs/metrics.jsonl").exists(), reason="vc5o977f's package is not here")

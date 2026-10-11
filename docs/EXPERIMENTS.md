@@ -5452,3 +5452,191 @@ through `submit.sh` in tmux, one after another, each once the gate before it had
 - **Resources at 12:40,** with the four runs up: 100 GB of RAM used, 23 GB available, swap
   untouched; GPU 0 16.6 GB, GPU 1 19.7 GB.
 - **`10x2`** waits for the first slot to free, then the seed 2s, as pre-registered.
+
+---
+
+## 2026-10-11 — DEVIATION and NOTE — `6yh4l5mq` and `lclh933n` stopped by hand past 150k, for the residual's RAM; `0avs073d` converged; `10x2`'s gate said NO-GO
+
+**The deviation.** Aden's decision (2026-10-11, about 19:10), to free RAM for two equivariant
+residual runs (PRE-REGISTERED below), which need about 20 GB each at start and 35 GB by 150k, with
+15 GB available. Claude laid out four options (stop pooledln and the anchor's seed 2, stop all
+three, stop pooledln only, stop nothing and queue); Aden chose the first, which Claude recommended,
+and `jdu1nkxw` (`clipq`) runs on.
+- **`6yh4l5mq`** (`equi-tuned-rlpd-square-rerendered` 2): SIGINT at 19:11:36, at 194.3k; package
+  finalized by the watcher at 19:12:32. Evals 0.00 0.00 0.14 0.06 0.28 0.24 0.18 0.28 0.28 0.28
+  0.42 0.56 0.38 0.52 0.58 0.54 0.66 0.66 0.64 0.60 (0–190k). Every critic value at most 0.704.
+- **`lclh933n`** (`equi-tuned-rlpd-square-pooledln` 1): SIGINT at 19:11:36, at 186.3k; finalized
+  at 19:11:42. Evals 0.00 0.00 0.00 0.00 0.04 0.04 0.06 0.20 0.12 0.06 0.18 0.16 0.20 0.38 0.40
+  0.30 0.38 0.24 0.40 (0–180k). Every critic value at most 0.708.
+- **What it costs:** neither reached its convergence stop, so neither has a "converged at" step or
+  a final value. Every number their verdicts use was logged by 150k: the learning check (both
+  passed), the critic bound through 150k, and the 60k–100k and 110k–150k windows. Both stops are in
+  `outputs/queue/watch.log` as `HUMAN STOP`.
+
+**The rest of `square-trlpd-stab-1010` and `square-rerendered-1009` since launch** (`watch.log`):
+- **The 100k checks:** `6yh4l5mq` passed at 02:00 (best 0.42, 86 training successes), `lclh933n`
+  at 05:33 (best 0.20, 61), `jdu1nkxw` at 05:54 (best 0.52, 117), `0avs073d` at 06:36 (best 0.24,
+  13). So `clipq`, `pooledln` and `ln` are each due a seed 2 by the rule. None has launched.
+- **`0avs073d`** (`equi-tuned-rlpd-square-ln` 1) stopped by the convergence rule at 160k (17:21:30;
+  last 5 0.172 against 0.152 for the 5 before, 2 SE 0.066). Evals 0.00 0.00 0.00 0.02 0.00 0.00
+  0.02 0.06 0.04 0.24 0.18 0.24 0.14 0.14 0.16 0.18 0.24. Its critic's largest value was 1.10,
+  under the 1.5 flag.
+- **`10x2` did not launch.** Its gate (GPU 0, tmux `sq-trlpd-e`, 17:35) said NO-GO on RAM headroom
+  alone: 24 GB available, against 21 GB for one run (0.85 × 24 = 20.4). Console
+  `outputs/queue/20261011-173536_equi-tuned-rlpd-square-10x2-1_gpu0.log`.
+- **No critic diverged.** No run in either group logged a value above 1.5, the runaway of
+  `vc5o977f` did not repeat in `6yh4l5mq`, and `clipq`'s ceiling never had a target to cut.
+- `10x2` and the three seed 2s wait for RAM after the residual runs below. The verdicts and the
+  analysis of the group are not written here.
+
+---
+
+## 2026-10-11 — PRE-REGISTERED — the equivariant residual on Square: its actor's last layer at zero, and a 50k critic warm-up
+
+**Question** (Aden, 2026-10-11): `6ng62tpm`, the equivariant residual on Square, scored 0.62 at
+step 0 and 0.02 at 10k (2026-10-10 NOTE). Its critic carried no value to the online states: online
+value 0.005 over (5k, 10k] against demo value 0.23, while its own online episodes over 0–5k earned a
+discounted return of 0.127 (7 of 18 succeeded; `metrics.jsonl`). Is the actor moving before the
+critic can tell a good residual from a bad one? Two arms, each one change from `6ng62tpm`:
+1. **The actor's last layer at exactly zero,** in place of 1e-4. The 1e-4 start came from `z8yoqylh`
+   (1e-4, learned Can) against `a3e3zylp` (0.0, collapsed), which also differed in host and
+   software stack, so the start was never isolated. 0.0 is the config's default and ResFiT's, and
+   makes step 0 exactly the base policy (ARCHITECTURE.md assumed it). The fixed-env baselines
+   pre-registered this arm (`equi-residual-square-zero-init`, 2026-10-07). It was held on
+   2026-10-08 with that batch's blind FieldNorm critic and never ran, so this is its first run.
+2. **A longer critic warm-up:** 50,000 critic-only updates before the actor's first, in place of
+   10,000. 
+
+**Why 50k** (Claude's choice; Aden asked for "longer"):
+- At the end of `6ng62tpm`'s 10k warm-up updates, the mean TD target was still rising: −0.036
+  over its first 2,000 updates, 0.044 over 6k–8k, and 0.062 over its last 2,000 (means of the
+  single-batch values printed every 100 updates, console log). ResFiT's residual warm-ups also
+  ended still rising, from lower (`oj5k0jqb` −0.107, 0.036, 0.059; `s8opblsd` −0.322, −0.037,
+  0.002), so this alone does not separate the two stacks.
+- Value from a success has to reach states about 240 steps earlier, 3 steps per bootstrap, through a
+  target that follows the critic with a time constant of 200 updates (τ = 0.005). That is about 80
+  bootstraps, so on the order of 16k updates or more. 50k leaves room for that, at 0.6–1.6 h more
+  warm-up: 0.148 s per update for `6ng62tpm`, sharing GPU 1, and 0.074 s alone on GPU 0 (the smoke
+  below).
+- **The risk:** the warm-up's online data is fixed: 10k transitions from 35 base-policy episodes with
+  noise, 9 of them successes (`6ng62tpm`'s). 50k updates make about 640 passes over it (10k, about
+  130), so a longer warm-up can also fit those 35 episodes too closely.
+
+**Seed-group `square-residual-start-1011`,** two arms, seed 1 each, from the commit that adds this
+entry, in a worktree pinned to it. Names `<arm>-<seed>`, notes
+`square-residual-start-1011/<arm>/seed<seed>`, wandb `robomimic-square-final` / `equi-residual-rl`.
+
+**Shared, `6ng62tpm`'s launch exactly:** `--config-name=residual_equi_td3_square_config
+equivariance.residual_squash=true agent.critic.num_q=5 base_policy.wt_version=v9
+offline_data.name=local/robomimic-mh-square-rerendered algo.total_timesteps=300000
+read_buffer_caches=false write_buffer_caches=false seed=<seed>`, and
+`agent.actor.actor_last_layer_init_scale=1e-4` but in `init0`. That is: no norm anywhere, 5 critic
+heads of one hidden layer, N = 8, actor lr 1e-6, action scale 0.1, τ = 0.005, the actor updated once
+per 4 critic updates, frames uncoded, every other field at the config's default.
+`tests/test_sweep_arms.py` pins each arm to the anchor but for its change, and the anchor to
+`6ng62tpm`'s recorded launch.
+
+| Arm | Change from `6ng62tpm` |
+|---|---|
+| `equi-residual-square-init0` | `agent.actor.actor_last_layer_init_scale=0.0` |
+| `equi-residual-square-warmup50k` | `algo.critic_warmup_steps=50000` |
+
+- **What varies:** each arm against `6ng62tpm`, its one change. At this commit, `6ng62tpm`'s launch
+  composes to its recorded config except for `equivariance.critic_pooled_norm`, a field added since
+  `eb90a0c`, at its default `none`, which is bit-identical to every earlier run
+  (`tests/test_no_ops.py`).
+- **At seed 1, each arm starts from `6ng62tpm`'s initial weights.** `warmup50k`'s match tensor for
+  tensor; `init0`'s match too, but for its actor's last Linear, whose weights and bias are zero in
+  the actor and the actor target alike (`tests/test_sweep_arms.py`). The episodes still differ,
+  since `seed` does not reach the envs.
+- **Between the two arms:** two changes, so an observation, not a comparison.
+- **Context, not a comparison:** ResFiT's residual on Square (`oj5k0jqb`, `s8opblsd`), whose last
+  layer starts at 0.0 with a 10k warm-up, dipped by 10k (0.30, 0.22) and recovered. It differs in
+  stack and in its demos.
+
+**Rules,** `square-rerendered-1009`'s residual rules as amended, enforced by the watcher
+(`--group square-residual-start-1011`):
+- **Collapse:** stopped at the third eval in a row at or below 0.05.
+- **Divergence stop:** the 2026-10-10 AMENDMENT's.
+- **At 100k:** passes iff its evals at 60k–100k reach at least 155 of 250, one standard error over
+  B_sq = 0.582. Else stopped.
+- **Convergence from 150k:** stopped once the mean of its last 5 evals no longer beats the mean of
+  the 5 before by two standard errors; else on to 300k.
+- **Seed 2 of an arm iff it passes its 100k check,** from this commit.
+- **Verdict (two seeds):** an arm beats the base policy iff the mean of its last 5 evals, both seeds
+  (500 episodes), is at least 0.644. The 110k–150k window is reported beside it.
+- **A critic value above 1.5** is reported to Aden. It is not a stop rule.
+
+**Readouts,** in NOTEs at the 30k collapse decision and at 100k:
+- Evals, and training successes per 10k.
+- Online over demo value over (0, 5k] and (5k, 10k]: `6ng62tpm` 0.02 over (5k, 10k]; `oj5k0jqb`
+  0.14, `s8opblsd` 0.17. Beside it, the realized discounted return of the training episodes over the
+  same steps (`6ng62tpm` 0.127 and 0.015; `oj5k0jqb` 0.035 and 0.018).
+- `warmup50k`'s online and demo values through its warm-up, at 10k, 20k, 30k, 40k and 50k updates,
+  from its console (CODE, below). This says whether the online value was still rising at 10k, and
+  where it levels off.
+- `residual_l1` against the action scale (0.1), and `dQ_da_mean_abs`.
+
+**Reading it** (decided now):
+- **`warmup50k` holds the base policy past 30k and `init0` collapses:** the critic's readiness
+  matters. Next: the actor gated on the critic's online value levelling off, rather than on a
+  fixed update count, and `warmup50k`'s seed 2.
+- **`warmup50k`'s online value rises through its warm-up, but the run still collapses:** readiness
+  is not enough. Next: a penalty on the residual's size, which holds it near zero while the critic's
+  gradient is small (Adam takes full-size steps on a gradient of any size).
+- **`warmup50k`'s online value stops rising by about 10k updates:** more critic-only updates on this
+  data do not carry value online. The problem is in the critic or its data, not the actor's timing.
+- **`init0` holds the base policy past 30k:** the 1e-4 start matters, which is unexpected, and
+  needs a seed 2 of both arms. **`init0` collapses:** the 1e-4 start is not the cause, and later
+  residual arms start at 0.0, as ResFiT's do.
+
+**Predictions** (Claude's, before launch):
+1. `init0`'s step-0 eval is within the base policy's spread (0.46–0.70). High confidence: its
+   residual is exactly zero (`tests/test_sweep_arms.py`).
+2. `init0` collapses by 30k, as `6ng62tpm` did. Moderate-to-high confidence. Adam's step size does
+   not depend on the gradient's size, so the start is forgotten within tens of actor updates.
+   `6ng62tpm`'s `residual_l1` was 0.0006 over 0–1k and grew by 0.002–0.006 per 1k after that, to
+   0.038 over 9k–10k.
+3. `warmup50k`'s online value is higher at 50k warm-up updates than at 10k. Moderate confidence.
+4. `warmup50k`'s online over demo value over (5k, 10k] of training is above 0.1. Low-to-moderate
+   confidence.
+5. `warmup50k` does not collapse by 30k. Low confidence.
+6. Neither arm passes its 100k check. Moderate confidence.
+
+**CODE** (in this commit): the warm-up's progress line (`train_residual_td3.py`, every 100 updates)
+now prints the critic's value on each buffer, the `critic_diagnostics` the training loop logs as
+`debug/q_*`. It is logging only: `tests/test_critic_diagnostics.py` checks that the call moves no
+parameter and draws no random number. Console only, since wandb's step is 0 through the warm-up.
+The run package keeps it in `wandb_logs/output.log`.
+
+**Checks before the commit.**
+- `tests/test_sweep_arms.py` passed in full: 14 Tier-1 tests, and 14 on the GPU. Three of the GPU
+  tests are new: the starts above; that `init0`'s residual is exactly zero at init and moves off
+  zero at its first actor update, with finite losses; and no norm and five one-layer heads in each
+  arm.
+- `tests/test_square_rerendered_watch.py` passed (9): the new group follows the residual's rules on
+  `kyv7clfc`'s and `oj5k0jqb`'s evals. Every other Tier-1 test passed too (241, and 2 skipped).
+- **Smoke run of `init0`** (`SMOKE=1`, GPU 0, from the main checkout with this entry's code
+  uncommitted; console `outputs/queue/20261011-191614_smoke-equi-residual-square-init0-1_gpu0.log`).
+  It labelled the demos and ran its critic warm-up with the new line: by update 1,100, demo value
+  −0.03 to 0.04 and online −0.09 to −0.06. The online buffer holds only the smoke's 300 transitions,
+  so these are not a readout. The data and policy values match, since the residual is zero. 0.074 s
+  per update, alone on the GPU. `warmup50k` has no smoke of its own: it differs only in the
+  warm-up's loop count.
+
+**Resources.**
+- After the DEVIATION above, `clipq` runs alone on GPU 1, GPU 0 is free, and 87 GB of RAM is
+  available.
+- **Placement:** `warmup50k` on GPU 0, alone through its long, GPU-bound warm-up. `init0` on GPU 1
+  with `clipq`, as `6ng62tpm` shared GPU 1 with `vc5o977f`.
+- **RAM:** about 20 GB per residual run at start and 35 GB by 150k, plus `clipq` at about 33 GB,
+  so about 105 GB of 125 at 150k. Both launch at once, so each gate's RAM check counts both
+  (`CONCURRENT=2`).
+- **Timing:**
+  - Each run labels its 80,731 demo frames with the base policy (about 27 min).
+  - It then fills 10k warm-up steps, and runs its critic warm-up: about 25 min for `init0`, about
+    1–2 h for `warmup50k`.
+  - After that, about 0.69 s per step with its eval, sharing a GPU (`6ng62tpm`: 1.9 h per 10k).
+    So the 30k collapse decision comes about 7.5 h after launch for `init0`, and about 9 h after
+    for `warmup50k`.
+- **What waits:** `10x2` and the seed 2s of `square-trlpd-stab-1010`.

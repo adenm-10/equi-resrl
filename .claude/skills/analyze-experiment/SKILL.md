@@ -41,7 +41,9 @@ row, which is where the last eval lands.
 **Two things to get right, or the analysis will mislead:**
 
 - **The step-0 evaluation is the base BC policy alone**, because the residual initializes to exactly
-  zero (`actor_last_layer_init_scale = 0.0`). It is the bar each run must clear. A run whose best
+  zero (`actor_last_layer_init_scale = 0.0`, the default). Check the run's argv: the equivariant
+  residual runs `kyv7clfc` and `6ng62tpm` overrode it to 1e-4, which is near the base policy but not
+  exactly it. It is the bar each run must clear. A run whose best
   score equals its step-0 score learned nothing — its best moment was before training began. Always
   report step-0 alongside best and final.
 - **Check the config-field provenance table** in [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)

@@ -29,7 +29,7 @@ demos").
    its first eval (`6ng62tpm`). Tuned RLPD learned to 0.50 at 80k, then its critic ran away from
    about 92k and every eval from 100k was 0 (`vc5o977f`). Its seed 2 (`6yh4l5mq`) runs as the
    anchor of item 5b.
-5b. **NOW: stabilizing equivariant tuned RLPD on Square** (EXPERIMENTS.md, 2026-10-10
+5b. **Running: stabilizing equivariant tuned RLPD on Square** (EXPERIMENTS.md, 2026-10-10
    PRE-REGISTERED, `square-trlpd-stab-1010`; Aden, 2026-10-10). Four arms, each one change from
    `vc5o977f`:
    - the TD target clamped to [0, 1];
@@ -37,11 +37,24 @@ demos").
    - RegularLayerNorm where ResFiT has LayerNorm;
    - `gkck6eqp`'s 10 × 2 critic.
 
-   NOTEs at 10k, 50k, the 100k checks and the end. Seed 2s, and the fourth arm, by hand into free
-   slots. **Second-wave candidates** (Aden's call, from what the first shows): the clamp and the
-   pooled norm together; the LayerNorm arm plus per-pixel LayerNorm in the encoders, where
-   ResFiT's ViTs have theirs (new code: `ENCODER_NORMS` has none). Then a stabilizer that holds is
-   tried on Can and in the residual.
+   Seed 1 of the first three passed the learning check. None diverged, and neither did the
+   anchor's seed 2, so the runaway is not reliable at this design (2026-10-11 DEVIATION and NOTE).
+   `clipq` runs on. **Still to do:** `10x2` 1 and the three seed 2s, by hand from `6b2acc6` once
+   RAM frees, and the group's analysis NOTE. **Second-wave candidates** (Aden's call, from what the
+   first shows): the clamp and the pooled norm together; the LayerNorm arm plus per-pixel LayerNorm
+   in the encoders, where ResFiT's ViTs have theirs (new code: `ENCODER_NORMS` has none). Then a
+   stabilizer that holds is tried on Can and in the residual.
+5c. **NOW: the equivariant residual on Square, its actor's start and the critic's readiness**
+   (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED, `square-residual-start-1011`; Aden, 2026-10-11).
+   Two arms, each one change from `6ng62tpm`: the actor's last layer at 0.0 (`init0`), and 50k
+   critic warm-up updates (`warmup50k`). The entry's "Reading it" sets what follows each outcome:
+   - the actor gated on the critic's online value levelling off;
+   - a penalty on the residual's size;
+   - or the critic itself.
+
+   Also wanted, offline and cheap: dQ/da per action dimension on `6ng62tpm`'s step-0 critic
+   (`models/best_model.pt`), to see whether its gradient points the residual at the wrist rotation
+   it drifted into.
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which

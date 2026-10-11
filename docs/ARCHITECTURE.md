@@ -497,11 +497,13 @@ Each run also logs `versions` in its wandb config and run manifest, the packages
 not pin: mujoco, robosuite, torch, torchrl, tensordict, escnn (`software_versions()` in
 `load_policy.py`). It is not a config field: nothing reads it.
 
-`eval_first: bool = True` means there is an evaluation at step 0. Because
+`eval_first: bool = True` means there is an evaluation at step 0. At the config's default,
 `agent.actor.actor_last_layer_init_scale = 0.0`, the residual starts at exactly zero, so **the
 step-0 evaluation measures the base BC policy alone.** That number is the baseline every run must
 be compared against, and it is why an experiment record that only reports "best success rate" can
-be misleading.
+be misleading. The equivariant residual runs of `square-rerendered-1009` (`6ng62tpm`) and of the
+fixed-env baselines (`kyv7clfc`) overrode the scale to 1e-4. Their step 0 is the base policy plus a
+residual of about 1e-4 (`residual_l1`), within noise of it, but not exactly it.
 
 ## Where to find things
 

@@ -1131,12 +1131,24 @@ def main(cfg: ResidualTD3DexmgConfig):
                     # Online-only training - update only online buffer
                     online_rb.update_tensordict_priority(batch)
 
-            # Progress logging
+            # Progress logging. Q split by buffer, as the training loop logs it, shows whether the
+            # warm-up has carried value to the online states before the actor first moves
+            # (2026-10-11). Logging only: critic_diagnostics changes nothing
+            # (tests/test_critic_diagnostics.py).
             if i % 100 == 0:
+                with utils.eval_mode(agent):
+                    critic_split = agent.critic_diagnostics(batch, online_batch_size)
+                split_msg = ""
+                if "debug/q_policy_demo" in critic_split:
+                    split_msg = (f"q_demo(data/policy)={critic_split['debug/q_data_demo']:.3f}"
+                                 f"/{critic_split['debug/q_policy_demo']:.3f}, "
+                                 f"q_online(data/policy)={critic_split['debug/q_data_online']:.3f}"
+                                 f"/{critic_split['debug/q_policy_online']:.3f}, ")
                 print(
                     f"Critic warmup: {i} / {cfg.algo.critic_warmup_steps}, "
                     f"train/critic_qt={metrics['train/critic_qt']:.4f}, "
                     f"train/critic_loss={metrics['train/critic_loss']:.4f}, "
+                    f"{split_msg}"
                     f"Elapsed time: {time.time() - train_start_time}"
                 )
 

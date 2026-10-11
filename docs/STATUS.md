@@ -1,8 +1,8 @@
 # Status
 
-**Last updated:** 2026-10-10, about 12:45 · **Last verified commit:** `6b2acc6`, pre-registering
-`square-trlpd-stab-1010` (EXPERIMENTS.md, 2026-10-10 CODE and PRE-REGISTERED): the gate's Tier 1
-and Tier 2 passed in full on GPU 0, and the gate said GO for each of the three arms launched from it
+**Last updated:** 2026-10-11, about 19:45 · **Last verified commit:** `d354241`, recording
+`square-trlpd-stab-1010`'s launches. The pre-registration of `square-residual-start-1011` is being
+committed (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED); its gate runs at launch.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -19,10 +19,17 @@ failed in different ways** (EXPERIMENTS.md, 2026-10-10 NOTE):
   0.50 at 80k), **then its critic ran away** from about 92k (demo value 212 at peak; a target here
   cannot exceed 1, 2026-10-10 MEASUREMENT) and every eval from 100k was 0. Gradient clipping at 1.0
   was on throughout.
-- **Now running: `square-trlpd-stab-1010`** (2026-10-10 PRE-REGISTERED): four ways to keep that
-  critic bounded, each one change from `vc5o977f` (Running now). Every other run was cancelled on
-  2026-10-10 (DEVIATION), leaving `critic-norm-can-1008`'s democodec arm and the fixed-env
-  baselines' ResFiT Can arm without verdicts.
+- **`square-trlpd-stab-1010` and the anchor's seed 2 are past 150k, and no critic diverged**
+  (2026-10-11 DEVIATION and NOTE). The runaway did not repeat in `6yh4l5mq`, so "no divergence" in
+  an arm is weak evidence. All four passed their learning check. `ln` converged at 160k (0.17–0.24).
+  `6yh4l5mq` and `pooledln` were stopped by hand at about 190k, for RAM, and `clipq` runs on. `10x2`
+  and the seed 2s wait. Earlier, every other run was cancelled on 2026-10-10 (DEVIATION), leaving
+  `critic-norm-can-1008`'s democodec arm and the fixed-env baselines' ResFiT Can arm without
+  verdicts.
+- **Now launching: `square-residual-start-1011`** (2026-10-11 PRE-REGISTERED). Two equivariant
+  residual arms, each one change from `6ng62tpm`: the actor's last layer at exactly zero, and a
+  50k critic warm-up. Aden's question is whether the actor moves before the critic can tell good
+  residuals from bad.
 - **The fixed-env baselines' ResFiT residual arm passes** (`oj5k0jqb` 0.800 and `s8opblsd` 0.628
   over 110k–150k, pooled 0.714 against B_sq = 0.582), but the seeds differ by about 4 SE.
 
@@ -122,37 +129,41 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**`square-trlpd-stab-1010`** (EXPERIMENTS.md, 2026-10-10 PRE-REGISTERED, "stabilizing equivariant
-tuned RLPD on Square"), and its anchor. Every arm is `vc5o977f`'s launch plus one change, on the
-re-rendered Square demos, up to 300k steps, two runs per GPU. The arms run from `6b2acc6` in the
-worktree `~/projects/equi-resrl-6b2acc6` (2026-10-10 LAUNCHED entries):
+**`square-residual-start-1011`** (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED, "the equivariant
+residual on Square: its actor's last layer at zero, and a 50k critic warm-up"). Each arm is
+`6ng62tpm`'s launch plus one change, on the re-rendered Square demos, up to 300k steps. They launch
+from the commit that pre-registers them, in a worktree pinned to it:
 
-| Arm | Change from `vc5o977f` | Run | Where |
+| Arm | Change from `6ng62tpm` | Run | Where |
 |---|---|---|---|
-| anchor, `equi-tuned-rlpd-square-rerendered` 2 | none: its seed 2, from `eb90a0c` | `6yh4l5mq`, from 09:33 | GPU 1, tmux `sq-trlpd-a` |
-| `equi-tuned-rlpd-square-clipq` 1 | TD target clamped to [0, 1] | `jdu1nkxw`, from 11:39 | GPU 1, tmux `sq-trlpd-b` |
-| `equi-tuned-rlpd-square-pooledln` 1 | LayerNorm on each head's pooled features (`TrivialLayerNorm`), start matched | `lclh933n`, from 12:06 | GPU 0, tmux `sq-trlpd-c` |
-| `equi-tuned-rlpd-square-ln` 1 | RegularLayerNorm where ResFiT has LayerNorm, actor and critic, start matched | `0avs073d`, from 12:40 | GPU 0, tmux `sq-trlpd-d` |
-| `equi-tuned-rlpd-square-10x2` 1 | `gkck6eqp`'s critic, 10 heads of 2 layers | not yet | the first slot to free |
+| `equi-residual-square-init0` 1 | the actor's last layer starts at 0.0, not 1e-4 | launching | GPU 1 |
+| `equi-residual-square-warmup50k` 1 | 50k critic-only updates before the actor's first, not 10k | launching | GPU 0 |
 
-- **Rules** (enforced by `tools/square_rerendered_watch.py`, one instance per group, tmux
-  `sq-watch` for `square-rerendered-1009` and `sq-watch2` for `square-trlpd-stab-1010`):
-  - the 100k learning check (an eval of 0.04 or 5 training successes by 100k);
-  - the divergence stop (every critic value over 10 for the 5k before an eval, and three evals at
-    or below 0.05);
-  - convergence from 150k.
+**`square-trlpd-stab-1010`**: `equi-tuned-rlpd-square-clipq` 1 (`jdu1nkxw`, 0.66 at 170k) runs on
+GPU 1 from `6b2acc6` in tmux `sq-trlpd-b`. `10x2` 1 and the seed 2s of `clipq`, `pooledln` and `ln`
+wait for RAM, launched by hand from `6b2acc6`.
 
-  Seed 2 of an arm iff its seed 1 passes; **seed 2s and E are launched by hand** into free slots.
-  The verdict needs both seeds: no critic value above 1.5 through 150k, and the 110k–150k window
-  holding the 60k–100k one.
-- **Resources:** about 28 GB of RAM per run at start and 37 GB at 150k (`vc5o977f`'s main process 11
-  to 19 GB, plus about 17 GB of env workers), so four at once go about 25 GB into swap late on. A
-  fifth does not fit. About 9.9 GB of GPU memory per run (its env workers render on the GPU too),
-  so two per GPU.
-- **How to follow them:** wandb `robomimic-square-final`, group `tuned-rlpd`, notes starting with
-  the seed group. `outputs/queue/watch.log` has every watcher action; consoles are in
-  `outputs/queue/`. Watch `eval/success_rate`, `debug/q_data_*` and `debug/q_policy_*` (above 1 is
-  the critic's error), and `debug/residual_mean_abs` (the action's size in tuned RLPD).
+- **Rules** (enforced by `tools/square_rerendered_watch.py`, one instance per seed group: tmux
+  `sq-watch` for `square-rerendered-1009`, `sq-watch2` for `square-trlpd-stab-1010`, `sq-watch3` for
+  `square-residual-start-1011`):
+  - The residual: stopped at three evals in a row at or below 0.05. At 100k it passes iff its
+    60k–100k evals reach 155 of 250. Convergence from 150k.
+  - Tuned RLPD: the 100k learning check (an eval of 0.04 or 5 training successes by 100k), the
+    divergence stop, convergence from 150k.
+
+  Seed 2 of an arm iff its seed 1 passes its 100k check. **Seed 2s are launched by hand.**
+- **Resources:**
+  - A residual run uses about 20 GB of RAM at start and 35 GB by 150k. A tuned-RLPD run uses about
+    28 GB at start and 37 GB by 150k. So the two residual runs and `clipq` make about 105 GB of 125
+    at 150k.
+  - About 9.9 GB of GPU memory per run, since the env workers render on the GPU too, so two per
+    GPU.
+- **How to follow them:** wandb `robomimic-square-final`, groups `equi-residual-rl` and
+  `tuned-rlpd`, notes starting with the seed group. `outputs/queue/watch.log` has every watcher
+  action, and consoles are in `outputs/queue/`.
+  - For the residual, watch `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo`,
+    `train/residual_l1_magnitude` and `debug/dQ_da_mean_abs`.
+  - `warmup50k`'s warm-up prints both values every 100 updates (`Critic warmup:` lines).
 
 ## The machine
 

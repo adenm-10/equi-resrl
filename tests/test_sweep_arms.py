@@ -5,21 +5,23 @@ submit.sh's case table is checked here first:
 
   Tier 1  its overrides are the pre-registered ones and set no key twice; it
           composes through train_residual_td3's Hydra configs to the anchor's
-          config (vc5o977f's launch, equi-tuned-rlpd-square-rerendered 1 at
-          eb90a0c) but for its one change and, for the two normed arms, the
-          scale of each critic head's last Linear at init; the anchor is what
-          vc5o977f launched with; the dataset is built; the smoke mode is the
-          arm, briefly; and every arm launches.
+          config (6ng62tpm's launch, equi-residual-square-rerendered 1 at
+          eb90a0c) but for its one change; the anchor is what 6ng62tpm launched
+          with; the dataset is built; the smoke mode is the arm, briefly; and
+          every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses; its actor is equivariant and its critic invariant, at the
           arm's own sizes; every input its critic and actor are given can move
           their outputs (the FieldNorm critic of the fixed-env baselines could
-          not, 2026-10-08 FINDING, and a test here keeps that on record); the
-          normed arms' critics start as spread as the anchor's, on the
-          pre-registered measurement; and each norm sits where it is meant to.
+          not, 2026-10-08 FINDING, and a test here keeps that on record); it has
+          no norm and five one-layer critic heads, as the anchor; at the same seed
+          it starts from the anchor's weights, but for init0's actor's last
+          Linear, which is zero; and init0's residual starts at exactly zero and
+          learns from there.
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-10
-PRE-REGISTERED, "stabilizing equivariant tuned RLPD on Square").
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-11
+PRE-REGISTERED, "the equivariant residual on Square: its actor's last layer at
+zero, and a 50k critic warm-up").
 """
 
 from __future__ import annotations
@@ -39,40 +41,32 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
 
-SEED_GROUP = "square-trlpd-stab-1010"
+SEED_GROUP = "square-residual-start-1011"
 
-CLIPQ = "equi-tuned-rlpd-square-clipq"
-POOLED_LN = "equi-tuned-rlpd-square-pooledln"
-LN = "equi-tuned-rlpd-square-ln"
-TEN_BY_TWO = "equi-tuned-rlpd-square-10x2"
-CONFIG = "equi_tuned_rlpd_square_config"
+INIT0 = "equi-residual-square-init0"
+WARMUP50K = "equi-residual-square-warmup50k"
+CONFIG = "residual_equi_td3_square_config"
 DEMOS = "local/robomimic-mh-square-rerendered"
-# Each normed arm's critic heads' last Linear at init, so that its critic starts as spread as the
-# anchor's: tools/critic_start.py, real batch, 20 seeds (the pre-registration's table).
-POOLED_LN_SCALE = 0.8835
-LN_SCALE = 0.8168
+ANCHOR_SCALE = "agent.actor.actor_last_layer_init_scale=1e-4"
 
 # What every arm launches, less the run's name, notes, project and group.
 COMMON = {"algo.total_timesteps=300000", "read_buffer_caches=false", "write_buffer_caches=false",
           "seed=1", "debug=false"}
-# vc5o977f's launch at eb90a0c, the anchor every arm is one change from.
+# 6ng62tpm's launch at eb90a0c, the anchor every arm is one change from.
 ANCHOR = {f"--config-name={CONFIG}", "equivariance.residual_squash=true", "agent.critic.num_q=5",
-          f"offline_data.name={DEMOS}", *COMMON}
+          ANCHOR_SCALE, "base_policy.wt_version=v9", f"offline_data.name={DEMOS}", *COMMON}
 LAUNCHED = {
-    CLIPQ: ANCHOR | {"agent.clip_q_target_to_reward_range=true"},
-    POOLED_LN: ANCHOR | {"equivariance.critic_pooled_norm=layer_norm",
-                         f"equivariance.critic_last_layer_init_scale={POOLED_LN_SCALE}"},
-    LN: ANCHOR | {"equivariance.actor_norm=layer_norm", "equivariance.critic_norm=layer_norm",
-                  f"equivariance.critic_last_layer_init_scale={LN_SCALE}"},
-    TEN_BY_TWO: (ANCHOR - {"agent.critic.num_q=5"}) | {"agent.critic.num_q=10",
-                                                         "equivariance.num_critic_layers=2"},
+    INIT0: (ANCHOR - {ANCHOR_SCALE}) | {"agent.actor.actor_last_layer_init_scale=0.0"},
+    WARMUP50K: ANCHOR | {"algo.critic_warmup_steps=50000"},
 }
-# Each arm's changes from the anchor, as composed paths.
+# Each arm's changes from the anchor, as composed paths, and its values there.
 FROM_ANCHOR = {
-    CLIPQ: {"agent.clip_q_target_to_reward_range"},
-    POOLED_LN: {"equivariance.critic_pooled_norm", "equivariance.critic_last_layer_init_scale"},
-    LN: {"equivariance.actor_norm", "equivariance.critic_norm", "equivariance.critic_last_layer_init_scale"},
-    TEN_BY_TWO: {"agent.critic.num_q", "equivariance.num_critic_layers"},
+    INIT0: {"agent.actor.actor_last_layer_init_scale"},
+    WARMUP50K: {"algo.critic_warmup_steps"},
+}
+ARM_VALUES = {
+    INIT0: {"agent.actor.actor_last_layer_init_scale": 0.0, "algo.critic_warmup_steps": 10_000},
+    WARMUP50K: {"agent.actor.actor_last_layer_init_scale": 1e-4, "algo.critic_warmup_steps": 50_000},
 }
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
@@ -83,26 +77,29 @@ BASELINES = {
                             "write_buffer_caches=false", "seed=1", "debug=false"],
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
-WANDB = ("robomimic-square-final", "tuned-rlpd")
+WANDB = ("robomimic-square-final", "equi-residual-rl")
 # Under CACHE_DIR, where every run package lives: a launch worktree has no outputs/.
-VC5O977F = RUNS_ROOT / "robomimic-square-final/vc5o977f/manifest.json"
+SIX_NG = RUNS_ROOT / "robomimic-square-final/6ng62tpm/manifest.json"
 
-# The composed config every arm must have.
+# The composed config every arm must have: 6ng62tpm's, as its recorded config holds it.
 SHARED = {
     "task": "Square", "offline_data.name": DEMOS, "algo.total_timesteps": 300_000,
     "read_buffer_caches": False, "write_buffer_caches": False, "algo.n_step": 3, "algo.gamma": 0.99,
     "algo.batch_size": 256, "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4,
-    "algo.buffer_size": 200_000, "algo.learning_starts": 10_000, "num_envs": 1, "eval_first": True,
-    "eval_interval_every_steps": 10_000, "eval_num_episodes": 50, "seed": 1, "debug": False,
-    "wandb.mode": "online", "encode_env_frames_like_demos": False,
+    "algo.actor_updates_per_iteration": 1, "algo.buffer_size": 200_000, "algo.learning_starts": 10_000,
+    "num_envs": 1, "eval_first": True, "eval_interval_every_steps": 10_000, "eval_num_episodes": 50,
+    "seed": 1, "debug": False, "wandb.mode": "online", "encode_env_frames_like_demos": False,
     "equivariance.N": 8, "equivariance.use_equivariant_model": True, "equivariance.residual_squash": True,
-    "equivariance.encoder_norm": "none", "equivariance.frozen_target_critic": False,
-    "equivariance.float_images_as_uint8": False,
-    "base_policy": None, "offline_data.use_base_policy_for_base_actions": False,
-    "algo.critic_warmup_steps": 0, "agent.actor_lr": 1e-4, "agent.critic_target_tau": 0.01,
-    "algo.stddev_min": 0.1, "algo.stddev_max": 0.1, "agent.actor.action_scale": 1.0,
-    "algo.random_action_noise_scale": 1.0, "algo.use_base_policy_for_warmup": False,
-    "agent.actor.actor_last_layer_init_scale": None, "agent.critic.min_q_heads": 2,
+    "equivariance.encoder_norm": "none", "equivariance.actor_norm": "none",
+    "equivariance.critic_norm": "none", "equivariance.critic_pooled_norm": "none",
+    "equivariance.num_critic_layers": 1, "equivariance.critic_last_layer_init_scale": None,
+    "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
+    "base_policy.wt_version": "v9", "offline_data.use_base_policy_for_base_actions": True,
+    "agent.actor_lr": 1e-6, "agent.critic_lr": 1e-4, "agent.critic_target_tau": 0.005,
+    "algo.stddev_min": 0.05, "algo.stddev_max": 0.05, "agent.stddev_clip": 0.3,
+    "agent.actor.action_scale": 0.1, "algo.random_action_noise_scale": 0.2,
+    "algo.use_base_policy_for_warmup": True, "algo.actor_lr_warmup_steps": 0, "agent.bc_loss_coef": 0.0,
+    "agent.critic.num_q": 5, "agent.critic.min_q_heads": 2,
     "agent.critic.policy_gradient_type": "ensemble_mean", "agent.critic_grad_clip_norm": 1.0,
 }
 
@@ -175,7 +172,7 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    expected = {**SHARED, "wandb.project": WANDB[0], "wandb.group": WANDB[1],
+    expected = {**SHARED, **ARM_VALUES[arm], "wandb.project": WANDB[0], "wandb.group": WANDB[1],
                 "wandb.name": f"{arm}-1", "wandb.notes": f"{SEED_GROUP}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
@@ -193,9 +190,9 @@ def test_arm_is_the_anchor_but_for_its_change(arm, tmp_path):
     assert _differing(ours, anchor) == FROM_ANCHOR[arm]
 
 
-@pytest.mark.skipif(not VC5O977F.exists(), reason="vc5o977f's run package is not on this machine")
-def test_the_anchor_is_what_vc5o977f_launched_with():
-    argv = json.loads(VC5O977F.read_text())["argv"][1:]
+@pytest.mark.skipif(not SIX_NG.exists(), reason="6ng62tpm's run package is not on this machine")
+def test_the_anchor_is_what_6ng62tpm_launched_with():
+    argv = json.loads(SIX_NG.read_text())["argv"][1:]
     launched = {o for o in argv if o.split("=", 1)[0] not in (*NAMING, "hydra.run.dir")}
     assert launched == ANCHOR
 
@@ -423,30 +420,10 @@ def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.slow
-@pytest.mark.parametrize("arm", [POOLED_LN, LN])
-def test_the_normed_arms_critics_start_as_spread_as_the_anchors(arm, tmp_path, device):
-    """The pre-registered measurement (tools/critic_start.py, real batch, 20 seeds): with its last
-    Linear scaled, each normed arm's heads start as spread as the anchor's. Scaling the last Linear
-    by s scales every head's Q by s, so on the same batch and seeds the match is exact but for the
-    scale's rounding."""
-    from tools.critic_start import measure, real_batch
-
-    batch = real_batch(DEMOS, 256)
-    anchor = measure(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name"))), batch,
-                     str(device), 20)
-    ours = measure(_compose(_overrides(arm, tmp_path)), batch, str(device), 20)
-    assert abs(ours["spread"] / anchor["spread"] - 1) < 0.01, (ours, anchor)
-
-
-@pytest.mark.gpu
 @pytest.mark.parametrize("arm", ARMS)
-def test_each_arms_norms_sit_where_they_are_meant_to(arm, tmp_path, device):
-    """pooledln: one TrivialLayerNorm per head, after its pooling, and no other norm. ln:
-    RegularLayerNorm after every hidden Linear of the actor (visual projection, trunk, hidden
-    layer) and the critic (visual projection, trunk, each head's one), where ResFiT's
-    use_layer_norm puts LayerNorm, and none after pooling. clipq and 10x2: no norm anywhere, and
-    10x2's ten heads have two hidden Linears each."""
+def test_each_arm_has_no_norm_and_five_one_layer_heads(arm, tmp_path, device):
+    """6ng62tpm's design: no norm in the encoder, the actor or the critic, and five critic heads of
+    one hidden layer each (a hidden Linear, then the output Linear after pooling)."""
     from escnn import nn as enn
 
     from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import (
@@ -457,21 +434,86 @@ def test_each_arms_norms_sit_where_they_are_meant_to(arm, tmp_path, device):
     )
 
     agent = _agent(_compose(_overrides(arm, tmp_path)), device)
-
-    def count(module, *classes):
-        return sum(isinstance(m, classes) for m in module.modules())
-
-    others = (enn.IIDBatchNorm1d, RegularInnerBatchNorm, FieldNorm)
+    norms = (enn.IIDBatchNorm1d, RegularInnerBatchNorm, FieldNorm, RegularLayerNorm, TrivialLayerNorm)
+    for part in (agent.enc, agent.actor, agent.critic):
+        assert not any(isinstance(m, norms) for m in part.modules()), f"{arm}: a norm in {type(part).__name__}"
     heads = agent.critic.q_ensemble.heads
-    assert count(agent.critic, *others) == count(agent.actor, *others) == count(agent.enc, *others) == 0
-    expected = {  # (critic RegularLayerNorm, actor RegularLayerNorm, TrivialLayerNorm, heads, Linears per head)
-        CLIPQ: (0, 0, 0, 5, 2), POOLED_LN: (0, 0, 5, 5, 2), LN: (2 + 5, 3, 0, 5, 2), TEN_BY_TWO: (0, 0, 0, 10, 3),
-    }[arm]
-    got = (count(agent.critic, RegularLayerNorm), count(agent.actor, RegularLayerNorm),
-           count(agent.critic, TrivialLayerNorm), len(heads), count(heads[0], enn.Linear))
-    assert got == expected, f"{arm}: {got}"
-    if arm == POOLED_LN:
-        assert all(isinstance(head.net[-2], TrivialLayerNorm) for head in heads)
+    assert len(heads) == 5
+    assert all(sum(isinstance(m, enn.Linear) for m in head.modules()) == 2 for head in heads)
+
+
+def _seeded_agent(cfg, device, seed: int = 1):
+    import random
+
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    return _agent(cfg, device)
+
+
+def _actor_last_linear(agent) -> str:
+    """The name, within the actor, of the Linear that actor_last_layer_init_scale scales."""
+    from escnn import nn as enn
+
+    return [name for name, m in agent.actor.policy.named_modules() if isinstance(m, enn.Linear)][-1]
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", ARMS)
+def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
+    """At the same seed, warmup50k's initial weights are the anchor's bit for bit (its change is a
+    loop count), and init0's are the anchor's but for its actor's last Linear, which is zero in the
+    actor and its target alike: scale_final_equi_layer multiplies, and draws no random number. So
+    each arm starts where 6ng62tpm's network did; the episodes still differ, since `seed` does not
+    reach the envs."""
+    import torch
+
+    anchor = _seeded_agent(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name"))), device)
+    ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device)
+    last = _actor_last_linear(ours)
+    # escnn's Linear learns `weights` and `bias`. Its basis buffers are fixed, and the target's
+    # `matrix` and `expanded_bias` are the zeros escnn registers at init (the target runs in train
+    # mode, which expands the weights afresh at every call): both stay the anchor's.
+    scaled = {f"{net}.policy.{last}.{name}" for net in ("actor", "actor_target") for name in ("weights", "bias")}
+    theirs, mine = anchor.state_dict(), ours.state_dict()
+    assert theirs.keys() == mine.keys() and scaled <= mine.keys()
+    for key, value in mine.items():
+        if arm == INIT0 and key in scaled:
+            assert not value.any(), f"{arm}: {key} is not zero"
+            if key.endswith("weights"):  # escnn starts every bias at zero
+                assert theirs[key].any(), f"the anchor's {key} is zero"
+        else:
+            assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
+
+
+@pytest.mark.gpu
+def test_init0s_residual_is_exactly_zero_at_init_and_learns_from_there(tmp_path, device):
+    """So init0's step-0 eval is the base policy alone, as ResFiT's is. Its first actor update moves
+    the last Linear off zero (its gradient there is the features times dQ/da, not zero), and every
+    loss and action stays finite: equi_tanh's series at the origin, not a 0/0."""
+    import torch
+
+    from tools.agent_fingerprint import STDDEV, fixed_batch
+
+    agent = _agent(_compose(_overrides(INIT0, tmp_path)), device)
+    last = dict(agent.actor.policy.named_modules())[_actor_last_linear(agent)]
+
+    def residual():
+        agent.train(False)
+        with torch.no_grad():
+            return agent.act(fixed_batch(base_action=True)["obs"].to(device), eval_mode=True, cpu=False)
+
+    assert torch.equal(residual(), torch.zeros_like(residual()))
+    agent.train(True)
+    metrics = agent.update(fixed_batch(base_action=True).to(device), stddev=STDDEV, update_actor=True)
+    for key in ("train/critic_loss", "train/actor_loss_base"):
+        assert math.isfinite(metrics[key]), f"{key} = {metrics[key]}"
+    assert last.weights.abs().max() > 0, "the actor's last Linear did not move off zero"
+    after = residual()
+    assert torch.isfinite(after).all() and after.abs().max() > 0
 
 
 @pytest.mark.gpu

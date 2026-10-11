@@ -2,12 +2,15 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Two seed groups, both on the re-rendered Square demos (GROUPS):
+Three seed groups, all on the re-rendered Square demos (GROUPS):
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
   - square-trlpd-stab-1010: the 2026-10-10 PRE-REGISTERED entry ("stabilizing equivariant tuned
-    RLPD on Square"), four tuned-RLPD arms under the same rules.
+    RLPD on Square"), four tuned-RLPD arms under the same rules;
+  - square-residual-start-1011: the 2026-10-11 PRE-REGISTERED entry ("the equivariant residual on
+    Square: its actor's last layer at zero, and a 50k critic warm-up"), two residual arms under the
+    residual's rules.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -47,8 +50,10 @@ from resfit.lerobot.utils.load_policy import _history_from_record, finalize_run_
 RESIDUAL, TUNED = "equi-residual-square-rerendered", "equi-tuned-rlpd-square-rerendered"
 STABILIZERS = ("equi-tuned-rlpd-square-clipq", "equi-tuned-rlpd-square-pooledln",
                "equi-tuned-rlpd-square-ln", "equi-tuned-rlpd-square-10x2")
-GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS}
-RESIDUAL_ARMS = {RESIDUAL}          # every other arm is tuned RLPD
+RESIDUAL_STARTS = ("equi-residual-square-init0", "equi-residual-square-warmup50k")
+GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
+          "square-residual-start-1011": RESIDUAL_STARTS}
+RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS}  # every other arm is tuned RLPD
 EPISODES = 50                       # per eval
 COLLAPSE_RATE, COLLAPSE_RUN = 0.05, 3
 CHECK_STEP = 100_000
