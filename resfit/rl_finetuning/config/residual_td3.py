@@ -98,6 +98,16 @@ class EquivarianceConfig:
     # equi_tanh on each irrep(1) pair's norm and each trivial component. In
     # vanilla RL (base_policy=None) that mean is the whole action.
     residual_squash: bool = False
+    # The residual's bound per action field, in env units, keyed by ACTION_FIELDS name
+    # (equi_normalizer.py) and applied to every arm alike, e.g. {action_rx_ry: 0.0}. A field not
+    # named keeps agent.actor.action_scale, so the empty default is every run before 2026-10-12.
+    # Each field gets one number, so an irrep(1) pair is scaled as a whole and the actor stays
+    # equivariant; a bound per component of a pair would not be (EQUIVARIANCE.md). It bounds the
+    # actor's mean; exploration and target noise are added after it, unchanged. Residual runs only.
+    # Set a field with +equivariance.residual_field_bound.<field>=<bound>: the + adds a key to the
+    # mapping. EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED, "the equivariant residual on Square with
+    # no tilt".
+    residual_field_bound: dict[str, float] = field(default_factory=dict)
 
     # True reproduces every equivariant run before 2026-09-29: the target critic
     # sat in eval mode, where escnn layers compute with the weights expanded at

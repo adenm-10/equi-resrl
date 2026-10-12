@@ -287,3 +287,61 @@ def test_visual_proj_off_removes_both_projections(obs_enc, device):
         assert isinstance(off.visual_proj, torch.nn.Identity)
         assert not isinstance(on.visual_proj, torch.nn.Identity)
         assert off.input_proj[0].in_type.size < on.input_proj[0].in_type.size
+
+
+# ---------------------------------------------------------------------------
+# equivariance.residual_field_bound (2026-10-12)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+def test_residual_field_bound_scales_its_own_field_and_adds_no_parameter(obs_enc, arm_spec, device):
+    """The empty mapping is every earlier run's actor, bit for bit. A field's bound replaces
+    action_scale on that field's components, every arm's, and nowhere else. The bound is a buffer
+    outside the state dict, so a checkpoint from before it existed still loads."""
+    from escnn import nn as enn
+
+    from tests.conftest import ACTION_SCALE
+    from tests.test_equivariance import _actor_layout, _feat
+
+    names = obs_enc.action_fields
+
+    ref = _build_actor(obs_enc, device).eval()
+
+    def like_ref(**kw):
+        """An actor with ref's weights. The load is strict, so the bound added no state-dict entry."""
+        actor = _build_actor(obs_enc, device, **kw).eval()
+        actor.load_state_dict(ref.state_dict())
+        return actor
+
+    same = like_ref(field_bound={}, action_fields=names)
+    no_tilt = like_ref(field_bound={"action_rx_ry": 0.0}, action_fields=names)
+    rescaled = like_ref(field_bound={"action_rx_ry": 0.05, "action_xy": 0.0}, action_fields=names)
+    assert "bound" not in no_tilt.state_dict() and _shapes_only(no_tilt) == _shapes_only(ref)
+
+    feat = enn.GeometricTensor(_feat(None, _actor_layout(arm_spec), device, seed=5), obs_enc.enc_out_type_actor)
+    with torch.no_grad():
+        mu_ref, mu_same, mu_no_tilt, mu_rescaled = (a(feat, std=None) for a in (ref, same, no_tilt, rescaled))
+    assert torch.equal(mu_same, mu_ref)
+
+    def columns(field):
+        return [i for (sl, _), name in zip(obs_enc.action_layout, names) if name.rsplit("_", 1)[0] == field
+                for i in range(sl.start, sl.stop)]
+
+    tilt, xy = columns("action_rx_ry"), columns("action_xy")
+    assert len(tilt) == 2 * arm_spec["n_arms"]
+    rest = [i for i in range(mu_ref.shape[1]) if i not in tilt]
+    assert mu_ref[:, tilt].abs().min() > 0
+    assert not mu_no_tilt[:, tilt].any()
+    assert torch.equal(mu_no_tilt[:, rest], mu_ref[:, rest])
+    torch.testing.assert_close(mu_rescaled[:, tilt], mu_ref[:, tilt] * (0.05 / ACTION_SCALE))
+    assert not mu_rescaled[:, xy].any()
+
+
+@pytest.mark.gpu
+def test_residual_field_bound_refuses_an_unknown_field_and_a_vanilla_actor(obs_enc, device):
+    with pytest.raises(ValueError, match="unknown fields"):
+        _build_actor(obs_enc, device, field_bound={"action_tilt": 0.0}, action_fields=obs_enc.action_fields)
+    with pytest.raises(ValueError, match="bounds a residual"):
+        _build_actor(obs_enc, device, residual_actor=False, field_bound={"action_rx_ry": 0.0},
+                     action_fields=obs_enc.action_fields)

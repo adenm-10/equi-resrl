@@ -5896,3 +5896,238 @@ checkpoint.
 - About 20–35 GB of RAM; 121 GB is free after the DEVIATION above.
 - `oj5k0jqb` took 5.9 h and `s8opblsd` 11.7 h from step 0 to 150k, plus about 45 min of labelling
   the demos with the base policy before step 0.
+
+---
+
+## 2026-10-12 — NOTE — `square-residual-start-1011`: both arms lost the base policy by 10k; neither held it or reached its 100k check
+
+The readouts pre-registered for the 30k collapse decision and the 100k check. They fell overnight
+and were not written as they fell. From the run packages (`wandb_logs/metrics.jsonl`,
+`output.log`) and `outputs/queue/watch.log`. Config caveats: none; both arms launched as
+pre-registered from `0af7655` (LAUNCHED above).
+
+**`eaqorqki` (`equi-residual-square-init0` 1): stopped by hand at 80.2k (DEVIATION above).**
+- Evals 0.50 0.00 0.00 0.06 0.06 0.04 0.16 0.24 0.30 (0–80k).
+- **The collapse rule did not fire, by one episode:** 0.00, 0.00, then 0.06 at 30k (3 of 50).
+- Training successes per 10k: 9/35 over 0–10k, which is the critic warm-up on the base policy;
+  then 0/33, 1/34, 6/36, 1/33, 3/34, 8/36 and 6/35.
+
+**`doevaarp` (`equi-residual-square-warmup50k` 1): stopped by its 100k check** (07:35:55; 30 of
+250 at 60k–100k, against 155).
+- Evals 0.52 0.02 0.02 0.22 0.12 0.18 0.12 0.12 0.12 0.14 0.10 (0–100k).
+- **The collapse rule did not fire:** 0.22 at 30k.
+- Training successes to 100k: 65.
+
+**Online over demo value, and the realized discounted return of the training episodes over the same
+steps:**
+
+| | (0, 5k] | (5k, 10k] |
+|---|---|---|
+| `6ng62tpm` (anchor) | 0.005 / 0.199 = 0.02; realized 0.127 | 0.005 / 0.229 = 0.02; realized 0.015 |
+| `eaqorqki` (init0) | −0.014 / 0.190 = −0.07; realized 0.128 | −0.003 / 0.226 = −0.02; realized 0.035 |
+| `doevaarp` (warmup50k) | 0.078 / 0.216 = 0.36; realized 0.147 | 0.051 / 0.236 = 0.22; realized 0.000 |
+
+**`doevaarp`'s warm-up,** from its console: the means of the ten single-batch values printed in the
+1,000 updates before each count.
+
+| Updates | 2k | 10k | 20k | 30k | 40k | 50k |
+|---|---|---|---|---|---|---|
+| online value | −0.078 | 0.012 | 0.033 | 0.052 | 0.068 | 0.063 |
+| demo value | 0.000 | 0.162 | 0.194 | 0.200 | 0.218 | 0.209 |
+| TD target | −0.036 | 0.084 | 0.112 | 0.127 | 0.141 | 0.137 |
+
+So the online value was still rising at 10k updates, and levelled off by about 40k.
+
+**`residual_l1` against the action scale 0.1, and `dQ_da_mean_abs`:**
+
+| | (5k, 10k] | (25k, 30k] | (75k, 80k] | (95k, 100k] |
+|---|---|---|---|---|
+| `6ng62tpm` | 0.028, 7.9e-5 | 0.050, 6.8e-5 | — | — |
+| `eaqorqki` | 0.026, 8.7e-5 | 0.035, 8.0e-5 | 0.044, 6.3e-5 | — |
+| `doevaarp` | 0.032, 7.6e-5 | 0.023, 7.1e-5 | 0.042, 5.9e-5 | 0.048, 5.2e-5 |
+
+**Predictions:**
+1. `init0`'s step-0 eval within 0.46–0.70: **held** (0.50).
+2. `init0` collapses by 30k: **failed by the rule,** by one episode (0.06 at 30k). In substance it
+   did collapse: 0.00 at 10k and 20k.
+3. `warmup50k`'s online value higher at 50k warm-up updates than at 10k: **held** (0.063 against
+   0.012).
+4. `warmup50k`'s online over demo over (5k, 10k] above 0.1: **held** (0.22).
+5. `warmup50k` does not collapse by 30k: **held by the rule** (0.22 at 30k). In substance it lost the
+   base policy by 10k (0.02, 0.02).
+6. Neither passes its 100k check: **held.** `doevaarp` failed it, and `eaqorqki` could not have
+   passed it when stopped.
+
+**Reading it, as decided at pre-registration:**
+- **"`warmup50k`'s online value rises through its warm-up, but the run still collapses:
+  readiness is not enough"** applies in substance, though the collapse rule did not fire. The
+  critic's online value was better informed than `6ng62tpm`'s, and responded to outcomes (0.078
+  over (0, 5k], 0.051 over (5k, 10k], as the episodes failed). The residual still grew at the same
+  rate as in the other two runs.
+- **"`init0` collapses: the 1e-4 start is not the cause"** applies. Later equivariant residual runs
+  start at 0.0, as ResFiT's do.
+- **The next step named then, a penalty on the residual's size, is held.** The FINDING above gives
+  why: the per-sample slope is about 0.018, so the weight that would hold the residual near 0.005
+  is about 1.8; ResFiT's slope is the same size, so that weight would hold its useful residual
+  down too. The tilt diagnosis follows instead (PRE-REGISTERED above, and to follow).
+- **Caveat:** `doevaarp`'s warm-up buffer held about twice the others' successes (16 of 36,
+  against 7 and 9 of 35), which may account for some of its online value.
+
+---
+
+## 2026-10-12 — PRE-REGISTERED — the equivariant residual on Square with no tilt, and a diagnostic run with checkpoints
+
+**Questions** (Aden, 2026-10-12, from the FINDING above):
+1. Does the equivariant residual hold the base policy on Square if it cannot tilt the gripper?
+2. At a collapsed checkpoint, which of the residual's fields causes the collapse?
+
+**Seed group `residual-tilt-1012`,** seed 1 of each arm, from the commit that adds this entry, in a
+worktree pinned to it. Names `<arm>-<seed>`, notes `residual-tilt-1012/<arm>/seed<seed>`, wandb
+`robomimic-square-final` / `equi-residual-rl`.
+
+**Both arms are `eaqorqki`'s launch** (`equi-residual-square-init0` 1, `square-residual-start-1011`,
+`0af7655`) plus their changes:
+- **The anchor:** `--config-name=residual_equi_td3_square_config
+  equivariance.residual_squash=true agent.critic.num_q=5 base_policy.wt_version=v9
+  offline_data.name=local/robomimic-mh-square-rerendered
+  agent.actor.actor_last_layer_init_scale=0.0 algo.total_timesteps=300000
+  read_buffer_caches=false write_buffer_caches=false seed=1 debug=false`.
+- That is: no norm anywhere, 5 critic heads of one hidden layer, N = 8, actor lr 1e-6, action scale
+  0.1, the actor's last layer at zero, a 10k critic warm-up.
+
+| Arm | Plus | Length | Rules |
+|---|---|---|---|
+| `equi-residual-square-notilt` | `+equivariance.residual_field_bound.action_rx_ry=0.0`, `checkpoint_interval=10000` | to 300k | the residual's |
+| `equi-residual-square-diag` | `checkpoint_interval=2000` | 60k | none |
+
+**What varies.**
+- **`notilt` against `eaqorqki`:** the tilt pair's bound on the actor's mean, 0.1 → 0, so the
+  residual cannot tilt the gripper. It bounds the mean only, so exploration and target noise on
+  tilt are as the anchor's, and the critic sees the same tilt data (Aden's decision 4 of the
+  plan).
+- **`diag` against `eaqorqki`:** nothing that computes. It is init0 with checkpoints, ending at
+  60k.
+- **What both arms add, which changes nothing a run computes** (CODE below, tests):
+  - checkpoints every N steps;
+  - the per-field residual and slope logging;
+  - the bound's buffer, outside the state dict.
+- **Between the two arms:** one change, the bound, besides checkpoint counts and length. So `diag`
+  is also `notilt`'s control through 60k, on episodes that differ.
+- **At the same seed both start from `eaqorqki`'s weights,** bit for bit (test). The episodes
+  differ, since `seed` does not reach the envs.
+
+**Rules.**
+- **`notilt`:** `square-residual-start-1011`'s residual rules, enforced by the watcher (`--group
+  residual-tilt-1012`):
+  - the collapse stop, at the third eval in a row at or below 0.05;
+  - the divergence stop;
+  - the 100k check, at least 155 of 250 at 60k–100k;
+  - convergence from 150k;
+  - seed 2 iff it passes its 100k check.
+- **"Holds the base",** a readout, not a stop: every eval through 30k at least 0.46, the low end of
+  B_sq's ten evals.
+- **`diag`:** no stop rule. The watcher logs its evals and never stops it; it ends at 60k. Its
+  checkpoints feed the field test.
+
+**The field test** (`tools/residual_field_ablation.py`, CODE to follow before it runs):
+- **Precondition:** `diag` collapses as its anchors did. Its 10k eval, and the full-residual variant
+  at its 10k checkpoint, are both at most 0.10. Otherwise the test is uninformative, and goes back
+  to Aden.
+- **The test:** at the 10k checkpoint, 100 episodes per variant, with the residual's whole field set
+  to zero in `act()`. Whole fields keep the policy equivariant.
+  - Variants: full; none (the base policy); −xy; −z; −tilt; −yaw; −gripper; tilt only.
+  - At 100 episodes, SE is about 0.05 near 0.55.
+- **The verdict:**
+  - **Tilt is the cause** iff all three hold: −tilt is within 0.15 of none; tilt only is at most
+    0.10; and no other single field's removal reaches 0.30.
+  - **Field F is the cause** if F meets the same test in tilt's place.
+  - **No single field is the cause** otherwise.
+- **Reported, deciding nothing:**
+  - the same test at 4k and 6k (the onset), and at 20k and 30k (the recovery);
+  - at any 40k–60k checkpoint whose eval shows the grasp failures;
+  - each variant's tilt readout and contact sheets.
+
+**What happens at the verdict** (Aden's decision 5 of the plan):
+- `notilt` runs on under its own rules, whatever the verdict.
+- If the verdict names another field, or no single field, that goes to Aden. No arm is added and
+  none is stopped for it.
+
+**Readouts,** in NOTEs (`notilt` at 10k, 30k and 100k; `diag` at 10k, 30k and 60k; the field test
+when it is run):
+- Evals and training successes per 10k.
+- Per field, on online and demo rows: the residual's mean |r| and signed means, and the critic's
+  per-sample slope (`debug/residual_field/*`, `debug/dQ_da_field/*`).
+- The contact sheets of each eval, and the tilt readout from the checkpoints.
+
+**Predictions** (Claude's, before launch):
+1. `notilt`'s step-0 eval is within 0.46–0.70. High confidence: its residual starts at zero.
+2. `notilt` holds the base through 30k. Low to moderate confidence: `doevaarp`'s 100k failures
+   suggest the drift may move to another field.
+3. If `notilt` falls, its failures are at the grasp, not a roll. Moderate confidence.
+4. `notilt` passes its 100k check. Low confidence.
+5. `diag` collapses by 10k. High confidence: three of three anchors did.
+6. At `diag`'s 10k checkpoint, −tilt restores at least 0.40, and tilt only is at most 0.10.
+   Moderate confidence for each.
+7. `diag`'s tilt signed means are near its mean |r|: a consistent push. Moderate confidence.
+
+**CODE** (in this commit):
+- **`equivariance.residual_field_bound`** (`config/residual_td3.py`):
+  - The residual's bound per action field, in env units, in place of `agent.actor.action_scale`
+    for each field named. The empty default is every earlier run's actor, bit for bit.
+  - The actor builds one bound per component from the encoder's field names
+    (`obs_encoder.action_fields`). Each field gets one number, so a pair is scaled as a whole and
+    the actor stays equivariant (EQUIVARIANCE.md, "Clipping has to respect the representation").
+  - Residual actor only. Unknown fields and the scalar ablation raise.
+- **Per-field logging** (`utils/field_metrics.py`, both stacks). Both agents hand the trainer the
+  actor loss's gradient on the action (`_dQ_da`) on logged updates. The trainer logs, per field
+  and on the online and demo rows:
+  - the residual's mean |r|, signed means, and a pair's mean length (`debug/residual_field/*`);
+  - the critic's per-sample slope (`debug/dQ_da_field/*`), which is 256× the logged
+    `debug/dQ_da_mean_abs` scale.
+- **`checkpoint_interval`, read by nothing until now, is live** in `train_residual_td3.py`. It saves
+  `models/step_<N>.pt` in the run package after each multiple's eval. `train_rlpd_dexmg.py` raises
+  if it is set.
+- **The launch side:** `submit.sh`, `tests/test_sweep_arms.py` (anchor `eaqorqki`), and the
+  watcher's group `residual-tilt-1012`, whose `diag` is logged but never stopped.
+
+**Checks before the commit.**
+- **No change to what earlier runs computed:**
+  - `tests/test_regression_agent.py`, `tests/test_no_ops.py` and
+    `tests/test_regression_single_arm.py` passed (78). The empty mapping is the goldens, bit for
+    bit, since `mu * 0.1` and `mu * bound` are bit-identical in float32, forward and backward,
+    on GPU and CPU.
+  - New in `test_no_ops.py`, for one and two arms: a field's bound replaces `action_scale` on
+    that field's components alone, and adds no state-dict entry. Unknown fields and the vanilla
+    actor raise.
+- **The bound keeps the actor equivariant,** with and without the squash, in train and eval mode:
+  new in `test_equivariance.py`, `{action_rx_ry: 0}` and `{action_rx_ry: 0.03, action_xy: 0.05}`.
+  New in `test_layouts.py`: the field names match the layout, and match the logged fields.
+- **`tests/test_sweep_arms.py`:** Tier 1 passed (15), and on the GPU 18. New tests:
+  - `eaqorqki`'s saved model loads strictly into each arm;
+  - each arm's residual starts at exactly zero, and every field moves off zero within three
+    updates, but `notilt`'s tilt, which stays exactly zero;
+  - the scalar ablation refuses the bound.
+- **`tests/test_field_metrics.py`** (5, new, in the gate's Tier 1), `tests/test_run_package.py`
+  (saving a checkpoint mid-training changes no parameter, buffer, mode or random state), and
+  `tests/test_square_rerendered_watch.py` (11) passed.
+- **The smoke run of `notilt` runs alongside the launch, not before it,** for speed (Aden: launch as
+  soon as possible).
+  - It started at 09:20 from the main checkout, with this commit's code uncommitted (`SMOKE=1`,
+    GPU 1, console `outputs/queue/*_smoke-equi-residual-square-notilt-1_gpu1.log`).
+  - It reaches the training loop well before either arm can: each arm first runs the gate, labels
+    80,731 demo frames, fills 10k warm-up steps and runs 10k critic updates.
+  - Its result goes in the LAUNCHED entry. If it finds a fault in the new code (the bound, the
+    field logging, or the step-0 checkpoint), both arms are stopped before their training starts.
+
+**Resources.**
+- `diag` on GPU 1, alone: its 10k checkpoint gates the field test. `notilt` on GPU 0, beside
+  `resfit-rx-1012`'s arm.
+- **RAM:** about 20 GB per run at start, 35 GB by 150k. Three runs fit (121 GB free before
+  `resfit-rx-1012`).
+- **Disk:** checkpoints 87 MB each: `diag` 31 (2.7 GB) and `notilt` up to 31 (2.7 GB), of
+  about 33 GB free.
+- **Timing:**
+  - About 1 h to step 0: labelling the demos (about 27 min), the warm-up's 10k steps, and 10k
+    critic updates.
+  - Then about 1 h per 10k for `diag` alone (`doevaarp`: 59 min between evals), and about 2 h per
+    10k for `notilt` sharing a GPU.

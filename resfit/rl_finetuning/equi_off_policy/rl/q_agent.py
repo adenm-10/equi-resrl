@@ -29,7 +29,7 @@ from resfit.rl_finetuning.equi_off_policy.rl.ablate_equi_critic import Critic as
 EQUIVARIANT_ONLY_FIELDS = (
     "actor_norm", "critic_norm", "critic_pooled_norm", "encoder_norm", "critic_orth_init",
     "encoder_orth_init", "critic_last_layer_init_scale", "use_visual_proj", "residual_squash",
-    "frozen_target_critic",
+    "frozen_target_critic", "residual_field_bound",
 )
 
 
@@ -168,6 +168,8 @@ class QAgent(torch.nn.Module):
                 use_visual_proj=self.equi_cfg.use_visual_proj,
                 residual_squash=self.equi_cfg.residual_squash,
                 residual_actor=residual_actor,
+                field_bound=self.equi_cfg.residual_field_bound,
+                action_fields=self.enc.action_fields,
             )
         else:
             self.group = None
@@ -606,6 +608,8 @@ class QAgent(torch.nn.Module):
             if combined_action.grad is not None:
                 metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
                 metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+                # The per-component gradient, for the trainer's per-field logging (field_metrics.py).
+                metrics["_dQ_da"] = combined_action.grad.detach().cpu()
             else:
                 metrics["debug/dQ_da_norm"] = 0.0
 

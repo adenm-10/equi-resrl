@@ -162,6 +162,7 @@ makes each row executable.
 | `critic_last_layer_init_scale` | `None` | — | each head's output Linear | — | **Live** from 2026-09-29 |
 | `use_visual_proj` | `True` | — | live | live | **Live** from 2026-09-29 |
 | `residual_squash` | `False` | — | — | live | **Live** from 2026-09-29 |
+| `residual_field_bound` | `{}` | — | — | the mean's bound per field (`Actor.bound`) | **Live** from 2026-10-12. A field named gets its own bound in env units in place of `agent.actor.action_scale`; the empty default is every earlier run, bit for bit. Residual actor only; the scalar ablation refuses it |
 | `frozen_target_critic` | `False` | — | target critic's mode | — | **Live** from 2026-09-29. `True` reproduces every earlier equivariant run, whose target critic never changed (EXPERIMENTS.md, 2026-09-29 CORRECTION) |
 | `float_images_as_uint8` | `False` | act()'s image scaling, both branches | — | — | **Live** from 2026-10-02. `True` reproduces every earlier equivariant and scalar-ablation run, whose act() saw near-blank images (EXPERIMENTS.md, 2026-10-02 CORRECTION) |
 | `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
@@ -552,7 +553,7 @@ were moved into main on 2026-10-07 (EXPERIMENTS.md, CODE). The helpers are at th
 | `manifest.json` | wandb ids and URL, host, argv, git commit **plus the list of uncommitted files**, one entry per resume, the best step and success rate, `completed` |
 | `wandb_best/` | An exact copy of the run's one wandb upload: `best.json`, `best_eval.mp4`, and `policy/` (BC) or `best_model.pt` (residual) |
 | `wandb_logs/` | wandb's `config.yaml`, `output.log`, summary, metadata and `requirements.txt`, the `run-<id>.wandb` record, and `metrics.jsonl` |
-| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` and `outputs/` |
+| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` (`best_model.pt`, and `step_<N>.pt` every `checkpoint_interval` steps from 2026-10-12) and `outputs/` |
 
 **The upload rule.** A run uploads one artifact, `run_<id>_best`: the best model plus the video of
 the eval that produced it. Each new best uploads a new version, waits for it to commit, then deletes
@@ -572,6 +573,11 @@ config, the step and the success rate, and no optimizer state. `load_residual_mo
 agent built from that config, and the equivariant normalizer must be attached with `set_normalizer`
 first. Save and load both run in eval mode, because escnn registers its cached basis buffers only
 there. A BC run resumes from its package with `--resume_ckpt <package>/latest`.
+
+**`step_<N>.pt`, from 2026-10-12, is the same for a fixed step.** With `checkpoint_interval` above 0,
+the trainer saves one after each multiple's eval, so it is the policy that eval measured, with
+`success_rate` left `None`. It is what `tools/residual_field_ablation.py` re-evaluates. Each is about
+87 MB on Square, so a run at 2,000 to 60k keeps 31 (2.7 GB).
 
 ### Observation and action layout per task
 

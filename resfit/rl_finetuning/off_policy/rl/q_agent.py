@@ -512,6 +512,8 @@ class QAgent(torch.nn.Module):
         if combined_action.grad is not None:
             metrics["debug/dQ_da_norm"] = combined_action.grad.norm().item()
             metrics["debug/dQ_da_mean_abs"] = combined_action.grad.abs().mean().item()
+            # The per-component gradient, for the trainer's per-field logging (field_metrics.py).
+            metrics["_dQ_da"] = combined_action.grad.detach().cpu()
         else:
             metrics["debug/dQ_da_norm"] = 0.0
 

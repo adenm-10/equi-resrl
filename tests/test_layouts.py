@@ -129,6 +129,21 @@ def test_action_layout_covers_action_exactly_once(obs_enc):
 
 
 @pytest.mark.gpu
+def test_action_fields_name_each_layout_entry_and_match_the_logged_fields(obs_enc, arm_spec):
+    """obs_enc.action_fields names the field of each action_layout entry, which
+    equivariance.residual_field_bound addresses, and field_metrics.action_fields logs the same
+    fields over the same components."""
+    from resfit.rl_finetuning.utils.field_metrics import action_fields
+
+    assert len(obs_enc.action_fields) == len(obs_enc.action_layout)
+    logged = action_fields(obs_enc.action_dim, arm_spec["n_arms"], arm_spec["hand_dof"])
+    assert [f for f, _, _ in logged] == list(dict.fromkeys(obs_enc.action_fields))
+    for field, sl, components in logged:
+        entries = [s for (s, _), name in zip(obs_enc.action_layout, obs_enc.action_fields) if name == field]
+        assert (sl.start, sl.stop) == (entries[0].start, entries[-1].stop) and len(components) == sl.stop - sl.start
+
+
+@pytest.mark.gpu
 def test_critic_trunk_widths(critic, obs_enc):
     """The critic slices its input by these widths; they must sum correctly."""
     assert critic.vis_ih_type.size == obs_enc.vis_ih_type.size

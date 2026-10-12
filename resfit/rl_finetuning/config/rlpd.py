@@ -293,6 +293,9 @@ class RLPDDexmgConfig:
     # ------------------------------------------------------------------
     log_freq: int = 100
     eval_interval_every_steps: int = 10_000
+    # Above 0, train_residual_td3 saves the agent every this many steps, as models/step_<N>.pt in
+    # the run package (from 2026-10-12; -1 saves none, as every run before). train_rlpd_dexmg
+    # refuses it.
     checkpoint_interval: int = -1
     save_video: bool = True
     # Whether to run an evaluation pass before training begins (at step 0)

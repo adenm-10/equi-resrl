@@ -217,9 +217,10 @@ def tier1_pytest() -> bool:
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
          "tests/test_tuned_rlpd_verdict.py", "tests/test_baseline_verdict.py",
          "tests/test_gpu_queue.py",
-         "tests/test_render_check.py", "tests/test_demo_codec.py", "tests/test_rerender_demos.py"],
+         "tests/test_render_check.py", "tests/test_demo_codec.py", "tests/test_rerender_demos.py",
+         "tests/test_field_metrics.py"],
         "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
-        " + queue runner + render check + demo codec + re-rendered demos",
+        " + queue runner + render check + demo codec + re-rendered demos + field metrics",
     )
 
 

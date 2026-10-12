@@ -142,6 +142,10 @@ def main(cfg: RLPDDexmgConfig):
             "  - n_step=1 (single-step) with any num_envs, or\n"
             "  - num_envs=1 with any n_step"
         )
+    if cfg.checkpoint_interval > 0:
+        # Fixed-step checkpoints are train_residual_td3.py's alone (2026-10-12); this trainer saves
+        # none, so the field must not look as if it did something here.
+        raise ValueError("checkpoint_interval is read by train_residual_td3 only")
 
     device_str = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device_str)

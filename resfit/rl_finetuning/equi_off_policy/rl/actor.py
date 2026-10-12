@@ -36,7 +36,9 @@ class Actor(torch.nn.Module):
                  action_scale: float,
                  use_visual_proj: bool,
                  residual_squash: bool,
-                 residual_actor: bool = True):
+                 residual_actor: bool = True,
+                 field_bound: dict[str, float] | None = None,
+                 action_fields: list[str] | None = None):
         super().__init__()
         self.residual_actor = residual_actor
         self.group = group
@@ -51,6 +53,26 @@ class Actor(torch.nn.Module):
         self.last_layer_scale = last_layer_scale
         self.action_scale     = action_scale
         self.residual_squash  = residual_squash
+
+        # The bound on each output component: action_scale, or its field's own bound from
+        # equivariance.residual_field_bound (field_bound), which names fields as ACTION_FIELDS does
+        # and applies to every arm. One number per field, so an irrep(1) pair is scaled as a whole
+        # and the map still commutes with the group. Not persistent: a checkpoint from before it
+        # existed still loads, and the config rebuilds it.
+        bound = torch.full((action_type.size,), float(action_scale))
+        if field_bound:
+            if not residual_actor:
+                raise ValueError("equivariance.residual_field_bound bounds a residual; "
+                                 "this actor outputs the whole action")
+            fields = {name.rsplit("_", 1)[0] for name in action_fields}  # action_rx_ry_0 -> action_rx_ry
+            unknown = set(field_bound) - fields
+            if unknown:
+                raise ValueError(f"equivariance.residual_field_bound: unknown fields {sorted(unknown)}; "
+                                 f"the fields are {sorted(fields)}")
+            for (sl, _kind), name in zip(action_layout, action_fields):
+                if name.rsplit("_", 1)[0] in field_bound:
+                    bound[sl] = float(field_bound[name.rsplit("_", 1)[0]])
+        self.register_buffer("bound", bound, persistent=False)
 
         # ---- Visual projection; Identity feeds the encoder features straight to the trunk ----
         if use_visual_proj:
@@ -124,7 +146,7 @@ class Actor(torch.nn.Module):
         mu: torch.Tensor = self.policy(policy_in).tensor
         if self.residual_squash:
             mu = equi_tanh(mu, self.action_layout)
-        scaled_mu = mu * self.action_scale
+        scaled_mu = mu * self.bound
 
         if std is None:
             return scaled_mu

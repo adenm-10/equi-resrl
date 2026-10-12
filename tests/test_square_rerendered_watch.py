@@ -1,6 +1,7 @@
 """tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended,
 square-trlpd-stab-1010's, which are its tuned-RLPD rules, square-residual-start-1011's, which are
-its residual rules, and resfit-rx-1012's, which are the residual's collapse stop alone.
+its residual rules, resfit-rx-1012's, which are the residual's collapse stop alone, and
+residual-tilt-1012's: the residual's rules for notilt, and none for the diagnostic run.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -22,6 +23,8 @@ from square_rerendered_watch import (  # noqa: E402
     GROUPS,
     Q_DIVERGED,
     Q_KEYS,
+    DIAG,
+    NOTILT,
     RESFIT_RX,
     RESIDUAL,
     RESIDUAL_STARTS,
@@ -135,6 +138,18 @@ def test_the_resfit_rx_arm_is_stopped_only_at_its_collapse():
         for rates in (OJ5K0JQB, S8OPBLSD, [0.58] * 16):
             for i in range(1, len(rates) + 1):
                 assert decide(arm, evals(rates[:i]), 0, False)[0] is None, (rates[:i])
+
+
+def test_notilt_follows_the_residuals_rules_and_the_diagnostic_run_is_never_stopped():
+    assert GROUPS["residual-tilt-1012"] == (NOTILT, DIAG)
+    assert decide(NOTILT, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"      # collapsed at 30k
+    assert decide(NOTILT, evals(OJ5K0JQB[:11]), 0, False)[0] == "passed"   # 165 of 250
+    assert decide(NOTILT, evals([0.58] * 11), 0, False)[0] == "stop"       # the base policy held
+    for rates in (KYV7CLFC, [0.0] * 7, [0.58] * 7):
+        for i in range(1, len(rates) + 1):
+            assert decide(DIAG, evals(rates[:i]), 0, False)[0] is None
+    runaway = [(step, "debug/q_data_demo", 50.0) for step in range(0, 60_001, 100)]
+    assert decide(DIAG, evals([0.0] * 7), 0, False, runaway)[0] is None
 
 
 @pytest.mark.skipif(not (VC5O977F / "wandb_logs/metrics.jsonl").exists(), reason="vc5o977f's package is not here")

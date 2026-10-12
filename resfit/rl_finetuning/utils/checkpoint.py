@@ -133,8 +133,11 @@ def save_checkpoint(
     print(f"💾 Saved checkpoint to: {checkpoint_path}")
 
 
-def save_residual_model(agent, path: Path, *, config, global_step: int, success_rate: float) -> None:
+def save_residual_model(agent, path: Path, *, config, global_step: int, success_rate: float | None) -> None:
     """Save the residual agent's weights for re-evaluation; no optimizer state.
+
+    success_rate is the eval's at global_step when one ran there (the best model), else None (a
+    checkpoint at a fixed step, checkpoint_interval).
 
     escnn layers register cached matrices only in eval mode, so the state dict is
     taken in eval mode and load_residual_model loads it the same way. Toggling the

@@ -382,3 +382,24 @@ def test_residual_model_round_trip(tmp_path, device):
     rest = load_residual_model(dst, path)
     torch.testing.assert_close(_act(dst, obs), expected, rtol=0, atol=1e-6)
     assert rest == {"config": {"task": "Can"}, "global_step": 7, "success_rate": 0.5}
+
+
+def test_a_checkpoint_mid_training_changes_neither_the_agent_nor_any_random_stream(tmp_path, device):
+    """checkpoint_interval saves the agent mid-run (2026-10-12), so saving must leave training as it
+    was: every parameter and buffer, the train mode, and torch's CPU and CUDA random states. The eval
+    mode it toggles draws nothing and runs no forward pass."""
+    from resfit.rl_finetuning.utils.checkpoint import save_residual_model
+
+    agent = _agent(device, seed=0, stats_scale=1.0)
+    agent.train(True)
+    before = {k: v.clone() for k, v in agent.state_dict().items()}
+    rng = [torch.get_rng_state()] + ([torch.cuda.get_rng_state(device)] if device.type == "cuda" else [])
+    save_residual_model(agent, tmp_path / "models" / "step_2000.pt", config={"task": "Square"},
+                        global_step=2000, success_rate=None)
+    after = agent.state_dict()
+    assert after.keys() == before.keys()
+    assert all(torch.equal(after[k], before[k]) for k in before)
+    assert agent.training and agent.actor.training and agent.critic.training
+    now = [torch.get_rng_state()] + ([torch.cuda.get_rng_state(device)] if device.type == "cuda" else [])
+    assert all(torch.equal(a, b) for a, b in zip(now, rng))
+    assert torch.load(tmp_path / "models" / "step_2000.pt", map_location="cpu")["success_rate"] is None

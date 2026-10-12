@@ -348,6 +348,23 @@ def test_actor_options_are_equivariant(obs_enc, arm_spec, device, option, traini
 
 @pytest.mark.gpu
 @MODES
+@pytest.mark.parametrize("squash", [False, True], ids=["unsquashed", "squashed"])
+@pytest.mark.parametrize("bound", [{"action_rx_ry": 0.0}, {"action_rx_ry": 0.03, "action_xy": 0.05}],
+                         ids=["no-tilt", "tilt-and-xy"])
+def test_a_per_field_residual_bound_keeps_the_actor_equivariant(obs_enc, arm_spec, device, bound, squash,
+                                                                training):
+    """equivariance.residual_field_bound scales each field by one number, so an irrep(1) pair as a
+    whole: pi(g.s) = g.pi(s) still holds, with or without the squash before it."""
+    from tests.conftest import build_actor
+
+    actor = build_actor(obs_enc, device, field_bound=bound, action_fields=obs_enc.action_fields,
+                        residual_squash=squash).train(training)
+    _assert_actor_equivariant(actor, obs_enc.enc_out_type_actor, _actor_layout(arm_spec), arm_spec,
+                              device, f"bound {bound}", seed=13)
+
+
+@pytest.mark.gpu
+@MODES
 @pytest.mark.parametrize("option", sorted(CRITIC_OPTIONS))
 def test_critic_options_are_invariant(obs_enc, arm_spec, device, option, training):
     from escnn import nn as enn

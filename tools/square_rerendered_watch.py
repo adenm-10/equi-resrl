@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Four seed groups (GROUPS), the first three on the re-rendered Square demos:
+Five seed groups (GROUPS), all but resfit-rx-1012 on the re-rendered Square demos:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -13,7 +13,10 @@ Four seed groups (GROUPS), the first three on the re-rendered Square demos:
     residual's rules;
   - resfit-rx-1012: the 2026-10-12 PRE-REGISTERED entry ("ResFiT's residual on Square with rx at
     the equivariant stack's range"), one ResFiT residual arm on the original demos, stopped only at
-    its collapse: its anchors ran to 150k with no 100k check, and the trainer ends itself there.
+    its collapse: its anchors ran to 150k with no 100k check, and the trainer ends itself there;
+  - residual-tilt-1012: the 2026-10-12 PRE-REGISTERED entry ("the equivariant residual on Square
+    with no tilt, and a diagnostic run with checkpoints"): notilt under the residual's rules, and
+    the diagnostic run, whose evals are logged but which is never stopped (it ends at 60k).
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -55,11 +58,15 @@ STABILIZERS = ("equi-tuned-rlpd-square-clipq", "equi-tuned-rlpd-square-pooledln"
                "equi-tuned-rlpd-square-ln", "equi-tuned-rlpd-square-10x2")
 RESIDUAL_STARTS = ("equi-residual-square-init0", "equi-residual-square-warmup50k")
 RESFIT_RX = ("resfit-residual-square-rx",)
+NOTILT, DIAG = "equi-residual-square-notilt", "equi-residual-square-diag"
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
-          "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX}
-RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX}  # every other arm is tuned RLPD
+          "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
+          "residual-tilt-1012": (NOTILT, DIAG)}
+RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
 COLLAPSE_ONLY_ARMS = set(RESFIT_RX)
+# Tracked and logged, never stopped: a run that must go through its collapse to its own end.
+WATCH_ONLY_ARMS = {DIAG}
 EPISODES = 50                       # per eval
 COLLAPSE_RATE, COLLAPSE_RUN = 0.05, 3
 CHECK_STEP = 100_000
@@ -131,6 +138,8 @@ def converged(evals: list[tuple[int, float]]) -> tuple[bool, str]:
 def decide(arm: str, evals: list[tuple[int, float]], successes: int, passed_check: bool,
            qs: list[tuple[int, str, float]] = ()) -> tuple[str | None, str]:
     """("stop" | "passed" | "human" | None, why) for a trainer with this history now."""
+    if arm in WATCH_ONLY_ARMS:
+        return None, ""
     residual = arm in RESIDUAL_ARMS
     if residual and (why := collapsed(evals)):
         return "stop", why

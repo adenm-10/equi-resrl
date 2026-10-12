@@ -176,6 +176,10 @@ class ResObsEnc(ModuleAttrMixin):
 
             self.prop_shape   = n_arms * arm_prop_shape
             self.action_shape = n_arms * arm_action_shape
+            # The action field each entry of action_layout belongs to, as arm_key names it
+            # (action_rx_ry_0, ...), so a field can be addressed by name.
+            arm_action_fields = [*ACTION_FIELDS[:-1], *hand_dof * [ACTION_FIELDS[-1]]]  # as arm_action_shape
+            self.action_fields = [arm_key(f, arm) for arm in range(n_arms) for f in arm_action_fields]
 
             # FieldTypes
             self.vis_type    = enn.FieldType(self.group, n_hidden * [self.group.regular_repr])
@@ -226,6 +230,7 @@ class ResObsEnc(ModuleAttrMixin):
             self.enc_out_type_critic = None
             self.enc_out_type_actor  = None
             self.action_layout = None
+            self.action_fields = None
 
             self.enc_obs = ResEncoder76(
                 obs_channel=self.obs_channel,

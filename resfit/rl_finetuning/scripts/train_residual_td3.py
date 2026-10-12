@@ -65,6 +65,7 @@ from resfit.rl_finetuning.off_policy.common_utils import utils
 from resfit.rl_finetuning.utils.checkpoint import save_residual_model
 from resfit.rl_finetuning.utils.dtype import to_uint8
 from resfit.rl_finetuning.utils.evaluate_dexmg import run_dexmg_evaluation
+from resfit.rl_finetuning.utils.field_metrics import action_fields, residual_field_metrics
 from resfit.rl_finetuning.utils.hugging_face import (
     _hf_download_buffer,
     _hf_upload_buffer,
@@ -561,6 +562,9 @@ def main(cfg: ResidualTD3DexmgConfig):
 
     online_batch_size = int(cfg.algo.batch_size * (1 - cfg.algo.offline_fraction))
     offline_batch_size = int(cfg.algo.batch_size * cfg.algo.offline_fraction)
+    # The action's fields, for the per-field residual and slope logging (field_metrics.py).
+    field_layout = (action_fields(action_dim, cfg.equivariance.n_arms, cfg.equivariance.hand_dof)
+                    if equivariant_run else action_fields(action_dim))
 
     if cfg.algo.offline_fraction == 0.0:
         print("Online-only training mode: offline_fraction=0.0")
@@ -1269,6 +1273,14 @@ def main(cfg: ResidualTD3DexmgConfig):
                         best_files[BEST_VIDEO] = eval_video
                     upload_best(run_dir, best_files, step=global_step, success_rate=current_success_rate)
 
+        # Checkpoints at fixed steps, for re-evaluating the policy afterwards
+        # (tools/residual_field_ablation.py). After the eval, so step N's checkpoint is the policy
+        # step N's eval measured. save_residual_model's eval-mode toggle draws no random number and
+        # runs no forward pass, as the logging block's critic_diagnostics' does every log_freq steps.
+        if cfg.checkpoint_interval > 0 and global_step % cfg.checkpoint_interval == 0:
+            save_residual_model(agent, model_save_dir / f"step_{global_step}.pt", config=cfg,
+                                global_step=global_step, success_rate=None)
+
         global_step += cfg.num_envs
         # The logging block (6) below runs at this step, and reads the metrics of the last update.
         log_step = global_step % cfg.log_freq == 0
@@ -1412,6 +1424,9 @@ def main(cfg: ResidualTD3DexmgConfig):
                 log_dict[f"train/{action_name}_l2_magnitude"] = residual_l2_magnitude
                 histogram = "histograms/residual_actions" if residual_run else "histograms/actions"
                 log_dict[histogram] = wandb.Histogram(actions.numpy().reshape(-1))
+                if "_dQ_da" in metrics:
+                    log_dict.update(residual_field_metrics(actions, metrics["_dQ_da"], field_layout,
+                                                           online_batch_size, name=action_name))
             else:
                 residual_l1_magnitude = None
                 residual_l2_magnitude = None

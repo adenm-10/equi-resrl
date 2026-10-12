@@ -194,6 +194,15 @@ rather than a square — and clips `trivial` components as ordinary scalars. It 
 The non-equivariant path uses plain `torch.clamp(-1, 1)`. This is a real, intended difference
 between the two paths, not an inconsistency.
 
+The same holds for the residual's bound. `equivariance.residual_field_bound` (from 2026-10-12) sets
+one bound per action *field*: an `irrep(1)` pair is scaled by a single number, which commutes with
+the rotation, so the actor stays equivariant (`tests/test_equivariance.py`). A bound per component
+of a pair, a tighter rx than ry as ResFiT's per-dimension `ActionScaler` gives (EXPERIMENTS.md,
+2026-10-12 PRE-REGISTERED, "ResFiT's residual on Square with rx at the equivariant stack's range"),
+would not be: a tilt toward x and the same tilt toward y would get different caps, and rotating the
+scene would change what is allowed. Declaring rx and ry `trivial` to get one would be worse, a false
+symmetry: the network would be forced to give the same tilt for a rotated scene.
+
 ## Normalization must be done per representation
 
 An ordinary per-dimension normalizer (subtract a mean, divide by a per-dimension std) breaks
