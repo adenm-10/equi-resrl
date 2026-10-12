@@ -48,16 +48,29 @@ demos").
    2. **Running: `residual-tilt-1012`.** `notilt` (`dczf4k7v`; the residual's tilt pair bounded at
       zero) under the residual's rules, and `diag` (`ls0thn4u`; init0 with a checkpoint every 2k, to
       60k). Read `notilt` at 10k, 30k and 100k, and `diag` at 10k, 30k and 60k.
-   3. **The field test** at `diag`'s 10k checkpoint (`python -m tools.residual_field_ablation
-      ls0thn4u --step 10000`, from the main checkout; the precondition and verdict rule are
-      pre-registered). If it names a field other than tilt, or none, tell Aden; nothing is added
-      or stopped for it (Aden's decision).
+   3. **DONE 2026-10-12: the field test** at `diag`'s 10k checkpoint (EXPERIMENTS.md, NOTE): no
+      single field is the cause (−tilt 1 of 100, against 57 with no residual). Told to Aden, so
+      nothing is added or stopped for it.
    4. **Conditional:**
       - a tilt bound of 0.03 iff `notilt` holds the base through 30k but fails its 100k check;
       - the L2 penalty only if the per-field slopes show a gap between drifting and useful fields
         (w = 256 × logged `dQ_da` / (2 r*));
       - if `notilt` falls in a new mode, the critic is the target (its online value), in a plan of
         its own.
+5e. **NOW: ResFiT's residual given the equivariant stack's differences, and the equivariant
+   residual given ResFiT's layout** (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED; plan
+   `docs/plans/2026-10-12-resfit-toward-equi.md`, local; Aden, 2026-10-12).
+   1. **`resfit-equi-diff-1012`, config only:** `rerendered` and `noln`, launched from the
+      pre-registration's commit.
+   2. **`limits`** (code): the residual's cap, the clip the critic scores and the executed clip,
+      all as the equivariant stack's, in env units. Launched when a slot frees, without a smoke
+      if overnight (Aden).
+   3. **`noln-all`** (code: a switch for the ViTs' LayerNorms).
+   4. **`equi-resfit-arch-1013`** (code: `num_actor_layers` made live, its default moved to 1):
+      `arch`, then `arch-wide` (actor at 448 fields).
+   5. **Conditional:** `combined` iff `rerendered`, `noln` and `limits` each hold at 30k; a seed 2 of
+      any ResFiT arm that breaks, and of any equivariant arm that escapes.
+   6. NOTEs at each 30k readout and at each arm's end.
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which

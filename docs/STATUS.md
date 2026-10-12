@@ -1,11 +1,10 @@
 # Status
 
-**Last updated:** 2026-10-12, about 10:45 · **Last verified commit:** `be0b7bb`, pre-registering
-`residual-tilt-1012` (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED). The gate's Tier 1 and Tier 2
-passed in full, and the gate said GO for both arms launched from it. `534cc71` (the eval's Q fix,
-the tilt readout and the field-zeroing tool) passed its own tests on the GPU (the field tool's,
-the evaluator's, the critic diagnostics', the regression goldens and the imports), not the full
-gate.
+**Last updated:** 2026-10-12, about 15:30 · **Last verified commit:** `be0b7bb`, pre-registering
+`residual-tilt-1012`: the gate passed in full and said GO for both its arms. The pre-registration
+of `resfit-equi-diff-1012` and `equi-resfit-arch-1013` is being committed (EXPERIMENTS.md,
+2026-10-12 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's differences
+one at a time"); its gate runs at each launch.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -23,9 +22,11 @@ Three runs on the re-rendered demos, seed 1 each: `6ng62tpm` (the actor's last l
   rolls a little more each step, until the gripper points sideways holding the nut away from the
   peg. The base never does this. Later (`doevaarp` at 100k) a second mode appears: grasps that
   never lift the nut.
-- **Tilt is the suspect, by inference.** A sideways gripper needs rotation about a horizontal axis,
-  which only the tilt pair (rx, ry) commands. About three of the seven components carry the
-  residual, near its bound. No metric split the residual by field before `be0b7bb`.
+- **Tilt is not the whole cause** (EXPERIMENTS.md, 2026-10-12 NOTE, the field test).
+  - At `ls0thn4u`'s 10k checkpoint, zeroing any one field of the residual leaves 0–1 success of
+    100: −tilt 1, against 57 with the whole residual zeroed. Tilt alone scores 22.
+  - `notilt` (`dczf4k7v`), which cannot tilt, scored 0.02, 0.00 and 0.14 at 10k, 20k and 30k.
+  - So the damage is spread over the residual's fields, though tilt alone does real harm.
 - **The two stacks bound tilt differently.** ResFiT's rx cap is 0.036 env units, set by its demos'
   narrow rx range; the equivariant stack's tilt pair is a disk of radius 0.1, one bound per pair
   (EQUIVARIANCE.md, "Clipping has to respect the representation"). ResFiT's residual is larger and
@@ -34,9 +35,13 @@ Three runs on the re-rendered demos, seed 1 each: `6ng62tpm` (the actor's last l
   did not stop the drift (`doevaarp`). A penalty on the residual's size is held: the weight that
   would stop the drift (about 1.8, from the per-sample slope of about 0.018) would hold ResFiT's
   useful residual down too.
-- **Now running: the tilt diagnosis** (Running now): ResFiT given the equivariant stack's rx range,
-  the equivariant residual with its tilt bounded at zero, and a replicate with checkpoints for a
-  field-by-field test.
+- **Now running: the tilt diagnosis** (Running now): ResFiT given the equivariant stack's rx range
+  (`fk9ayyco`, 0.46–0.52 to 40k: no collapse), the equivariant residual with its tilt bounded at
+  zero, and a replicate with checkpoints.
+- **Now launching: `resfit-equi-diff-1012`** (2026-10-12 PRE-REGISTERED). ResFiT's residual given
+  the equivariant stack's differences one at a time: the re-rendered demos, no LayerNorm, and the
+  equivariant action limits first. Then `equi-resfit-arch-1013`: the equivariant residual given
+  ResFiT's layout.
 
 **Every other experiment was cancelled on 2026-10-12** (DEVIATION), Aden judging their lessons in:
 `eaqorqki` was stopped at 80.2k, and `square-trlpd-stab-1010` keeps one seed per arm and no verdict.
@@ -151,6 +156,20 @@ Training was never affected.
 full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
+
+**`resfit-equi-diff-1012` and `equi-resfit-arch-1013`** (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED;
+plan `docs/plans/2026-10-12-resfit-toward-equi.md`, local). Seed 1 each, every arm under
+`fk9ayyco`'s rule: stopped only at its collapse, else to 150k. The main readout is the 10k–30k evals
+pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
+
+| Arm | Change | Status |
+|---|---|---|
+| `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | smoke passed (`kvcdljaf`); launching about 15:35, GPU 1 |
+| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot (GPU 1, about 17:30): `notilt` did not stop at 30k |
+| `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code first |
+| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code first |
+| `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
+| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual; the wide one with ResFiT's actor parameter count | code first |
 
 **The tilt diagnosis** (TODO B16 item 5d; plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
 local). Two seed groups, seed 1 each, pre-registered and launched on 2026-10-12 (EXPERIMENTS.md,

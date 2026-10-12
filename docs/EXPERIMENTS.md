@@ -6259,3 +6259,201 @@ through `submit.sh` in tmux, both at 09:26, each gate counting both (`CONCURRENT
     took about 6 min.
 - **Watcher:** `tilt-watch` (`--group residual-tilt-1012`, from the worktree) started at 09:26:14,
   and tracked `ls0thn4u` at 10:33:18 and `dczf4k7v` at 10:40:18.
+
+---
+
+## 2026-10-12 — PRE-REGISTERED — ResFiT's residual on Square, given the equivariant stack's differences one at a time; the equivariant residual given ResFiT's layout
+
+**Question** (Aden, 2026-10-12): ResFiT's residual lifts the Square base policy (`oj5k0jqb` 0.800,
+`s8opblsd` 0.628 over 110k–150k), and every equivariant residual so far has lost it by 10k.
+- Which of the equivariant stack's differences, given to ResFiT's residual one at a time, breaks
+  it?
+- Does the equivariant residual escape its collapse given ResFiT's layout and parameter count?
+
+Aden chose the demos, LayerNorm and the action limits first, and dropped four arms the plan
+proposed: the noise, the critic's size, the augmentation, and LayerNorm off in the actor alone. The
+plan is `docs/plans/2026-10-12-resfit-toward-equi.md` (local). `fk9ayyco` (`resfit-rx-1012`, rx's
+range alone) is context: 0.46, 0.16, 0.50, 0.48, 0.52 through 40k.
+
+**Seed group `resfit-equi-diff-1012`**, seed 1 of each arm.
+- **Names:** `<arm>-<seed>`; notes `resfit-equi-diff-1012/<arm>/seed<seed>`; wandb
+  `robomimic-square-final` / `residual-rl`.
+- **The anchor** is `oj5k0jqb`'s launch (`resfit-residual-square` 1, `9cf207d`):
+  `--config-name=residual_td3_square_config agent.critic.num_q=10 base_policy.wt_version=v9
+  algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false seed=<seed>
+  debug=false`, on the original coded demos.
+
+| Arm | Change from `oj5k0jqb` | Launched from |
+|---|---|---|
+| `resfit-residual-square-rerendered` | `offline_data.name=local/robomimic-mh-square-rerendered`, the demos every equivariant run trains on | this commit |
+| `resfit-residual-square-noln` | `agent.actor.use_layer_norm=false agent.critic.use_layer_norm=false`; the ViT encoders keep theirs | this commit |
+| `resfit-residual-square-limits` | the equivariant stack's action limits, in env units (below) | its CODE commit |
+| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms too (a new switch) | its CODE commit |
+| `resfit-residual-square-combined` | `rerendered` + `noln` + `limits`, **only if each of the three holds alone** (Rules) | `limits`' commit or later |
+
+**`limits`, exactly** (Aden: all three). Three limits change from "the demos' range, per axis" to
+the equivariant stack's. ResFiT's noise, its scaling, and the critic's view of actions are kept.
+1. **The residual's cap.**
+   - Now: 0.1 in scaled units per axis, which is 0.11 env units, and 0.036 on rx.
+   - New: the xy pair and the tilt pair (rx, ry) each inside a circle of radius 0.1 env units, with
+     `equi_tanh`; z, yaw and gripper within ±0.1 env units.
+2. **What the critic scores**, in the actor loss and the TD target.
+   - Now: `clamp(base + residual, -1, 1)` in scaled units (`off_policy/rl/q_agent.py:336`, `:450`),
+     which is the demos' range per axis.
+   - New: `equi_clip` in env units: circles of radius 1 on xy and tilt, and ±1 on the rest, as the
+     equivariant agent's `combine_actions`.
+3. **What is executed.**
+   - Now: `ActionScaler.unscale` clamps to the demos' range ×1.1 per axis (rx [−0.48, 0.24]).
+   - New: the env's box [−1, 1].
+
+The buffer keeps storing the unclipped sum, as both stacks do now (TODO B13).
+
+**Seed group `equi-resfit-arch-1013`**, seed 1 of each arm. Its code comes in its own CODE commit.
+- **Names:** notes `equi-resfit-arch-1013/<arm>/seed<seed>`; wandb `robomimic-square-final` /
+  `equi-residual-rl`.
+- **The anchor** is `eaqorqki`'s launch (`square-residual-start-1011`, `0af7655`):
+  `--config-name=residual_equi_td3_square_config equivariance.residual_squash=true
+  agent.critic.num_q=5 base_policy.wt_version=v9
+  offline_data.name=local/robomimic-mh-square-rerendered agent.actor.actor_last_layer_init_scale=0.0
+  read_buffer_caches=false write_buffer_caches=false seed=<seed> debug=false`.
+- **Run length:** `algo.total_timesteps=150000`, not `eaqorqki`'s 300000. Every schedule runs on
+  fixed step counts, so through 150k the two are the same run.
+
+| Arm | Change from `eaqorqki` |
+|---|---|
+| `equi-residual-square-arch` | ResFiT's layout, as one change: RegularLayerNorm in the actor and the critic where ResFiT has LayerNorm (`equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm`), ResFiT's 10 heads of 2 hidden layers (`agent.critic.num_q=10 equivariance.num_critic_layers=2`), and a second policy layer in the actor (`equivariance.num_actor_layers=2`; that field is read by nothing today and is made live in the CODE commit, its default moved from 2 to 1 so every earlier run is unchanged). The critic keeps LayerNorm's own start, not matched to `eaqorqki`'s (Aden: the arm asks for ResFiT's layout). |
+| `equi-residual-square-arch-wide` | `arch`, with the actor at 448 fields (`equivariance.actor_degree_channel=448`): 3.4M parameters, against ResFiT's 3.9M |
+
+**Parameter counts as launched** (measured 2026-10-12, the sweep's test builder, Square):
+
+| | Encoders | Actor | Critic |
+|---|---|---|---|
+| ResFiT's residual (`oj5k0jqb`) | 0.76M | 3.86M | 23.6M |
+| The equivariant residual (`eaqorqki`, 5 × 1) | 0.63M | 0.30M | 0.84M |
+| … with a 10 × 2 critic | | | 2.82M |
+| … with the actor at 256, 362, 448 fields | | 1.13M, 2.22M, 3.36M | |
+
+The channel widths match (1024 = 128 regular fields × 8). Each C8-equivariant layer shares its
+weights, so it has about 1/8 of a dense layer's parameters at that width. Matching the critic's
+23.6M would cost about 8× the compute, so the critic matches by width only.
+
+**What varies, and what is held.**
+- **Each arm against its anchor:** its change alone. `combined` has three changes and `arch`
+  five, each declared as one.
+- **The same starting weights:** at seed 1, `rerendered`'s initial weights are `oj5k0jqb`'s bit
+  for bit. `noln`'s are too, less its LayerNorms, which draw no random number at init
+  (`tests/test_sweep_arms.py`). The episodes still differ, since `seed` does not reach the envs.
+- **`rerendered` changes the demos' frames and state, not their actions.**
+  - The action statistics, and the ActionScaler built from them, are the original's bit for bit
+    (test).
+  - The state is observed one physics substep late, as the env observes it, so its statistics move
+    by at most 4.2e-4 on a min or max.
+  - The demos' base actions come from the diffusion base on the re-rendered frames, as in every
+    equivariant run.
+
+**Rules,** `fk9ayyco`'s rule for every arm of both groups. The watcher enforces them (`--group`
+per seed group).
+- **Stop** only at the third eval in a row at or below 0.05, or on the divergence stop. Otherwise
+  run to 150k.
+- **The main readout:** the 10k, 20k and 30k evals pooled (150 episodes).
+  - **A ResFiT arm breaks** iff it collapses, or its readout falls below the anchors' pooled 106
+    of 300 (0.353) by two standard errors, √(p(1−p)/150 + 0.353·0.647/300). That is **at most 39
+    of 150**. By this rule `fk9ayyco` (57 of 150) holds.
+  - **An equivariant arm escapes the collapse** iff its readout is above the equivariant
+    anchors' (`eaqorqki` 3 of 150, `6ng62tpm` 1 of 150: 4 of 300) by two standard errors: **at
+    least 8 of 150**. It **matches ResFiT** iff it is not below 0.353 by two standard errors: **at
+    least 40 of 150**.
+- **Seed 2** of a ResFiT arm iff it breaks; of an equivariant arm iff it escapes. From the arm's
+  own commit, into the first free slot.
+- **`combined` launches** iff `rerendered`, `noln` and `limits` each hold.
+- **Reported, deciding nothing:**
+  - 110k–150k pooled against the anchors' 0.714. They differ by about 4 SE, so this needs two
+    seeds.
+  - `residual_l1`, and critic values above 1.5.
+  - `noln`'s actor: action size and gradient norm. `9phsy6sf`, ResFiT's tuned RLPD without
+    LayerNorm, saturated within 200 updates.
+  - The share of rolled wrists in the eval videos.
+
+**Readouts,** in NOTEs at each arm's 30k and at its end.
+
+**Predictions** (Claude's, before launch):
+1. `rerendered` holds. Moderate-to-high confidence: ResFiT learned on frames that did not match
+   its env's, and these do.
+2. `noln` holds. Low confidence. The residual's actor learns at 1e-6 from a zero last layer, far
+   from `9phsy6sf`'s saturation at 1e-4, but nothing has tested ResFiT's critic without its
+   LayerNorm.
+3. `limits` holds. Moderate confidence: rx's range alone holds through 40k (`fk9ayyco`). The
+   circles lie inside the anchor's box except on rx, whose cap widens from 0.036 to 0.1.
+4. `noln-all` breaks. Low confidence: a ViT with no LayerNorm may not train.
+5. `equi-arch` does not escape the collapse. Moderate confidence: RegularLayerNorm slowed
+   equivariant tuned RLPD (`0avs073d`), and no single field of the residual carries the collapse
+   (the field test of `ls0thn4u` at 10k, NOTE below).
+6. If any of `rerendered`, `noln` and `limits` breaks, it is `noln`. Low confidence.
+
+**Checks before the commit.**
+- `tests/test_sweep_arms.py`: 16 Tier-1 tests and 6 on the GPU passed. The 4 equivariant-only tests
+  skip, with no equivariant arm in the table yet.
+  - The anchor still composes to `oj5k0jqb`'s recorded config.
+  - The re-rendered demos leave the ActionScaler bit for bit.
+  - `noln` starts from the anchor's weights, less its LayerNorms. The critic's ensemble stacks its
+    heads, so its stacked LayerNorm tensors are matched to their template layers.
+  - `noln` has no LayerNorm in its actor or critic, and its ViTs keep their 6.
+- `tests/test_square_rerendered_watch.py`: 12 passed. The new groups follow `fk9ayyco`'s rule on
+  `kyv7clfc`'s, `oj5k0jqb`'s and `s8opblsd`'s evals.
+- A smoke run of `rerendered`, the ResFiT stack's first load of the local re-rendered dataset
+  (`kvcdljaf`, offline in `equi-resrl-smoke`; 14:18–15:21 on GPU 1 beside `diag`, from the main
+  checkout at `8ce1642` with this entry's `submit.sh` and tests uncommitted):
+  - It loaded the dataset, labelled its base actions, ran the 10k critic warm-up and 1,000 steps
+    with updates, and exited 0.
+  - The ActionScaler printed the original's range.
+  - Peak RAM 10.6 GB (`notilt`'s smoke: 10.4 GB). About 0.26 s per online step: the warm-up took
+    about 690 s of its 952 s.
+  - Q on demo and online data at most 0.25 and 0.24.
+
+**Resources and timeline** (the plan's estimates):
+- **Speed:** a ResFiT run takes about 1 h per 10k sharing a GPU and 0.4 h alone, and about
+  1 h 05 min from launch to wandb (the gate, then labelling the demos). The `arch` arms about 2 h
+  per 10k, measured in their smoke.
+- **Slots:** two runs per GPU.
+  - `rerendered` takes GPU 1's free slot.
+  - `noln` takes `notilt`'s slot on GPU 0 if `notilt` stops at its 30k collapse check (about
+    15:10). Otherwise it takes `diag`'s on GPU 1, at 60k (about 17:30).
+  - `limits` takes the next free slot. Overnight it may launch without a smoke (Aden), from a
+    tmux script that waits for its slot. The gate still builds the arm and runs an update.
+- **Expected:** 30k readouts from about 20:30 tonight. The ResFiT arms end from about 08:30 on
+  2026-10-13; the `arch` arms on 2026-10-15 or 16 if they do not collapse.
+
+---
+
+## 2026-10-12 — NOTE — the field test at `ls0thn4u`'s 10k checkpoint: no single field of the residual is the cause
+
+`residual-tilt-1012`'s field test.
+- **The run:** `tools/residual_field_ablation.py`, at `8ce1642` from the main checkout, 11:51–12:36.
+  The checkpoint is `models/step_10000.pt`; 100 episodes per variant, 8 envs.
+- **Records:** in `outputs/diagnostics/residual-field-ablation/` (outside git):
+  `ls0thn4u_step10000.json` and `.log`, and contact sheets for full, −tilt and tilt only.
+- **Who records it:** the session that launched it ended before writing it, so this entry is by
+  the session that pre-registered `resfit-equi-diff-1012`, from the JSON.
+- **The precondition holds:** `ls0thn4u`'s 10k eval was 0.00, and the full residual here 0.00, both
+  at most 0.10.
+
+| Variant (fields zeroed) | Success of 100 | Mean of each episode's largest tilt |
+|---|---|---|
+| full | 0 | 23.6° |
+| none (the base policy alone) | 57 | 12.5° |
+| −xy | 0 | 22.6° |
+| −z | 0 | 20.6° |
+| −tilt | 1 | 14.4° |
+| −yaw | 0 | 19.9° |
+| −gripper | 0 | 22.9° |
+| tilt only | 22 | 20.6° |
+
+- **The verdict, by the pre-registered rule: no single field is the cause.**
+  - Tilt fails all three tests: −tilt is 0.01 against none's 0.57, not within 0.15; tilt only is
+    0.22, above 0.10; and every other single removal leaves 0 or 0.01, below 0.30.
+  - No other field passes in tilt's place.
+  - So, as pre-registered, this goes to Aden, and no arm is added or stopped for it.
+- **Tilt alone does real damage** (0.57 to 0.22), but removing it restores nothing. That fits
+  `notilt` (`dczf4k7v`), which, bounded to no tilt, scored 0.02 and 0.00 at 10k and 20k.
+- **Not run:** the same test at 4k and 6k (the onset), and at 20k and 30k, pre-registered as
+  reported only.

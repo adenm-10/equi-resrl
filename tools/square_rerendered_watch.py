@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Five seed groups (GROUPS), all but resfit-rx-1012 on the re-rendered Square demos:
+Seven seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -16,7 +16,12 @@ Five seed groups (GROUPS), all but resfit-rx-1012 on the re-rendered Square demo
     its collapse: its anchors ran to 150k with no 100k check, and the trainer ends itself there;
   - residual-tilt-1012: the 2026-10-12 PRE-REGISTERED entry ("the equivariant residual on Square
     with no tilt, and a diagnostic run with checkpoints"): notilt under the residual's rules, and
-    the diagnostic run, whose evals are logged but which is never stopped (it ends at 60k).
+    the diagnostic run, whose evals are logged but which is never stopped (it ends at 60k);
+  - resfit-equi-diff-1012 and equi-resfit-arch-1013: the 2026-10-12 PRE-REGISTERED entry ("ResFiT's
+    residual on Square, given the equivariant stack's differences one at a time; the equivariant
+    residual given ResFiT's layout"). ResFiT residual arms (on the original demos but for
+    rerendered and combined) and equivariant residual arms, all under resfit-rx-1012's rule:
+    stopped only at their collapse, else to their 150k.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -59,12 +64,18 @@ STABILIZERS = ("equi-tuned-rlpd-square-clipq", "equi-tuned-rlpd-square-pooledln"
 RESIDUAL_STARTS = ("equi-residual-square-init0", "equi-residual-square-warmup50k")
 RESFIT_RX = ("resfit-residual-square-rx",)
 NOTILT, DIAG = "equi-residual-square-notilt", "equi-residual-square-diag"
+RESFIT_EQUI_DIFF = ("resfit-residual-square-rerendered", "resfit-residual-square-noln",
+                    "resfit-residual-square-limits", "resfit-residual-square-noln-all",
+                    "resfit-residual-square-combined")
+EQUI_RESFIT_ARCH = ("equi-residual-square-arch", "equi-residual-square-arch-wide")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
-          "residual-tilt-1012": (NOTILT, DIAG)}
-RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG}  # every other arm is tuned RLPD
+          "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
+          "equi-resfit-arch-1013": EQUI_RESFIT_ARCH}
+RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
+                 *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
-COLLAPSE_ONLY_ARMS = set(RESFIT_RX)
+COLLAPSE_ONLY_ARMS = {*RESFIT_RX, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH}
 # Tracked and logged, never stopped: a run that must go through its collapse to its own end.
 WATCH_ONLY_ARMS = {DIAG}
 EPISODES = 50                       # per eval

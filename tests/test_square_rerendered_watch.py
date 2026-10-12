@@ -25,6 +25,8 @@ from square_rerendered_watch import (  # noqa: E402
     Q_KEYS,
     DIAG,
     NOTILT,
+    EQUI_RESFIT_ARCH,
+    RESFIT_EQUI_DIFF,
     RESFIT_RX,
     RESIDUAL,
     RESIDUAL_STARTS,
@@ -133,6 +135,19 @@ def test_the_resfit_rx_arm_is_stopped_only_at_its_collapse():
     the residual's, and neither anchor converged by the rule's test before 150k."""
     assert GROUPS["resfit-rx-1012"] == RESFIT_RX and len(RESFIT_RX) == 1
     for arm in RESFIT_RX:
+        assert decide(arm, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"  # collapsed at 30k
+        assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
+        for rates in (OJ5K0JQB, S8OPBLSD, [0.58] * 16):
+            for i in range(1, len(rates) + 1):
+                assert decide(arm, evals(rates[:i]), 0, False)[0] is None, (rates[:i])
+
+
+def test_the_resfit_equi_diff_and_equi_arch_arms_follow_the_rx_arms_rule():
+    """Stopped only at their collapse, else to their 150k, as fk9ayyco (2026-10-12 PRE-REGISTERED,
+    "ResFiT's residual on Square, given the equivariant stack's differences one at a time")."""
+    assert GROUPS["resfit-equi-diff-1012"] == RESFIT_EQUI_DIFF and len(RESFIT_EQUI_DIFF) == 5
+    assert GROUPS["equi-resfit-arch-1013"] == EQUI_RESFIT_ARCH and len(EQUI_RESFIT_ARCH) == 2
+    for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH):
         assert decide(arm, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"  # collapsed at 30k
         assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
         for rates in (OJ5K0JQB, S8OPBLSD, [0.58] * 16):

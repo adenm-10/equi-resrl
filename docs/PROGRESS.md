@@ -17,6 +17,35 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-12 (afternoon) — ResFiT's residual given the equivariant stack's differences, pre-registered; the field test recorded
+
+**Found**
+
+- The field test at `ls0thn4u`'s 10k checkpoint: no single field of the residual is the cause
+  (EXPERIMENTS.md, NOTE). `notilt` fell to 0.02 and 0.00 at 10k and 20k anyway.
+- The two stacks' action limits, scaling and noise, measured from the code and the demos.
+  - ResFiT's per-axis limits come from the demos' min and max, which outlier frames set.
+  - At the 99th percentile, rx and ry are 0.09 and 0.17 (Square), so one tilt radius fits the
+    demos well.
+  - ResFiT's executed actions are clamped to the demos' range ×1.1, which is [−0.48, 0.24] on rx.
+- Parameter counts per component: ResFiT's actor has 13× the equivariant one's parameters and its
+  critic 28×, at the same channel widths (EXPERIMENTS.md, the pre-registration's table).
+
+**Done**
+
+- Pre-registered `resfit-equi-diff-1012` and `equi-resfit-arch-1013`.
+- `submit.sh` and `tests/test_sweep_arms.py` for their config-only arms.
+- The watcher's two new groups.
+
+**Decided** (Aden)
+
+- Priorities `rerendered`, `noln`, `limits`; dropped `noise`, `smallcritic`, `crop`, `noln-actor`.
+- `limits` covers all three limits.
+- `equi-arch` keeps LayerNorm's own start.
+- `limits` may launch overnight without a smoke.
+
+---
+
 ## 2026-10-12 — the residual's collapse is a wrist roll; every other run cancelled; the tilt diagnosis launched
 
 **Found** (EXPERIMENTS.md, 2026-10-12 FINDING, NOTE and CORRECTION)
