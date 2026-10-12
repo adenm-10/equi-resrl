@@ -10,8 +10,8 @@
 # (seed-group resfit-equi-diff-1012), pre-registered in docs/EXPERIMENTS.md, "2026-10-12 —
 # PRE-REGISTERED — ResFiT's residual on Square, given the equivariant stack's differences one at a
 # time; the equivariant residual given ResFiT's layout". Its second group, equi-resfit-arch-1013,
-# joins this table with its code. Launch inside tmux from a worktree pinned to a commit, with
-# CACHE_DIR pointing at the main checkout.
+# is in this table from its amendment of the same date. Launch inside tmux from a worktree pinned
+# to a commit, with CACHE_DIR pointing at the main checkout.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
 #                                            # learning starts, no eval, recorded offline in
@@ -51,7 +51,17 @@
 #                                      within ±0.1; the critic scores the sum clipped as equi_clip
 #                                      clips it; the env clips the executed action to its box.
 # rerendered and noln launched from 7db124d; limits and noln-all from their CODE commits.
-# equi-resfit-arch-1013's arms join with the code they need.
+#
+# equi-resfit-arch-1013: the equivariant residual, residual_equi_td3_square_config, on Square for
+# 150k steps, on the re-rendered demos. Each arm is eaqorqki's launch (square-residual-start-1011,
+# 0af7655) with ResFiT's layout; wandb robomimic-square-final / equi-residual-rl. As amended on
+# 2026-10-12 (Aden): the actor keeps its depth, which is ResFiT's already.
+#   equi-residual-square-arch          RegularLayerNorm in the actor and the critic where ResFiT
+#                                      has LayerNorm, and ResFiT's 10 critic heads of 2 hidden
+#                                      layers (agent.critic.num_q=10 equivariance.num_critic_layers=2).
+#   equi-residual-square-arch-wide     arch, with the actor at 448 fields
+#                                      (equivariance.actor_degree_channel=448): ResFiT's actor's
+#                                      parameter count, nearly.
 
 set -euo pipefail
 
@@ -83,6 +93,12 @@ fi
 # oj5k0jqb's launch, less its run length and naming: the anchor every ResFiT arm is one change from.
 RESFIT_ANCHOR=(--config-name=residual_td3_square_config agent.critic.num_q=10 base_policy.wt_version=v9)
 RERENDERED=offline_data.name=local/robomimic-mh-square-rerendered
+# eaqorqki's launch, less its run length, its naming and its head count (5), which every
+# equi-resfit-arch-1013 arm sets.
+EQUI_ANCHOR=(--config-name=residual_equi_td3_square_config equivariance.residual_squash=true
+             base_policy.wt_version=v9 "$RERENDERED" agent.actor.actor_last_layer_init_scale=0.0)
+RESFIT_LAYOUT=(equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
+               agent.critic.num_q=10 equivariance.num_critic_layers=2)
 
 case "$ARM" in
     resfit-residual-square-rerendered)
@@ -95,6 +111,10 @@ case "$ARM" in
                        agent.critic.use_layer_norm=false agent.vit.use_layer_norm=false) ;;
     resfit-residual-square-limits)
         ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.actor.action_bound=equivariant) ;;
+    equi-residual-square-arch)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}") ;;
+    equi-residual-square-arch-wide)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
@@ -104,6 +124,9 @@ case "$ARM" in
     resfit-*)
         SEED_GROUP=resfit-equi-diff-1012 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;
+    equi-*)
+        SEED_GROUP=equi-resfit-arch-1013 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
 esac
 ARM_STEPS=150000
 

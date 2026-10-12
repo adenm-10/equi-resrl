@@ -6554,3 +6554,58 @@ encoders' LayerNorms off too.
 - **Run on GPU 1:** `test_sweep_arms.py`, `test_action_bound.py`, `test_config.py`, `test_imports.py`
   and `test_no_ops.py`: 228 passed, 6 skipped. `test_no_ops.py` also covers the equivariant agent
   after the `limits` commit, which it had not run on.
+
+---
+
+## 2026-10-12 — AMENDMENT — `equi-resfit-arch-1013`: the actor keeps its depth, which is ResFiT's already
+
+Made before any arm of the group launched.
+- **What changes:** `equi-residual-square-arch` no longer sets `equivariance.num_actor_layers=2`,
+  and no CODE commit makes that field live. It stays dead (ARCHITECTURE.md's provenance table).
+- **Why** (found while writing its code): the pre-registration counted the equivariant actor's
+  policy MLP alone. At the anchor's config (`use_visual_proj=true`), the actor has three hidden
+  layers before its output, and so does ResFiT's:
+
+  | Actor | Hidden layers | Then |
+  |---|---|---|
+  | Equivariant | visual projection 288→1024, trunk 1042→1024, one policy layer 1042→1024 | 1024→7 |
+  | ResFiT | `compress` 20,736→128, two policy layers 144→1024 and 1024→1024 | 1024→7 |
+
+  A second policy layer would make the equivariant actor a layer deeper than ResFiT's. It would also
+  put `arch-wide` at about 5.0M parameters (the layer adds 1.6M at 448 fields), not the 3.4M
+  pre-registered.
+- **Aden's decision (2026-10-12): keep the depth.**
+  - The question the group asks, ResFiT's layout, stands, and so does its parameter count.
+  - The second actor layer Aden had asked to test is not run: ResFiT's actor has no extra layer to
+    match.
+- **The arms now**, each on `eaqorqki`'s launch less its head count, for 150k:
+
+  | Arm | Change from `eaqorqki` |
+  |---|---|
+  | `equi-residual-square-arch` | `equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2` |
+  | `equi-residual-square-arch-wide` | `arch`, and `equivariance.actor_degree_channel=448` |
+
+- **Parameters,** measured on the arms' composed configs:
+  - `arch`: encoder 0.63M, actor 0.31M, critic 2.82M.
+  - `arch-wide`: actor 3.36M, against ResFiT's 3.86M.
+- **Unchanged:** the anchor, the run length, the rules, the readouts, and the predictions
+  (prediction 5 holds as written).
+- **Launch:** config only, from this amendment's commit.
+  - `arch` runs a smoke first, in its own slot: it is the first equivariant run with ResFiT's
+    critic, so its speed and RAM are measured there.
+  - `arch-wide` follows without one.
+  - Both go through `outputs/queue/launchers/slot_queue.sh` into the first free slots after
+    `noln-all`.
+- **Tests:** `tests/test_sweep_arms.py` now covers both groups, each against its own anchor.
+  - Tier 1, 42 passed: the arms launch the overrides above and compose to `eaqorqki`'s config but
+    for them. `eaqorqki`'s anchor is its launch, and composes to its recorded config but for the two
+    ResFiT fields added today, at their defaults.
+  - Tier 2 on GPU 1, 21 passed.
+    - Both arms build and update.
+    - The actor is equivariant and the critic invariant at their sizes, in eval and train mode.
+      The zero-initialized actor is checked at escnn's own init.
+    - Every input reaches the critic and the actor: RegularLayerNorm is not blind as FieldNorm
+      was.
+    - Each arm has ResFiT's layout: 3 RegularLayerNorms in the actor, 22 in the critic, none in
+      the encoder, and no other norm; 10 heads of 3 Linears. `arch-wide`'s hidden layers are 448
+      fields.

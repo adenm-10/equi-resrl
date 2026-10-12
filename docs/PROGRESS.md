@@ -34,7 +34,7 @@ other four docs, with a pointer from here.
 - **The pre-registered `equi-arch` would over-match ResFiT's actor.** The equivariant actor
   already has ResFiT's depth: three hidden layers before its output (`visual_proj`, the trunk, one
   policy layer), as ResFiT's (`compress`, two policy layers). `num_actor_layers=2` would add a
-  fourth, and put `arch-wide` at about 5M parameters, not 3.4M. Held for Aden (TODO 5e item 4).
+  fourth, and put `arch-wide` at about 5M parameters, not 3.4M.
 
 **Done**
 
@@ -47,6 +47,8 @@ other four docs, with a pointer from here.
 - **`limits`' code:** `agent.actor.action_bound=equivariant` (EXPERIMENTS.md, CODE). At `"box"`,
   ResFiT's agent is bit for bit what it was, against a fingerprint taken before the change
   (`tests/test_action_bound.py`).
+- **`noln-all`'s code:** `agent.vit.use_layer_norm=false` (EXPERIMENTS.md, CODE).
+- **`equi-resfit-arch-1013`'s arms** in `submit.sh`, and `tests/test_sweep_arms.py` for both groups.
 - `outputs/queue/launchers/`: scripts that launch an arm when a run's process exits, or into the
   first free slot, so a launch does not need this session.
 
@@ -56,6 +58,7 @@ other four docs, with a pointer from here.
 - `limits` covers all three limits.
 - `equi-arch` keeps LayerNorm's own start.
 - `limits` may launch overnight without a smoke.
+- `equi-arch` keeps the actor's depth: amended, so `num_actor_layers` stays dead.
 
 ---
 

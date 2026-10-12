@@ -69,13 +69,9 @@ demos").
    3. **`noln-all`** (code DONE: `agent.vit.use_layer_norm=false`, EXPERIMENTS.md 2026-10-12 CODE).
       It takes the first free slot, through `outputs/queue/launchers/slot_queue.sh` (tmux
       `rfe-queue`), without a smoke.
-   4. **`equi-resfit-arch-1013`: on hold for Aden.** As pre-registered, `arch` adds a policy layer
-      (`num_actor_layers=2`). But the equivariant actor already has ResFiT's depth: three hidden
-      layers before its output (`visual_proj`, the trunk, one policy layer; ResFiT's: `compress`
-      and two policy layers). The added layer would make it a layer deeper than ResFiT's, and
-      `arch-wide` about 5M parameters, not the pre-registered 3.4M. Either amend `arch` to leave
-      the actor's depth, or keep the extra layer and correct the count. Not launched until Aden
-      decides.
+   4. **`equi-resfit-arch-1013`**, config only, as amended (EXPERIMENTS.md, 2026-10-12 AMENDMENT;
+      Aden): the actor keeps its depth, which is ResFiT's already, so `num_actor_layers` stays dead.
+      `arch` (smoke first), then `arch-wide`, through the slot queue after `noln-all`.
    5. **Conditional:** `combined` iff `rerendered`, `noln` and `limits` each hold at 30k; a seed 2 of
       any ResFiT arm that breaks, and of any equivariant arm that escapes.
    6. NOTEs at each 30k readout and at each arm's end.

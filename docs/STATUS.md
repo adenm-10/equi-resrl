@@ -169,9 +169,10 @@ pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
 | `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code done; waits for `fk9ayyco`'s slot, GPU 0, about 01:00, no smoke |
 | `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code done; the first free slot (tmux `rfe-queue`), likely about 08:00 on 2026-10-13, no smoke |
 | `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
-| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual; the wide one with ResFiT's actor parameter count | **on hold for Aden:** the added policy layer would make the actor a layer deeper than ResFiT's (TODO 5e item 4) |
+| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual (RegularLayerNorm, 10 heads of 2 layers; the actor keeps its depth, ResFiT's already: AMENDMENT); the wide one with ResFiT's actor parameter count | queued after `noln-all` (tmux `rfe-queue`); `arch` smokes first. Likely 2026-10-13 |
 
-The watcher for `resfit-equi-diff-1012` is tmux `rfe-watch`, from `7db124d`. The waiting launches
+The watchers are tmux `rfe-watch` for `resfit-equi-diff-1012` (from `7db124d`) and `arch-watch` for
+`equi-resfit-arch-1013`. The waiting launches
 are `outputs/queue/launchers/` scripts in tmux; each logs what it waits for.
 
 **The tilt diagnosis** (TODO B16 item 5d; plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
