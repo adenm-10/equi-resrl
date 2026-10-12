@@ -19,6 +19,34 @@ from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
 )
 
 
+def arm_action_shape(group, hand_dof: int) -> list:
+    """One arm's action, as representations of `group`."""
+    return [
+        group.irrep(1),       # action_xy      (0:2)
+        group.trivial_repr,   # action_z       (2:3)
+        group.irrep(1),       # action_rx_ry   (3:5)
+        group.trivial_repr,   # action_rz      (5:6)
+    ] + hand_dof * [group.trivial_repr]  # action_hand (6:6+H)
+
+
+def build_action_layout(action_shape, group) -> list[tuple[slice, str]]:
+    """(slice, kind) per representation, kind "irrep1" or "trivial": what equi_tanh and equi_clip
+    read. ResFiT's agent builds its layout here too, under agent.actor.action_bound=equivariant."""
+    layout = []
+    pos = 0
+    for rep in action_shape:
+        size = rep.size
+        if rep == group.trivial_repr:
+            kind = "trivial"
+        elif rep == group.irrep(1):
+            kind = "irrep1"
+        else:
+            raise ValueError(f"Unsupported rep in action_shape: {rep}")
+        layout.append((slice(pos, pos + size), kind))
+        pos += size
+    return layout
+
+
 def quaternion_to_rotation_6d(q: torch.Tensor) -> torch.Tensor:
     """Convert quaternion (w,x,y,z) to 6D rotation representation."""
     q = q / torch.norm(q, dim=-1, keepdim=True)
@@ -167,15 +195,8 @@ class ResObsEnc(ModuleAttrMixin):
                 4 * [self.group.irrep(1)]                        # pos_xy + 3 rotation column pairs
                 + (1 + gripper_dim) * [self.group.trivial_repr]  # pos_z, gripper_qpos
             )
-            arm_action_shape = [
-                self.group.irrep(1),       # action_xy      (0:2)
-                self.group.trivial_repr,   # action_z       (2:3)
-                self.group.irrep(1),       # action_rx_ry   (3:5)
-                self.group.trivial_repr,   # action_rz      (5:6)
-            ] + hand_dof * [self.group.trivial_repr]  # action_hand (6:6+H)
-
             self.prop_shape   = n_arms * arm_prop_shape
-            self.action_shape = n_arms * arm_action_shape
+            self.action_shape = n_arms * arm_action_shape(self.group, hand_dof)
             # The action field each entry of action_layout belongs to, as arm_key names it
             # (action_rx_ry_0, ...), so a field can be addressed by name.
             arm_action_fields = [*ACTION_FIELDS[:-1], *hand_dof * [ACTION_FIELDS[-1]]]  # as arm_action_shape
@@ -211,7 +232,7 @@ class ResObsEnc(ModuleAttrMixin):
                 orth_init=encoder_orth_init,
             )
 
-            self.action_layout = self._build_action_layout(self.action_shape, self.group)
+            self.action_layout = build_action_layout(self.action_shape, self.group)
 
             # Integer dims derived from FieldType.size — guarantees parity with scalar branch
             self.enc_out_dim_critic = self.enc_out_type_critic.size
@@ -241,22 +262,6 @@ class ResObsEnc(ModuleAttrMixin):
 
             self.enc_out_dim_critic = n_hidden * N + n_arms * ih_out_channel + self.prop_dim
             self.enc_out_dim_actor  = self.enc_out_dim_critic + (self.action_dim if base_action_input else 0)
-
-    @staticmethod
-    def _build_action_layout(action_shape, group):
-        layout = []
-        pos = 0
-        for rep in action_shape:
-            size = rep.size
-            if rep == group.trivial_repr:
-                kind = "trivial"
-            elif rep == group.irrep(1):
-                kind = "irrep1"
-            else:
-                raise ValueError(f"Unsupported rep in action_shape: {rep}")
-            layout.append((slice(pos, pos + size), kind))
-            pos += size
-        return layout
 
     def get6DRotation(self, quat):
         """robosuite stores eef_quat as (x, y, z, w); reorder to (w, x, y, z).

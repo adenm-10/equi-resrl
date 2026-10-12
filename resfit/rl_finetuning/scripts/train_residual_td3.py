@@ -254,12 +254,13 @@ def _add_transitions_to_buffer(
 
 
 def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action_dim: int, image_keys: list[str],
-                dataset_stats, device: torch.device):
+                dataset_stats, device: torch.device, action_scaler=None):
     """The agent this trainer trains, as `cfg` describes it: ResFiT's QAgent, or the equivariant
     one with its normalizer from the dataset's statistics, centred on the robot bases. Moved here
     verbatim from main (2026-10-12) so tools/residual_field_ablation.py builds a saved run's agent
     as its run did; main calls it where it built the agent, so the order of random draws is as
-    before."""
+    before. ResFiT's agent reads action_scaler, the run's, under agent.actor.action_bound=equivariant
+    alone."""
     residual_run = cfg.base_policy is not None
     agent = None
     if cfg.equivariance is None:
@@ -271,6 +272,7 @@ def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action
             rl_cameras=image_keys,
             cfg=cfg.agent,
             residual_actor=residual_run,  # the actor outputs a residual, or the whole action
+            action_scaler=action_scaler,
         )
     else:
         print(f"Instantiating Equivariant Agent")
@@ -414,6 +416,9 @@ def main(cfg: ResidualTD3DexmgConfig):
             action_scale=cfg.agent.actor.action_scale if residual_run else 0.0,
             min_range_per_dim=cfg.offline_data.min_action_range,
             device=device,
+            # agent.actor.action_bound=equivariant executes as the equivariant stack does: the env
+            # clips to its own box, not to the demos' range.
+            clamp_unscaled=cfg.agent.actor.action_bound == "box",
         )
 
     else:
@@ -541,7 +546,8 @@ def main(cfg: ResidualTD3DexmgConfig):
     # ---------------------------------------------------------------------
 
     agent = build_agent(cfg, obs_shape=(img_c, img_h, img_w), prop_dim=lowdim_dim, action_dim=action_dim,
-                        image_keys=image_keys, dataset_stats=dataset.meta.stats, device=device)
+                        image_keys=image_keys, dataset_stats=dataset.meta.stats, device=device,
+                        action_scaler=action_scaler)
 
     def agent_update(batch, stddev, update_actor, compute_metrics, bc_batch=None):
         """One gradient update. compute_metrics=False lets the equivariant agent skip the

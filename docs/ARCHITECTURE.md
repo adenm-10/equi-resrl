@@ -391,7 +391,7 @@ Critic.forward(critic_feat, act)
   ├─ visual_proj → cat(v, prop, act) → input_proj → cat(z, prop, act)
   └─ Q-ensemble heads → GroupPooling → scalar Q   [num_q, B, 1]
 
-QAgent._combine_actions(base, residual)
+QAgent.combine_actions(base, residual)
   └─ equi_clip(base + residual, layout, bound=1.0)
 ```
 
@@ -448,6 +448,24 @@ This trips people up, so it is worth stating plainly.
 
 **Baseline path.** `StateStandardizer` and `ActionScaler` are built from dataset statistics in
 `train_residual_td3.py` and applied *outside* the network, in the env wrapper and buffer.
+
+**ResFiT's action bound** (`agent.actor.action_bound`, from 2026-10-12). `"box"`, the default, is
+ResFiT's own, and every ResFiT run before it ran this:
+- the actor's final Tanh × `action_scale`, per axis, in the scaler's units;
+- `QAgent.combine_actions` clamps base + residual per axis to [-1, 1]. The actor loss, the TD target,
+  `critic_diagnostics` and the evaluator's Q all combine through it.
+- `ActionScaler.unscale` clamps the executed action to the demos' range widened by `action_scale`.
+
+`"equivariant"` (`resfit-residual-square-limits`) gives this agent the equivariant stack's three
+limits in env units, reached through the scaler's per-axis middle and half-range:
+- `action_scale · equi_tanh` in place of the Tanh;
+- `equi_clip` in `combine_actions`;
+- `ActionScaler(clamp_unscaled=False)`, so the env clips to its box, as under `IdentityScaler`.
+
+The layout is the equivariant encoder's (`arm_action_shape`, `build_action_layout` in
+`obs_encoder.py`). It is for residual runs with one arm and a one-dimensional gripper; the
+equivariant agent refuses it. `tests/test_action_bound.py` pins `"box"` to the agent before the
+field, and tests the bound.
 
 **Equivariant path.** Those two become `IdentityStandardizer` and `IdentityScaler`
 ([train_residual_td3.py:305-307](../resfit/rl_finetuning/scripts/train_residual_td3.py#L305)), and

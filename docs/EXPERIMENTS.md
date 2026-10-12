@@ -6457,3 +6457,72 @@ per seed group).
   `notilt` (`dczf4k7v`), which, bounded to no tilt, scored 0.02 and 0.00 at 10k and 20k.
 - **Not run:** the same test at 4k and 6k (the onset), and at 20k and 30k, pre-registered as
   reported only.
+
+---
+
+## 2026-10-12 — CODE — `agent.actor.action_bound`: ResFiT's residual with the equivariant stack's action limits, for `resfit-residual-square-limits`
+
+The code for `resfit-equi-diff-1012`'s `limits` arm (PRE-REGISTERED above): one field, three
+limits, as pre-registered.
+- **`agent.actor.action_bound`**, `"box"` (the default) or `"equivariant"`. ResFiT's agent
+  (`off_policy/rl/`) reads it, and so does the trainer's `ActionScaler`. The equivariant agent
+  refuses anything but `"box"`, since it always bounds by its own `equi_tanh` and `equi_clip`.
+- **Under `"equivariant"`:**
+  1. **The residual's mean.** The actor's last Linear has no Tanh. Its output goes through
+     `action_scale · equi_tanh`, in env units, as the equivariant actor's does. Then it is divided
+     by the scaler's per-axis half-range, into the scaler's units, where the base action and
+     ResFiT's noise are.
+  2. **What the critic scores.** The TD target, the actor loss, `critic_diagnostics` and the
+     evaluator's Q now all combine through one method, `QAgent.combine_actions`. Under this bound
+     it maps the sum to env units (middle + sum × half-range), clips it with `equi_clip` (bound 1),
+     and maps it back.
+  3. **What is executed.** `ActionScaler(clamp_unscaled=False)`: `unscale` returns
+     middle + action × half-range, unclamped. robosuite's controllers clip their input to ±1
+     (`default_panda.json`), as they do for every equivariant run under `IdentityScaler`.
+  - **Unchanged:**
+    - ResFiT's noise: σ 0.05 in the scaler's units, the target's clip 0.3.
+    - Its warm-up: base + U(±0.2) in those units.
+    - The scaler's widening by `action_scale`, and the clamp `scale` applies to the base action.
+    - The buffer still stores the unclipped sum.
+  - **The action layout:** `arm_action_shape` and `build_action_layout` move out of `ResObsEnc`
+    into module functions in `obs_encoder.py`, so both agents read one layout.
+  - **Refused:** a vanilla actor, an action that is not one arm's 7, and a scaler that is missing
+    or clamps.
+- **On Square, in env units** (the original demos' range ×1.1 per axis). Every axis but rx spans
+  the env's [−1, 1], so `limits` changes rx most.
+
+  | | Anchor (`"box"`) | `limits` (`"equivariant"`) |
+  |---|---|---|
+  | Residual's cap | 0.11 per axis; 0.036 on rx | xy and (rx, ry) each a circle of radius 0.1; z, yaw, gripper ±0.1 |
+  | What the critic scores | ±1.1 per axis; rx [−0.48, 0.24] | xy and (rx, ry) each inside the unit circle; z, yaw, gripper ±1 |
+  | What is executed | ±1 per axis (robosuite's clip of ±1.1); rx [−0.48, 0.24] | ±1 per axis |
+
+  The rx cap of 0.1 is 0.28 in the scaler's units, against 0.091 on the other axes.
+- **`"box"` is every earlier ResFiT run, bit for bit.**
+  - `tests/test_action_bound.py` fingerprints ResFiT's agent at `oj5k0jqb`'s config: parameters,
+    the eval action, `critic_diagnostics` and one TD3 update, plus the scaler. It measures in
+    PyTorch's deterministic mode, in a subprocess, against goldens captured from the tree at
+    `8ce1642` before the field existed.
+  - The tree with the field gives the same 26 values, exactly. So did both GPUs.
+  - The evaluator's ResFiT branch now calls `combine_actions`, which under `"box"` is the same clamp.
+- **Tests.**
+  - `tests/test_action_bound.py`, 7 passed. They use demo statistics whose middle is off zero on
+    every axis, so a missing offset would show.
+    - **The residual's mean**, in env units, is `0.1 · equi_tanh` of the layer's output: inside each
+      circle and within ±0.1, and it reaches the bound when the last layer is large.
+    - **The critic's sum** in env units is `equi_clip`'s: a sum inside the bound is unchanged, and
+      a pair outside keeps its direction at length 1. The clip commutes with rotating both pairs by
+      π/4 and by 2 rad.
+    - **The executed action** is the unclamped sum.
+    - At one seed, both bounds start from the same weights.
+    - The refusals.
+  - `tests/test_sweep_arms.py`: the `limits` arm launches `agent.actor.action_bound=equivariant`
+    alone, composes to the anchor but for it, builds and updates, and starts from the anchor's
+    weights bit for bit. The anchor's composition still matches `oj5k0jqb`'s recorded config, with
+    the new field at `"box"`.
+  - With the modules the change reaches, on GPU 1: 265 passed, 6 skipped. Those are the
+    equivariant regression goldens (the layout's move changes nothing), `test_sweep_arms.py`,
+    `test_critic_diagnostics.py`, `test_env_wrapper.py`, `test_config.py`, `test_layouts.py`,
+    `test_field_ablation.py`, `test_eval_base_policy.py` and `test_imports.py`.
+- **Not tested:** that the trainer builds the scaler unclamped. It is not silent if it does not:
+  the agent refuses a clamping scaler at startup, so such a run fails at launch.

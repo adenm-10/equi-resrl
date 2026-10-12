@@ -14,7 +14,8 @@ submit.sh's case table is checked here first:
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses; at the same seed it starts from the anchor's weights, bit for
           bit, but for any norm it drops; noln has no LayerNorm in its actor or
-          critic and keeps its ViTs'. A test here keeps on record that the
+          critic and keeps its ViTs'. What limits' bound does is tested in
+          tests/test_action_bound.py. A test here keeps on record that the
           fixed-env baselines' FieldNorm critic is blind to every trivial input
           (2026-10-08 FINDING).
 
@@ -44,6 +45,7 @@ SEED_GROUP = "resfit-equi-diff-1012"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
+LIMITS = "resfit-residual-square-limits"
 CONFIG = "residual_td3_square_config"
 DEMOS = "ankile/robomimic-mh-square-image"  # the config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
@@ -56,18 +58,21 @@ ANCHOR = {f"--config-name={CONFIG}", "agent.critic.num_q=10", "base_policy.wt_ve
 LAUNCHED = {
     RERENDERED: ANCHOR | {f"offline_data.name={RERENDERED_DEMOS}"},
     NOLN: ANCHOR | {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false"},
+    LIMITS: ANCHOR | {"agent.actor.action_bound=equivariant"},
 }
 # Each arm's changes from the anchor, as composed paths, and its values there.
 FROM_ANCHOR = {
     RERENDERED: {"offline_data.name"},
     NOLN: {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"},
+    LIMITS: {"agent.actor.action_bound"},
 }
 ARM_VALUES = {
     RERENDERED: {"offline_data.name": RERENDERED_DEMOS},
     NOLN: {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False},
+    LIMITS: {"agent.actor.action_bound": "equivariant"},
 }
 # The demos each arm loads.
-ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS}
+ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -231,7 +236,8 @@ def test_the_anchor_composes_to_oj5k0jqbs_recorded_config():
     ours = {k: _number(v) for k, v in _flat(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name")))).items()
             if not k.startswith("wandb.")}
     added = {k: ours[k] for k in ours.keys() - recorded.keys()}
-    assert added == {"encode_env_frames_like_demos": False}
+    # "box" is ResFiT's own bound, as oj5k0jqb ran it (tests/test_action_bound.py's golden).
+    assert added == {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box"}
     changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
     assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
     assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
@@ -315,8 +321,14 @@ def _agent(cfg, device):
                   rl_cameras=list(CAMERAS), residual_actor=cfg.base_policy is not None)
     if cfg.equivariance is None:
         from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+        from resfit.rl_finetuning.utils.normalization import ActionScaler
 
-        return QAgent(cfg=cfg.agent, **shapes)
+        # The trainer's scaler, on stand-in demo statistics.
+        scaler = ActionScaler.from_dataset_stats(
+            _stats(ACTION_DIM), action_scale=cfg.agent.actor.action_scale,
+            min_range_per_dim=cfg.offline_data.min_action_range, device=device,
+            clamp_unscaled=cfg.agent.actor.action_bound == "box")
+        return QAgent(cfg=cfg.agent, action_scaler=scaler, **shapes)
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import build_equivariant_normalizer
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
 
@@ -546,14 +558,14 @@ def _weights_in_order(module, drop_layer_norms: bool) -> list:
 @pytest.mark.parametrize("arm", ARMS)
 def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
     """At the same seed, the arm's initial weights are the anchor's bit for bit: rerendered changes
-    the data alone, and noln drops LayerNorms, which draw no random number at init, so every other
-    weight is drawn as the anchor's. The episodes still differ, since `seed` does not reach the
-    envs."""
+    the data alone, limits the bound alone, which draws no random number and adds no weight, and
+    noln drops LayerNorms, which draw no random number at init, so every other weight is drawn as
+    the anchor's. The episodes still differ, since `seed` does not reach the envs."""
     import torch
 
     anchor = _seeded_agent(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name"))), device)
     ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device)
-    if arm == RERENDERED:
+    if arm in (RERENDERED, LIMITS):
         theirs, mine = anchor.state_dict(), ours.state_dict()
         assert theirs.keys() == mine.keys()
         for key, value in mine.items():

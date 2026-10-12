@@ -43,7 +43,13 @@
 #                                      (agent.actor.use_layer_norm=false
 #                                      agent.critic.use_layer_norm=false); the ViT encoders keep
 #                                      theirs.
-# Later arms (limits, noln-all; then equi-resfit-arch-1013's) join with the code they need.
+#   resfit-residual-square-limits      the equivariant stack's action limits, in env units
+#                                      (agent.actor.action_bound=equivariant): the residual's xy
+#                                      and tilt pairs each in a circle of radius 0.1 and the rest
+#                                      within ±0.1; the critic scores the sum clipped as equi_clip
+#                                      clips it; the env clips the executed action to its box.
+# rerendered and noln launched from 7db124d, limits from its CODE commit. Later arms (noln-all;
+# then equi-resfit-arch-1013's) join with the code they need.
 
 set -euo pipefail
 
@@ -82,6 +88,8 @@ case "$ARM" in
     resfit-residual-square-noln)
         ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.actor.use_layer_norm=false
                        agent.critic.use_layer_norm=false) ;;
+    resfit-residual-square-limits)
+        ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.actor.action_bound=equivariant) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2

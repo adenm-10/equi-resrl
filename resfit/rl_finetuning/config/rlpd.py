@@ -92,6 +92,16 @@ class ActorConfig:
     num_layers: int = 2
     # Layer normalization control
     use_layer_norm: bool = True
+    # How ResFiT's residual agent bounds its actions (off_policy/rl/q_agent.py). "box", ResFiT's
+    # own: the residual within ±action_scale per axis in the ActionScaler's units, the sum the
+    # critic scores clamped per axis to [-1, 1] in those units, and the executed action clamped to
+    # the demos' range widened by action_scale. "equivariant", the equivariant stack's limits in
+    # env units: the residual squashed by equi_tanh to a circle of radius action_scale on xy and on
+    # the tilt pair (rx, ry) and to ±action_scale on z, yaw and gripper; the sum the critic scores
+    # clipped by equi_clip; the executed action left for the env to clip to its box. Noise and the
+    # critic's units stay ResFiT's. The equivariant agent refuses anything but "box": it always
+    # bounds by its own equi_tanh and equi_clip.
+    action_bound: str = "box"
 
 
 @dataclass

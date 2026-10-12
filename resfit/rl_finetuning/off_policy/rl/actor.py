@@ -6,10 +6,11 @@ import torch
 from torch import nn
 
 from resfit.rl_finetuning.config.rlpd import ActorConfig
+from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_tanh
 from resfit.rl_finetuning.off_policy.common_utils import utils
 
 
-def build_fc(in_dim, hidden_dim, action_dim, num_layer, layer_norm, dropout, use_layer_norm=True):
+def build_fc(in_dim, hidden_dim, action_dim, num_layer, layer_norm, dropout, use_layer_norm=True, final_tanh=True):
     dims = [in_dim]
     dims.extend([hidden_dim for _ in range(num_layer)])
 
@@ -24,7 +25,8 @@ def build_fc(in_dim, hidden_dim, action_dim, num_layer, layer_norm, dropout, use
         layers.append(nn.ReLU())
 
     layers.append(nn.Linear(dims[-1], action_dim))
-    layers.append(nn.Tanh())
+    if final_tanh:
+        layers.append(nn.Tanh())
     return nn.Sequential(*layers)
 
 
@@ -66,12 +68,20 @@ class SpatialEmb(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, repr_dim, patch_repr_dim, prop_dim, action_dim, cfg: ActorConfig, residual_actor: bool = False):
+    def __init__(self, repr_dim, patch_repr_dim, prop_dim, action_dim, cfg: ActorConfig, residual_actor: bool = False,
+                 action_layout=None, action_half_range: torch.Tensor | None = None):
+        """action_layout and action_half_range, the ActionScaler's per-axis half-range, are read by
+        cfg.action_bound="equivariant" alone (config/rlpd.py), and required by it."""
         super().__init__()
 
         self.prop_dim = prop_dim
         self.residual_actor = residual_actor
         self.cfg = cfg
+        if cfg.action_bound == "equivariant":
+            assert action_layout is not None and action_half_range is not None
+            self.action_layout = action_layout
+            # Not persistent: the scaler rebuilds it from the demos, and a checkpoint holds weights.
+            self.register_buffer("action_half_range", action_half_range.clone(), persistent=False)
 
         if residual_actor:
             # The residual actor takes the base action as input alongside the state
@@ -109,6 +119,7 @@ class Actor(nn.Module):
             layer_norm=1,
             dropout=cfg.dropout,
             use_layer_norm=cfg.use_layer_norm,
+            final_tanh=cfg.action_bound == "box",  # equi_tanh squashes in forward instead
         )
 
         # Apply weight initialization
@@ -169,7 +180,13 @@ class Actor(nn.Module):
 
         # Scale the mean by action_scale
         # NOTE: std is already in environment action space (more interpretable)
-        scaled_mu = mu * self.cfg.action_scale
+        if self.cfg.action_bound == "equivariant":
+            # In env units, as the equivariant actor bounds it: xy and the tilt pair each inside a
+            # circle of radius action_scale, z, yaw and gripper within ±action_scale. Then in the
+            # scaler's units, where the base action and the noise are.
+            scaled_mu = self.cfg.action_scale * equi_tanh(mu, self.action_layout) / self.action_half_range
+        else:
+            scaled_mu = mu * self.cfg.action_scale
 
         # Create distribution with scaled mean but environment-scale std
         action_dist = utils.TruncatedNormal(scaled_mu, std)

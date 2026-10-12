@@ -1,10 +1,10 @@
 # Status
 
-**Last updated:** 2026-10-12, about 15:30 · **Last verified commit:** `be0b7bb`, pre-registering
-`residual-tilt-1012`: the gate passed in full and said GO for both its arms. The pre-registration
-of `resfit-equi-diff-1012` and `equi-resfit-arch-1013` is being committed (EXPERIMENTS.md,
-2026-10-12 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's differences
-one at a time"); its gate runs at each launch.
+**Last updated:** 2026-10-12, about 16:00 · **Last verified commit:** `7db124d`, pre-registering
+`resfit-equi-diff-1012` and `equi-resfit-arch-1013` (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED,
+"ResFiT's residual on Square, given the equivariant stack's differences one at a time"): its
+Tier-1 sweep and watcher tests passed in its launch worktree, and the gate runs at each launch.
+The `limits` CODE commit follows it.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -164,12 +164,15 @@ pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
 
 | Arm | Change | Status |
 |---|---|---|
-| `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | smoke passed (`kvcdljaf`); launching about 15:35, GPU 1 |
-| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot (GPU 1, about 17:30): `notilt` did not stop at 30k |
-| `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code first |
-| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code first |
+| `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | launched 15:25 from `7db124d`, GPU 1, tmux `rfe-rerendered` (smoke `kvcdljaf` passed) |
+| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot, GPU 1, about 17:30 (tmux `rfe-noln`); `notilt` did not stop at 30k |
+| `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code done; waits for `fk9ayyco`'s slot, GPU 0, about 01:00, no smoke |
+| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code first; then the first free slot |
 | `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
-| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual; the wide one with ResFiT's actor parameter count | code first |
+| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual; the wide one with ResFiT's actor parameter count | **on hold for Aden:** the added policy layer would make the actor a layer deeper than ResFiT's (TODO 5e item 4) |
+
+The watcher for `resfit-equi-diff-1012` is tmux `rfe-watch`, from `7db124d`. The waiting launches
+are `outputs/queue/launchers/` scripts in tmux; each logs what it waits for.
 
 **The tilt diagnosis** (TODO B16 item 5d; plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
 local). Two seed groups, seed 1 each, pre-registered and launched on 2026-10-12 (EXPERIMENTS.md,

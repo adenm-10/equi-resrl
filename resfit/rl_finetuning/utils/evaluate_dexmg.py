@@ -210,12 +210,12 @@ def run_dexmg_evaluation(
                 obs_q["actor_feat"], obs_q["critic_feat"] = agent.enc(obs)
 
             # Q is scored at the action the env receives, the base action plus the residual, combined
-            # as each stack's actor loss combines them: ResFiT clamps each axis, the equivariant agent
-            # clips each irrep(1) pair by its length. Until 2026-10-12 the equivariant residual's Q
-            # was scored at the residual alone (EXPERIMENTS.md, CORRECTION of that date).
-            if agent.residual_actor and not equivariant:
-                q_actions = torch.clamp(obs["observation.base_action"] + actions, -1.0, 1.0)
-            elif agent.residual_actor:
+            # as each stack's actor loss combines them: ResFiT clamps each axis (or, under
+            # agent.actor.action_bound=equivariant, clips as the equivariant agent does), the
+            # equivariant agent clips each irrep(1) pair by its length. Until 2026-10-12 the
+            # equivariant residual's Q was scored at the residual alone (EXPERIMENTS.md, CORRECTION
+            # of that date).
+            if agent.residual_actor:
                 q_actions = agent.combine_actions(obs["observation.base_action"], actions)
 
             if not equivariant:

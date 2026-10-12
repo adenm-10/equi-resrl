@@ -11,6 +11,7 @@ import torch
 from torch import nn
 
 from resfit.rl_finetuning.config.rlpd import QAgentConfig
+from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_clip
 from resfit.rl_finetuning.off_policy import common_utils
 from resfit.rl_finetuning.off_policy.common_utils import utils
 from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
@@ -27,6 +28,7 @@ class QAgent(torch.nn.Module):
         rl_cameras: list[str] | str,
         cfg: QAgentConfig,
         residual_actor: bool = False,
+        action_scaler=None,
     ):
         """Initialize the Q-agent.
 
@@ -46,6 +48,9 @@ class QAgent(torch.nn.Module):
             is to pass a list of camera names.
         cfg : QAgentConfig
             Hyper-parameter configuration dataclass.
+        action_scaler : ActionScaler, optional
+            The run's, which maps this agent's actions to the env's. Read by
+            cfg.actor.action_bound="equivariant" alone, and required by it.
         """
         super().__init__()
         # Normalise *rl_cameras* to a list for unified processing
@@ -75,6 +80,15 @@ class QAgent(torch.nn.Module):
         assert len(prop_shape) == 1
         prop_dim = prop_shape[0] if cfg.use_prop else 0
 
+        # cfg.actor.action_bound (config/rlpd.py). Nothing here draws a random number, so the
+        # networks below draw their weights as under "box".
+        bound_frame = {}
+        if cfg.actor.action_bound == "equivariant":
+            self._set_equivariant_bound(action_dim, action_scaler)
+            bound_frame = {"action_layout": self.action_layout, "action_half_range": self.action_half_range}
+        elif cfg.actor.action_bound != "box":
+            raise ValueError(f"agent.actor.action_bound={cfg.actor.action_bound!r}: 'box' or 'equivariant'")
+
         # create critics & actor
         self.critic = Critic(
             repr_dim=repr_dim,
@@ -89,7 +103,8 @@ class QAgent(torch.nn.Module):
             prop_dim, 
             action_dim, 
             cfg.actor, 
-            residual_actor=residual_actor
+            residual_actor=residual_actor,
+            **bound_frame,
         )
 
         self.critic_target = copy.deepcopy(self.critic)
@@ -157,6 +172,44 @@ class QAgent(torch.nn.Module):
         self.critic_target.train(False)
         self.train(True)
         self.to(self.cfg.device)
+
+    def _set_equivariant_bound(self, action_dim: int, action_scaler) -> None:
+        """What action_bound="equivariant" bounds in: env units, reached from this agent's as the
+        scaler unscales (action_mid + action * action_half_range, per axis), and the layout of
+        irrep(1) pairs and scalars that equi_tanh and equi_clip read, the equivariant encoder's for
+        one arm."""
+        from escnn import gspaces
+        from escnn.group import CyclicGroup
+
+        from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import arm_action_shape, build_action_layout
+
+        if not self.residual_actor:
+            raise ValueError("agent.actor.action_bound=equivariant bounds a residual; this actor outputs the whole action")
+        if action_dim != 7:
+            raise ValueError("agent.actor.action_bound=equivariant is laid out for one arm and a one-dimensional "
+                             f"gripper (Can, Square): 7 action dimensions, not {action_dim}")
+        if action_scaler is None or action_scaler.clamp_unscaled:
+            raise ValueError("agent.actor.action_bound=equivariant needs the run's ActionScaler, built with "
+                             "clamp_unscaled=False so the env clips the executed action to its own box")
+        # The layout names irrep(1) and trivial blocks alone, the same for any rotation order.
+        group = gspaces.no_base_space(CyclicGroup(8))
+        self.action_layout = build_action_layout(arm_action_shape(group, hand_dof=1), group)
+        limits = action_scaler.limits
+        # Not persistent: the scaler rebuilds them from the demos, and a checkpoint holds weights.
+        self.register_buffer("action_mid", ((limits.max + limits.min) / 2).cpu(), persistent=False)
+        self.register_buffer("action_half_range", ((limits.max - limits.min) / 2).cpu(), persistent=False)
+
+    def combine_actions(self, base_action: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+        """The base action plus the residual, bounded as the critic scores it, in this agent's units.
+        "box", ResFiT's: each axis clamped to [-1, 1], the demos' range widened by action_scale.
+        "equivariant", the equivariant agent's: equi_clip in env units, each irrep(1) pair inside
+        the unit circle and every other axis within ±1, which can fall outside [-1, 1] in these
+        units. The actor loss, the TD target, critic_diagnostics and the evaluator's Q all combine
+        through here."""
+        if self.cfg.actor.action_bound == "box":
+            return torch.clamp(base_action + residual, -1.0, 1.0)
+        env_action = self.action_mid + (base_action + residual) * self.action_half_range
+        return (equi_clip(env_action, self.action_layout, bound=1.0) - self.action_mid) / self.action_half_range
 
     def _build_encoders(self, obs_shape):
         """Constructs and returns an ``nn.ModuleList`` with one encoder per
@@ -333,7 +386,7 @@ class QAgent(torch.nn.Module):
             if self.residual_actor:
                 # Current step: 'action' from the replay buffer is the executed combined action
                 # Next step: combine and clamp to match environment execution
-                next_action = torch.clamp(next_obs["observation.base_action"] + next_residual_action, -1.0, 1.0)
+                next_action = self.combine_actions(next_obs["observation.base_action"], next_residual_action)
             else:
                 next_action = next_residual_action
 
@@ -447,7 +500,7 @@ class QAgent(torch.nn.Module):
         if self.residual_actor:
             # Create the full action by combining the base action and the residual action
             # and clamp to the valid range [-1, 1] to match environment execution
-            combined_action = torch.clamp(obs["observation.base_action"] + action_pred, -1.0, 1.0)
+            combined_action = self.combine_actions(obs["observation.base_action"], action_pred)
         else:
             combined_action = action_pred
 
@@ -717,7 +770,7 @@ class QAgent(torch.nn.Module):
         data_action = batch["action"]
         policy_action = self.actor(obs, 0.0).mean
         if self.residual_actor:
-            policy_action = torch.clamp(obs["observation.base_action"] + policy_action, -1.0, 1.0)
+            policy_action = self.combine_actions(obs["observation.base_action"], policy_action)
 
         def q(action):
             return self.critic(obs["feat"], obs["observation.state"], action).mean(dim=0).squeeze(-1)

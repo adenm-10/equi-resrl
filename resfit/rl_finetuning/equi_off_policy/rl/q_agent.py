@@ -84,6 +84,9 @@ class QAgent(torch.nn.Module):
         self.residual_actor = residual_actor
         self.equi_cfg = equi_cfg
         self.equivariant = equivariant
+        if agent_cfg.actor.action_bound != "box":
+            raise ValueError("agent.actor.action_bound is ResFiT's agent's: this agent bounds its actions by "
+                             "its own equi_tanh and equi_clip, or the scalar ablation's tanh and clamp")
 
         N = self.equi_cfg.N
         n_hid = self.equi_cfg.enc_degree_channel

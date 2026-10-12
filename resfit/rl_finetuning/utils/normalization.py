@@ -40,6 +40,7 @@ class ActionScaler:
         action_scale: float = 1.0,
         min_range_per_dim: float = 1e-1,
         device: torch.device | str = "cpu",
+        clamp_unscaled: bool = True,
     ):
         """
         Initialize the action scaler.
@@ -50,10 +51,14 @@ class ActionScaler:
             action_scale: Scale factor to expand the action range (1 + action_scale)
             min_range_per_dim: Minimum range per dimension to prevent normalization blow-up
             device: Device to place tensors on
+            clamp_unscaled: unscale clamps to the expanded range, ResFiT's. False leaves the
+                action unclamped, for the env to clip to its own box, as the equivariant stack's
+                IdentityScaler does (agent.actor.action_bound=equivariant).
         """
         self.device = torch.device(device)
         self.action_scale = action_scale
         self.min_range_per_dim = min_range_per_dim
+        self.clamp_unscaled = clamp_unscaled
 
         # Move inputs to device
         action_min = action_min.to(self.device)
@@ -84,6 +89,7 @@ class ActionScaler:
         print(f"  Original range: [{action_min.min():.4f}, {action_max.max():.4f}]")
         print(f"  Expanded range: [{self._limits.min.min():.4f}, {self._limits.max.max():.4f}]")
         print(f"  Action scale factor: {action_scale}")
+        print(f"  Unscale clamps to the expanded range: {clamp_unscaled}")
 
     @property
     def limits(self) -> Limits:
@@ -119,14 +125,14 @@ class ActionScaler:
             scaled_action: Scaled action in [-1, 1] range
 
         Returns:
-            Unscaled action in original range
+            Unscaled action in original range, or beyond it if clamp_unscaled is False
         """
         # Move limits to same device as input action
         action_min = self._limits.min.to(scaled_action.device)
         action_max = self._limits.max.to(scaled_action.device)
 
         # Clamp to [-1, 1] to prevent extreme unscaled values
-        scaled_clamped = torch.clamp(scaled_action, -1.0, 1.0)
+        scaled_clamped = torch.clamp(scaled_action, -1.0, 1.0) if self.clamp_unscaled else scaled_action
 
         # Unscale back to original range
         return action_min + (scaled_clamped + 1.0) * (action_max - action_min) / 2.0
@@ -137,6 +143,7 @@ class ActionScaler:
         new_scaler.device = torch.device(device)
         new_scaler.action_scale = self.action_scale
         new_scaler.min_range_per_dim = self.min_range_per_dim
+        new_scaler.clamp_unscaled = self.clamp_unscaled
         new_scaler._limits = self.Limits(
             min=self._limits.min.to(device),
             max=self._limits.max.to(device),
@@ -151,6 +158,7 @@ class ActionScaler:
         action_scale: float = 1.0,
         min_range_per_dim: float = 1e-1,
         device: torch.device | str = "cpu",
+        clamp_unscaled: bool = True,
     ) -> ActionScaler:
         """
         Create ActionScaler from dataset statistics.
@@ -160,6 +168,7 @@ class ActionScaler:
             action_scale: Scale factor to expand the action range
             min_range_per_dim: Minimum range per dimension to prevent normalization blow-up
             device: Device to place tensors on
+            clamp_unscaled: whether unscale clamps to the expanded range (see __init__)
 
         Returns:
             Configured ActionScaler instance
@@ -173,6 +182,7 @@ class ActionScaler:
             action_scale=action_scale,
             min_range_per_dim=min_range_per_dim,
             device=device,
+            clamp_unscaled=clamp_unscaled,
         )
 
 

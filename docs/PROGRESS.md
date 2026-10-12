@@ -31,11 +31,24 @@ other four docs, with a pointer from here.
 - Parameter counts per component: ResFiT's actor has 13× the equivariant one's parameters and its
   critic 28×, at the same channel widths (EXPERIMENTS.md, the pre-registration's table).
 
+- **The pre-registered `equi-arch` would over-match ResFiT's actor.** The equivariant actor
+  already has ResFiT's depth: three hidden layers before its output (`visual_proj`, the trunk, one
+  policy layer), as ResFiT's (`compress`, two policy layers). `num_actor_layers=2` would add a
+  fourth, and put `arch-wide` at about 5M parameters, not 3.4M. Held for Aden (TODO 5e item 4).
+
 **Done**
 
-- Pre-registered `resfit-equi-diff-1012` and `equi-resfit-arch-1013`.
+- Pre-registered `resfit-equi-diff-1012` and `equi-resfit-arch-1013` (`7db124d`).
 - `submit.sh` and `tests/test_sweep_arms.py` for their config-only arms.
 - The watcher's two new groups.
+- The `rerendered` smoke (`kvcdljaf`) passed. `rerendered` launched at 15:25 from `7db124d`, with
+  its watcher (tmux `rfe-watch`). `noln` waits for `diag`'s slot. `notilt` scored 0.14 at 30k, so
+  it did not stop.
+- **`limits`' code:** `agent.actor.action_bound=equivariant` (EXPERIMENTS.md, CODE). At `"box"`,
+  ResFiT's agent is bit for bit what it was, against a fingerprint taken before the change
+  (`tests/test_action_bound.py`).
+- `outputs/queue/launchers/`: scripts that launch an arm when a run's process exits, or into the
+  first free slot, so a launch does not need this session.
 
 **Decided** (Aden)
 

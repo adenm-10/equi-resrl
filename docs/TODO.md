@@ -60,14 +60,20 @@ demos").
 5e. **NOW: ResFiT's residual given the equivariant stack's differences, and the equivariant
    residual given ResFiT's layout** (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED; plan
    `docs/plans/2026-10-12-resfit-toward-equi.md`, local; Aden, 2026-10-12).
-   1. **`resfit-equi-diff-1012`, config only:** `rerendered` and `noln`, launched from the
-      pre-registration's commit.
-   2. **`limits`** (code): the residual's cap, the clip the critic scores and the executed clip,
-      all as the equivariant stack's, in env units. Launched when a slot frees, without a smoke
-      if overnight (Aden).
+   1. **`resfit-equi-diff-1012`, config only:** `rerendered` and `noln`, from `7db124d`.
+      `rerendered` launched at 15:25 on GPU 1. `noln` waits for `diag`'s slot (tmux `rfe-noln`,
+      `outputs/queue/launchers/wait_then_launch.sh`, launching when `diag`'s process exits).
+   2. **`limits`** (code DONE: `agent.actor.action_bound=equivariant`, EXPERIMENTS.md 2026-10-12
+      CODE). It waits for `fk9ayyco`'s slot on GPU 0, about 01:00 on 2026-10-13, without a smoke
+      (Aden).
    3. **`noln-all`** (code: a switch for the ViTs' LayerNorms).
-   4. **`equi-resfit-arch-1013`** (code: `num_actor_layers` made live, its default moved to 1):
-      `arch`, then `arch-wide` (actor at 448 fields).
+   4. **`equi-resfit-arch-1013`: on hold for Aden.** As pre-registered, `arch` adds a policy layer
+      (`num_actor_layers=2`). But the equivariant actor already has ResFiT's depth: three hidden
+      layers before its output (`visual_proj`, the trunk, one policy layer; ResFiT's: `compress`
+      and two policy layers). The added layer would make it a layer deeper than ResFiT's, and
+      `arch-wide` about 5M parameters, not the pre-registered 3.4M. Either amend `arch` to leave
+      the actor's depth, or keep the extra layer and correct the count. Not launched until Aden
+      decides.
    5. **Conditional:** `combined` iff `rerendered`, `noln` and `limits` each hold at 30k; a seed 2 of
       any ResFiT arm that breaks, and of any equivariant arm that escapes.
    6. NOTEs at each 30k readout and at each arm's end.
