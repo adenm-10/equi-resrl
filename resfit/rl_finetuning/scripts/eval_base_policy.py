@@ -66,9 +66,9 @@ class ZeroResidualAgent:
     """Stands in for QAgent inside run_dexmg_evaluation, with a zero residual.
 
     Implements exactly what run_dexmg_evaluation(equivariant=True) calls:
-    act, enc, critic.q_value, eval, train and residual_actor. Its Q-values are
-    zeros and mean nothing. Reusing the trainer's evaluator, rather than a
-    separate rollout loop, keeps the episode accounting identical.
+    act, enc, critic.q_value, combine_actions, eval, train and residual_actor.
+    Its Q-values are zeros and mean nothing. Reusing the trainer's evaluator,
+    rather than a separate rollout loop, keeps the episode accounting identical.
     """
 
     residual_actor = True
@@ -84,6 +84,10 @@ class ZeroResidualAgent:
 
     def enc(self, obs):
         return None, None
+
+    @staticmethod
+    def combine_actions(base_action: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+        return base_action + residual
 
     def eval(self):
         return self

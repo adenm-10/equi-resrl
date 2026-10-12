@@ -314,7 +314,10 @@ class QAgent(torch.nn.Module):
         self.critic_target.train(self._critic_target_training)
         self.train(True)
 
-    def _combine_actions(self, base_action: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+    def combine_actions(self, base_action: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+        """The action the env receives: the base action plus the residual, each irrep(1) pair
+        clipped by its length (equi_clip). The actor loss, the TD target, critic_diagnostics and the
+        evaluator's Q all combine through here."""
         if self.equivariant:
             return equi_clip(base_action + residual, self.actor.action_layout, bound=1.0)
         return torch.clamp(base_action + residual, -1.0, 1.0)
@@ -453,7 +456,7 @@ class QAgent(torch.nn.Module):
             )
 
             if self.residual_actor:
-                next_action = self._combine_actions(
+                next_action = self.combine_actions(
                     next_obs["observation.base_action"], next_residual_action
                 )
             else:
@@ -537,7 +540,7 @@ class QAgent(torch.nn.Module):
         action_l2_penalty = self.agent_cfg.actor.action_l2_reg_weight * torch.mean(torch.sum(action_pred**2, dim=-1))
 
         if self.residual_actor:
-            combined_action = self._combine_actions(
+            combined_action = self.combine_actions(
                 obs["observation.base_action"], action_pred
             )
         else:
@@ -818,7 +821,7 @@ class QAgent(torch.nn.Module):
 
         Mirrors the ResFiT agent's method of the same name (off_policy/rl/q_agent.py), and logs
         the same keys. Where they differ, this agent's own update decides:
-        - a residual policy's action is combined with the base action by `_combine_actions`,
+        - a residual policy's action is combined with the base action by `combine_actions`,
           the disk clip its actor loss uses, where ResFiT's clamps each axis;
         - actions are in this stack's units, which `IdentityScaler` leaves as the env's, so
           `policy_data_gap` is not on the ResFiT stack's normalized scale;
@@ -845,7 +848,7 @@ class QAgent(torch.nn.Module):
         else:
             policy_action = self.actor(obs["actor_feat"], 0.0).mean
         if self.residual_actor:
-            policy_action = self._combine_actions(obs["observation.base_action"], policy_action)
+            policy_action = self.combine_actions(obs["observation.base_action"], policy_action)
 
         def q(action):
             return self.critic(obs["critic_feat"], action).squeeze(-1).mean(dim=0)

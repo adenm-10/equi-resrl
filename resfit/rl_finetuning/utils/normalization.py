@@ -229,6 +229,12 @@ class StateStandardizer:
 
         return (state - mean) / std_safe
 
+    def unstandardize(self, state: torch.Tensor) -> torch.Tensor:
+        """The inverse of standardize: the raw state, as the eval's tilt readout reads it."""
+        mean = self._mean.to(state.device)
+        std_safe = torch.maximum(self._std.to(state.device), torch.tensor(1e-8, device=state.device))
+        return state * std_safe + mean
+
     def to(self, device: torch.device | str) -> StateStandardizer:
         """Move standardizer to a different device."""
         new_standardizer = StateStandardizer.__new__(StateStandardizer)

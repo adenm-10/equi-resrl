@@ -167,8 +167,26 @@ def run_dexmg_evaluation(
     frame_buffer: list[list[np.ndarray]] | None = [[] for _ in range(num_envs)] if save_video else None
     all_frames: list[np.ndarray] | None = [] if save_video else None
 
+    # The gripper's tilt (2026-10-12): per episode, the largest angle between arm 0's gripper axis
+    # and its axis at the episode's first step, from the raw end-effector quaternion
+    # (observation.state[3:7], which robosuite stores x y z w). A yaw leaves the axis where it is,
+    # so this measures tilt alone. Logging only: it reads the observations and draws nothing.
+    standardizer = getattr(env, "state_standardizer", None)
+
+    def _gripper_axis(observation) -> torch.Tensor:
+        state = observation["observation.state"]
+        if standardizer is not None:
+            state = standardizer.unstandardize(state)
+        q = state[:, 3:7] / state[:, 3:7].norm(dim=-1, keepdim=True).clamp(min=1e-8)  # a zero state reads as untilted
+        x, y, z, w = q.unbind(-1)
+        return torch.stack([2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)], dim=-1)
+
+    episode_tilts: list[float] = []  # aligned with successes
+
     done_episodes = 0
     obs, _ = env.reset()
+    axis_start = _gripper_axis(obs)
+    tilt_max = torch.zeros(axis_start.shape[0], device=axis_start.device)
 
     # Initialize progress display with dots
     progress_dots = ["."] * num_episodes
@@ -179,6 +197,8 @@ def run_dexmg_evaluation(
         # 1. Policy inference + Q-value prediction ---------------------
         # --------------------------------------------------------------
         with torch.no_grad():
+            cos = (_gripper_axis(obs) * axis_start).sum(-1).clamp(-1.0, 1.0)
+            tilt_max = torch.maximum(tilt_max, torch.rad2deg(torch.arccos(cos)))
             actions = q_actions = agent.act(obs, eval_mode=True, stddev=0.0, cpu=False)
 
             # Build features on-the-fly to obtain Q-predictions --------
@@ -189,9 +209,14 @@ def run_dexmg_evaluation(
             else:
                 obs_q["actor_feat"], obs_q["critic_feat"] = agent.enc(obs)
 
-            # For Q-value computation, use combined action and clamp to [-1, 1] (consistent with training)
+            # Q is scored at the action the env receives, the base action plus the residual, combined
+            # as each stack's actor loss combines them: ResFiT clamps each axis, the equivariant agent
+            # clips each irrep(1) pair by its length. Until 2026-10-12 the equivariant residual's Q
+            # was scored at the residual alone (EXPERIMENTS.md, CORRECTION of that date).
             if agent.residual_actor and not equivariant:
                 q_actions = torch.clamp(obs["observation.base_action"] + actions, -1.0, 1.0)
+            elif agent.residual_actor:
+                q_actions = agent.combine_actions(obs["observation.base_action"], actions)
 
             if not equivariant:
                 q_pred = (
@@ -233,6 +258,7 @@ def run_dexmg_evaluation(
 
                 successes.append(is_success)
                 returns.append(ep_return)
+                episode_tilts.append(tilt_max[env_idx].item())
 
                 # Store Q-trajectory data for plotting ------------------
                 if save_q_plots:
@@ -273,6 +299,11 @@ def run_dexmg_evaluation(
                     break
 
         # Prepare for next loop ----------------------------------------
+        # An env that finished has auto-reset: its next observation starts a new episode.
+        if done_flags.any():
+            restarted = torch.as_tensor(done_flags, device=tilt_max.device).reshape(-1).bool()
+            axis_start = torch.where(restarted[:, None], _gripper_axis(next_obs), axis_start)
+            tilt_max = torch.where(restarted, torch.zeros_like(tilt_max), tilt_max)
         obs = next_obs
 
     print("Done")
@@ -300,6 +331,9 @@ def run_dexmg_evaluation(
         "eval/mean_return": mean_return,
         "eval/mean_successful_episode_length": mean_successful_episode_length,
     }
+    if episode_tilts:
+        metrics["eval/tilt_max_deg_mean"] = float(np.mean(episode_tilts))
+        metrics["eval/tilt_over_30deg_frac"] = float(np.mean([t > 30.0 for t in episode_tilts]))
 
     if wandb.run is not None:
         wandb.log(metrics, step=global_step)

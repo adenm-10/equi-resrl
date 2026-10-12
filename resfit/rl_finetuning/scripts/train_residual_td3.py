@@ -253,6 +253,63 @@ def _add_transitions_to_buffer(
         online_rb.add(td)
 
 
+def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action_dim: int, image_keys: list[str],
+                dataset_stats, device: torch.device):
+    """The agent this trainer trains, as `cfg` describes it: ResFiT's QAgent, or the equivariant
+    one with its normalizer from the dataset's statistics, centred on the robot bases. Moved here
+    verbatim from main (2026-10-12) so tools/residual_field_ablation.py builds a saved run's agent
+    as its run did; main calls it where it built the agent, so the order of random draws is as
+    before."""
+    residual_run = cfg.base_policy is not None
+    agent = None
+    if cfg.equivariance is None:
+        from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+        agent = QAgent(
+            obs_shape=obs_shape,
+            prop_shape=(prop_dim,),
+            action_dim=action_dim,
+            rl_cameras=image_keys,
+            cfg=cfg.agent,
+            residual_actor=residual_run,  # the actor outputs a residual, or the whole action
+        )
+    else:
+        print(f"Instantiating Equivariant Agent")
+        from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
+        agent = QAgent(
+            obs_shape=obs_shape,
+            prop_shape=(prop_dim,),
+            action_dim=action_dim,
+            rl_cameras=image_keys,
+            agent_cfg=cfg.agent,
+            equi_cfg=cfg.equivariance,
+            residual_actor=residual_run,
+            equivariant=cfg.equivariance.use_equivariant_model,
+        )
+
+        # Both arms are centred on the same point, so the group acts linearly
+        # on the whole scene. For one arm the midpoint is just its own base.
+        robot_bases, rotation_center = get_robot_bases_cached(
+            env_name=cfg.task,
+            video_key=cfg.video_key,
+            cache_root=_CACHE_ROOT,
+        )
+        assert len(robot_bases) == cfg.equivariance.n_arms, (
+            f"probe found {len(robot_bases)} robot bases in {cfg.task}, but "
+            f"equivariance.n_arms={cfg.equivariance.n_arms}"
+        )
+        normalizer = build_equivariant_normalizer(
+            stats=dataset_stats,
+            robot_base_xy=rotation_center,
+            n_arms=cfg.equivariance.n_arms,
+            gripper_dim=cfg.equivariance.gripper_dim,
+            hand_dof=cfg.equivariance.hand_dof,
+        )
+        agent.enc.set_normalizer(normalizer, robot_base_xy=rotation_center)
+
+        agent.to(device)
+    return agent
+
+
 # -----------------------------------------------------------------------------
 # Main training loop -----------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -483,52 +540,8 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Networks ------------------------------------------------------------
     # ---------------------------------------------------------------------
 
-    agent = None
-    if not equivariant_run:
-        from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
-        agent = QAgent(
-            obs_shape=(img_c, img_h, img_w),
-            prop_shape=(lowdim_dim,),
-            action_dim=action_dim,
-            rl_cameras=image_keys,
-            cfg=cfg.agent,
-            residual_actor=residual_run,  # the actor outputs a residual, or the whole action
-        )
-    else:
-        print(f"Instantiating Equivariant Agent")
-        from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
-        agent = QAgent(
-            obs_shape=(img_c, img_h, img_w),
-            prop_shape=(lowdim_dim,),
-            action_dim=action_dim,
-            rl_cameras=image_keys,
-            agent_cfg=cfg.agent,
-            equi_cfg=cfg.equivariance,
-            residual_actor=residual_run,
-            equivariant=cfg.equivariance.use_equivariant_model,
-        )
-
-        # Both arms are centred on the same point, so the group acts linearly
-        # on the whole scene. For one arm the midpoint is just its own base.
-        robot_bases, rotation_center = get_robot_bases_cached(
-            env_name=cfg.task,
-            video_key=cfg.video_key,
-            cache_root=_CACHE_ROOT,
-        )
-        assert len(robot_bases) == cfg.equivariance.n_arms, (
-            f"probe found {len(robot_bases)} robot bases in {cfg.task}, but "
-            f"equivariance.n_arms={cfg.equivariance.n_arms}"
-        )
-        normalizer = build_equivariant_normalizer(
-            stats=dataset.meta.stats,
-            robot_base_xy=rotation_center,
-            n_arms=cfg.equivariance.n_arms,
-            gripper_dim=cfg.equivariance.gripper_dim,
-            hand_dof=cfg.equivariance.hand_dof,
-        )
-        agent.enc.set_normalizer(normalizer, robot_base_xy=rotation_center)
-
-        agent.to(device)
+    agent = build_agent(cfg, obs_shape=(img_c, img_h, img_w), prop_dim=lowdim_dim, action_dim=action_dim,
+                        image_keys=image_keys, dataset_stats=dataset.meta.stats, device=device)
 
     def agent_update(batch, stddev, update_actor, compute_metrics, bc_batch=None):
         """One gradient update. compute_metrics=False lets the equivariant agent skip the

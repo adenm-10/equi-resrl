@@ -353,7 +353,8 @@ TODO P3.4.
 | `wrappers/normalized_env_wrapper.py` | `NormalizedVecEnvWrapper`, vanilla RL's: the residual wrapper less the base policy. Standardizes the state, unscales the action, records it in `info["scaled_action"]`. |
 | `utils/normalization.py` | `StateStandardizer`, `ActionScaler`, and the identity versions used on the equivariant path. |
 | `utils/hugging_face.py` | Downloads BC checkpoints from wandb and buffer caches from HF. |
-| `utils/checkpoint.py`, `utils/evaluate_dexmg.py`, `utils/rb_transforms.py`, `utils/dtype.py` | Checkpointing, evaluation rollouts, replay-buffer transforms, dtype helpers. |
+| `utils/checkpoint.py`, `utils/evaluate_dexmg.py`, `utils/rb_transforms.py`, `utils/dtype.py` | Checkpointing, evaluation rollouts, replay-buffer transforms, dtype helpers. From 2026-10-12 each eval also logs the gripper's tilt (`eval/tilt_max_deg_mean`, `eval/tilt_over_30deg_frac`: per episode, the largest angle between arm 0's gripper axis and its axis at the start), and scores Q at the base action plus the residual on both stacks (before, the equivariant residual's Q was scored at the residual alone; EXPERIMENTS.md, 2026-10-12 CORRECTION). |
+| `utils/field_metrics.py` | From 2026-10-12: the residual and the critic's per-sample slope per action field, on the logged update's online and demo rows (`debug/residual_field/*`, `debug/dQ_da_field/*`), both stacks. |
 | `dexmg/environments/dexmg.py` | `create_vectorized_env` — robosuite/mimicgen env construction. |
 
 ## How a training step flows
@@ -518,6 +519,7 @@ residual of about 1e-4 (`residual_l1`), within noise of it, but not exactly it.
 | Robot base XY probes | `env_probes/<task>.json` |
 | Local wandb run data | `wandb/run-<date>-<run_id>/files/{config.yaml,output.log,wandb-metadata.json}` |
 | Run packages | `<CACHE_DIR>/outputs/runs/<project>/<run_id>/`, or `.../local/<timestamp>/` without wandb. See below. |
+| Re-evaluating a saved residual with fields zeroed | `tools/residual_field_ablation.py <run_id> --step N`, from a run's `models/step_<N>.pt`; it builds the agent with the trainer's own `build_agent`. Results in `<CACHE_DIR>/outputs/diagnostics/residual-field-ablation/` |
 | Past local run outputs | `local_runs/run_<timestamp>_.../`; before run packages, `run_<timestamp>_*` and `bc_run_*` in the launch directory, deleted when the run completed |
 | Run launchers | `resfit/rl_finetuning/shell/paper_runs/<task>/` and `.../ablations/<task>/<knob>/` |
 | Vendored dependencies | `deps/{lerobot,robosuite,mimicgen,dexmimicgen}/` (gitignored, 1.7 GB) |

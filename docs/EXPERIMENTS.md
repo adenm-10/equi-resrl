@@ -6131,3 +6131,44 @@ when it is run):
     critic updates.
   - Then about 1 h per 10k for `diag` alone (`doevaarp`: 59 min between evals), and about 2 h per
     10k for `notilt` sharing a GPU.
+
+---
+
+## 2026-10-12 — CORRECTION and CODE — the eval's Q on the equivariant residual path; a tilt readout in every eval; the field-zeroing tool
+
+**The correction** (the FINDING's side finding, above):
+- `run_dexmg_evaluation` scored the critic at `agent.act()`'s output. On the equivariant residual
+  path that output is the residual alone: the env wrapper adds the base action itself
+  (`residual_env_wrapper.py:136`).
+- So every equivariant residual run's "Q =" overlay on its eval videos, and every
+  `eval_q_trajectories_*.png` (wandb `value/q_trajectories`), shows the critic at about zero
+  action, not at the action executed. That covers every equivariant residual run so far, and
+  `eaqorqki`, `doevaarp`, `6ng62tpm` and `kyv7clfc` among them.
+- Training is unaffected: the actor loss, the TD target and `critic_diagnostics` always combined the
+  actions. So are tuned RLPD, whose actor outputs the whole action, and ResFiT, whose branch already
+  added the base.
+- **The fix:** the evaluator scores Q at `agent.combine_actions(base, residual)`, the actor loss's
+  own combination (made public, from `_combine_actions`).
+  - `critic.q_value` draws the same random numbers as before, so an eval's random stream is
+    unchanged.
+  - It reaches runs launched from this commit on. `resfit-rx-1012` (`60fce72`) is ResFiT's path,
+    which was right. `residual-tilt-1012` (`be0b7bb`) launched before it, so its eval Q plots keep
+    the old error.
+
+**The CODE** (logging and tooling; none changes what a run computes):
+- **A tilt readout in every eval** (`utils/evaluate_dexmg.py`):
+  - Per episode, the largest angle between arm 0's gripper axis and its axis at the episode's first
+    step, from the raw end-effector quaternion. A yaw leaves the axis where it is.
+  - Logged as `eval/tilt_max_deg_mean` and `eval/tilt_over_30deg_frac`.
+  - ResFiT's path un-standardizes the state first (`StateStandardizer.unstandardize`, new).
+  - `tests/test_eval_base_policy.py` scripts known tilts and yaws through the real evaluator.
+- **`tools/residual_field_ablation.py`:**
+  - Re-evaluates a run's `models/step_<N>.pt` with whole residual fields set to zero, on the
+    trainer's own evaluator, for the field test pre-registered above.
+  - It builds the agent with the trainer's own construction, moved verbatim into
+    `train_residual_td3.build_agent`, which `main` calls where it built the agent before.
+  - `tests/test_field_ablation.py` checks each variant's mask on one and two arms. On the GPU it
+    checks that `eaqorqki`'s saved model loads strictly through `build_agent`, and that the unmasked
+    agent acts exactly as loaded.
+- `tests/README.md`, ARCHITECTURE.md and the gate's Tier 1 list are brought up to date for this
+  commit and the two before it.
