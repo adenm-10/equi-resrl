@@ -4,7 +4,7 @@
 `resfit-equi-diff-1012` and `equi-resfit-arch-1013` (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED,
 "ResFiT's residual on Square, given the equivariant stack's differences one at a time"): its
 Tier-1 sweep and watcher tests passed in its launch worktree, and the gate runs at each launch.
-The `limits` CODE commit follows it.
+The `limits` and `noln-all` CODE commits follow it.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -167,7 +167,7 @@ pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
 | `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | launched 15:25 from `7db124d`, GPU 1, tmux `rfe-rerendered` (smoke `kvcdljaf` passed) |
 | `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot, GPU 1, about 17:30 (tmux `rfe-noln`); `notilt` did not stop at 30k |
 | `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code done; waits for `fk9ayyco`'s slot, GPU 0, about 01:00, no smoke |
-| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code first; then the first free slot |
+| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code done; the first free slot (tmux `rfe-queue`), likely about 08:00 on 2026-10-13, no smoke |
 | `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
 | `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual; the wide one with ResFiT's actor parameter count | **on hold for Aden:** the added policy layer would make the actor a layer deeper than ResFiT's (TODO 5e item 4) |
 

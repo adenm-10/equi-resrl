@@ -66,7 +66,9 @@ demos").
    2. **`limits`** (code DONE: `agent.actor.action_bound=equivariant`, EXPERIMENTS.md 2026-10-12
       CODE). It waits for `fk9ayyco`'s slot on GPU 0, about 01:00 on 2026-10-13, without a smoke
       (Aden).
-   3. **`noln-all`** (code: a switch for the ViTs' LayerNorms).
+   3. **`noln-all`** (code DONE: `agent.vit.use_layer_norm=false`, EXPERIMENTS.md 2026-10-12 CODE).
+      It takes the first free slot, through `outputs/queue/launchers/slot_queue.sh` (tmux
+      `rfe-queue`), without a smoke.
    4. **`equi-resfit-arch-1013`: on hold for Aden.** As pre-registered, `arch` adds a policy layer
       (`num_actor_layers=2`). But the equivariant actor already has ResFiT's depth: three hidden
       layers before its output (`visual_proj`, the trunk, one policy layer; ResFiT's: `compress`

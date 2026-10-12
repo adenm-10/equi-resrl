@@ -20,6 +20,10 @@ class VitEncoderConfig:
     patch_size: int = 8
     stride: int = -1
     act_layer = nn.GELU
+    # The LayerNorms of each transformer layer (before attention and before the MLP) and the final
+    # one. False puts an Identity in their place, as resfit-residual-square-noln-all does; the
+    # actor's and critic's own are agent.actor.use_layer_norm and agent.critic.use_layer_norm.
+    use_layer_norm: bool = True
 
 
 @dataclass

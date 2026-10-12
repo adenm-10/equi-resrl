@@ -67,13 +67,13 @@ class MultiHeadAttention(nn.Module):
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, embed_dim, num_head, dropout):
+    def __init__(self, embed_dim, num_head, dropout, use_layer_norm=True):
         super().__init__()
 
-        self.layer_norm1 = nn.LayerNorm(embed_dim)
+        self.layer_norm1 = nn.LayerNorm(embed_dim) if use_layer_norm else nn.Identity()
         self.mha = MultiHeadAttention(embed_dim, num_head)
 
-        self.layer_norm2 = nn.LayerNorm(embed_dim)
+        self.layer_norm2 = nn.LayerNorm(embed_dim) if use_layer_norm else nn.Identity()
         self.linear1 = nn.Linear(embed_dim, 4 * embed_dim)
         self.linear2 = nn.Linear(4 * embed_dim, embed_dim)
         self.dropout = nn.Dropout(dropout)
@@ -89,7 +89,7 @@ class TransformerLayer(nn.Module):
 
 
 class MinVit(nn.Module):
-    def __init__(self, embed_style, embed_dim, embed_norm, num_head, depth):
+    def __init__(self, embed_style, embed_dim, embed_norm, num_head, depth, use_layer_norm=True):
         super().__init__()
 
         if embed_style == "embed1":
@@ -101,10 +101,10 @@ class MinVit(nn.Module):
             raise NotImplementedError(f"Unknown embed style {embed_style}")
 
         self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patch, embed_dim))
-        layers = [TransformerLayer(embed_dim, num_head, 0) for _ in range(depth)]
+        layers = [TransformerLayer(embed_dim, num_head, 0, use_layer_norm) for _ in range(depth)]
 
         self.net = nn.Sequential(*layers)
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim) if use_layer_norm else nn.Identity()
         self.num_patches = self.patch_embed.num_patch
 
         # weight init

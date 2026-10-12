@@ -6526,3 +6526,31 @@ limits, as pre-registered.
     `test_field_ablation.py`, `test_eval_base_policy.py` and `test_imports.py`.
 - **Not tested:** that the trainer builds the scaler unclamped. It is not silent if it does not:
   the agent refuses a clamping scaler at startup, so such a run fails at launch.
+
+---
+
+## 2026-10-12 — CODE — `agent.vit.use_layer_norm`: the ViT encoders' LayerNorms, for `resfit-residual-square-noln-all`
+
+The code for `resfit-equi-diff-1012`'s `noln-all` arm (PRE-REGISTERED above): `noln`, and the ViT
+encoders' LayerNorms off too.
+- **`agent.vit.use_layer_norm`** (`VitEncoderConfig`), `true` by default. At `false`, `MinVit` puts
+  an Identity in place of each LayerNorm: two per transformer layer, before attention and before
+  the MLP, and the final one. That is three per encoder at the anchor's depth of 1, and six for the
+  two cameras.
+  - With `agent.actor.use_layer_norm=false` and `agent.critic.use_layer_norm=false`, the arm has no
+    norm anywhere. The patch embedding's GroupNorm is off in the anchor too
+    (`agent.vit.embed_norm=0`).
+  - The equivariant agent reads no `agent.vit` field, this one included.
+- **At `true`, every earlier ResFiT run, bit for bit:** `tests/test_action_bound.py`'s fingerprint
+  of ResFiT's agent (its ViTs included) is the tree before 2026-10-12's changes, exactly, in
+  deterministic mode on GPU 1.
+- **`tests/test_sweep_arms.py`:**
+  - `noln-all` launches its three fields alone, composes to the anchor but for them, builds and
+    updates.
+  - It starts from the anchor's weights bit for bit, less every LayerNorm's. A LayerNorm draws no
+    random number at init.
+  - It has no LayerNorm, GroupNorm or BatchNorm in any module.
+  - The anchor still composes to `oj5k0jqb`'s recorded config, with the field at `true`.
+- **Run on GPU 1:** `test_sweep_arms.py`, `test_action_bound.py`, `test_config.py`, `test_imports.py`
+  and `test_no_ops.py`: 228 passed, 6 skipped. `test_no_ops.py` also covers the equivariant agent
+  after the `limits` commit, which it had not run on.

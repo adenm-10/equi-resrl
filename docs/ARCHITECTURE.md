@@ -467,6 +467,10 @@ The layout is the equivariant encoder's (`arm_action_shape`, `build_action_layou
 equivariant agent refuses it. `tests/test_action_bound.py` pins `"box"` to the agent before the
 field, and tests the bound.
 
+**ResFiT's LayerNorms** are three switches, all on by default: `agent.actor.use_layer_norm` and
+`agent.critic.use_layer_norm`, and `agent.vit.use_layer_norm` (from 2026-10-12) for each ViT
+encoder's: two per transformer layer and a final one. The equivariant agent reads none of them.
+
 **Equivariant path.** Those two become `IdentityStandardizer` and `IdentityScaler`
 ([train_residual_td3.py:305-307](../resfit/rl_finetuning/scripts/train_residual_td3.py#L305)), and
 normalization moves *inside* the encoder via `build_equivariant_normalizer` and

@@ -14,8 +14,8 @@ submit.sh's case table is checked here first:
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses; at the same seed it starts from the anchor's weights, bit for
           bit, but for any norm it drops; noln has no LayerNorm in its actor or
-          critic and keeps its ViTs'. What limits' bound does is tested in
-          tests/test_action_bound.py. A test here keeps on record that the
+          critic and keeps its ViTs', and noln-all has no norm anywhere. What
+          limits' bound does is tested in tests/test_action_bound.py. A test here keeps on record that the
           fixed-env baselines' FieldNorm critic is blind to every trivial input
           (2026-10-08 FINDING).
 
@@ -46,6 +46,7 @@ SEED_GROUP = "resfit-equi-diff-1012"
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
 LIMITS = "resfit-residual-square-limits"
+NOLN_ALL = "resfit-residual-square-noln-all"
 CONFIG = "residual_td3_square_config"
 DEMOS = "ankile/robomimic-mh-square-image"  # the config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
@@ -59,20 +60,25 @@ LAUNCHED = {
     RERENDERED: ANCHOR | {f"offline_data.name={RERENDERED_DEMOS}"},
     NOLN: ANCHOR | {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false"},
     LIMITS: ANCHOR | {"agent.actor.action_bound=equivariant"},
+    NOLN_ALL: ANCHOR | {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false",
+                        "agent.vit.use_layer_norm=false"},
 }
 # Each arm's changes from the anchor, as composed paths, and its values there.
 FROM_ANCHOR = {
     RERENDERED: {"offline_data.name"},
     NOLN: {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"},
     LIMITS: {"agent.actor.action_bound"},
+    NOLN_ALL: {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm", "agent.vit.use_layer_norm"},
 }
 ARM_VALUES = {
     RERENDERED: {"offline_data.name": RERENDERED_DEMOS},
     NOLN: {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False},
     LIMITS: {"agent.actor.action_bound": "equivariant"},
+    NOLN_ALL: {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False,
+               "agent.vit.use_layer_norm": False},
 }
 # The demos each arm loads.
-ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS}
+ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -237,7 +243,8 @@ def test_the_anchor_composes_to_oj5k0jqbs_recorded_config():
             if not k.startswith("wandb.")}
     added = {k: ours[k] for k in ours.keys() - recorded.keys()}
     # "box" is ResFiT's own bound, as oj5k0jqb ran it (tests/test_action_bound.py's golden).
-    assert added == {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box"}
+    assert added == {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box",
+                     "agent.vit.use_layer_norm": True}
     changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
     assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
     assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
@@ -559,8 +566,8 @@ def _weights_in_order(module, drop_layer_norms: bool) -> list:
 def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
     """At the same seed, the arm's initial weights are the anchor's bit for bit: rerendered changes
     the data alone, limits the bound alone, which draws no random number and adds no weight, and
-    noln drops LayerNorms, which draw no random number at init, so every other weight is drawn as
-    the anchor's. The episodes still differ, since `seed` does not reach the envs."""
+    noln and noln-all drop LayerNorms, which draw no random number at init, so every other weight
+    is drawn as the anchor's. The episodes still differ, since `seed` does not reach the envs."""
     import torch
 
     anchor = _seeded_agent(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name"))), device)
@@ -571,15 +578,18 @@ def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
         for key, value in mine.items():
             assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
         return
-    # noln: the anchor's actor and critic less their LayerNorms; the encoders keep theirs.
-    for part in ("actor", "critic"):
+    # noln: the anchor's actor and critic less their LayerNorms, and its encoders as they were.
+    # noln-all: its encoders less their LayerNorms too.
+    for part in ("actor", "critic", "encoders"):
+        if part == "encoders" and arm == NOLN:
+            theirs, mine = anchor.encoders.state_dict(), ours.encoders.state_dict()
+            assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
+            continue
         theirs = _weights_in_order(getattr(anchor, part), drop_layer_norms=True)
         mine = _weights_in_order(getattr(ours, part), drop_layer_norms=False)
         assert len(theirs) == len(mine), (part, len(theirs), len(mine))
         for i, (a, b) in enumerate(zip(theirs, mine)):
             assert a.shape == b.shape and torch.equal(a, b), f"{arm}: {part} tensor {i} differs"
-    theirs, mine = anchor.encoders.state_dict(), ours.encoders.state_dict()
-    assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
 
 
 @pytest.mark.gpu
@@ -597,6 +607,18 @@ def test_noln_has_no_layernorm_in_its_actor_or_critic_and_its_vits_keep_theirs(t
     assert count(anchor.actor) > 0 and count(anchor.critic) > 0
     assert count(ours.actor) == count(ours.critic) == 0
     assert count(ours.encoders) == count(anchor.encoders) == 2 * 3
+
+
+@pytest.mark.gpu
+def test_noln_all_has_no_norm_anywhere(tmp_path, device):
+    """No LayerNorm in the actor, the critic or the ViTs, and no other norm either: the patch embedding's
+    GroupNorm is off in the anchor too (agent.vit.embed_norm=0)."""
+    import torch
+
+    ours = _agent(_compose(_overrides(NOLN_ALL, tmp_path)), device)
+    norms = (torch.nn.LayerNorm, torch.nn.GroupNorm, torch.nn.BatchNorm1d, torch.nn.BatchNorm2d)
+    found = [name for name, m in ours.named_modules() if isinstance(m, norms)]
+    assert not found, found
 
 
 @pytest.mark.gpu
