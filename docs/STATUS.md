@@ -1,8 +1,8 @@
 # Status
 
-**Last updated:** 2026-10-11, about 19:45 · **Last verified commit:** `d354241`, recording
-`square-trlpd-stab-1010`'s launches. The pre-registration of `square-residual-start-1011` is being
-committed (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED); its gate runs at launch.
+**Last updated:** 2026-10-11, about 21:10 · **Last verified commit:** `0af7655`, pre-registering
+`square-residual-start-1011` (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED). The gate's Tier 1 and
+Tier 2 passed in full, and the gate said GO for both arms launched from it.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -26,7 +26,7 @@ failed in different ways** (EXPERIMENTS.md, 2026-10-10 NOTE):
   and the seed 2s wait. Earlier, every other run was cancelled on 2026-10-10 (DEVIATION), leaving
   `critic-norm-can-1008`'s democodec arm and the fixed-env baselines' ResFiT Can arm without
   verdicts.
-- **Now launching: `square-residual-start-1011`** (2026-10-11 PRE-REGISTERED). Two equivariant
+- **Now running: `square-residual-start-1011`** (2026-10-11 PRE-REGISTERED and LAUNCHED). Two equivariant
   residual arms, each one change from `6ng62tpm`: the actor's last layer at exactly zero, and a
   50k critic warm-up. Aden's question is whether the actor moves before the critic can tell good
   residuals from bad.
@@ -131,13 +131,17 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 **`square-residual-start-1011`** (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED, "the equivariant
 residual on Square: its actor's last layer at zero, and a 50k critic warm-up"). Each arm is
-`6ng62tpm`'s launch plus one change, on the re-rendered Square demos, up to 300k steps. They launch
-from the commit that pre-registers them, in a worktree pinned to it:
+`6ng62tpm`'s launch plus one change, on the re-rendered Square demos, up to 300k steps. Both run
+from `0af7655` in the worktree `~/projects/equi-resrl-0af7655` (2026-10-11 LAUNCHED):
 
 | Arm | Change from `6ng62tpm` | Run | Where |
 |---|---|---|---|
-| `equi-residual-square-init0` 1 | the actor's last layer starts at 0.0, not 1e-4 | launching | GPU 1 |
-| `equi-residual-square-warmup50k` 1 | 50k critic-only updates before the actor's first, not 10k | launching | GPU 0 |
+| `equi-residual-square-init0` 1 | the actor's last layer starts at 0.0, not 1e-4 | `eaqorqki`, from 21:04 | GPU 1, tmux `sq-res-init0` |
+| `equi-residual-square-warmup50k` 1 | 50k critic-only updates before the actor's first, not 10k | `doevaarp`, from 20:40 | GPU 0, tmux `sq-res-wu50k` |
+
+The warm-up buffers differ by chance (the envs are not seeded): 7 successes of 35 episodes for
+`init0`, 16 of 36 for `warmup50k`, and 9 of 35 for `6ng62tpm`. The 30k collapse decision is
+expected at about 03:00 on 2026-10-12 for `init0`, and about 01:30 for `warmup50k`.
 
 **`square-trlpd-stab-1010`**: `equi-tuned-rlpd-square-clipq` 1 (`jdu1nkxw`, 0.66 at 170k) runs on
 GPU 1 from `6b2acc6` in tmux `sq-trlpd-b`. `10x2` 1 and the seed 2s of `clipq`, `pooledln` and `ln`

@@ -5640,3 +5640,43 @@ The run package keeps it in `wandb_logs/output.log`.
     So the 30k collapse decision comes about 7.5 h after launch for `init0`, and about 9 h after
     for `warmup50k`.
 - **What waits:** `10x2` and the seed 2s of `square-trlpd-stab-1010`.
+
+---
+
+## 2026-10-11 — LAUNCHED — `square-residual-start-1011` seed 1: `init0` (`eaqorqki`), `warmup50k` (`doevaarp`)
+
+From `0af7655` (PRE-REGISTERED above), in the worktree `~/projects/equi-resrl-0af7655`, by hand
+through `submit.sh` in tmux, both at 19:44, each gate counting both (`CONCURRENT=2`). Consoles in
+`outputs/queue/`, `20261011-194445_<arm>-1_gpu<N>.log`.
+
+| Arm | GPU, tmux | Gate GO | In wandb | Run |
+|---|---|---|---|---|
+| `equi-residual-square-init0` 1 | 1 (with `clipq`), `sq-res-init0` | about 20:10 | 21:04 | [**`eaqorqki`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/eaqorqki) |
+| `equi-residual-square-warmup50k` 1 | 0, `sq-res-wu50k` | about 20:10 | 20:40 | [**`doevaarp`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/doevaarp) |
+
+- **The gate said GO for both:**
+  - Tier 1: 207 passed and 2 skipped. Tier 2: 397 passed, in 17–18 min.
+  - Render check passed: Can 0.0103 and 0.0105, Square 0.0099 and 0.0088, against bars of 0.0125
+    and 0.0129.
+  - RAM headroom: 87 GB available against 42 GB.
+  - Warnings: the BC policy is not in the worktree's `artifacts/` (it downloads `v9`), and the disk
+    has 36 GB free (no cache to write).
+- **Run packages:** each records `0af7655`, clean, and mujoco 3.3.2. Each argv is the
+  pre-registered one: `init0` carries `actor_last_layer_init_scale=0.0`; `warmup50k` carries `1e-4`
+  and `critic_warmup_steps=50000`.
+- **The warm-up buffers differ by chance.** The envs are not seeded, and each run fills its 10k
+  base-policy steps with noise afresh:
+  - `init0` 7 successes of 35 episodes;
+  - `warmup50k` 16 of 36;
+  - `6ng62tpm` 9 of 35.
+
+  So `warmup50k`'s critic fits about twice the online successes the other two do. This weakens
+  the comparison of its online value with `6ng62tpm`'s, for the warm-up and the first 10k steps of
+  training. The 30k NOTE reads both against each run's own realized return.
+- **Speed:** critic warm-up updates at 0.074 s alone on GPU 0 (`warmup50k`), and 0.158 s on GPU 1
+  sharing with `clipq` (`init0`).
+- **The smoke run** (`qyqm14qf`, PRE-REGISTERED, checks) finished, exit 0, at 1,000 steps. Its
+  residual left zero and grew to `residual_l1` 0.0013 by step 1,000, with every loss finite.
+- **Watcher:** `sq-watch3` (`--group square-residual-start-1011`, from the worktree) started at
+  19:44:50, and tracked `doevaarp` at 20:40:53 and `eaqorqki` at 21:05:55. `sq-watch` (its group
+  `square-rerendered-1009` now has nothing running) and `sq-watch2` run on.
