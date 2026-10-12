@@ -5,23 +5,24 @@ submit.sh's case table is checked here first:
 
   Tier 1  its overrides are the pre-registered ones and set no key twice; it
           composes through train_residual_td3's Hydra configs to the anchor's
-          config (6ng62tpm's launch, equi-residual-square-rerendered 1 at
-          eb90a0c) but for its one change; the anchor is what 6ng62tpm launched
-          with; the dataset is built; the smoke mode is the arm, briefly; and
-          every arm launches.
+          config (oj5k0jqb's launch, resfit-residual-square 1 at 9cf207d) but for
+          its one change; the anchor is what oj5k0jqb launched with, and composes
+          today to oj5k0jqb's recorded config but for fields added since at their
+          no-op defaults; the arm's one change moves rx's ActionScaler and no
+          other component's; the dataset is there; the smoke mode is the arm,
+          briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
-          losses; its actor is equivariant and its critic invariant, at the
-          arm's own sizes; every input its critic and actor are given can move
-          their outputs (the FieldNorm critic of the fixed-env baselines could
-          not, 2026-10-08 FINDING, and a test here keeps that on record); it has
-          no norm and five one-layer critic heads, as the anchor; at the same seed
-          it starts from the anchor's weights, but for init0's actor's last
-          Linear, which is zero; and init0's residual starts at exactly zero and
-          learns from there.
+          losses, and at the same seed it starts from the anchor's weights bit for
+          bit. For an equivariant arm, also: its actor is equivariant and its
+          critic invariant, at the arm's own sizes; every input its critic and
+          actor are given can move their outputs (the FieldNorm critic of the
+          fixed-env baselines could not, 2026-10-08 FINDING, and a test here keeps
+          that on record); and it has the design of 6ng62tpm's equivariant
+          residual.
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-11
-PRE-REGISTERED, "the equivariant residual on Square: its actor's last layer at
-zero, and a 50k critic warm-up").
+The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-12
+PRE-REGISTERED, "ResFiT's residual on Square with rx at the equivariant stack's
+range").
 """
 
 from __future__ import annotations
@@ -41,32 +42,26 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SUBMIT = REPO / "submit.sh"
 LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
 
-SEED_GROUP = "square-residual-start-1011"
+SEED_GROUP = "resfit-rx-1012"
 
-INIT0 = "equi-residual-square-init0"
-WARMUP50K = "equi-residual-square-warmup50k"
-CONFIG = "residual_equi_td3_square_config"
-DEMOS = "local/robomimic-mh-square-rerendered"
-ANCHOR_SCALE = "agent.actor.actor_last_layer_init_scale=1e-4"
+RX = "resfit-residual-square-rx"
+CONFIG = "residual_td3_square_config"
+DEMOS = "ankile/robomimic-mh-square-image"  # the config's own, the original coded demos
 
 # What every arm launches, less the run's name, notes, project and group.
-COMMON = {"algo.total_timesteps=300000", "read_buffer_caches=false", "write_buffer_caches=false",
+COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buffer_caches=false",
           "seed=1", "debug=false"}
-# 6ng62tpm's launch at eb90a0c, the anchor every arm is one change from.
-ANCHOR = {f"--config-name={CONFIG}", "equivariance.residual_squash=true", "agent.critic.num_q=5",
-          ANCHOR_SCALE, "base_policy.wt_version=v9", f"offline_data.name={DEMOS}", *COMMON}
+# oj5k0jqb's launch at 9cf207d, the anchor every arm is one change from.
+ANCHOR = {f"--config-name={CONFIG}", "agent.critic.num_q=10", "base_policy.wt_version=v9", *COMMON}
 LAUNCHED = {
-    INIT0: (ANCHOR - {ANCHOR_SCALE}) | {"agent.actor.actor_last_layer_init_scale=0.0"},
-    WARMUP50K: ANCHOR | {"algo.critic_warmup_steps=50000"},
+    RX: ANCHOR | {"offline_data.min_action_range=2.0"},
 }
 # Each arm's changes from the anchor, as composed paths, and its values there.
 FROM_ANCHOR = {
-    INIT0: {"agent.actor.actor_last_layer_init_scale"},
-    WARMUP50K: {"algo.critic_warmup_steps"},
+    RX: {"offline_data.min_action_range"},
 }
 ARM_VALUES = {
-    INIT0: {"agent.actor.actor_last_layer_init_scale": 0.0, "algo.critic_warmup_steps": 10_000},
-    WARMUP50K: {"agent.actor.actor_last_layer_init_scale": 1e-4, "algo.critic_warmup_steps": 50_000},
+    RX: {"offline_data.min_action_range": 2.0},
 }
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
@@ -77,31 +72,30 @@ BASELINES = {
                             "write_buffer_caches=false", "seed=1", "debug=false"],
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
-WANDB = ("robomimic-square-final", "equi-residual-rl")
+WANDB = ("robomimic-square-final", "residual-rl")
 # Under CACHE_DIR, where every run package lives: a launch worktree has no outputs/.
-SIX_NG = RUNS_ROOT / "robomimic-square-final/6ng62tpm/manifest.json"
+OJ5 = RUNS_ROOT / "robomimic-square-final/oj5k0jqb"
 
-# The composed config every arm must have: 6ng62tpm's, as its recorded config holds it.
+# The composed config every arm must have: oj5k0jqb's, as its recorded config holds it.
 SHARED = {
-    "task": "Square", "offline_data.name": DEMOS, "algo.total_timesteps": 300_000,
+    "task": "Square", "offline_data.name": DEMOS, "algo.total_timesteps": 150_000,
     "read_buffer_caches": False, "write_buffer_caches": False, "algo.n_step": 3, "algo.gamma": 0.99,
     "algo.batch_size": 256, "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4,
     "algo.actor_updates_per_iteration": 1, "algo.buffer_size": 200_000, "algo.learning_starts": 10_000,
-    "num_envs": 1, "eval_first": True, "eval_interval_every_steps": 10_000, "eval_num_episodes": 50,
-    "seed": 1, "debug": False, "wandb.mode": "online", "encode_env_frames_like_demos": False,
-    "equivariance.N": 8, "equivariance.use_equivariant_model": True, "equivariance.residual_squash": True,
-    "equivariance.encoder_norm": "none", "equivariance.actor_norm": "none",
-    "equivariance.critic_norm": "none", "equivariance.critic_pooled_norm": "none",
-    "equivariance.num_critic_layers": 1, "equivariance.critic_last_layer_init_scale": None,
-    "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
+    "algo.critic_warmup_steps": 10_000, "num_envs": 1, "eval_first": True,
+    "eval_interval_every_steps": 10_000, "eval_num_episodes": 50, "save_video": True, "seed": 1,
+    "debug": False, "wandb.mode": "online", "encode_env_frames_like_demos": False, "equivariance": None,
     "base_policy.wt_version": "v9", "offline_data.use_base_policy_for_base_actions": True,
-    "agent.actor_lr": 1e-6, "agent.critic_lr": 1e-4, "agent.critic_target_tau": 0.005,
-    "algo.stddev_min": 0.05, "algo.stddev_max": 0.05, "agent.stddev_clip": 0.3,
-    "agent.actor.action_scale": 0.1, "algo.random_action_noise_scale": 0.2,
+    "offline_data.min_state_std": 0.1, "agent.actor_lr": 1e-6, "agent.critic_lr": 1e-4,
+    "agent.critic_target_tau": 0.005, "algo.stddev_min": 0.05, "algo.stddev_max": 0.05,
+    "agent.stddev_clip": 0.3, "agent.actor.action_scale": 0.1,
+    "agent.actor.actor_last_layer_init_scale": 0.0, "algo.random_action_noise_scale": 0.2,
     "algo.use_base_policy_for_warmup": True, "algo.actor_lr_warmup_steps": 0, "agent.bc_loss_coef": 0.0,
-    "agent.critic.num_q": 5, "agent.critic.min_q_heads": 2,
+    "agent.critic.num_q": 10, "agent.critic.min_q_heads": 2,
     "agent.critic.policy_gradient_type": "ensemble_mean", "agent.critic_grad_clip_norm": 1.0,
 }
+# Keys a run writes into its own recorded config, which no composition holds.
+RUNTIME_STAMPED = {"actor_name"}
 
 
 def case_table_arms(script: str) -> list[str]:
@@ -190,18 +184,82 @@ def test_arm_is_the_anchor_but_for_its_change(arm, tmp_path):
     assert _differing(ours, anchor) == FROM_ANCHOR[arm]
 
 
-@pytest.mark.skipif(not SIX_NG.exists(), reason="6ng62tpm's run package is not on this machine")
-def test_the_anchor_is_what_6ng62tpm_launched_with():
-    argv = json.loads(SIX_NG.read_text())["argv"][1:]
+@pytest.mark.skipif(not OJ5.exists(), reason="oj5k0jqb's run package is not on this machine")
+def test_the_anchor_is_what_oj5k0jqb_launched_with():
+    argv = json.loads((OJ5 / "manifest.json").read_text())["argv"][1:]
     launched = {o for o in argv if o.split("=", 1)[0] not in (*NAMING, "hydra.run.dir")}
     assert launched == ANCHOR
 
 
+def _number(value):
+    """wandb records some floats as strings ('1e-06'); compare them as the numbers they are."""
+    if isinstance(value, str) and re.fullmatch(r"[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", value):
+        return float(value)
+    return value
+
+
+def _flat_recorded(path: pathlib.Path) -> dict[str, object]:
+    """A run's recorded config.yaml as dotted path -> value, less wandb's own keys, the versions the
+    run stamped in, and its naming."""
+    import yaml
+
+    record = yaml.safe_load(path.read_text())
+    values = {k: v["value"] for k, v in record.items() if not k.startswith("_") and k != "versions"}
+    out = {}
+
+    def walk(prefix, node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                walk(f"{prefix}.{key}" if prefix else key, value)
+        else:
+            out[prefix] = _number(node)
+
+    walk("", values)
+    return {k: v for k, v in out.items() if not k.startswith("wandb.")}
+
+
+@pytest.mark.skipif(not OJ5.exists(), reason="oj5k0jqb's run package is not on this machine")
+def test_the_anchor_composes_to_oj5k0jqbs_recorded_config():
+    """So the anchor at this commit is the config oj5k0jqb ran with. A field added since 9cf207d
+    is allowed only at the default that leaves every earlier run as it was."""
+    recorded = _flat_recorded(OJ5 / "wandb_logs/config.yaml")
+    ours = {k: _number(v) for k, v in _flat(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name")))).items()
+            if not k.startswith("wandb.")}
+    added = {k: ours[k] for k in ours.keys() - recorded.keys()}
+    assert added == {"encode_env_frames_like_demos": False}
+    changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
+    assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
+    assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
+
+
+def test_the_rx_arm_moves_the_action_scaler_on_rx_alone():
+    """offline_data.min_action_range sets a floor on each component's half-range. Every component of
+    these demos but rx spans exactly [-1, 1], so a floor of 2.0 raises rx's half-range from 0.3287 to
+    1.0 and leaves the others' bit for bit; the midpoint, which cancels out of a residual, stays."""
+    import torch
+    from lerobot.common.datasets.lerobot_dataset import LeRobotDatasetMetadata
+
+    from resfit.rl_finetuning.utils.normalization import ActionScaler
+
+    stats = LeRobotDatasetMetadata(DEMOS).stats["action"]
+    limits = {floor: ActionScaler.from_dataset_stats(action_stats=stats, action_scale=0.1,
+                                                     min_range_per_dim=floor).limits
+              for floor in (0.1, 2.0)}
+    old, new = limits[0.1], limits[2.0]
+    keep = [0, 1, 2, 4, 5, 6]
+    assert torch.equal(old.min[keep], new.min[keep]) and torch.equal(old.max[keep], new.max[keep])
+    assert ((old.max[3] - old.min[3]) / 2).item() == pytest.approx(0.32866 * 1.1, abs=1e-4)
+    assert ((new.max[3] - new.min[3]) / 2).item() == pytest.approx(1.1)
+    assert ((new.max[3] + new.min[3]) / 2).item() == pytest.approx(((old.max[3] + old.min[3]) / 2).item())
+    # The residual's cap on rx in env units: action_scale x the half-range, 0.036 -> 0.110.
+    assert (0.1 * (old.max[3] - old.min[3]) / 2).item() == pytest.approx(0.0362, abs=1e-4)
+
+
 @pytest.mark.parametrize("arm", ARMS)
 def test_the_dataset_each_arm_loads_is_built(arm):
-    """A local dataset the trainer cannot find is a launch that dies at startup."""
+    """A dataset the trainer cannot find is a launch that dies at startup."""
     root = LEROBOT_HOME / DEMOS
-    assert (root / "meta/info.json").exists() and (root / "meta/rerender.json").exists(), root
+    assert (root / "meta/info.json").exists() and (root / "meta/episodes_stats.jsonl").exists(), root
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -420,7 +478,7 @@ def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("arm", EQUI_ARMS)
 def test_each_arm_has_no_norm_and_five_one_layer_heads(arm, tmp_path, device):
     """6ng62tpm's design: no norm in the encoder, the actor or the critic, and five critic heads of
     one hidden layer each (a hidden Linear, then the output Linear after pooling)."""
@@ -454,66 +512,20 @@ def _seeded_agent(cfg, device, seed: int = 1):
     return _agent(cfg, device)
 
 
-def _actor_last_linear(agent) -> str:
-    """The name, within the actor, of the Linear that actor_last_layer_init_scale scales."""
-    from escnn import nn as enn
-
-    return [name for name, m in agent.actor.policy.named_modules() if isinstance(m, enn.Linear)][-1]
-
-
 @pytest.mark.gpu
 @pytest.mark.parametrize("arm", ARMS)
 def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
-    """At the same seed, warmup50k's initial weights are the anchor's bit for bit (its change is a
-    loop count), and init0's are the anchor's but for its actor's last Linear, which is zero in the
-    actor and its target alike: scale_final_equi_layer multiplies, and draws no random number. So
-    each arm starts where 6ng62tpm's network did; the episodes still differ, since `seed` does not
-    reach the envs."""
+    """At the same seed, the arm's initial weights are the anchor's bit for bit: its change is to the
+    action scaler, outside the agent. The episodes still differ, since `seed` does not reach the
+    envs."""
     import torch
 
     anchor = _seeded_agent(_compose(sorted(ANCHOR, key=lambda o: not o.startswith("--config-name"))), device)
     ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device)
-    last = _actor_last_linear(ours)
-    # escnn's Linear learns `weights` and `bias`. Its basis buffers are fixed, and the target's
-    # `matrix` and `expanded_bias` are the zeros escnn registers at init (the target runs in train
-    # mode, which expands the weights afresh at every call): both stay the anchor's.
-    scaled = {f"{net}.policy.{last}.{name}" for net in ("actor", "actor_target") for name in ("weights", "bias")}
     theirs, mine = anchor.state_dict(), ours.state_dict()
-    assert theirs.keys() == mine.keys() and scaled <= mine.keys()
+    assert theirs.keys() == mine.keys()
     for key, value in mine.items():
-        if arm == INIT0 and key in scaled:
-            assert not value.any(), f"{arm}: {key} is not zero"
-            if key.endswith("weights"):  # escnn starts every bias at zero
-                assert theirs[key].any(), f"the anchor's {key} is zero"
-        else:
-            assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
-
-
-@pytest.mark.gpu
-def test_init0s_residual_is_exactly_zero_at_init_and_learns_from_there(tmp_path, device):
-    """So init0's step-0 eval is the base policy alone, as ResFiT's is. Its first actor update moves
-    the last Linear off zero (its gradient there is the features times dQ/da, not zero), and every
-    loss and action stays finite: equi_tanh's series at the origin, not a 0/0."""
-    import torch
-
-    from tools.agent_fingerprint import STDDEV, fixed_batch
-
-    agent = _agent(_compose(_overrides(INIT0, tmp_path)), device)
-    last = dict(agent.actor.policy.named_modules())[_actor_last_linear(agent)]
-
-    def residual():
-        agent.train(False)
-        with torch.no_grad():
-            return agent.act(fixed_batch(base_action=True)["obs"].to(device), eval_mode=True, cpu=False)
-
-    assert torch.equal(residual(), torch.zeros_like(residual()))
-    agent.train(True)
-    metrics = agent.update(fixed_batch(base_action=True).to(device), stddev=STDDEV, update_actor=True)
-    for key in ("train/critic_loss", "train/actor_loss_base"):
-        assert math.isfinite(metrics[key]), f"{key} = {metrics[key]}"
-    assert last.weights.abs().max() > 0, "the actor's last Linear did not move off zero"
-    after = residual()
-    assert torch.isfinite(after).all() and after.abs().max() > 0
+        assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
 
 
 @pytest.mark.gpu

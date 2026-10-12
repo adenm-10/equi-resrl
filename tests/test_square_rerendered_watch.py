@@ -1,6 +1,6 @@
 """tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended,
-square-trlpd-stab-1010's, which are its tuned-RLPD rules, and square-residual-start-1011's, which are
-its residual rules.
+square-trlpd-stab-1010's, which are its tuned-RLPD rules, square-residual-start-1011's, which are
+its residual rules, and resfit-rx-1012's, which are the residual's collapse stop alone.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -22,6 +22,7 @@ from square_rerendered_watch import (  # noqa: E402
     GROUPS,
     Q_DIVERGED,
     Q_KEYS,
+    RESFIT_RX,
     RESIDUAL,
     RESIDUAL_STARTS,
     STABILIZERS,
@@ -35,6 +36,7 @@ VC5O977F = RUNS_ROOT / "robomimic-square-final/vc5o977f"  # under CACHE_DIR: a l
 
 OJ5K0JQB = [0.50, 0.30, 0.58, 0.54, 0.40, 0.54, 0.56, 0.64, 0.70, 0.64, 0.76, 0.72, 0.84, 0.90, 0.66, 0.88]
 KYV7CLFC = [0.60, 0.00, 0.00, 0.02, 0.02, 0.00, 0.00]
+S8OPBLSD = [0.68, 0.22, 0.28, 0.20, 0.40, 0.44, 0.32, 0.44, 0.68, 0.54, 0.48, 0.60, 0.68, 0.66, 0.58, 0.62]
 
 
 def evals(rates):
@@ -121,6 +123,18 @@ def test_the_residual_start_arms_follow_the_residuals_rules():
         assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
         assert decide(arm, evals(OJ5K0JQB[:11]), 0, False)[0] == "passed"  # 165 of 250
         assert decide(arm, evals([0.58] * 11), 0, False)[0] == "stop"      # the base policy held
+
+
+def test_the_resfit_rx_arm_is_stopped_only_at_its_collapse():
+    """Its anchors ran to 150k with no 100k check: s8opblsd's 60k-100k evals (123 of 250) would fail
+    the residual's, and neither anchor converged by the rule's test before 150k."""
+    assert GROUPS["resfit-rx-1012"] == RESFIT_RX and len(RESFIT_RX) == 1
+    for arm in RESFIT_RX:
+        assert decide(arm, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"  # collapsed at 30k
+        assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
+        for rates in (OJ5K0JQB, S8OPBLSD, [0.58] * 16):
+            for i in range(1, len(rates) + 1):
+                assert decide(arm, evals(rates[:i]), 0, False)[0] is None, (rates[:i])
 
 
 @pytest.mark.skipif(not (VC5O977F / "wandb_logs/metrics.jsonl").exists(), reason="vc5o977f's package is not here")

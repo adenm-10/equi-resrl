@@ -5680,3 +5680,219 @@ through `submit.sh` in tmux, both at 19:44, each gate counting both (`CONCURRENT
 - **Watcher:** `sq-watch3` (`--group square-residual-start-1011`, from the worktree) started at
   19:44:50, and tracked `doevaarp` at 20:40:53 and `eaqorqki` at 21:05:55. `sq-watch` (its group
   `square-rerendered-1009` now has nothing running) and `sq-watch2` run on.
+
+---
+
+## 2026-10-12 — DEVIATION — every running experiment cancelled: `eaqorqki` stopped at 80.2k, and the waiting tuned-RLPD arms dropped
+
+Aden's instruction (2026-10-12, about 08:45), with the plan that follows (FINDING and
+PRE-REGISTERED below): cancel every other experiment, since its lessons are in.
+- **`eaqorqki`** (`equi-residual-square-init0` 1, `square-residual-start-1011`): SIGINT at
+  08:50:04, at 80.2k; package finalized by the watcher at 08:50:09. Evals 0.50 0.00 0.00 0.06 0.06
+  0.04 0.16 0.24 0.30 (0–80k). **What the stop costs:** no verdict. The run's 60k–100k window had
+  35 of the 150 episodes it reached, so even 100 of the last 100 would give 135, short of the 155
+  its 100k check needs. It does leave the recovery after 80k unseen (0.16, 0.24, 0.30 at
+  60k–80k).
+- **`doevaarp`** (`equi-residual-square-warmup50k` 1) had already been stopped by its 100k check
+  at 07:35:55 (30 of 250; NOTE to follow).
+- **`square-trlpd-stab-1010`'s `10x2` 1 and the seed 2s of `clipq`, `pooledln` and `ln`,** which
+  waited for RAM, are dropped: none will launch. That group's arms keep one seed each and no
+  verdict. `jdu1nkxw` (`clipq` 1) was stopped by its convergence rule at 230k (04:17:23; last five
+  0.628 against 0.588 for the five before); every other run of the group had stopped by 2026-10-11.
+- **The watchers** `sq-watch` (`square-rerendered-1009`), `sq-watch2` (`square-trlpd-stab-1010`)
+  and `sq-watch3` (`square-residual-start-1011`) have nothing left to watch, and are stopped.
+
+---
+
+## 2026-10-12 — FINDING — the equivariant residual's collapse on Square is a wrist that rolls after the grasp, carried by about three of its seven action components
+
+From the three equivariant residual runs on the re-rendered Square demos, seed 1 each:
+`6ng62tpm` (the 1e-4 start), `eaqorqki` (init0) and `doevaarp` (warmup50k). ResFiT's `oj5k0jqb` and
+`s8opblsd` are context. Figures and the scripts that made them:
+`outputs/diagnostics/residual-collapse-1012/` (outside git).
+
+**Method.**
+- **Splitting the videos.** Each eval video holds its 50 episodes in completion order, every
+  frame labelled SUCCESS or FAIL, and a failure is exactly 300 frames. So each video was split at
+  the label and, within runs of successes, at the reset's frame jump (`sheets.py`). Every split
+  matched its eval's count, for example 7,200 FAIL frames, 24 × 300, for `doevaarp`'s step-0 0.52.
+- **The contact sheets:** each episode's last frame before the reset (the done step's frame
+  already shows the next episode), and frames through time.
+- **The residual histogram.** `histograms/residual_actions` pools 256 × 7 values per logged
+  update. Its mass is read as components' worth near zero (|r| < 0.02) and near the 0.1 bound
+  (|r| > 0.06) (`hist.py`).
+- **Training episodes** per 1k steps from `training/episode_return` (`bins.py`).
+
+**What was found.**
+- **The training curve's early peak is the base policy, not learning.**
+  - Training episodes pooled over the three runs: 17 of 33 over 0–3k (0.52), 5 of 21 over 3–5k,
+    and 3 of 51 over 5–10k.
+  - Through 3k every residual value in the batch is under 0.02.
+  - `residual_l1` grew at the same rate in all three to 5k, whatever the start or the warm-up:
+    0.003 at 2k, 0.006–0.007 at 3k, 0.010–0.011 at 4k.
+  - The critic's online value rose and fell with the episodes. `doevaarp`: 0.064–0.085 over
+    1k–4k, then about 0 by 15k.
+- **The collapse is a behavior the base never shows.**
+  - In the 10k and 20k evals of all three runs, the approach and the grasp look like the base's
+    (steps 0–40).
+  - From about step 70 the wrist rolls a little more each step. By step 160 the gripper points
+    sideways at the camera, holding the nut away from the peg.
+  - In the step-0 evals the gripper stays vertical in every episode. The base's failures are
+    missed or repeated grasps at the nut, and nuts held next to the peg.
+- **About three of the seven components carry the residual.**
+  - At 10k, components' worth near zero: 3.2, 3.9 and 2.5 (`6ng62tpm`, `eaqorqki`, `doevaarp`).
+    Near the bound: 2.5, 2.8 and 3.1.
+  - A gripper pointing sideways needs rotation about a horizontal axis, which only the tilt pair
+    (rx, ry) commands; yaw cannot do it. That attribution is an inference, since no metric splits
+    the residual by field.
+- **The recovery tracks the residual pulling back.**
+  - `doevaarp`: near the bound 3.1 at 10k, 0.5 at 30k; `residual_l1` 0.050 at 12k, 0.021 at 30k.
+    Its training successes came back from 24k, and its 30k eval (0.22) has about half its
+    episodes back on the base's vertical approach.
+  - `eaqorqki` pulled back less (2.9 at 15k, 1.4 at 30k) and recovered later (0.16, 0.24, 0.30
+    at 60k–80k).
+  - `6ng62tpm` had not pulled back by 30k (0.052, still rising) when it was stopped.
+- **A second failure mode, later.**
+  - `doevaarp`'s residual grew again (0.028 at 40k, 0.049 at 100k; 2.75 components near the
+    bound), at evals of 0.10–0.18.
+  - At 100k the roll is rare, about 3 of 45 failures. Most fail at the grasp: the gripper reaches
+    the nut, often turned differently from the base's approach, pushes it about at table height
+    and never lifts it.
+- **ResFiT's residual is larger and saturated, and works.**
+  - `oj5k0jqb`'s `residual_l1` is 0.057 at 10k, and its components near the bound number 3.5 at
+    10k and 5.8 of 7 at 100k, in its normalized units.
+  - Its 10k dips (0.30 and 0.22) are mostly the base's own failures, with a few rolls.
+  - So the size of the residual alone does not explain the collapse.
+
+**Context, not measured here.**
+- OSC_POSE actions are per-step deltas, so a rotation residual adds up every step: 0.1 env units
+  is about 3° per step at robosuite's default output scale of 0.5 rad.
+- The demos barely tilt: per-step tilt length median 0.030, 90th percentile 0.083.
+- ResFiT's residual cap is 0.036 env units on rx (0.1 × 1.1 × its demos' half-range of rx) and
+  0.11 on ry. The equivariant stack's tilt pair is a disk of radius 0.1 in env units.
+
+**Side finding: the eval's Q is the critic at the residual alone, on the equivariant residual
+path.**
+- `run_dexmg_evaluation` scores the critic at `agent.act()`'s output
+  (`evaluate_dexmg.py:190-200`). On that path the output is the residual: the wrapper adds the
+  base action itself (`residual_env_wrapper.py:136`).
+- So the "Q =" overlay and `eval_q_trajectories_*.png` of every equivariant residual run show the
+  critic at about zero action, not at the action executed.
+- Training is unaffected, and so are tuned RLPD and ResFiT. A CORRECTION follows with the fix.
+
+**The penalty suggested overnight is held, and why.** `square-residual-start-1011`'s reading
+"readiness is not enough" named a penalty on the residual's size as next.
+- `debug/dQ_da_mean_abs` is the gradient of `-q.mean()` (`q_agent.py:546`, `:608`), so it is
+  already divided by the batch of 256. The per-sample slope is about 256 × 7e-5 ≈ 0.018.
+- The penalty `w · mean(sum(r²))` balances that slope at r = slope / (2w). Holding the residual
+  near 0.005 takes w ≈ 1.8, not 0.007.
+- ResFiT's slope is about the same size, so the same weight would hold ResFiT's useful residual
+  near 0.005 as well, against the 0.06–0.08 it works at. The penalty filters by the gradient's
+  size, which does not separate good from bad residuals here.
+
+**Caveats.** One seed per arm; the contact sheets were read by eye; the per-field attribution is
+an inference. The next two entries test it: the equivariant stack's tilt range given to ResFiT,
+and then the equivariant residual without tilt, with a field-by-field test at a collapsed
+checkpoint.
+
+---
+
+## 2026-10-12 — PRE-REGISTERED — ResFiT's residual on Square with rx at the equivariant stack's range
+
+**Question** (Aden, 2026-10-12):
+- The equivariant residual's collapse on Square rolls the wrist after the grasp (FINDING above).
+- Its tilt pair is bounded at 0.1 env units in any direction. ResFiT's rx is bounded at 0.036,
+  because its demos never use a wide rx range.
+- Given the equivariant stack's rx range, does ResFiT's residual start rolling the wrist, or
+  collapse?
+
+**Seed group `resfit-rx-1012`.**
+- **Arm** `resfit-residual-square-rx`, seed 1, from the commit that adds this entry, in a
+  worktree pinned to it. Name `resfit-residual-square-rx-1`, notes
+  `resfit-rx-1012/resfit-residual-square-rx/seed1`, wandb `robomimic-square-final` /
+  `residual-rl`.
+- **Launch:** `oj5k0jqb`'s, plus one override. `--config-name=residual_td3_square_config
+  agent.critic.num_q=10 base_policy.wt_version=v9 offline_data.min_action_range=2.0
+  algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false seed=1
+  debug=false`.
+
+**What varies: rx's normalization range, and nothing else.**
+- `ActionScaler` floors each component's half-range at `min_action_range / 2`, then widens it by
+  1.1 (`utils/normalization.py:63-71`). In these demos (`ankile/robomimic-mh-square-image`) every
+  component but rx spans exactly [−1, 1], and rx spans [−0.448332, 0.208986].
+- So a floor of 2.0 raises rx's half-range from 0.3287 to 1.0 and leaves every other component
+  bit for bit (`tests/test_sweep_arms.py`). Its midpoint, which cancels out of a residual, stays
+  at −0.120.
+- In env units, that one change moves three things together, which is what the equivariant stack
+  does for rx:
+
+  | | `oj5k0jqb` | this arm |
+  |---|---|---|
+  | rx residual cap | 0.036 | 0.110 |
+  | rx exploration and target noise (0.05 in normalized units) | 0.018 | 0.055 |
+  | rx's normalization range | [−0.481, 0.242] | [−1.220, 0.980] |
+
+**Held fixed.**
+- Everything else, the demos included: the original coded ones, as the anchors'.
+- At this commit, the anchor's launch composes to `oj5k0jqb`'s recorded config. The one field
+  added since `9cf207d` is `encode_env_frames_like_demos`, at its no-op default `False` (test).
+- ResFiT's code path has changed since `9cf207d` only by the warm-up's `critic_diagnostics` call
+  (`train_residual_td3.py:1139`). `test_critic_diagnostics_changes_nothing` shows it moves no
+  parameter and draws no random number, ResFiT's agent included.
+- At the same seed the arm's initial weights are the anchor's, bit for bit (test). The episodes
+  still differ, since `seed` does not reach the envs.
+
+**Context: the anchors, the fixed-env baselines' ResFiT residual arm.**
+- `oj5k0jqb` scored 0.800 over 110k–150k, and `s8opblsd` 0.628.
+- At 10k, 20k and 30k: 0.30, 0.58, 0.54 (`oj5k0jqb`) and 0.22, 0.28, 0.20 (`s8opblsd`). Pooled,
+  106 of 300 (0.353).
+- The two seeds differ by about 4 SE, so one seed of this arm is an observation.
+
+**Rules** (`tools/square_rerendered_watch.py --group resfit-rx-1012`):
+- **Stop:** at the third eval in a row at or below 0.05. Otherwise the run goes to 150k, as its
+  anchors did.
+- **No 100k check:** `s8opblsd`'s 60k–100k evals (123 of 250) would fail the equivariant
+  residual's.
+- **Seed 2** iff it collapses, or its 10k–30k evals pooled (150 episodes) fall below the anchors'
+  pooled 0.353 (300 episodes) by two standard errors.
+
+**Readouts,** in NOTEs at 30k and at 150k:
+- Evals and training successes per 10k.
+- `residual_l1`, and the pooled histogram's components near zero and near the bound, as in the
+  FINDING above.
+- **The rolled share, scored blind.**
+  - Material: the last frame before the reset of every failed episode in the 10k, 20k and 30k
+    evals of this run and of both anchors.
+  - Procedure: shuffled into one sheet with the run and step hidden, the key kept aside, scored
+    by Claude as rolled or not, then unblinded.
+  - "Rolled": the gripper visibly points off vertical, with the wrist's round cap facing the
+    camera.
+
+**Reading it** (decided now):
+- **It rolls more than its anchors, and its evals fall below theirs:** the wide tilt range alone
+  causes the roll, even with ResFiT's critic. The equivariant stack's tilt bound is then part of
+  the fix.
+- **It is like its anchors:** a wide tilt range is harmless with a critic that works. The
+  equivariant residual's problem is then its critic's gradient on tilt, not the range.
+
+**Predictions** (Claude's, before launch):
+1. Its step-0 eval is within the base's spread, 0.46–0.70. High confidence: its residual starts
+   at exactly zero.
+2. It does not collapse by 30k. Moderate confidence: its ry is already at 0.11, and ResFiT does
+   not roll.
+3. Its rolled share is within its anchors' range. Low to moderate confidence.
+4. Its 110k–150k evals fall within 0.63–0.80. Low confidence.
+
+**Checks before the commit.**
+- `tests/test_sweep_arms.py`: Tier 1 passed (10), and on the GPU 3 passed. The 4 equivariant-only
+  tests skip, having no arm in this group.
+- `tests/test_square_rerendered_watch.py` passed (10), with the new group's: `kyv7clfc`'s evals
+  are stopped at 30k; `oj5k0jqb`'s, `s8opblsd`'s and a held base's are never stopped through
+  150k.
+- No smoke run: the code path is the anchor's, and only one scaler value changes.
+
+**Resources.**
+- GPU 0, alone until the next entry's arms join it.
+- About 20–35 GB of RAM; 121 GB is free after the DEVIATION above.
+- `oj5k0jqb` took 5.9 h and `s8opblsd` 11.7 h from step 0 to 150k, plus about 45 min of labelling
+  the demos with the base policy before step 0.
