@@ -165,7 +165,7 @@ pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
 | Arm | Change | Status |
 |---|---|---|
 | `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | launched 15:25 from `7db124d`, GPU 1, tmux `rfe-rerendered` (smoke `kvcdljaf` passed) |
-| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot, GPU 1, about 17:30 (tmux `rfe-noln`); `notilt` did not stop at 30k |
+| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot, GPU 1, about 19:00 (tmux `rfe-noln`); `notilt` did not stop at 30k |
 | `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code done; waits for `fk9ayyco`'s slot, GPU 0, about 01:00, no smoke |
 | `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code done; the first free slot (tmux `rfe-queue`), likely about 08:00 on 2026-10-13, no smoke |
 | `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
@@ -192,7 +192,8 @@ PRE-REGISTERED and LAUNCHED of that date):
     no arm is added or stopped for it (Aden's decision).
   - About 13:00, `fk9ayyco`'s 30k readout, with the rolled share scored blind
     (`outputs/diagnostics/residual-collapse-1012/blind_rolled.py`).
-  - About 17:00, `diag` ends at 60k. About 17:00–18:00, `notilt`'s 30k "holds the base" readout.
+  - About 19:00, `diag` ends at 60k (43.2k at 16:10). `notilt` scored 0.02, 0.00 and 0.14 at 10k–30k,
+    against 0.54 at step 0, and did not stop. Its 30k readout NOTE is still to write.
   - Overnight, `fk9ayyco` reaches 150k. Tomorrow morning, `notilt`'s 100k check.
 - **Rules** (`tools/square_rerendered_watch.py`, one instance per seed group, each from its runs'
   worktree: tmux `rx-watch` for `resfit-rx-1012`, `tilt-watch` for `residual-tilt-1012`):

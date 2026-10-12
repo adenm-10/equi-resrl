@@ -6609,3 +6609,49 @@ Made before any arm of the group launched.
     - Each arm has ResFiT's layout: 3 RegularLayerNorms in the actor, 22 in the critic, none in
       the encoder, and no other norm; 10 heads of 3 Linears. `arch-wide`'s hidden layers are 448
       fields.
+
+---
+
+## 2026-10-12 — LAUNCHED — `resfit-equi-diff-1012` seed 1: `rerendered` (`bue9dupf`); `noln`, `limits`, `noln-all` and `equi-resfit-arch-1013`'s arms queued
+
+`rerendered` launched from `7db124d` (PRE-REGISTERED above), in the worktree
+`~/projects/equi-resrl-7db124d`, at 15:25 through `submit.sh` in tmux `rfe-rerendered`, on GPU 1
+beside `diag`, its gate counting itself alone (`CONCURRENT=1`). Its console is
+`outputs/queue/20261012-152508_resfit-residual-square-rerendered-1_gpu1.log`.
+
+| Arm | GPU | Gate GO | In wandb | Run |
+|---|---|---|---|---|
+| `resfit-residual-square-rerendered` 1 | 1 | about 15:50 | 16:43 | [**`bue9dupf`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/bue9dupf) |
+
+- **The gate said GO:**
+  - Tier 1: 226 passed and 2 skipped, in 3.5 min. Tier 2: 413 passed and 4 skipped, in 18 min.
+  - RAM: 36 GB available against about 21 GB.
+  - Two warnings:
+    - The BC policy is not in the worktree's `artifacts/`. It loaded from wandb's cache.
+    - The disk had 28 GB free. It is 26.5 GB at 15:48, and each ResFiT run writes about 1–1.5 GB
+      through 150k.
+- **Run package:** records `7db124d`, clean, and mujoco 3.3.2. Its argv is the pre-registered one:
+  the anchor plus `offline_data.name=local/robomimic-mh-square-rerendered`.
+- **Labelling** the 300 demos' base actions on the re-rendered frames took 47 min, beside `diag` on
+  GPU 1.
+- **Its smoke** (`kvcdljaf`) is in the pre-registration's checks.
+
+**Queued, each to launch without this session.** Each needs its own LAUNCHED entry with its run
+ID, from a later session. The scripts are in `outputs/queue/launchers/`, and each logs what it waits
+for.
+
+| Arm | From | How | Expected |
+|---|---|---|---|
+| `resfit-residual-square-noln` | `7db124d` | `wait_then_launch.sh` on `diag`'s process, GPU 1 (tmux `rfe-noln`) | about 19:00, when `diag` ends at 60k |
+| `resfit-residual-square-limits` | `304167e` (CODE) | `wait_then_launch.sh` on `fk9ayyco`'s process, GPU 0 (tmux `rfe-limits`), no smoke (Aden) | about 01:00 on 2026-10-13 |
+| `resfit-residual-square-noln-all` | `9add9e6` (CODE) | `slot_queue.sh`, the first free slot (tmux `rfe-queue`), no smoke | 2026-10-13, when `rerendered`, `noln` or `notilt` ends |
+| `equi-residual-square-arch` | `95490f9` (AMENDMENT) | `slot_queue.sh`, the next free slot: its smoke, then the arm if the smoke exits 0 | 2026-10-13 |
+| `equi-residual-square-arch-wide` | `95490f9` | `slot_queue.sh`, the next free slot, no smoke | 2026-10-13 or 14 |
+
+- **Watchers,** each enforcing `fk9ayyco`'s rule:
+  - tmux `rfe-watch`, from `7db124d`, for `resfit-equi-diff-1012`. Its arm list holds the queued
+    ResFiT arms.
+  - tmux `arch-watch`, from `95490f9`, for `equi-resfit-arch-1013`.
+- **The slot queue counts a slot as held** by a run's gate or trainer (by `CUDA_VISIBLE_DEVICES`),
+  by a launcher from its start to its run's end, and by a waiting `wait_then_launch.sh`. Two runs
+  per GPU. At its start it counted 3 on each GPU: two runs and one waiting launch.
