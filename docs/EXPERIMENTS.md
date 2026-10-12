@@ -6172,3 +6172,90 @@ when it is run):
     agent acts exactly as loaded.
 - `tests/README.md`, ARCHITECTURE.md and the gate's Tier 1 list are brought up to date for this
   commit and the two before it.
+
+---
+
+## 2026-10-12 — LAUNCHED — `resfit-rx-1012` seed 1: `resfit-residual-square-rx` (`fk9ayyco`)
+
+From `60fce72` (PRE-REGISTERED above), in the worktree `~/projects/equi-resrl-60fce72`, by hand
+through `submit.sh` in tmux, at 09:00. Console
+`outputs/queue/20261012-090021_resfit-residual-square-rx-1_gpu0.log`.
+
+| Arm | GPU, tmux | Gate GO | In wandb | Run |
+|---|---|---|---|---|
+| `resfit-residual-square-rx` 1 | 0, `resfit-rx` | about 09:19 | 09:56 | [**`fk9ayyco`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/fk9ayyco) |
+
+- **The gate said GO:**
+  - Tier 1: 207 passed and 2 skipped. Tier 2: 382 passed and 4 skipped, in 15 min.
+  - Render check passed: Can 0.0108, Square 0.0085, against bars of 0.0125 and 0.0129.
+  - RAM headroom: 113 GB available against 21 GB.
+  - Warnings: the BC policy is not in the worktree's `artifacts/` (it downloads `v9`), and the disk
+    has 35 GB free (no cache to write).
+- **Run package:** records `60fce72`, clean, and mujoco 3.3.2. Its argv is the pre-registered one,
+  `oj5k0jqb`'s plus `offline_data.min_action_range=2.0` and `algo.total_timesteps=150000`, and its
+  demos are `oj5k0jqb`'s (`ankile/robomimic-mh-square-image`).
+- **The ActionScaler moved as pre-registered.** Its printed range over all components is
+  [−1.2197, 1.1000]. The low end is the low end of rx's widened range, [−1.220, 0.980] in the
+  table above. The high end is every other component's [−1, 1] widened by 1.1.
+- **The warm-up buffer:** 7 successes of 35 episodes, as `eaqorqki`'s.
+- **Step 0:** 0.46 (23 of 50), the base policy with a residual at zero: the low end of B_sq's
+  ten evals.
+- **Speed:** critic warm-up updates at 0.025 s on GPU 0, beside `residual-tilt-1012`'s gate.
+- **Watcher:** `rx-watch` (`--group resfit-rx-1012`, from the worktree) started at 09:00:26, and
+  tracked `fk9ayyco` at 09:56:30.
+
+---
+
+## 2026-10-12 — LAUNCHED — `residual-tilt-1012` seed 1: `notilt` (`dczf4k7v`), `diag` (`ls0thn4u`)
+
+From `be0b7bb` (PRE-REGISTERED above), in the worktree `~/projects/equi-resrl-be0b7bb`, by hand
+through `submit.sh` in tmux, both at 09:26, each gate counting both (`CONCURRENT=2`). Consoles in
+`outputs/queue/`, `20261012-092609_<arm>-1_gpu<N>.log`.
+
+| Arm | GPU, tmux | Gate GO | In wandb | Run |
+|---|---|---|---|---|
+| `equi-residual-square-notilt` 1 | 0 (with `fk9ayyco`), `sq-tilt-notilt` | about 10:03 | 10:39 | [**`dczf4k7v`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/dczf4k7v) |
+| `equi-residual-square-diag` 1 | 1, `sq-tilt-diag` | about 10:02 | 10:33 | [**`ls0thn4u`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/ls0thn4u) |
+
+- **The gate said GO for both:**
+  - Tier 1: 214 passed and 2 skipped, in 16 min. Tier 2: 424 passed, in 20 min. Both slow from
+    sharing the machine with each other, `fk9ayyco` and the smoke run.
+  - Render check passed: Can 0.0100 and 0.0096, Square 0.0086 and 0.0090 (`notilt`, `diag`),
+    against bars of 0.0125 and 0.0129.
+  - RAM headroom: 98 and 95 GB available against 42 GB.
+  - Warnings: the BC policy is not in the worktree's `artifacts/` (it downloads `v9`), and the disk
+    has 34–35 GB free (no cache to write).
+- **Run packages:** each records `be0b7bb`, clean, and mujoco 3.3.2. Each argv is the pre-registered
+  one: the anchor, plus `+equivariance.residual_field_bound.action_rx_ry=0.0 checkpoint_interval=10000`
+  and `algo.total_timesteps=300000` for `notilt`, and `checkpoint_interval=2000` and
+  `algo.total_timesteps=60000` for `diag`.
+- **The warm-up buffers differ by chance,** since the envs are not seeded: `notilt` 6 successes of
+  34 episodes, `diag` 10 of 35, against `eaqorqki`'s 7 of 35. So `diag`'s critic fits somewhat more
+  online successes than the other two. The 10k and 30k NOTEs read each run against its own
+  realized return.
+- **Speed:** critic warm-up updates at 0.076 s for `diag`, alone on GPU 1, and 0.10–0.11 s for
+  `notilt`, beside `fk9ayyco` on GPU 0.
+- **The smoke run** (`vxw74uzh`, offline, wandb project `equi-resrl-smoke`) passed every check the
+  entry set it. It ran `notilt`'s overrides for 1,000 steps after learning starts at 300, with no
+  eval.
+  - **Its checks:**
+    - `models/step_0.pt` was saved (87 MB).
+    - All 28 `debug/residual_field/*` keys and all 24 `debug/dQ_da_field/*` keys were logged, every
+      100 steps.
+    - The tilt pair's residual was exactly 0 on every logged row, online and demo: its mean |r|,
+      its length, and rx's and ry's signed means. Every other field left zero, to mean |r| of
+      0.001–0.002 by step 1,000. The critic's slope on tilt was not zero (0.028 online, 0.035 on
+      demos): the bound holds the actor's mean only, as pre-registered.
+    - Every loss was finite. `residual_l1` was 0.0012 at step 1,000. It exited 0.
+  - **What code it ran.** It launched at 09:13:47 from the main checkout, with the gate skipped
+    (`SKIP_PREFLIGHT=1`), on `60fce72` with `be0b7bb`'s changes uncommitted (the console's "commit
+    60fce72"). Its manifest records `be0b7bb` with `534cc71`'s edits uncommitted: the tree when
+    wandb started, at 09:43:51, not at launch.
+    - `be0b7bb`'s code files were last edited at 09:12:49, before the launch.
+    - `534cc71`'s edits began at 09:26:20, so any module the run first imported after that may be
+      `534cc71`'s. That commit changes nothing a training run computes (its CODE entry; the
+      regression goldens passed at it).
+  - **Speed:** critic warm-up updates at 0.075 s on GPU 1, beside `diag`'s gate; the 1,000 steps
+    took about 6 min.
+- **Watcher:** `tilt-watch` (`--group residual-tilt-1012`, from the worktree) started at 09:26:14,
+  and tracked `ls0thn4u` at 10:33:18 and `dczf4k7v` at 10:40:18.
