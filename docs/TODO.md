@@ -29,32 +29,35 @@ demos").
    its first eval (`6ng62tpm`). Tuned RLPD learned to 0.50 at 80k, then its critic ran away from
    about 92k and every eval from 100k was 0 (`vc5o977f`). Its seed 2 (`6yh4l5mq`) runs as the
    anchor of item 5b.
-5b. **Running: stabilizing equivariant tuned RLPD on Square** (EXPERIMENTS.md, 2026-10-10
-   PRE-REGISTERED, `square-trlpd-stab-1010`; Aden, 2026-10-10). Four arms, each one change from
-   `vc5o977f`:
-   - the TD target clamped to [0, 1];
-   - LayerNorm on each head's pooled features (`TrivialLayerNorm`, P3.4);
-   - RegularLayerNorm where ResFiT has LayerNorm;
-   - `gkck6eqp`'s 10 × 2 critic.
-
-   Seed 1 of the first three passed the learning check. None diverged, and neither did the
-   anchor's seed 2, so the runaway is not reliable at this design (2026-10-11 DEVIATION and NOTE).
-   `clipq` runs on. **Still to do:** `10x2` 1 and the three seed 2s, by hand from `6b2acc6` once
-   RAM frees, and the group's analysis NOTE. **Second-wave candidates** (Aden's call, from what the
-   first shows): the clamp and the pooled norm together; the LayerNorm arm plus per-pixel LayerNorm
-   in the encoders, where ResFiT's ViTs have theirs (new code: `ENCODER_NORMS` has none). Then a
-   stabilizer that holds is tried on Can and in the residual.
-5c. **NOW: the equivariant residual on Square, its actor's start and the critic's readiness**
-   (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED, `square-residual-start-1011`; Aden, 2026-10-11).
-   Two arms, each one change from `6ng62tpm`: the actor's last layer at 0.0 (`init0`), and 50k
-   critic warm-up updates (`warmup50k`). The entry's "Reading it" sets what follows each outcome:
-   - the actor gated on the critic's online value levelling off;
-   - a penalty on the residual's size;
-   - or the critic itself.
-
-   Also wanted, offline and cheap: dQ/da per action dimension on `6ng62tpm`'s step-0 critic
-   (`models/best_model.pt`), to see whether its gradient points the residual at the wrist rotation
-   it drifted into.
+5b. **CANCELLED 2026-10-12: stabilizing equivariant tuned RLPD on Square** (`square-trlpd-stab-1010`;
+   EXPERIMENTS.md, 2026-10-12 DEVIATION). Seed 1 of `clipq`, `pooledln` and `ln` passed the
+   learning check and no critic diverged, nor did the anchor's seed 2; `clipq` converged at 230k
+   (0.628). Aden dropped `10x2` and the three seed 2s, so the group has one seed per arm and no
+   verdict. Its analysis NOTE is not written. Second-wave candidates, if it is ever resumed: the
+   clamp and the pooled norm together; the LayerNorm arm plus per-pixel LayerNorm in the encoders.
+5c. **DONE 2026-10-12: the equivariant residual's start and the critic's readiness**
+   (`square-residual-start-1011`; EXPERIMENTS.md, 2026-10-12 NOTE). Both arms lost the base policy
+   by 10k. The 1e-4 start is not the cause, and a better-informed critic did not stop the drift.
+   The penalty named next is held (2026-10-12 FINDING: it would hold ResFiT's useful residual down
+   too).
+5d. **NOW: the tilt diagnosis** (plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`, local;
+   Aden, 2026-10-12). The collapse is a wrist that rolls after the grasp (2026-10-12 FINDING).
+   1. **Running: `resfit-rx-1012`** (`fk9ayyco`), ResFiT's residual with rx at the equivariant
+      stack's range (`offline_data.min_action_range=2.0`). Read at 30k and 150k, with the rolled
+      share scored blind (`outputs/diagnostics/residual-collapse-1012/blind_rolled.py`).
+   2. **Running: `residual-tilt-1012`.** `notilt` (`dczf4k7v`; the residual's tilt pair bounded at
+      zero) under the residual's rules, and `diag` (`ls0thn4u`; init0 with a checkpoint every 2k, to
+      60k). Read `notilt` at 10k, 30k and 100k, and `diag` at 10k, 30k and 60k.
+   3. **The field test** at `diag`'s 10k checkpoint (`python -m tools.residual_field_ablation
+      ls0thn4u --step 10000`, from the main checkout; the precondition and verdict rule are
+      pre-registered). If it names a field other than tilt, or none, tell Aden; nothing is added
+      or stopped for it (Aden's decision).
+   4. **Conditional:**
+      - a tilt bound of 0.03 iff `notilt` holds the base through 30k but fails its 100k check;
+      - the L2 penalty only if the per-field slopes show a gap between drifting and useful fields
+        (w = 256 × logged `dQ_da` / (2 r*));
+      - if `notilt` falls in a new mode, the critic is the target (its online value), in a plan of
+        its own.
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which
@@ -425,6 +428,16 @@ timeout, so a test that hangs holds up the launch with nothing printed. On 2026-
 guard of `tools/rerender_demos.py` would have done that on GPU 0 (EXPERIMENTS.md, 2026-10-10 CODE;
 fixed there). Fix: a timeout on each tier, generous against its usual time (Tier 1 about 3 min,
 Tier 2 about 25 on a shared GPU), that records FAIL with the test that was running.
+
+### H11. Training and execution combine the residual differently `[SC]` `[CS]` (found 2026-10-12)
+
+The equivariant agent's actor loss, TD target and `critic_diagnostics` combine base and residual
+with `equi_clip`, a disk of radius 1 on each pair (`q_agent.combine_actions`). The env wrapper adds
+them without it, and robosuite clips each component to ±1. They differ only when |base xy +
+residual xy| > 1 (or the tilt pair's), which the demos' xy length passes at about its 99th
+percentile. Measure how often the executed and the trained action differ in a run's online data,
+and by how much, before deciding whether execution should clip as training does. That change would
+alter what every later run executes, so it would need its own entry.
 
 ### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
 

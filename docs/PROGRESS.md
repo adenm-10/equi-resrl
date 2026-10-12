@@ -17,6 +17,59 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-12 — the residual's collapse is a wrist roll; every other run cancelled; the tilt diagnosis launched
+
+**Found** (EXPERIMENTS.md, 2026-10-12 FINDING, NOTE and CORRECTION)
+
+- The equivariant residual's collapse on Square looks like a wrist that rolls after the grasp, in
+  all three runs. The training curve's early peak is the base policy, before the residual grows;
+  the recovery tracks the residual pulling back; a second mode, grasps that never lift, appears by
+  100k (`doevaarp`). Tilt is the suspect, by inference.
+- `square-residual-start-1011`: both arms lost the base by 10k. Neither the zero start nor a 50k
+  critic warm-up stopped the drift.
+- The penalty on the residual's size, named next overnight, was sized 256× too small:
+  `debug/dQ_da_mean_abs` is already divided by the batch. The weight that would stop the drift
+  (about 1.8) would hold ResFiT's useful residual down too, so the penalty is held.
+- ResFiT's rx cap is 0.036 env units, against the equivariant tilt disk's 0.1.
+- The eval scored the equivariant residual's Q at the residual alone, not the executed action;
+  fixed in `534cc71`. Training was never affected.
+- Training and execution combine the residual differently for pairs longer than 1 (TODO H11).
+
+**Done**
+
+- Every other experiment cancelled (Aden): `eaqorqki` stopped at 80.2k, and the waiting tuned-RLPD
+  arms dropped (DEVIATION).
+- `60fce72`: `resfit-rx-1012` pre-registered, ResFiT's residual with rx at the equivariant stack's
+  range, and launched (`fk9ayyco`).
+- `be0b7bb`: `residual-tilt-1012` pre-registered and launched (`notilt` `dczf4k7v`, `diag` `ls0thn4u`).
+  New code:
+  - `equivariance.residual_field_bound`, one bound per action field, so the actor stays
+    equivariant;
+  - per-field residual and slope logging on both stacks;
+  - `checkpoint_interval`, live.
+
+  The smoke run passed: tilt exactly zero, the per-field keys logged, the step-0 checkpoint saved.
+- `534cc71`: the eval's Q fix, a tilt readout in every eval, and `tools/residual_field_ablation.py`.
+  For the tool, the trainer's agent construction moved verbatim into `build_agent`.
+- `outputs/diagnostics/residual-collapse-1012/` (outside git): contact sheets, histograms and the
+  blind-scoring script for the rolled share.
+- STATUS.md rewritten. TODO: 5b cancelled, 5c done, 5d (the tilt diagnosis) and H11 added.
+
+**Decided** (Aden, on the plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`, local)
+
+- `resfit-rx-1012` runs from before the new logging, with its evals and videos.
+- An absolute bound per field. `notilt` bounds the actor's mean only; its noise is unchanged.
+- A field-test verdict naming another field, or none, goes to Aden; the runs stay as they are.
+- `diag` to 60k, with a checkpoint every 2k.
+
+**Open**
+
+- Was dropping tuned RLPD's seed 2s and `10x2` intended? Aden's instruction named running
+  experiments; those were waiting.
+- The doc budget is about 650 KB against 150 KB, mostly EXPERIMENTS.md (TODO H5).
+
+---
+
 ## 2026-10-11 — the stabilizer runs past 150k; two runs stopped for RAM; the equivariant residual's start and warm-up, pre-registered
 
 **Found**

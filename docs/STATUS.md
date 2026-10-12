@@ -1,37 +1,57 @@
 # Status
 
-**Last updated:** 2026-10-11, about 21:10 · **Last verified commit:** `0af7655`, pre-registering
-`square-residual-start-1011` (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED). The gate's Tier 1 and
-Tier 2 passed in full, and the gate said GO for both arms launched from it.
+**Last updated:** 2026-10-12, about 10:45 · **Last verified commit:** `be0b7bb`, pre-registering
+`residual-tilt-1012` (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED). The gate's Tier 1 and Tier 2
+passed in full, and the gate said GO for both arms launched from it. `534cc71` (the eval's Q fix,
+the tilt readout and the field-zeroing tool) passed its own tests on the GPU (the field tool's,
+the evaluator's, the critic diagnostics', the regression goldens and the imports), not the full
+gate.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**On the re-rendered Square demos (`square-rerendered-1009`, seed 1), the two equivariant arms
-failed in different ways** (EXPERIMENTS.md, 2026-10-10 NOTE):
-- **The equivariant residual collapsed by its first eval** (`6ng62tpm`: 0.62, then 0.02, 0, 0;
-  stopped at 30k), as `kyv7clfc` did with FieldNorm. Its critic carries no value to online states
-  (online value 0.005, then negative, against demo value 0.23–0.26), and its residual breaks the
-  policy while smaller than ResFiT's, which only dents it.
+**The equivariant residual on Square loses the base policy within 10k steps in every run, and the
+loss looks like a wrist that rolls after the grasp** (EXPERIMENTS.md, 2026-10-12 FINDING and NOTE).
+Three runs on the re-rendered demos, seed 1 each: `6ng62tpm` (the actor's last layer at 1e-4),
+`eaqorqki` (at zero) and `doevaarp` (a 50k critic warm-up).
+- **The shape:** each holds the base at first (0.50–0.62 at step 0), falls to 0–0.02 by 10k, then
+  partly recovers as its residual pulls back (`doevaarp` 0.22 at 30k; `eaqorqki` 0.30 at 80k). The
+  training curve's early peak is the base policy, before the residual has grown.
+- **The behavior:** the approach and the grasp look like the base's; from about step 70 the wrist
+  rolls a little more each step, until the gripper points sideways holding the nut away from the
+  peg. The base never does this. Later (`doevaarp` at 100k) a second mode appears: grasps that
+  never lift the nut.
+- **Tilt is the suspect, by inference.** A sideways gripper needs rotation about a horizontal axis,
+  which only the tilt pair (rx, ry) commands. About three of the seven components carry the
+  residual, near its bound. No metric split the residual by field before `be0b7bb`.
+- **The two stacks bound tilt differently.** ResFiT's rx cap is 0.036 env units, set by its demos'
+  narrow rx range; the equivariant stack's tilt pair is a disk of radius 0.1, one bound per pair
+  (EQUIVARIANCE.md, "Clipping has to respect the representation"). ResFiT's residual is larger and
+  saturated, and works, so size alone does not explain the collapse.
+- **Ruled out or held:** the 1e-4 start is not the cause (`eaqorqki`), and a better-informed critic
+  did not stop the drift (`doevaarp`). A penalty on the residual's size is held: the weight that
+  would stop the drift (about 1.8, from the per-sample slope of about 0.018) would hold ResFiT's
+  useful residual down too.
+- **Now running: the tilt diagnosis** (Running now): ResFiT given the equivariant stack's rx range,
+  the equivariant residual with its tilt bounded at zero, and a replicate with checkpoints for a
+  field-by-field test.
+
+**Every other experiment was cancelled on 2026-10-12** (DEVIATION), Aden judging their lessons in:
+`eaqorqki` was stopped at 80.2k, and `square-trlpd-stab-1010` keeps one seed per arm and no verdict.
 - **Equivariant tuned RLPD learned Square, the first tuned RLPD to do so in our trainer** (`vc5o977f`:
   0.50 at 80k), **then its critic ran away** from about 92k (demo value 212 at peak; a target here
   cannot exceed 1, 2026-10-10 MEASUREMENT) and every eval from 100k was 0. Gradient clipping at 1.0
   was on throughout.
-- **`square-trlpd-stab-1010` and the anchor's seed 2 are past 150k, and no critic diverged**
-  (2026-10-11 DEVIATION and NOTE). The runaway did not repeat in `6yh4l5mq`, so "no divergence" in
-  an arm is weak evidence. All four passed their learning check. `ln` converged at 160k (0.17–0.24).
-  `6yh4l5mq` and `pooledln` were stopped by hand at about 190k, for RAM, and `clipq` runs on. `10x2`
-  and the seed 2s wait. Earlier, every other run was cancelled on 2026-10-10 (DEVIATION), leaving
-  `critic-norm-can-1008`'s democodec arm and the fixed-env baselines' ResFiT Can arm without
-  verdicts.
-- **Now running: `square-residual-start-1011`** (2026-10-11 PRE-REGISTERED and LAUNCHED). Two equivariant
-  residual arms, each one change from `6ng62tpm`: the actor's last layer at exactly zero, and a
-  50k critic warm-up. Aden's question is whether the actor moves before the critic can tell good
-  residuals from bad.
+- **In `square-trlpd-stab-1010` no critic diverged,** nor did the anchor's seed 2 (`6yh4l5mq`), so
+  "no divergence" in an arm is weak evidence. All four passed their learning check. `clipq`
+  converged at 230k (0.628) and `ln` at 160k (0.17–0.24). `10x2` and the seed 2s were dropped.
 - **The fixed-env baselines' ResFiT residual arm passes** (`oj5k0jqb` 0.800 and `s8opblsd` 0.628
   over 110k–150k, pooled 0.714 against B_sq = 0.582), but the seeds differ by about 4 SE.
+  Earlier, every other run was cancelled on 2026-10-10 (DEVIATION), leaving
+  `critic-norm-can-1008`'s democodec arm and the fixed-env baselines' ResFiT Can arm without
+  verdicts.
 
 **The equivariant critic at the fixed-env baselines' design (`critic_norm=field_norm`) cannot see
 the wrist camera, the arm's height or the gripper opening, nor score the z, yaw or gripper actions**
@@ -117,7 +137,10 @@ with the equivariant design Aden set (B15).
 **Earlier bugs, still true of the old runs:** every equivariant run before `e15d36c` acted on
 near-blank images, and every one before `93a8ad4` trained against a frozen target critic
 (2026-10-02 and 2026-09-29 CORRECTIONs). Every ResFiT run before 2026-10-06 logged
-`debug/dQ_da_*` as 0 (2026-10-06 CODE).
+`debug/dQ_da_*` as 0 (2026-10-06 CODE). Every equivariant residual run launched before `534cc71`,
+`residual-tilt-1012`'s arms among them, scored its eval Q (the videos' "Q =" overlay and
+`value/q_trajectories`) at the residual alone, not at the action executed (2026-10-12 CORRECTION).
+Training was never affected.
 
 - **wandb:** every Square equivariant residual run is in group `equi-residual-rl`, and every
   Square BC run in `robomimic-square-bc`. Tuned RLPD is in groups `tuned-rlpd` and
@@ -129,45 +152,51 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**`square-residual-start-1011`** (EXPERIMENTS.md, 2026-10-11 PRE-REGISTERED, "the equivariant
-residual on Square: its actor's last layer at zero, and a 50k critic warm-up"). Each arm is
-`6ng62tpm`'s launch plus one change, on the re-rendered Square demos, up to 300k steps. Both run
-from `0af7655` in the worktree `~/projects/equi-resrl-0af7655` (2026-10-11 LAUNCHED):
+**The tilt diagnosis** (TODO B16 item 5d; plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
+local). Two seed groups, seed 1 each, pre-registered and launched on 2026-10-12 (EXPERIMENTS.md,
+PRE-REGISTERED and LAUNCHED of that date):
 
-| Arm | Change from `6ng62tpm` | Run | Where |
-|---|---|---|---|
-| `equi-residual-square-init0` 1 | the actor's last layer starts at 0.0, not 1e-4 | `eaqorqki`, from 21:04 | GPU 1, tmux `sq-res-init0` |
-| `equi-residual-square-warmup50k` 1 | 50k critic-only updates before the actor's first, not 10k | `doevaarp`, from 20:40 | GPU 0, tmux `sq-res-wu50k` |
+| Arm | What it changes | Run | From | Where | To |
+|---|---|---|---|---|---|
+| `resfit-residual-square-rx` 1 (`resfit-rx-1012`) | `oj5k0jqb`'s launch with rx at the equivariant stack's range (`offline_data.min_action_range=2.0`) | `fk9ayyco`, from 09:56 | `60fce72` | GPU 0, tmux `resfit-rx` | 150k |
+| `equi-residual-square-notilt` 1 (`residual-tilt-1012`) | `eaqorqki`'s launch with the residual's tilt pair bounded at zero (`+equivariance.residual_field_bound.action_rx_ry=0.0`), a checkpoint every 10k | `dczf4k7v`, from 10:39 | `be0b7bb` | GPU 0, tmux `sq-tilt-notilt` | 300k |
+| `equi-residual-square-diag` 1 (`residual-tilt-1012`) | `eaqorqki`'s launch with a checkpoint every 2k, for the field test | `ls0thn4u`, from 10:33 | `be0b7bb` | GPU 1, tmux `sq-tilt-diag` | 60k |
 
-The warm-up buffers differ by chance (the envs are not seeded): 7 successes of 35 episodes for
-`init0`, 16 of 36 for `warmup50k`, and 9 of 35 for `6ng62tpm`. The 30k collapse decision is
-expected at about 03:00 on 2026-10-12 for `init0`, and about 01:30 for `warmup50k`.
+- **Next decision points:**
+  - About 12:00, `diag`'s 10k checkpoint: **the field test**, from the main checkout on GPU 1
+    (`python -m tools.residual_field_ablation ls0thn4u --step 10000`), with its precondition and
+    verdict rule pre-registered. If it names a field other than tilt, or none, that goes to Aden;
+    no arm is added or stopped for it (Aden's decision).
+  - About 13:00, `fk9ayyco`'s 30k readout, with the rolled share scored blind
+    (`outputs/diagnostics/residual-collapse-1012/blind_rolled.py`).
+  - About 17:00, `diag` ends at 60k. About 17:00–18:00, `notilt`'s 30k "holds the base" readout.
+  - Overnight, `fk9ayyco` reaches 150k. Tomorrow morning, `notilt`'s 100k check.
+- **Rules** (`tools/square_rerendered_watch.py`, one instance per seed group, each from its runs'
+  worktree: tmux `rx-watch` for `resfit-rx-1012`, `tilt-watch` for `residual-tilt-1012`):
+  - `fk9ayyco`: stopped only at three evals in a row at or below 0.05; otherwise to 150k, with no
+    100k check. Seed 2 iff it collapses, or its 10k–30k evals pooled (150 episodes) fall below its
+    anchors' pooled 0.353 by two standard errors.
+  - `notilt`: the residual's rules. Stopped at three evals in a row at or below 0.05, or on
+    divergence; at 100k it passes iff its 60k–100k evals reach 155 of 250; convergence from 150k.
+    Seed 2 iff it passes its 100k check.
+  - `diag`: none; the watcher logs it and it ends at 60k.
 
-**`square-trlpd-stab-1010`**: `equi-tuned-rlpd-square-clipq` 1 (`jdu1nkxw`, 0.66 at 170k) runs on
-GPU 1 from `6b2acc6` in tmux `sq-trlpd-b`. `10x2` 1 and the seed 2s of `clipq`, `pooledln` and `ln`
-wait for RAM, launched by hand from `6b2acc6`.
-
-- **Rules** (enforced by `tools/square_rerendered_watch.py`, one instance per seed group: tmux
-  `sq-watch` for `square-rerendered-1009`, `sq-watch2` for `square-trlpd-stab-1010`, `sq-watch3` for
-  `square-residual-start-1011`):
-  - The residual: stopped at three evals in a row at or below 0.05. At 100k it passes iff its
-    60k–100k evals reach 155 of 250. Convergence from 150k.
-  - Tuned RLPD: the 100k learning check (an eval of 0.04 or 5 training successes by 100k), the
-    divergence stop, convergence from 150k.
-
-  Seed 2 of an arm iff its seed 1 passes its 100k check. **Seed 2s are launched by hand.**
-- **Resources:**
-  - A residual run uses about 20 GB of RAM at start and 35 GB by 150k. A tuned-RLPD run uses about
-    28 GB at start and 37 GB by 150k. So the two residual runs and `clipq` make about 105 GB of 125
-    at 150k.
-  - About 9.9 GB of GPU memory per run, since the env workers render on the GPU too, so two per
-    GPU.
-- **How to follow them:** wandb `robomimic-square-final`, groups `equi-residual-rl` and
-  `tuned-rlpd`, notes starting with the seed group. `outputs/queue/watch.log` has every watcher
-  action, and consoles are in `outputs/queue/`.
-  - For the residual, watch `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo`,
-    `train/residual_l1_magnitude` and `debug/dQ_da_mean_abs`.
-  - `warmup50k`'s warm-up prints both values every 100 updates (`Critic warmup:` lines).
+  **Seed 2s are launched by hand.**
+- **What each run records beyond its evals and videos:**
+  - `notilt` and `diag` log the residual and the critic's slope per action field
+    (`debug/residual_field/*`, `debug/dQ_da_field/*`) and save `models/step_<N>.pt`. They launched
+    before `534cc71`, so their eval Q overlays keep the old error and they log no `eval/tilt_*`; the
+    field test, run from `534cc71`, has both.
+  - `fk9ayyco` (from `60fce72`) has neither, as Aden chose: its evals and videos suffice.
+- **Resources:** about 20 GB of RAM per run at start and 35 GB by 150k; about 9.9 GB of GPU memory
+  per run, so two per GPU. Checkpoints are 87 MB each, up to 62 for the two `residual-tilt-1012`
+  arms (5.4 GB).
+- **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (`fk9ayyco`) and
+  `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every
+  watcher action, and consoles are in `outputs/queue/`.
+  - Watch `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo`,
+    `train/residual_l1_magnitude` and `debug/dQ_da_mean_abs`, and for `notilt` and `diag` the
+    per-field keys.
 
 ## The machine
 
@@ -180,10 +209,10 @@ wait for RAM, launched by hand from `6b2acc6`.
   files beside the clone. Launcher: `~/projects/resfit-upstream-runs/launch.sh`.
 - **RAM:** about 15 GB per Can tuned-RLPD run at 30k. Two Square residual runs at 40.3 GiB each
   fit; a third does not.
-- **Disk:** 51 GB free, after two cache deletions on 2026-10-07 with Aden's approval: upstream's
-  buffer caches (21 GB) and `online_buffer_cache/66c46c51` (16 GB, Square, frames from mujoco
-  3.8.1, which the new key cannot reach). `offline_buffer_cache/1d31ed9b` (6.4 GB, Square) stays:
-  its key did not move.
+- **Disk:** 34 GB free on 2026-10-12, before `residual-tilt-1012`'s checkpoints (up to 5.4 GB).
+  Two cache deletions on 2026-10-07, with Aden's approval: upstream's buffer caches (21 GB) and
+  `online_buffer_cache/66c46c51` (16 GB, Square, frames from mujoco 3.8.1, which the new key cannot
+  reach). `offline_buffer_cache/1d31ed9b` (6.4 GB, Square) stays: its key did not move.
 - **Records:** every run's local record is in the main checkout: `wandb/`, `outputs/runs/`,
   `outputs/<date>/<time>/` (Hydra), `outputs/queue/`. A run launched from a pinned worktree writes
   them there too (ARCHITECTURE.md, "Run packages").
@@ -257,16 +286,23 @@ wait for RAM, launched by hand from `6b2acc6`.
 - **An equivariant run's random stream depends on its eval schedule:** the actor's `std=0` path,
   taken by every eval and actor loss, draws a random number it scales by 0 (ARCHITECTURE.md,
   "Known rough edges"). Left as it is, for comparability.
+- **Which of the equivariant residual's fields breaks the policy on Square.** Tilt is an inference
+  from the videos (2026-10-12 FINDING); `notilt` and the field test test it.
+- **Whether training and execution should combine the residual alike** (TODO H11). The actor loss
+  and the TD target clip each pair of base plus residual to the unit disk; the env adds them and
+  robosuite clips each component. They differ only for pairs longer than 1.
 
 ## The plan, and why
 
-**0. Now (2026-10-10):** `square-trlpd-stab-1010` (Running now). A stabilizer that holds is then
-tried on Can, and in the residual, whose own failure (no value carried online) these arms do not
-address (TODO B16).
+**0. Now (2026-10-12): the tilt diagnosis** (Running now; TODO B16 item 5d). Why: the
+equivariant residual's collapse on Square looks like a wrist roll, and its tilt range is about 3×
+ResFiT's on rx. What follows each outcome is set in TODO 5d: a tilt bound of 0.03 iff `notilt`
+holds the base through 30k but fails its 100k check; the penalty on the residual's size only if the
+per-field slopes separate drifting fields from useful ones; the critic as the target if `notilt`
+falls in a new mode.
 
-**1. B15, in order:** worktrees into main; mujoco 3.3.2 with the render on the record and in the
-gate (both done); tuned RLPD on Can in our trainer, which must get off zero as `zwmk393l` did;
-base rates again; then the five arms (pre-registered).
+**1. B16's remaining items** (TODO): the ablations on Can that set the residual's design, and
+ResFiT's residual on the same demos. Removing the old worktrees is Aden's (TODO B15 item 1).
 
 **2. Read the residual and equivariant history again** once the baselines report: which
 conclusions survive the render fix.
