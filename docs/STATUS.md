@@ -1,10 +1,9 @@
 # Status
 
-**Last updated:** 2026-10-13, about 08:30 · **Last verified commit:** `0b14c17`, the 2026-10-12
-AMENDMENT ("every run to a fixed 150k"), with `equi-residual-long-1012`'s pre-registration and
-`noise`'s code. Its sweep, watcher, action-bound and regression tests passed on GPU 1. Overnight,
-three of its six gates failed one render-guard test the minute a run exited (EXPERIMENTS.md,
-2026-10-13 LAUNCHED).
+**Last updated:** 2026-10-13, about 10:00 · **Last verified commit:** this one, with
+`resfit-ln-place-1013`'s pre-registration, arms and watcher group (EXPERIMENTS.md, 2026-10-13
+PRE-REGISTERED). Its sweep tests (CPU 104, GPU 27 for the ResFiT arms) and watcher tests passed. It
+changes no agent code from `0b14c17`, whose gate passed both baseline seeds this morning.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -169,25 +168,35 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 base can win it back late (`eaqorqki` 0.04 at 50k, 0.30 at 80k), and every earlier equivariant
 residual was stopped before that could show. `fk9ayyco` keeps its own rule: collapse only, to 150k.
 
-The schedule, launching itself through tmux scripts in `outputs/queue/launchers/`. Times are
-estimates: ResFiT runs take about 15 h to 150k and equivariant ones about 25 h, each plus about
-1 h 15 min for the gate and labelling; the `arch` arms are slower, by their smoke.
+**The schedule from 2026-10-13 09:10** (EXPERIMENTS.md, 2026-10-13 DEVIATION and AMENDMENT, and
+PRE-REGISTERED `resfit-ln-place-1013`, Aden): the equivariant residual's reference to 150k, then
+LayerNorm in ResFiT's residual (is it needed; then which placement), then the actor's bounds and
+noise. The actor's architecture, the critic's size and the weight-init scheme are set aside.
+`arch-wide` (`grvwhcfr`) was stopped at 10k (0.64, **0.12**: the only equivariant residual not at
+0.00–0.02 at 10k), and `arch`, `smallcritic` and `combined` dropped. It launches itself through
+`outputs/queue/launchers/`. Times are estimates: a ResFiT run takes about 11 h from launch to 150k,
+an equivariant one about 29 h, each including about 1 h 15 min for the gate and labelling.
 
-| # | Run | Group | GPU | Status (2026-10-13 08:00) | Ends about |
+| Launch | Run | Group | Question | 30k readout | 150k |
 |---|---|---|---|---|---|
-| — | `fk9ayyco` ResFiT rx | `resfit-rx-1012` | — | finished: 57 of 150 at 10k–30k, 0.716 at 110k–150k | done |
-| — | `bue9dupf` ResFiT `rerendered` | `resfit-equi-diff-1012` | — | finished: 62 of 150, 0.828 | done |
-| — | `c1xca5uk` ResFiT `noln` | `resfit-equi-diff-1012` | — | finished: 0 of 150, 0.032. **Breaks** | done |
-| 1 | `dczf4k7v` equi `notilt` | `residual-tilt-1012` | 0 | running; 0.16 at 140k; its watcher stops it at 150k | Tue ~09:15 |
-| 2 | `oav5gk76` equi `init0` long, seed 2 | `equi-residual-long-1012` | 0 | running; 0.62, 0.00, 0.00 to 20k | Wed ~03:00 |
-| 3 | `ra6024xn` ResFiT `noln-all` | `resfit-equi-diff-1012` | 1 | running; 0 of 150 at 10k–30k: **breaks** | Tue ~19:00 |
-| 4 | `grvwhcfr` equi `arch-wide` | `equi-resfit-arch-1013` | 1 | running; 0.64 at step 0 | Wed or Thu |
-| 5 | equi baseline long (`6ng62tpm`'s launch), seed 2 | `equi-residual-long-1012` | — | queue #1 (its gate failed at 00:42; queued again) | Wed |
-| 6 | ResFiT `limits` | `resfit-equi-diff-1012` | — | queue #2 (its gate failed at 03:31) | Wed |
-| 7 | equi `arch`, smoke first | `equi-resfit-arch-1013` | — | queue #3 (its smoke's gate failed at 05:30) | Thu |
-| 8 | ResFiT `combined` | `resfit-equi-diff-1012` | — | queue #4; will be skipped, since `noln` broke | — |
-| 9 | ResFiT `smallcritic` | `resfit-equi-diff-1012` | — | queue #5 | Thu |
-| 10 | ResFiT `noise` | `resfit-equi-diff-1012` | — | queue #6 | Thu–Fri |
+| done | `fk9ayyco` ResFiT rx: 57 of 150, 0.716 | `resfit-rx-1012` | rx range | done | done |
+| done | `bue9dupf` ResFiT `rerendered`: 62 of 150, 0.828 | `resfit-equi-diff-1012` | demos | done | done |
+| done | `c1xca5uk` ResFiT `noln`: 0 of 150, 0.032. **Breaks** | `resfit-equi-diff-1012` | (1) | done | done |
+| running | `dczf4k7v` equi `notilt`: 0.16 at 140k | `residual-tilt-1012` | tilt | done | Tue ~09:20 |
+| running | `oav5gk76` equi `init0` long, seed 2: 0.62, 0.00, 0.00, 0.20 | `equi-residual-long-1012` | init0 | done (10 of 150) | Wed ~07:00 |
+| running | `ra6024xn` ResFiT `noln-all`: 0 of 150, **breaks** | `resfit-equi-diff-1012` | — | done | Tue ~14:40 |
+| Tue ~09:20 | equi baseline (`6ng62tpm`'s launch), seed 2 | `equi-residual-long-1012` | reference | Tue ~16:15 | Wed ~14:30 |
+| Tue ~09:30 | equi baseline, seed 3 | `equi-residual-long-1012` | reference spread | Tue ~16:30 | Wed ~14:45 |
+| Tue ~14:45 | ResFiT `noln`, seed 2 | `resfit-equi-diff-1012` | (1) | Tue ~18:15 | Wed ~02:00 |
+| Wed ~02:00 | ResFiT `noln-actor`, seed 1 | `resfit-ln-place-1013` | (2a) | Wed ~06:00 | Wed ~13:00 |
+| Wed ~07:00 | ResFiT `noln-critic`, seed 1 | `resfit-ln-place-1013` | (2a) | Wed ~11:00 | Wed ~18:00 |
+| Wed ~13:00 | ResFiT `noln-vit`, seed 1 | `resfit-ln-place-1013` | (2a) | Wed ~17:00 | Wed ~24:00 |
+| Wed ~14:30 | ResFiT `limits`, seed 1 | `resfit-equi-diff-1012` | actor bounds | Wed ~18:30 | Thu ~01:30 |
+| Wed ~14:45 | ResFiT `noise`, seed 1 | `resfit-equi-diff-1012` | actor noise | Wed ~18:45 | Thu ~01:45 |
+| Wed ~18:00 | ResFiT `noln-actor`, seed 2 | `resfit-ln-place-1013` | (2a) | Wed ~22:00 | Thu ~05:00 |
+| Wed ~24:00 | ResFiT `noln-critic`, seed 2 | `resfit-ln-place-1013` | (2a) | Thu ~04:00 | Thu ~11:00 |
+| Thu ~01:30 | ResFiT `noln-vit`, seed 2 | `resfit-ln-place-1013` | (2a) | Thu ~05:30 | Thu ~12:30 |
+| Thu ~01:45 | open: seed 2 of `limits` or `noise` if either breaks, else a second `init0` or `notilt` seed | — | — | | |
 
 - **The queue:** tmux `rfe-queue` runs `slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`. Each
   job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own tmux
@@ -195,14 +204,14 @@ estimates: ResFiT runs take about 15 h to 150k and equivariant ones about 25 h, 
   `outputs/queue/launchers/`, which is gitignored (TODO: move them into `tools/` once the queue is
   empty).
 - **Watchers,** each enforcing its group's rule (`tools/square_rerendered_watch.py`):
-  - from the amendment's worktree: `rfe-watch` (`resfit-equi-diff-1012`), `arch-watch`
-    (`equi-resfit-arch-1013`), `long-watch` (`equi-residual-long-1012`) and `tilt-watch`
-    (`residual-tilt-1012`);
-  - `rx-watch` (`resfit-rx-1012`) was stopped on 2026-10-13, its one run (`fk9ayyco`) finished.
+  - from the 2026-10-12 amendment's worktree: `rfe-watch` (`resfit-equi-diff-1012`), `long-watch`
+    (`equi-residual-long-1012`) and `tilt-watch` (`residual-tilt-1012`);
+  - from `resfit-ln-place-1013`'s worktree: `ln-watch` (`resfit-ln-place-1013`);
+  - `rx-watch` and `arch-watch` were stopped on 2026-10-13, their groups' runs ended.
 - **tmux, 2026-10-13:** the idle sessions of finished runs, smokes, launchers and watchers were
   removed. Left: the four watchers, `rfe-queue`, the runs (`sq-tilt-notilt`, `q-*`), and the old
   queue runners `gpu0` and `gpu1` (idle) and `gpu1-bars`.
-- **Seed 2s are launched by hand**, per each group's rule, after the queue.
+- **Seed 2s:** `noln`'s and `resfit-ln-place-1013`'s are in the queue; any other a rule calls for is launched by hand.
 - **For the next session:** see TODO 5e.
 
 - **What each run records beyond its evals and videos:**
@@ -212,10 +221,11 @@ estimates: ResFiT runs take about 15 h to 150k and equivariant ones about 25 h, 
     field test, run from `534cc71`, has both.
   - `fk9ayyco` (from `60fce72`) has neither, as Aden chose: its evals and videos suffice.
 - **Resources:** about 20 GB of RAM per run at start and 35 GB by 150k; about 9.9 GB of GPU memory
-  per run, so two per GPU. **The disk had 19 GB free at 08:00 on 2026-10-13**, falling about
-  0.45 GB an hour: at that rate it runs out around Wednesday evening, before the queue ends.
-  Clearing space (old worktrees, the 11 GB wandb cache) is Aden's call (TODO 5e). Checkpoints are 87 MB each, up to 62 for the two `residual-tilt-1012`
-  arms (5.4 GB).
+  per run, so two per GPU. **The disk had 29.6 GB free at 10:00 on 2026-10-13,** after the pip
+  and conda caches were cleared (10 GB, Aden's approval). It falls about 0.45 GB an hour on
+  average, in bursts at evals and run ends, so it lasts to about Friday. The old worktrees are
+  about 4 MB each; the next to clear is the wandb artifact cache (14 GB, +4 GB a day). Equivariant
+  checkpoints are 87 MB each and ResFiT's 223 MB.
 - **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (`fk9ayyco`) and
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every
   watcher action, and consoles are in `outputs/queue/`.

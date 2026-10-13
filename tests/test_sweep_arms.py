@@ -1,9 +1,10 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Three seed groups, and each arm
+submit.sh's case table is checked here first. Four seed groups, and each arm
 against its anchor's launch, less the anchor's run length:
-  - resfit-equi-diff-1012: oj5k0jqb's (resfit-residual-square 1, 9cf207d);
+  - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
+    (resfit-residual-square 1, 9cf207d);
   - equi-resfit-arch-1013: eaqorqki's (square-residual-start-1011, 0af7655);
   - equi-residual-long-1012: each arm is its anchor's launch, again: 6ng62tpm's
     (square-rerendered-1009, eb90a0c) and eaqorqki's.
@@ -19,7 +20,9 @@ against its anchor's launch, less the anchor's run length:
           losses. A ResFiT arm starts from the anchor's weights, bit for bit,
           but for any norm it drops (smallcritic: its encoders); noln has no
           LayerNorm in its actor or critic and keeps its ViTs', noln-all has no
-          norm anywhere, and smallcritic has 5 heads of 1 hidden layer. What
+          norm anywhere, each of noln-actor, noln-critic and noln-vit has none
+          in its one place and the anchor's elsewhere, and smallcritic has 5
+          heads of 1 hidden layer. What
           limits' bound and noise's units do is tested in
           tests/test_action_bound.py. An equivariant arm is equivariant (its
           actor) and invariant (its critic) at its own sizes, and every input
@@ -32,8 +35,9 @@ against its anchor's launch, less the anchor's run length:
 The arm list is pinned to the pre-registrations (EXPERIMENTS.md, 2026-10-12
 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's
 differences one at a time; the equivariant residual given ResFiT's layout", and
-"the equivariant residual's anchors again, to a fixed 150k") and the AMENDMENTs
-of that date.
+"the equivariant residual's anchors again, to a fixed 150k"), the AMENDMENTs of
+that date, and 2026-10-13 PRE-REGISTERED, "ResFiT's residual on Square with
+LayerNorm off in one place".
 """
 
 from __future__ import annotations
@@ -56,6 +60,7 @@ LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
 RESFIT_GROUP = "resfit-equi-diff-1012"
 EQUI_GROUP = "equi-resfit-arch-1013"
 LONG_GROUP = "equi-residual-long-1012"
+LN_GROUP = "resfit-ln-place-1013"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -68,6 +73,10 @@ ARCH = "equi-residual-square-arch"
 ARCH_WIDE = "equi-residual-square-arch-wide"
 LONG = "equi-residual-square-long"
 INIT0_LONG = "equi-residual-square-init0-long"
+NOLN_ACTOR = "resfit-residual-square-noln-actor"
+NOLN_CRITIC = "resfit-residual-square-noln-critic"
+NOLN_VIT = "resfit-residual-square-noln-vit"
+LN_ARMS = (NOLN_ACTOR, NOLN_CRITIC, NOLN_VIT)
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -100,6 +109,9 @@ LAUNCHED = {
     ARCH_WIDE: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | RESFIT_LAYOUT | {"equivariance.actor_degree_channel=448"},
     LONG: BASELINE_ANCHOR,
     INIT0_LONG: EQUI_ANCHOR,
+    NOLN_ACTOR: RESFIT_ANCHOR | {"agent.actor.use_layer_norm=false"},
+    NOLN_CRITIC: RESFIT_ANCHOR | {"agent.critic.use_layer_norm=false"},
+    NOLN_VIT: RESFIT_ANCHOR | {"agent.vit.use_layer_norm=false"},
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
@@ -117,6 +129,9 @@ FROM_ANCHOR = {
     ARCH_WIDE: LAYOUT_PATHS | {"equivariance.actor_degree_channel"},
     LONG: set(),
     INIT0_LONG: set(),
+    NOLN_ACTOR: {"agent.actor.use_layer_norm"},
+    NOLN_CRITIC: {"agent.critic.use_layer_norm"},
+    NOLN_VIT: {"agent.vit.use_layer_norm"},
 }
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
@@ -133,11 +148,15 @@ ARM_VALUES = {
     ARCH_WIDE: {**LAYOUT_VALUES, "equivariance.actor_degree_channel": 448},
     LONG: {},
     INIT0_LONG: {},
+    NOLN_ACTOR: {"agent.actor.use_layer_norm": False},
+    NOLN_CRITIC: {"agent.critic.use_layer_norm": False},
+    NOLN_VIT: {"agent.vit.use_layer_norm": False},
 }
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
-             ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS}
+             ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS,
+             NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -149,7 +168,8 @@ BASELINES = {
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
 WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          EQUI_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         LONG_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         LONG_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         LN_GROUP: ("robomimic-square-final", "residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -223,6 +243,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in LN_ARMS:
+        return LN_GROUP
     if arm in RESFIT_ARMS:
         return RESFIT_GROUP
     return EQUI_GROUP if arm in ARCH_ARMS else LONG_GROUP
@@ -717,8 +739,8 @@ def _weights_in_order(module, drop_layer_norms: bool) -> list:
 def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
     """At the same seed, the arm's initial weights are the anchor's bit for bit: rerendered changes
     the data alone; limits the bound and noise the noise's units, neither of which draws a random
-    number or adds a weight; noln, noln-all and combined drop LayerNorms, which draw no random number
-    at init, so every other weight is drawn as the anchor's. smallcritic's critic is smaller, and is
+    number or adds a weight; noln, noln-all, combined and the three placement arms drop LayerNorms,
+    which draw no random number at init, so every other weight is drawn as the anchor's. smallcritic's critic is smaller, and is
     built before the actor, so only its encoders are the anchor's. The episodes still differ, since
     `seed` does not reach the envs. An equivariant arch arm's weights are not its anchor's: its ten
     deeper heads draw more numbers before the actor's."""
@@ -737,10 +759,14 @@ def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
         assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
         return
     # noln, combined: the anchor's actor and critic less their LayerNorms, its encoders as they were.
-    # noln-all: its encoders less their LayerNorms too.
+    # noln-all: its encoders less their LayerNorms too. A placement arm: its one part less its
+    # LayerNorms, the other two as they were.
+    dropped = {NOLN: ("actor", "critic"), COMBINED: ("actor", "critic"),
+               NOLN_ALL: ("actor", "critic", "encoders"), NOLN_ACTOR: ("actor",),
+               NOLN_CRITIC: ("critic",), NOLN_VIT: ("encoders",)}[arm]
     for part in ("actor", "critic", "encoders"):
-        if part == "encoders" and arm in (NOLN, COMBINED):
-            theirs, mine = anchor.encoders.state_dict(), ours.encoders.state_dict()
+        if part not in dropped:
+            theirs, mine = getattr(anchor, part).state_dict(), getattr(ours, part).state_dict()
             assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
             continue
         theirs = _weights_in_order(getattr(anchor, part), drop_layer_norms=True)
@@ -790,6 +816,24 @@ def test_noln_all_has_no_norm_anywhere(tmp_path, device):
     norms = (torch.nn.LayerNorm, torch.nn.GroupNorm, torch.nn.BatchNorm1d, torch.nn.BatchNorm2d)
     found = [name for name, m in ours.named_modules() if isinstance(m, norms)]
     assert not found, found
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm, place", [(NOLN_ACTOR, "actor"), (NOLN_CRITIC, "critic"), (NOLN_VIT, "encoders")])
+def test_each_placement_arm_has_no_layernorm_in_its_one_place_and_the_anchors_elsewhere(
+        arm, place, tmp_path, device):
+    """resfit-ln-place-1013: noln's two switches and noln-all's third, one at a time."""
+    import torch
+
+    def count(module):
+        return sum(isinstance(m, torch.nn.LayerNorm) for m in module.modules())
+
+    anchor = _agent(_compose(_launch_order(RESFIT_ANCHOR)), device)
+    ours = _agent(_compose(_overrides(arm, tmp_path)), device)
+    for part in ("actor", "critic", "encoders"):
+        assert count(getattr(anchor, part)) > 0, part
+        expected = 0 if part == place else count(getattr(anchor, part))
+        assert count(getattr(ours, part)) == expected, (arm, part)
 
 
 @pytest.mark.gpu

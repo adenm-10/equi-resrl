@@ -6912,3 +6912,149 @@ anchors' pooled 10k–30k of 106 of 300 (0.353; an arm breaks at 39 of 150 or fe
 - **For the next session:** what LayerNorm does for ResFiT's critic and actor, and what that says
   about the equivariant stack's normalization. `arch` and `arch-wide` put RegularLayerNorm into the
   equivariant residual, and `arch-wide` is running (0.64 at step 0).
+
+---
+
+## 2026-10-13 — DEVIATION and AMENDMENT — `arch-wide` (`grvwhcfr`) stopped at 10k; `arch`, `smallcritic` and `combined` dropped; `noln-all`'s seed 2 skipped; the equivariant baseline's seed 3 now, and `noln`'s seed 2 into the queue
+
+Aden's decisions (2026-10-13, about 09:10): the work narrows to the equivariant residual's reference
+to 150k, LayerNorm in ResFiT's residual, init0, and the actor's bounds and noise. The actor's
+architecture, the critic's size and the weight-init scheme are set aside for now. The question
+order this serves, Aden's: (1) is LayerNorm an enabler of ResFiT's residual; (2a) which of its
+placements; (2b) how to do what it does in the equivariant residual; then the actor's other
+differences, if LayerNorm does not carry it.
+
+- **`grvwhcfr` (`equi-residual-square-arch-wide` 1) stopped** by hand (SIGINT) just past its 10k
+  eval. Evals 0.64 at step 0, **0.12 at 10k**.
+  - Reported, deciding nothing: every other equivariant residual on the re-rendered demos scored
+    0.00–0.02 at 10k (`6ng62tpm`, `eaqorqki`, `doevaarp`, `ls0thn4u`, `dczf4k7v`, `oav5gk76`: 3 of
+    300 pooled). `arch-wide` is the only one with RegularLayerNorm in its actor and critic.
+  - `equi-resfit-arch-1013`'s rules decide nothing on one eval. Its pre-registration stands, unrun
+    past 10k.
+- **Dropped from the queue, unrun:** `equi-residual-square-arch` (its smoke's gate failed overnight,
+  so it never launched), `resfit-residual-square-smallcritic`, and `resfit-residual-square-combined`
+  (its rule would have skipped it, since `noln` broke). Their pre-registrations stand.
+- **`noln-all`'s seed 2 is skipped,** against its rule (it broke, so seed 2 was due). `noln` already
+  breaks, so a second seed of `noln` with the ViTs' LayerNorms off too cannot tell anything `noln`'s
+  own seed 2 cannot. `ra6024xn` runs on to 150k.
+- **`noln`'s seed 2** goes into the queue now, third, from its launch commit (`7db124d`), instead
+  of by hand after the queue (the 2026-10-12 AMENDMENT).
+- **AMENDMENT to `equi-residual-long-1012`: seed 3 of `equi-residual-square-long` now,** from
+  `0b14c17` as seed 2, not only if seed 2 is back to the base at 150k.
+  - Why: no equivariant residual of this design has a record past 30k (`6ng62tpm` was stopped at
+    30.3k), so `init0`'s and `notilt`'s late evals have no reference. One seed gives no spread:
+    ResFiT's two anchors differ by 0.17 at 110k–150k (0.800, 0.628).
+  - Its rules and readouts are seed 2's. `init0-long`'s seed 3 keeps its rule.
+- **The queue,** in this order (`slot_queue.sh`, tmux `rfe-queue`, restarted with this file):
+
+  | # | Job | Seed | From |
+  |---|---|---|---|
+  | 1 | `equi-residual-square-long` | 2 | `0b14c17` |
+  | 2 | `equi-residual-square-long` | 3 | `0b14c17` |
+  | 3 | `resfit-residual-square-noln` | 2 | `7db124d` |
+  | 4–6 | LayerNorm off in the actor alone, the critic alone, the ViTs alone, seed 1 | 1 | the PRE-REGISTERED entry below |
+  | 7 | `resfit-residual-square-limits` | 1 | `304167e` |
+  | 8 | `resfit-residual-square-noise` | 1 | `0b14c17` |
+  | 9–11 | the three LayerNorm arms, seed 2 | 2 | the PRE-REGISTERED entry below |
+
+  Rows 4–6 and 9–11 join the jobs file once their pre-registration is committed and pinned.
+
+---
+
+## 2026-10-13 — PRE-REGISTERED — ResFiT's residual on Square with LayerNorm off in one place (`resfit-ln-place-1013`)
+
+**Question** (Aden, 2026-10-13; (2a) of the question order in the DEVIATION above): `noln`, with
+LayerNorm off in the actor and the critic, breaks ResFiT's residual (`c1xca5uk`: 0 of 150 at
+10k–30k, 0.032 at 110k–150k; its seed 2 is queued). Which of its LayerNorms does the residual
+need: the actor's, the critic's, or the ViT encoders'?
+
+**Seed group `resfit-ln-place-1013`**, seeds 1 and 2 of each arm.
+- **Names:** `<arm>-<seed>`; notes `resfit-ln-place-1013/<arm>/seed<seed>`; wandb
+  `robomimic-square-final` / `residual-rl`.
+- **The anchor** is `oj5k0jqb`'s launch, as for `resfit-equi-diff-1012`: `--config-name=residual_td3_square_config
+  agent.critic.num_q=10 base_policy.wt_version=v9 algo.total_timesteps=150000
+  read_buffer_caches=false write_buffer_caches=false seed=<seed> debug=false`, on the original coded
+  demos.
+
+| Arm | Change from `oj5k0jqb` | The LayerNorms it removes |
+|---|---|---|
+| `resfit-residual-square-noln-actor` | `agent.actor.use_layer_norm=false` | after the actor's compression layer and each of its hidden layers |
+| `resfit-residual-square-noln-critic` | `agent.critic.use_layer_norm=false` | after the critic's input projection and each head's hidden layers |
+| `resfit-residual-square-noln-vit` | `agent.vit.use_layer_norm=false` | the two ViT encoders' six (two per transformer layer and a final one) |
+
+- With the anchors (both on) and `noln` (both off), `noln-actor` and `noln-critic` complete a 2×2
+  on the actor's and the critic's LayerNorms. `noln-vit` is the third place; `noln-all` (all three
+  off) is not needed to read it.
+- No new code: each arm is one existing switch.
+
+**What varies, and what is held.**
+- Each arm's change alone. At a seed, its starting weights are the anchor's bit for bit, less the
+  LayerNorms it removes, which draw no random number at init (`tests/test_sweep_arms.py`).
+- The code is this commit's. It changes no agent code from `0b14c17`, where ResFiT's agent at these
+  defaults is the tree before 2026-10-12's changes (`tests/test_action_bound.py`'s fingerprint).
+- The episodes differ between runs, as always: `seed` does not reach the envs.
+
+**Rules,** `resfit-equi-diff-1012`'s as amended on 2026-10-12. The watcher enforces them
+(`--group resfit-ln-place-1013`).
+- **To a fixed 150k,** stopped only on the divergence stop.
+- **The main readout:** the 10k, 20k and 30k evals pooled (150 episodes). An arm **breaks** iff that
+  is at most 39 of 150 (below the anchors' 106 of 300 by two standard errors), or three evals in a
+  row are at or below 0.05. Otherwise it **holds**.
+- **Both seeds of every arm,** whatever seed 1 shows: a hold is a claim here too (Aden: one or two
+  150k runs per question).
+- **Reading a place, at two seeds:**
+  - **Needed** iff its arm breaks at both seeds.
+  - **Not needed alone** iff its arm holds at both seeds. This is not "it does nothing": a hold
+    admits 40 of 150 against the anchors' 0.353. So both windows are reported against the anchors'
+    (0.353 at 10k–30k, 0.714 at 110k–150k), to show how close it comes.
+  - **No verdict** if the seeds disagree; seed 3 by hand.
+  - If `noln-actor` and `noln-critic` both hold while `noln` breaks, either LayerNorm is enough
+    alone, and that is the reading.
+- **Reported, deciding nothing:**
+  - 110k–150k pooled against the anchors' 0.714 and B_sq = 0.582.
+  - The residual's size early: `train/residual_l1_magnitude` and `debug/residual_max_abs` at
+    1k–3k and 10k (`noln` reached 0.083 of its 0.1 cap by 3k, the anchors 0.04).
+  - `train/actor_grad_norm`, `debug/dQ_da_mean_abs`, `debug/q_data_online`, `debug/q_advantage`,
+    and critic values above 1.5.
+- **No checkpoints:** a ResFiT checkpoint is 223 MB, and the disk is short.
+
+**Predictions** (Claude's, before launch):
+1. `noln-actor` breaks. Moderate confidence: `noln`'s residual reached its cap by 3k, the
+   saturation `9phsy6sf` showed in tuned RLPD, which a one-batch test traced to the actor's
+   LayerNorms (2026-10-08 NOTE).
+2. `noln-critic` holds. Low confidence: nothing has tested ResFiT's critic without its LayerNorm
+   beside a working actor.
+3. `noln-vit` holds. Low confidence: a transformer without LayerNorm may train poorly, but the
+   encoders learn from the critic's loss alone, and the actor reads their features detached.
+
+**Launch:** through `outputs/queue/launchers/slot_queue.sh` (tmux `rfe-queue`), from this entry's
+commit in its own pinned worktree. Seed 1 of each after `noln`'s seed 2, then `limits` and `noise`,
+then seed 2 of each (DEVIATION above). Expected launches: seed 1 on Wednesday at about 02:00, 07:00
+and 13:00; seed 2 Wednesday about 18:00 and 24:00 and Thursday about 01:30. Each takes about 11 h
+from launch to 150k sharing a GPU, and about 20 GB of RAM at start, 35 GB by 150k.
+
+**Checks before the commit:**
+- `tests/test_sweep_arms.py` and `tests/test_square_rerendered_watch.py`, CPU tier: 104 passed.
+  Each new arm launches exactly its pre-registered overrides and composes to `oj5k0jqb`'s config
+  but for its one switch; the watcher runs the new group's arms to a fixed 150k, with the
+  divergence stop.
+- `tests/test_sweep_arms.py`'s GPU tier for the ResFiT arms (GPU 1, beside two runs): 27 passed.
+  - Each placement arm has no LayerNorm in its one place and the anchor's count elsewhere (ViTs: 6).
+  - Each starts from the anchor's weights bit for bit, less the LayerNorms it removes.
+  - Each builds and runs one update with finite losses.
+
+---
+
+## 2026-10-13 — NOTE — `notilt` (`dczf4k7v`) finished at 150k: partial recovery, below the base
+
+`residual-tilt-1012`'s `notilt` (the equivariant residual with its tilt pair bounded at zero), stopped
+by its watcher at its 150k eval (09:23), as the 2026-10-12 AMENDMENT set. Package finalized.
+
+- **Evals 0, 10k, …, 150k:** 0.54, 0.02, 0.00, 0.14, 0.18, 0.14, 0.28, 0.24, 0.26, 0.36, 0.34,
+  0.26, 0.18, 0.24, 0.16, 0.16.
+- **10k–30k pooled:** 8 of 150. **110k–150k pooled:** 50 of 250, **0.200**, below B_sq = 0.582 by
+  far more than two standard errors (0.067), and below ResFiT's anchors' 0.714. Its peak, 0.36 at
+  90k, did not hold.
+- **No reference yet:** no equivariant residual of its design had run past 80k. The baseline's
+  seeds 2 and 3 (`equi-residual-long-1012`, launched today) give one at 150k, about Wednesday
+  15:00. Whether 0.20 late is better or worse than the baseline waits for them.

@@ -11,8 +11,10 @@
 # PRE-REGISTERED — ResFiT's residual on Square, given the equivariant stack's differences one at a
 # time; the equivariant residual given ResFiT's layout". Its second group, equi-resfit-arch-1013,
 # is in this table from its amendment of the same date, and equi-residual-long-1012 (the
-# equivariant residual's anchors again, to a fixed 150k) from its own pre-registration. Launch inside tmux from a worktree pinned
-# to a commit, with CACHE_DIR pointing at the main checkout.
+# equivariant residual's anchors again, to a fixed 150k) from its own pre-registration, and
+# resfit-ln-place-1013 (which of ResFiT's LayerNorms its residual needs) from "2026-10-13 —
+# PRE-REGISTERED — ResFiT's residual on Square with LayerNorm off in one place". Launch inside tmux
+# from a worktree pinned to a commit, with CACHE_DIR pointing at the main checkout.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
 #                                            # learning starts, no eval, recorded offline in
@@ -77,6 +79,15 @@
 #                                      layer at 1e-4.
 #   equi-residual-square-init0-long    eaqorqki's launch (square-residual-start-1011): at zero.
 #
+# resfit-ln-place-1013: oj5k0jqb's launch with LayerNorm off in one of the three places
+# resfit-residual-square-noln and noln-all turn it off; wandb robomimic-square-final / residual-rl.
+#   resfit-residual-square-noln-actor  none in the actor (agent.actor.use_layer_norm=false): after
+#                                      its compression and each hidden layer.
+#   resfit-residual-square-noln-critic none in the critic (agent.critic.use_layer_norm=false): after
+#                                      its input projection and each head's hidden layers.
+#   resfit-residual-square-noln-vit    none in the two ViT encoders (agent.vit.use_layer_norm=false):
+#                                      two per transformer layer and a final one.
+#
 # Every arm here runs to a fixed 150k, stopped only on the divergence stop (AMENDMENT of
 # 2026-10-12): the watcher, not the run length, carries the rule.
 
@@ -136,6 +147,12 @@ case "$ARM" in
         ARM_OVERRIDES=("${RESFIT_BASE[@]}" agent.critic.num_q=5 agent.critic.num_layers=1) ;;
     resfit-residual-square-noise)
         ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.actor.noise_units=env) ;;
+    resfit-residual-square-noln-actor)
+        ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.actor.use_layer_norm=false) ;;
+    resfit-residual-square-noln-critic)
+        ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.critic.use_layer_norm=false) ;;
+    resfit-residual-square-noln-vit)
+        ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" agent.vit.use_layer_norm=false) ;;
     equi-residual-square-arch)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}") ;;
     equi-residual-square-arch-wide)
@@ -150,6 +167,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    resfit-residual-square-noln-actor|resfit-residual-square-noln-critic|resfit-residual-square-noln-vit)
+        SEED_GROUP=resfit-ln-place-1013 PROJECT=robomimic-square-final GROUP=residual-rl
+        GATE=(--task Square --method residual --stack resfit) ;;
     resfit-*)
         SEED_GROUP=resfit-equi-diff-1012 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;

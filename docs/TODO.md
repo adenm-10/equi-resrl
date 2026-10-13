@@ -57,37 +57,39 @@ demos").
         (w = 256 × logged `dQ_da` / (2 r*));
       - if `notilt` falls in a new mode, the critic is the target (its online value), in a plan of
         its own.
-5e. **NOW: the 2026-10-12 schedule, every run to a fixed 150k** (EXPERIMENTS.md, 2026-10-12
-   PRE-REGISTERED and AMENDMENTs, 2026-10-13 LAUNCHED and NOTE; STATUS "Running now" has the
-   table). It launches itself: `outputs/queue/launchers/slot_queue.sh`, in tmux `rfe-queue`.
-   1. **The headline so far:** ResFiT's residual breaks without LayerNorm (`noln` 0 of 150 at
-      10k–30k, 0.032 at 110k–150k; `noln-all` 0 of 150). `rerendered` holds (0.828 late) and
-      `fk9ayyco` holds. Next: what LayerNorm does for ResFiT's critic and actor (the logged
-      `debug/q_*`, `dQ_da`, `residual_l1` of `c1xca5uk` against `bue9dupf`), and what that says
-      for the equivariant stack's normalization. `arch` and `arch-wide` are that question's
-      equivariant side.
-   2. **Due by the rules, to launch by hand:** seed 2 of `noln` and of `noln-all` (each broke), from
-      their launch commits (`7db124d`, `9add9e6`). Append them to the jobs file and restart the
-      queue, or launch them in the next free slots.
-   3. **Running:** `notilt` (stopped at 150k by its watcher, about 09:15), `oav5gk76` (`init0`
-      long), `ra6024xn` (`noln-all`), `grvwhcfr` (`arch-wide`). **Queued:** `long`, `limits`,
-      `arch` (smoke first), `combined` (will be skipped: `noln` broke), `smallcritic`, `noise`.
+5e. **NOW: the 2026-10-13 schedule** (EXPERIMENTS.md, 2026-10-13 DEVIATION and AMENDMENT, and
+   PRE-REGISTERED `resfit-ln-place-1013`; STATUS "Running now" has the table). It launches itself:
+   `outputs/queue/launchers/slot_queue.sh`, in tmux `rfe-queue`.
+   1. **Aden's question order (2026-10-13):** (1) is LayerNorm an enabler of ResFiT's residual;
+      (2a) which placement; (2b) how to do what it does in the equivariant residual; then the actor's
+      bounds and noise if LayerNorm does not carry it. Claude's caveats, agreed in conversation:
+      ResFiT needing LayerNorm does not make it what the equivariant stack lacks, so a failed (2b)
+      sends the chain on to the bounds and noise; and (2b) needs what LayerNorm does measured first,
+      because `noln`'s residual saturates by 3k (0.083 of 0.1) while the equivariant one is slow
+      (0.003 at 3k, 10–100× less actor gradient).
+   2. **The reference first:** the equivariant baseline (`6ng62tpm`'s launch) at seeds 2 and 3 to
+      150k, the first of its design past 30k. `init0` (`oav5gk76`) and `notilt` (`dczf4k7v`) are
+      read against it at 150k (about Wednesday 15:00).
+   3. **Then, in the queue:** `noln` seed 2; `resfit-ln-place-1013` seed 1 (`noln-actor`,
+      `noln-critic`, `noln-vit`); `limits`; `noise`; `resfit-ln-place-1013` seed 2. Set aside (Aden):
+      the actor's architecture (`arch`, `arch-wide`), `smallcritic`, the weight-init scheme.
    4. **Each session:**
       - a LAUNCHED entry for each run the queue started (`slot_queue.log` and the `q-*` consoles
         say which, from when);
-      - NOTEs at each 30k and 150k readout: `notilt`'s 30k and 150k, `oav5gk76`'s, `ra6024xn`'s,
-        `grvwhcfr`'s;
-      - seed 2s (seed 3 for the long arms) per the rules.
+      - NOTEs at each 30k and 150k readout: `notilt`'s 150k, the baseline's, `oav5gk76`'s,
+        `noln` seed 2's, each placement arm's;
+      - the open slot from about Thursday 01:45: seed 2 of `limits` or `noise` if either breaks,
+        else a second `init0` or `notilt` seed (Aden's call).
    5. **The gate's flaky test:** `test_rerender_demos.py::test_every_guard_passes_on_cans_first_demos`
-      failed three gates overnight, each the minute a run exited, and passed 3 of 3 by hand. Make
-      `preflight.py` record the failing assertion (not just the test's name), and find which guard
-      trips. The queue's 300 s settle wait is the workaround.
+      failed three gates overnight on 2026-10-12, each the minute a run exited, and passed 3 of 3 by
+      hand. Make `preflight.py` record the failing assertion (not just the test's name), and find
+      which guard trips. The queue's 300 s settle wait is the workaround.
    6. **Housekeeping:**
       - Move `outputs/queue/launchers/` into `tools/` once the queue is empty. It is gitignored now,
         and the running queue reads its scripts from there.
-      - **Disk, urgent:** 19 GB free at 08:00 on 2026-10-13, down from 26.5 GB at 15:48 the day
-        before, about 0.45 GB an hour. At that rate it runs out around Wednesday evening, before
-        the queue ends. Clearing space (old worktrees, the 11 GB wandb cache) is Aden's call.
+      - **Disk:** the pip and conda caches were cleared on 2026-10-13 (Aden). The old worktrees are
+        about 4 MB each, so removing them frees nothing; the wandb artifact cache (14 GB, +4 GB a
+        day, copies of uploaded best models and the base policies) is the next to clear if needed.
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which

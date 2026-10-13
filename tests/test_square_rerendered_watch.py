@@ -28,6 +28,7 @@ from square_rerendered_watch import (  # noqa: E402
     EQUI_LONG,
     EQUI_RESFIT_ARCH,
     RESFIT_EQUI_DIFF,
+    RESFIT_LN_PLACE,
     RESFIT_RX,
     RESIDUAL,
     RESIDUAL_STARTS,
@@ -146,14 +147,15 @@ def test_the_resfit_rx_arm_is_stopped_only_at_its_collapse():
 def test_every_arm_of_the_2026_10_12_amendment_runs_to_a_fixed_150k():
     """Never stopped for collapse (2026-10-12 AMENDMENT, "every run to a fixed 150k"): the ResFiT
     and equivariant arms of resfit-equi-diff-1012 and equi-resfit-arch-1013, the two long reruns,
-    and notilt, which is stopped at 150k because it was launched for 300k. The divergence stop
+    resfit-ln-place-1013's three arms (2026-10-13 PRE-REGISTERED), and notilt, which is stopped at 150k because it was launched for 300k. The divergence stop
     still applies to each, and the diagnostic run is never stopped."""
     assert GROUPS["resfit-equi-diff-1012"] == RESFIT_EQUI_DIFF and len(RESFIT_EQUI_DIFF) == 7
     assert GROUPS["equi-resfit-arch-1013"] == EQUI_RESFIT_ARCH and len(EQUI_RESFIT_ARCH) == 2
     assert GROUPS["equi-residual-long-1012"] == EQUI_LONG and len(EQUI_LONG) == 2
     assert GROUPS["residual-tilt-1012"] == (NOTILT, DIAG)
+    assert GROUPS["resfit-ln-place-1013"] == RESFIT_LN_PLACE and len(RESFIT_LN_PLACE) == 3
     collapsed_for_good = KYV7CLFC + [0.0] * 9   # 16 evals, 0 to 150k
-    for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, NOTILT):
+    for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *RESFIT_LN_PLACE, NOTILT):
         for rates in (collapsed_for_good, OJ5K0JQB, S8OPBLSD, [0.58] * 16):
             for i in range(1, len(rates) + 1):
                 stop_at_150k = arm == NOTILT and i == 16

@@ -17,6 +17,44 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-13 (mid-morning) — a question order for LayerNorm; the equivariant baseline to 150k first; `resfit-ln-place-1013` pre-registered
+
+**Found**
+
+- **The critic sends both stacks the same signal; the equivariant actor uses far less of it.**
+  `dQ_da` is about 0.5–1.4e-4 in both, but the equivariant actor's gradient norm is 0.002–0.006
+  through 150k against ResFiT's 0.06 rising to 0.5, and its residual reaches 0.003 by 3k against
+  ResFiT's 0.043. `noln`'s residual is the opposite: 0.083 of its 0.1 cap by 3k. `arch-wide`
+  (RegularLayerNorm) started at 5× `init0`'s actor gradient. From the logs; nothing isolated.
+- **No equivariant residual of the current design had a record past 30k** (`6ng62tpm` was stopped
+  at 30.3k; `kyv7clfc`, which reached 150k, had the FieldNorm critic). ResFiT's 150k reference
+  exists: `oj5k0jqb`, `s8opblsd`, and `bue9dupf` on the re-rendered demos.
+- `arch-wide` scored 0.12 at 10k, where every other equivariant residual on these demos scored
+  0.00–0.02 (3 of 300 pooled). `oav5gk76` (`init0`, seed 2) scored 0.20 at 30k: 10 of 150 at
+  10k–30k.
+- The old worktrees are about 4 MB each: removing them frees no disk. The disk's consumers are the
+  run records (`outputs/runs/`, 17 GB) and the wandb artifact cache (14 GB, +4 GB a day).
+
+**Decided (Aden)**
+
+- **The question order:** (1) is LayerNorm an enabler of ResFiT's residual; (2a) which placement;
+  (2b) how to do what it does in the equivariant residual; then the actor's bounds and noise; then
+  the rest. Each answered at one or two seeds to 150k before moving on.
+- **The equivariant baseline to 150k first,** seeds 2 and 3, so `init0` and `notilt` have a
+  reference. Set aside: the actor's architecture (`arch-wide` stopped at 10k, `arch` dropped),
+  `smallcritic`, and the weight-init scheme. `noln-all`'s seed 2 skipped.
+
+**Done**
+
+- EXPERIMENTS.md: the DEVIATION and AMENDMENT (the queue's new order, seed 3 of the baseline), and
+  the PRE-REGISTERED `resfit-ln-place-1013`: `noln-actor`, `noln-critic`, `noln-vit`, two seeds
+  each, each one existing switch.
+- `submit.sh`, `tests/test_sweep_arms.py`, `tools/square_rerendered_watch.py` and its test: the
+  new arms and group. The queue restarted on the new jobs file; `grvwhcfr` stopped and finalized.
+- The pip and conda caches cleared (Aden's approval).
+
+---
+
 ## 2026-10-13 (morning) — the queue's first night: `noln` breaks ResFiT; three gates failed and were queued again
 
 **Found**
