@@ -17,6 +17,36 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-13 (morning) — the queue's first night: `noln` breaks ResFiT; three gates failed and were queued again
+
+**Found**
+
+- **Without LayerNorm, ResFiT's residual fails as the equivariant one does** (EXPERIMENTS.md,
+  2026-10-13 NOTE). `noln` (`c1xca5uk`) scored 0 of 150 at 10k–30k and 0.032 at 110k–150k.
+  `noln-all` (`ra6024xn`) is at 0 of 150. `rerendered` (`bue9dupf`, 0.828 late) and `fk9ayyco`
+  (0.716) hold.
+- **Three of the night's six gates failed one test,**
+  `test_rerender_demos.py::test_every_guard_passes_on_cans_first_demos`. Each failed in the minute
+  a run exited, and the next launch, 20–30 min later, passed. By hand it passed 3 of 3.
+
+**Done**
+
+- The LAUNCHED entry for the three runs the queue started (`oav5gk76`, `ra6024xn`, `grvwhcfr`) and
+  the three NO-GOs; the NOTE on the finished runs.
+- `slot_queue.sh`: a slot must stay free for 300 s before a launch, and a re-tried job's idle tmux
+  session is replaced. The three failed jobs (`long`, `limits`, `arch`) were queued again, first.
+- Idle tmux sessions of finished runs and launchers removed. Worktrees kept: each holds a running
+  or queued run, or an old one (TODO B15 item 1 is Aden's).
+
+**Left** (TODO 5e)
+
+- Seed 2s of `noln` and `noln-all` are due.
+- The NOTEs and LAUNCHED entries as runs reach their readouts.
+- The flaky gate test.
+- **The disk:** 19 GB free, falling about 0.45 GB an hour.
+
+---
+
 ## 2026-10-12 (afternoon) — ResFiT's residual given the equivariant stack's differences, pre-registered; the field test recorded
 
 **Found**

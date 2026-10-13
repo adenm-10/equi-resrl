@@ -6838,3 +6838,77 @@ GPU 1 beside `rerendered`. Its console is
   10k, `rerendered` at 0.16.
   - So this AMENDMENT's rule runs it on: no collapse stop.
   - Its watcher was stopped at 20:07, before its 20k eval, and restarted with that rule.
+
+---
+
+## 2026-10-13 — LAUNCHED — the queue overnight: `init0-long` (`oav5gk76`), `noln-all` (`ra6024xn`), `arch-wide` (`grvwhcfr`); three gates failed, and those jobs are queued again
+
+The slot queue (`outputs/queue/launchers/slot_queue.sh`, tmux `rfe-queue`), as the 2026-10-12
+AMENDMENT set it up. Consoles are in `outputs/queue/`, and the queue's log is
+`outputs/queue/launchers/slot_queue.log`.
+
+| Job | Launched | GPU | Gate | Run |
+|---|---|---|---|---|
+| `equi-residual-square-long` 2 | 00:42, as `fk9ayyco` exited | 0 | **NO-GO** | — |
+| `equi-residual-square-init0-long` 2 | 01:11 | 0 | GO (Tier 2: 501 passed) | [**`oav5gk76`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/oav5gk76), from `0b14c17`, in wandb 02:31 |
+| `resfit-residual-square-limits` 1 | 03:31, as `rerendered` exited | 1 | **NO-GO** | — |
+| `resfit-residual-square-noln-all` 1 | 03:52 | 1 | GO (Tier 2: 430 passed) | [**`ra6024xn`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/ra6024xn), from `9add9e6`, in wandb 04:51 |
+| `equi-residual-square-arch` 1, its smoke | 05:30, as `noln` exited | 1 | **NO-GO**, so not launched | — |
+| `equi-residual-square-arch-wide` 1 | 05:58 | 1 | GO (Tier 2: 454 passed) | [**`grvwhcfr`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/grvwhcfr), from `95490f9`, in wandb 07:02 |
+
+- **Each run package** records its commit, clean, and mujoco 3.3.2. Each argv is its pre-registered
+  one, the long arm at seed 2.
+- **The three NO-GOs** each failed one Tier-1 test,
+  `tests/test_rerender_demos.py::test_every_guard_passes_on_cans_first_demos`, and nothing else.
+  - Each came in the minute a run exited. The next launch, 20–30 minutes later, passed the same
+    test.
+  - Run by hand at 07:58 from `0b14c17`, it passed three times in three.
+  - So the likely cause is the exiting run still releasing the GPU or the CPU while the test
+    renders Can's demos and compares pixels. The gate records only the test's name, not which
+    assertion failed, so this is not confirmed (TODO).
+- **Two consequences:**
+  - Each failed job's slot went to the next job, as the queue is written. So `arch-wide` launched
+    before `arch`, with no smoke run before it. Its own run measures the speed and RAM `arch`'s
+    smoke would have.
+  - **Fixed at 08:01:** a slot now counts as free once it has stayed free for 300 s
+    (`slot_queue.sh`'s `SETTLE_S`).
+- **Queued again at 08:01, first:** `long`, `limits`, `arch` (smoke first). Then the jobs not yet
+  reached: `combined` (iff its three arms hold), `smallcritic`, `noise`.
+
+---
+
+## 2026-10-13 — NOTE — `rerendered` and `fk9ayyco` hold; `noln` breaks ResFiT's residual, and does not recover by 150k
+
+`resfit-equi-diff-1012` (PRE-REGISTERED 2026-10-12) and `resfit-rx-1012`, seed 1, against the
+anchors' pooled 10k–30k of 106 of 300 (0.353; an arm breaks at 39 of 150 or fewer) and their pooled
+110k–150k of 0.714 (500 episodes). Evals are 50 episodes each, from the run packages.
+
+| Run | Evals 0, 10k, …, 150k | 10k–30k | Verdict | 110k–150k |
+|---|---|---|---|---|
+| `fk9ayyco` rx range | 0.46, 0.16, 0.50, 0.48, 0.52, 0.50, 0.50, 0.62, 0.48, 0.60, 0.66, 0.70, 0.70, 0.76, 0.70, 0.72 | 57 of 150 | holds | 179 of 250, 0.716 |
+| `bue9dupf` `rerendered` | 0.60, 0.16, 0.48, 0.60, 0.70, 0.58, 0.62, 0.64, 0.76, 0.88, 0.74, 0.74, 0.74, 0.90, 0.88, 0.88 | 62 of 150 | holds | 207 of 250, **0.828** |
+| `c1xca5uk` `noln` | 0.54, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.02, 0.00, 0.02, 0.06, 0.04, 0.04 | **0 of 150** | **breaks** | 8 of 250, 0.032 |
+| `ra6024xn` `noln-all` (running) | 0.48, 0.00, 0.00, 0.00, 0.02 (to 40k) | **0 of 150** | **breaks** | — |
+
+- **LayerNorm in the actor and critic is what ResFiT's residual needs here,** of the differences
+  tested so far.
+  - Without it, the residual loses the base by 10k, as every equivariant residual does, and does
+    not win it back by 150k: 0.032 at 110k–150k, against the equivariant `notilt`'s 0.16–0.36 over
+    90k–140k.
+  - `noln-all`, with the ViTs' LayerNorms off too, fails the same way so far.
+  - One seed each; seed 2s are due by the rule.
+- **`rerendered` beats its anchors late:** 0.828 against 0.714 at 110k–150k, about 3.6 standard
+  errors. One seed, so reported, not decided on.
+  - By its rule it holds, so the demos are not what breaks the equivariant residual.
+  - `fk9ayyco` (rx's range alone) lands on the anchors: 0.716.
+- **Predictions** (2026-10-12):
+  - 1 (`rerendered` holds) and 6 (if one breaks, it is `noln`) were right.
+  - 2 (`noln` holds, low confidence) was wrong.
+- **What follows by the rules:**
+  - `combined` will be skipped, since `noln` broke.
+  - Seed 2s of `noln` and of `noln-all` are due (each broke). They are launched by hand, after the
+    queue (AMENDMENT).
+  - `limits` is queued again.
+- **For the next session:** what LayerNorm does for ResFiT's critic and actor, and what that says
+  about the equivariant stack's normalization. `arch` and `arch-wide` put RegularLayerNorm into the
+  equivariant residual, and `arch-wide` is running (0.64 at step 0).
