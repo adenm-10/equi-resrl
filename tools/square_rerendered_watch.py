@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Seven seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
+Eight seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -15,13 +15,19 @@ Seven seed groups (GROUPS), on the re-rendered Square demos unless said otherwis
     the equivariant stack's range"), one ResFiT residual arm on the original demos, stopped only at
     its collapse: its anchors ran to 150k with no 100k check, and the trainer ends itself there;
   - residual-tilt-1012: the 2026-10-12 PRE-REGISTERED entry ("the equivariant residual on Square
-    with no tilt, and a diagnostic run with checkpoints"): notilt under the residual's rules, and
-    the diagnostic run, whose evals are logged but which is never stopped (it ends at 60k);
+    with no tilt, and a diagnostic run with checkpoints"): notilt to a fixed 150k from that date's
+    AMENDMENT, and the diagnostic run, whose evals are logged but which is never stopped (it ends
+    at 60k);
   - resfit-equi-diff-1012 and equi-resfit-arch-1013: the 2026-10-12 PRE-REGISTERED entry ("ResFiT's
     residual on Square, given the equivariant stack's differences one at a time; the equivariant
     residual given ResFiT's layout"). ResFiT residual arms (on the original demos but for
-    rerendered and combined) and equivariant residual arms, all under resfit-rx-1012's rule:
-    stopped only at their collapse, else to their 150k.
+    rerendered and combined) and equivariant residual arms. From that date's AMENDMENT ("every
+    run to a fixed 150k"), all to a fixed 150k;
+  - equi-residual-long-1012: the 2026-10-12 PRE-REGISTERED entry ("the equivariant residual's
+    anchors again, to a fixed 150k"): 6ng62tpm's and eaqorqki's launches at seed 2, to a fixed
+    150k.
+An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
+STOP_AT step when its trainer would run on past it.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -66,16 +72,23 @@ RESFIT_RX = ("resfit-residual-square-rx",)
 NOTILT, DIAG = "equi-residual-square-notilt", "equi-residual-square-diag"
 RESFIT_EQUI_DIFF = ("resfit-residual-square-rerendered", "resfit-residual-square-noln",
                     "resfit-residual-square-limits", "resfit-residual-square-noln-all",
-                    "resfit-residual-square-combined")
+                    "resfit-residual-square-combined", "resfit-residual-square-smallcritic",
+                    "resfit-residual-square-noise")
 EQUI_RESFIT_ARCH = ("equi-residual-square-arch", "equi-residual-square-arch-wide")
+EQUI_LONG = ("equi-residual-square-long", "equi-residual-square-init0-long")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
-          "equi-resfit-arch-1013": EQUI_RESFIT_ARCH}
+          "equi-resfit-arch-1013": EQUI_RESFIT_ARCH, "equi-residual-long-1012": EQUI_LONG}
 RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
-                 *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH}  # every other arm is tuned RLPD
+                 *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
-COLLAPSE_ONLY_ARMS = {*RESFIT_RX, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH}
+COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
+# To a fixed length (2026-10-12 AMENDMENT, Aden): a residual that loses the base policy can win it
+# back late (eaqorqki: 0.04 at 50k, 0.30 at 80k), so only the divergence stop applies. Each ends at
+# its own total_timesteps, or at its STOP_AT step.
+FIXED_LENGTH_ARMS = {NOTILT, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG}
+STOP_AT = {NOTILT: 150_000}  # launched for 300k
 # Tracked and logged, never stopped: a run that must go through its collapse to its own end.
 WATCH_ONLY_ARMS = {DIAG}
 EPISODES = 50                       # per eval
@@ -152,10 +165,14 @@ def decide(arm: str, evals: list[tuple[int, float]], successes: int, passed_chec
     if arm in WATCH_ONLY_ARMS:
         return None, ""
     residual = arm in RESIDUAL_ARMS
-    if residual and (why := collapsed(evals)):
+    if residual and arm not in FIXED_LENGTH_ARMS and (why := collapsed(evals)):
         return "stop", why
     if why := diverged(evals, list(qs)):
         return "stop", why
+    if arm in FIXED_LENGTH_ARMS:
+        if arm in STOP_AT and evals and evals[-1][0] >= STOP_AT[arm]:
+            return "stop", f"reached its fixed length, {STOP_AT[arm]}"
+        return None, ""
     if arm in COLLAPSE_ONLY_ARMS:
         return None, ""
     if not evals or evals[-1][0] < CHECK_STEP:

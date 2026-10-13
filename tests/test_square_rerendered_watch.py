@@ -1,7 +1,7 @@
 """tools/square_rerendered_watch.py applies square-rerendered-1009's rules as pre-registered and amended,
 square-trlpd-stab-1010's, which are its tuned-RLPD rules, square-residual-start-1011's, which are
 its residual rules, resfit-rx-1012's, which are the residual's collapse stop alone, and
-residual-tilt-1012's: the residual's rules for notilt, and none for the diagnostic run.
+residual-tilt-1012's: notilt to a fixed 150k (2026-10-12 AMENDMENT), and none for the diagnostic run.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -25,6 +25,7 @@ from square_rerendered_watch import (  # noqa: E402
     Q_KEYS,
     DIAG,
     NOTILT,
+    EQUI_LONG,
     EQUI_RESFIT_ARCH,
     RESFIT_EQUI_DIFF,
     RESFIT_RX,
@@ -142,32 +143,29 @@ def test_the_resfit_rx_arm_is_stopped_only_at_its_collapse():
                 assert decide(arm, evals(rates[:i]), 0, False)[0] is None, (rates[:i])
 
 
-def test_the_resfit_equi_diff_and_equi_arch_arms_follow_the_rx_arms_rule():
-    """Stopped only at their collapse, else to their 150k, as fk9ayyco (2026-10-12 PRE-REGISTERED,
-    "ResFiT's residual on Square, given the equivariant stack's differences one at a time")."""
-    assert GROUPS["resfit-equi-diff-1012"] == RESFIT_EQUI_DIFF and len(RESFIT_EQUI_DIFF) == 5
+def test_every_arm_of_the_2026_10_12_amendment_runs_to_a_fixed_150k():
+    """Never stopped for collapse (2026-10-12 AMENDMENT, "every run to a fixed 150k"): the ResFiT
+    and equivariant arms of resfit-equi-diff-1012 and equi-resfit-arch-1013, the two long reruns,
+    and notilt, which is stopped at 150k because it was launched for 300k. The divergence stop
+    still applies to each, and the diagnostic run is never stopped."""
+    assert GROUPS["resfit-equi-diff-1012"] == RESFIT_EQUI_DIFF and len(RESFIT_EQUI_DIFF) == 7
     assert GROUPS["equi-resfit-arch-1013"] == EQUI_RESFIT_ARCH and len(EQUI_RESFIT_ARCH) == 2
-    for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH):
-        assert decide(arm, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"  # collapsed at 30k
-        assert decide(arm, evals(KYV7CLFC[:3]), 0, False)[0] is None
-        for rates in (OJ5K0JQB, S8OPBLSD, [0.58] * 16):
-            for i in range(1, len(rates) + 1):
-                assert decide(arm, evals(rates[:i]), 0, False)[0] is None, (rates[:i])
-
-
-def test_notilt_follows_the_residuals_rules_and_the_diagnostic_run_is_never_stopped():
+    assert GROUPS["equi-residual-long-1012"] == EQUI_LONG and len(EQUI_LONG) == 2
     assert GROUPS["residual-tilt-1012"] == (NOTILT, DIAG)
-    assert decide(NOTILT, evals(KYV7CLFC[:4]), 0, False)[0] == "stop"      # collapsed at 30k
-    assert decide(NOTILT, evals(OJ5K0JQB[:11]), 0, False)[0] == "passed"   # 165 of 250
-    assert decide(NOTILT, evals([0.58] * 11), 0, False)[0] == "stop"       # the base policy held
+    collapsed_for_good = KYV7CLFC + [0.0] * 9   # 16 evals, 0 to 150k
+    for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, NOTILT):
+        for rates in (collapsed_for_good, OJ5K0JQB, S8OPBLSD, [0.58] * 16):
+            for i in range(1, len(rates) + 1):
+                stop_at_150k = arm == NOTILT and i == 16
+                assert decide(arm, evals(rates[:i]), 0, False)[0] == ("stop" if stop_at_150k else None), (arm, i)
+        runaway = _qs(25_000, 30_000, 50.0)
+        assert decide(arm, evals(KYV7CLFC[:4]), 0, False, runaway)[0] == "stop"
+    assert "fixed length, 150000" in decide(NOTILT, evals([0.3] * 16), 0, False)[1]
     for rates in (KYV7CLFC, [0.0] * 7, [0.58] * 7):
         for i in range(1, len(rates) + 1):
             assert decide(DIAG, evals(rates[:i]), 0, False)[0] is None
-    runaway = [(step, "debug/q_data_demo", 50.0) for step in range(0, 60_001, 100)]
-    assert decide(DIAG, evals([0.0] * 7), 0, False, runaway)[0] is None
 
 
-@pytest.mark.skipif(not (VC5O977F / "wandb_logs/metrics.jsonl").exists(), reason="vc5o977f's package is not here")
 def test_vc5o977f_replayed_is_flagged_at_99100_and_stopped_at_120000():
     rows = [json.loads(line) for line in open(VC5O977F / "wandb_logs/metrics.jsonl")]
     all_evals = sorted((int(r["_step"]), float(r["eval/success_rate"])) for r in rows
@@ -184,3 +182,16 @@ def test_vc5o977f_replayed_is_flagged_at_99100_and_stopped_at_120000():
             stops.append((upto, why))
     assert passed
     assert stops[0][0] == 120_000 and "critic diverged" in stops[0][1]
+
+
+def test_arms_hold_is_the_preregistered_break_rule():
+    """tools/arms_hold.py, which decides combined: an arm breaks at 39 or fewer of 150 at 10k-30k,
+    or at three evals in a row at or below 0.05; and cannot be decided before its 30k eval."""
+    from arms_hold import holds
+
+    assert holds(evals(OJ5K0JQB[:4])) == (True, holds(evals(OJ5K0JQB[:4]))[1])   # 71 of 150
+    assert holds(evals(KYV7CLFC[:4]))[0] is False                                # collapsed
+    assert holds(evals([0.6, 0.26, 0.26, 0.26]))[0] is False                     # 39 of 150
+    assert holds(evals([0.6, 0.26, 0.26, 0.28]))[0] is True                      # 40 of 150
+    assert holds(evals(OJ5K0JQB[:3]))[0] is None
+    assert holds(evals([0.6, 0.5, 0.0, 0.0, 0.0]))[0] is False                   # collapsed after 30k

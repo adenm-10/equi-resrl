@@ -6655,3 +6655,186 @@ for.
 - **The slot queue counts a slot as held** by a run's gate or trainer (by `CUDA_VISIBLE_DEVICES`),
   by a launcher from its start to its run's end, and by a waiting `wait_then_launch.sh`. Two runs
   per GPU. At its start it counted 3 on each GPU: two runs and one waiting launch.
+
+---
+
+## 2026-10-12 — PRE-REGISTERED — the equivariant residual's anchors again, to a fixed 150k (`equi-residual-long-1012`)
+
+**Question** (Aden, 2026-10-12): does the equivariant residual win the base policy back if it is let
+run? Every equivariant residual on the re-rendered demos lost the base by 10k. None was let run to
+see whether it recovers:
+- `6ng62tpm` was stopped by its collapse rule at 30.3k (0.62, 0.02, 0.00, 0.00).
+- `eaqorqki` passed that rule by one success (0.06 at 30k), then climbed to 0.16, 0.24 and 0.30 at
+  60k–80k, and was cancelled at 80.2k still climbing.
+- `doevaarp` came back to 0.22 at 30k, then sat at 0.10–0.18 to its 100k check, which stopped it.
+- `notilt` (`dczf4k7v`) is at 0.14, 0.18 and 0.28 at 30k–60k.
+
+**Seed group `equi-residual-long-1012`**, seed 2 of each arm: seed 1's starts are on record to 30k
+(`6ng62tpm`) and 80k (`eaqorqki`, and `ls0thn4u` to 60k). At seed 2 the two arms' weights are the
+same but for the actor's last layer, so they make a pair.
+- **Names:** `<arm>-2`; notes `equi-residual-long-1012/<arm>/seed2`; wandb
+  `robomimic-square-final` / `equi-residual-rl`.
+
+| Arm | Its launch, but for `algo.total_timesteps=150000` and `seed=2` |
+|---|---|
+| `equi-residual-square-long` | `6ng62tpm`'s (`square-rerendered-1009`, `eb90a0c`): `--config-name=residual_equi_td3_square_config equivariance.residual_squash=true agent.critic.num_q=5 agent.actor.actor_last_layer_init_scale=1e-4 base_policy.wt_version=v9 offline_data.name=local/robomimic-mh-square-rerendered read_buffer_caches=false write_buffer_caches=false debug=false` |
+| `equi-residual-square-init0-long` | `eaqorqki`'s (`square-residual-start-1011`, `0af7655`): the same with `agent.actor.actor_last_layer_init_scale=0.0` |
+
+- **What varies, against each original run:**
+  - The seed, 2 not 1.
+  - The run length, 150k not 300k. Every schedule runs on fixed step counts, so through 150k each
+    is its original run.
+  - The rules (below).
+  - The code is this commit's. The equivariant agent's update is pinned by
+    `tests/test_regression_agent.py`'s goldens, which pass here as at both originals' commits. The
+    fields added since are at their no-op defaults (`tests/test_sweep_arms.py`).
+- **Rules:** to a fixed 150k, stopped only on the divergence stop. No collapse stop, no 100k check,
+  no convergence stop.
+- **Readouts,** in NOTEs at 30k and at 150k:
+  - **The dip:** the 10k–30k evals pooled (150 episodes).
+  - **The late window:** the 110k–150k evals pooled (250 episodes), against the base rate
+    B_sq = 0.582 (500 episodes) and ResFiT's anchors' 0.714 over the same window (`oj5k0jqb` and
+    `s8opblsd`, 500 episodes).
+    - **Past the base** iff it is above 0.582 by two standard errors,
+      √(p(1−p)/250 + 0.582·0.418/500).
+    - **Back to the base** iff it is not below 0.582 by two standard errors.
+    - **ResFiT's level** iff it is not below 0.714 by two standard errors.
+  - Reported: the first eval at or above 0.30, `residual_l1`, the tilt readouts, critic values
+    above 1.5.
+- **Seed 3** of an arm iff it is back to the base or past it at 150k.
+- **Predictions** (Claude's, before launch):
+  1. Both arms recover partly and stay below the base: under 0.582 by two standard errors at
+     110k–150k. Moderate confidence: `eaqorqki`'s 0.30 at 80k and `doevaarp`'s plateau.
+  2. The two arms do not differ by more than two standard errors at 110k–150k. Moderate confidence:
+     the start did not set the collapse (`eaqorqki`).
+- **Launch:** from this entry's commit, through `outputs/queue/launchers/slot_queue.sh`, first in
+  its order (AMENDMENT below).
+
+---
+
+## 2026-10-12 — AMENDMENT — every run to a fixed 150k; `resfit-equi-diff-1012` gains `smallcritic` and `noise`; the queue's order
+
+Aden's decisions (2026-10-12), before any run below reached a rule's step:
+- **Every run to a fixed 150k, stopped only on the divergence stop.** A residual that loses the base
+  can win it back late (PRE-REGISTERED above), so the collapse stop could stop one that would
+  recover. Aden chose the same rule for both stacks.
+  - **`resfit-equi-diff-1012`:** no collapse stop. `noln` (`c1xca5uk`, 0.00 at 10k) runs on. The
+    watcher was stopped by hand at 20:07, before its 20k eval, and restarted with this rule.
+  - **`equi-resfit-arch-1013`:** no collapse stop, and a late readout added.
+  - **`residual-tilt-1012`'s `notilt`:** no collapse stop, no 100k check, no convergence stop. It
+    was launched for 300k, so the watcher stops it at its 150k eval.
+  - **The main readouts stand:**
+    - A ResFiT arm breaks iff its 10k–30k evals pooled are at most 39 of 150, or three evals in a
+      row are at or below 0.05 (it is no longer stopped for that).
+    - An equivariant arm escapes the collapse iff its 10k–30k evals pooled are at least 8 of 150.
+  - **Added for every arm:** the 110k–150k window against B_sq and ResFiT's 0.714, as in the
+    PRE-REGISTERED entry above.
+- **`resfit-equi-diff-1012` gains two arms,** each one change from `oj5k0jqb`'s launch:
+
+  | Arm | Change | Code |
+  |---|---|---|
+  | `resfit-residual-square-smallcritic` | the equivariant residual's critic heads: `agent.critic.num_q=5 agent.critic.num_layers=1`, at ResFiT's width (1024) | none |
+  | `resfit-residual-square-noise` | the equivariant stack's noise: `agent.actor.noise_units=env`, σ 0.05 in env units on every axis (ResFiT's own: 0.055 on most of Square's axes, 0.018 on rx) | CODE below |
+
+  - **`combined`** (`rerendered` + `noln` + `limits`) launches iff each of the three holds by the
+    rule above. `tools/arms_hold.py` decides it when its turn in the queue comes. It is skipped if
+    any arm breaks, or if any lacks its 30k eval.
+  - **Predictions:**
+    - `smallcritic` holds. Low confidence: the critic is the stacks' largest difference, but
+      ResFiT's demos-plus-online value learning may not need its size.
+    - `noise` holds. Moderate confidence: the rx noise grows 2.75×, and rx's range alone held
+      (`fk9ayyco`).
+- **The queue,** in order, each into the first free GPU slot (`slot_queue.sh`, tmux `rfe-queue`):
+
+  | # | Arm | Seed | From | Smoke |
+  |---|---|---|---|---|
+  | 1 | `equi-residual-square-long` | 2 | this commit | no |
+  | 2 | `equi-residual-square-init0-long` | 2 | this commit | no |
+  | 3 | `resfit-residual-square-limits` | 1 | `304167e` | no (Aden) |
+  | 4 | `resfit-residual-square-noln-all` | 1 | `9add9e6` | no |
+  | 5 | `equi-residual-square-arch` | 1 | `95490f9` | yes, in its own slot |
+  | 6 | `equi-residual-square-arch-wide` | 1 | `95490f9` | no |
+  | 7 | `resfit-residual-square-combined`, iff the three hold | 1 | this commit | no |
+  | 8 | `resfit-residual-square-smallcritic` | 1 | this commit | no |
+  | 9 | `resfit-residual-square-noise` | 1 | this commit | no |
+
+  - **Two changes from Aden's table:** `diag` ended at 18:09, before this was wired, and its
+    slot went to `noln` as wired then. So the baseline takes the next slot, `fk9ayyco`'s, at about
+    00:45. The rest keep their order.
+  - Seed 2s per the rules go in by hand, after the queue.
+
+---
+
+## 2026-10-12 — CODE — `agent.actor.noise_units`: ResFiT's noise in env units, for `resfit-residual-square-noise`; the watcher's fixed length; the queue's `combined` check
+
+- **`agent.actor.noise_units`**, `"scaled"` (the default) or `"env"`. ResFiT's agent reads it, and
+  the equivariant agent refuses anything but `"scaled"`.
+  - **Under `"env"`:** the actor's σ (`algo.stddev_*`, 0.05) is in env units on every axis. It is
+    divided by the scaler's per-axis half-range into the scaler's units, where ResFiT adds it. The
+    clip on the noise (`agent.stddev_clip`, 0.3) is in env units too. It binds at 6σ, so never in
+    effect; the equivariant stack has none. This covers both the exploration noise and the TD
+    target's.
+  - **Unchanged:** the residual's bound (`action_bound`, `"box"` in this arm), the warm-up's
+    U(±0.2), and the truncation to [−1, 1] in the scaler's units, which binds at neither σ.
+  - It reads the same env-unit frame as `action_bound=equivariant`, through
+    `QAgent._set_env_frame`, which replaces `_set_equivariant_bound`.
+  - **On Square:** σ goes from 0.055 env units to 0.05 on six axes, and from 0.018 to 0.05 on rx.
+- **At `"scaled"`, every earlier ResFiT run bit for bit:** `tests/test_action_bound.py`'s fingerprint
+  is the tree before 2026-10-12's changes, exactly, on GPU 1.
+- **Tests,** `tests/test_action_bound.py`, 10 passed:
+  - Under `"env"`, the actor's σ times the half-range is 0.05 on every axis, where ResFiT's own σ
+    is 0.05 in the scaler's units.
+  - With σ = 1, every draw's noise is within 0.3 env units, and reaches it on every axis.
+  - Both settings start from the same weights.
+  - `"env"` is refused on a vanilla actor, without a scaler, and by the equivariant agent.
+- **The watcher** (`tools/square_rerendered_watch.py`):
+  - `FIXED_LENGTH_ARMS`: every arm of `resfit-equi-diff-1012`, `equi-resfit-arch-1013` and
+    `equi-residual-long-1012`, and `notilt`. These are stopped only on the divergence stop, and
+    `notilt` at its 150k eval (`STOP_AT`).
+  - `COLLAPSE_ONLY_ARMS` keeps `fk9ayyco` alone.
+  - The new group `equi-residual-long-1012`.
+  - `tests/test_square_rerendered_watch.py`: none of those arms is stopped on a 16-eval collapse or
+    on `oj5k0jqb`'s, `s8opblsd`'s or a flat 0.58 history. `notilt` alone stops at 150k, each still
+    stops on a runaway critic, and the diagnostic run never stops.
+- **`tools/arms_hold.py`** decides `combined`, by the pre-registered break rule, from the three arms'
+  live records.
+  - It exits 0 iff all three hold, 1 if any breaks, and 2 if any is not decidable yet. The queue
+    skips the job on anything but 0.
+  - Its test pins the rule's edge: 39 of 150 breaks, 40 holds, and so does a collapse after 30k.
+  - On the live runs it gives `fk9ayyco` 57 of 150, the pre-registration's own count.
+- **The arms' tests,** `tests/test_sweep_arms.py`, now with three anchors (`oj5k0jqb`, `eaqorqki`,
+  `6ng62tpm`):
+  - Each anchor is its run's launch, and composes to its recorded config but for the fields added
+    since, at their defaults. `6ng62tpm`'s adds `equivariance.critic_pooled_norm: none`.
+  - `smallcritic` has 5 heads of one hidden layer at width 1024, and its encoders start as the
+    anchor's.
+  - `combined` and `noise` start from the anchor's weights, less `combined`'s LayerNorms.
+  - The long arms are their anchors' launches, equivariant and invariant at their sizes.
+- **Run on GPU 1:** the regression goldens, `test_action_bound.py`,
+  `test_square_rerendered_watch.py`, `test_config.py`, `test_imports.py`,
+  `test_critic_diagnostics.py`, `test_env_wrapper.py` and `test_sweep_arms.py` with its GPU tier:
+  274 passed, 2 skipped. The `arms_hold` test, added after that run started, passed on its own
+  (12 in its file).
+
+---
+
+## 2026-10-12 — LAUNCHED — `resfit-equi-diff-1012` seed 1: `noln` (`c1xca5uk`)
+
+Launched by its waiting script, `wait_then_launch.sh` in tmux `rfe-noln`, when `diag`'s process
+exited at 18:09. It launched at 18:09 from `7db124d`, worktree `~/projects/equi-resrl-7db124d`, on
+GPU 1 beside `rerendered`. Its console is
+`outputs/queue/20261012-180908_resfit-residual-square-noln-1_gpu1.log`.
+
+| Arm | GPU | In wandb | Run |
+|---|---|---|---|
+| `resfit-residual-square-noln` 1 | 1 | 19:08 | [**`c1xca5uk`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/c1xca5uk) |
+
+- **The gate said GO:**
+  - Tier 1: 226 passed and 2 skipped. Tier 2: 413 passed and 4 skipped, in 16 min.
+  - Two warnings, as `rerendered`'s: the BC policy loads from wandb's cache, and the disk is low.
+- **Run package:** records `7db124d`, clean, and mujoco 3.3.2. Its argv is the pre-registered one:
+  the anchor plus `agent.actor.use_layer_norm=false agent.critic.use_layer_norm=false`.
+- **Evals so far:** 0.54 at step 0, **0.00 at 10k**. ResFiT's anchors were at 0.30 and 0.22 at
+  10k, `rerendered` at 0.16.
+  - So this AMENDMENT's rule runs it on: no collapse stop.
+  - Its watcher was stopped at 20:07, before its 20k eval, and restarted with that rule.

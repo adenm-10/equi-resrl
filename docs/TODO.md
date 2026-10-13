@@ -57,24 +57,19 @@ demos").
         (w = 256 × logged `dQ_da` / (2 r*));
       - if `notilt` falls in a new mode, the critic is the target (its online value), in a plan of
         its own.
-5e. **NOW: ResFiT's residual given the equivariant stack's differences, and the equivariant
-   residual given ResFiT's layout** (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED; plan
-   `docs/plans/2026-10-12-resfit-toward-equi.md`, local; Aden, 2026-10-12).
-   1. **`resfit-equi-diff-1012`, config only:** `rerendered` and `noln`, from `7db124d`.
-      `rerendered` launched at 15:25 on GPU 1. `noln` waits for `diag`'s slot (tmux `rfe-noln`,
-      `outputs/queue/launchers/wait_then_launch.sh`, launching when `diag`'s process exits).
-   2. **`limits`** (code DONE: `agent.actor.action_bound=equivariant`, EXPERIMENTS.md 2026-10-12
-      CODE). It waits for `fk9ayyco`'s slot on GPU 0, about 01:00 on 2026-10-13, without a smoke
-      (Aden).
-   3. **`noln-all`** (code DONE: `agent.vit.use_layer_norm=false`, EXPERIMENTS.md 2026-10-12 CODE).
-      It takes the first free slot, through `outputs/queue/launchers/slot_queue.sh` (tmux
-      `rfe-queue`), without a smoke.
-   4. **`equi-resfit-arch-1013`**, config only, as amended (EXPERIMENTS.md, 2026-10-12 AMENDMENT;
-      Aden): the actor keeps its depth, which is ResFiT's already, so `num_actor_layers` stays dead.
-      `arch` (smoke first), then `arch-wide`, through the slot queue after `noln-all`.
-   5. **Conditional:** `combined` iff `rerendered`, `noln` and `limits` each hold at 30k; a seed 2 of
-      any ResFiT arm that breaks, and of any equivariant arm that escapes.
-   6. NOTEs at each 30k readout and at each arm's end.
+5e. **NOW: the 2026-10-12 schedule, every run to a fixed 150k** (EXPERIMENTS.md, 2026-10-12
+   PRE-REGISTERED and AMENDMENTs; STATUS "Running now" has the table). Launching itself:
+   `outputs/queue/launchers/slot_queue.sh` in tmux `rfe-queue`.
+   1. **Running:** `fk9ayyco`, `notilt` (to 150k now), `rerendered` (`bue9dupf`), `noln`
+      (`c1xca5uk`).
+   2. **Queued, in order:** the equivariant baseline and `init0` again at seed 2
+      (`equi-residual-long-1012`), `limits`, `noln-all`, `arch` (smoke first), `arch-wide`,
+      `combined` iff `rerendered`, `noln` and `limits` hold (`tools/arms_hold.py`), `smallcritic`,
+      `noise`.
+   3. **For each later session:** a LAUNCHED entry for each run the queue started (run ID, gate,
+      package); NOTEs at each 30k and 150k readout, `notilt`'s 30k included; seed 2s (seed 3 for
+      the long arms) per the rules, launched by hand.
+   4. **Disk:** 26 GB free on 2026-10-12. About 1–2 GB per run: clear space before Wednesday (Aden).
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which

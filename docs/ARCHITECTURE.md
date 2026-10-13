@@ -467,6 +467,11 @@ The layout is the equivariant encoder's (`arm_action_shape`, `build_action_layou
 equivariant agent refuses it. `tests/test_action_bound.py` pins `"box"` to the agent before the
 field, and tests the bound.
 
+**ResFiT's noise** (`agent.actor.noise_units`, from 2026-10-12): `"scaled"`, the default, draws σ
+per axis in the scaler's units; `"env"` draws it in env units on every axis, as the equivariant
+stack does, through the same env-unit frame (`QAgent._set_env_frame`). The noise's clip follows its
+units.
+
 **ResFiT's LayerNorms** are three switches, all on by default: `agent.actor.use_layer_norm` and
 `agent.critic.use_layer_norm`, and `agent.vit.use_layer_norm` (from 2026-10-12) for each ViT
 encoder's: two per transformer layer and a final one. The equivariant agent reads none of them.

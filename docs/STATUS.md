@@ -1,10 +1,9 @@
 # Status
 
-**Last updated:** 2026-10-12, about 16:00 · **Last verified commit:** `7db124d`, pre-registering
-`resfit-equi-diff-1012` and `equi-resfit-arch-1013` (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED,
-"ResFiT's residual on Square, given the equivariant stack's differences one at a time"): its
-Tier-1 sweep and watcher tests passed in its launch worktree, and the gate runs at each launch.
-The `limits` and `noln-all` CODE commits follow it.
+**Last updated:** 2026-10-12, about 21:00 · **Last verified commit:** the 2026-10-12 AMENDMENT's
+("every run to a fixed 150k"), with `equi-residual-long-1012`'s pre-registration and `noise`'s code:
+its sweep, watcher, action-bound and regression tests passed on GPU 1, and the gate runs at each
+launch.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -157,55 +156,43 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 
 ## Running now
 
-**`resfit-equi-diff-1012` and `equi-resfit-arch-1013`** (EXPERIMENTS.md, 2026-10-12 PRE-REGISTERED;
-plan `docs/plans/2026-10-12-resfit-toward-equi.md`, local). Seed 1 each, every arm under
-`fk9ayyco`'s rule: stopped only at its collapse, else to 150k. The main readout is the 10k–30k evals
-pooled: a ResFiT arm breaks at 39 or fewer successes of 150.
+**Every run below goes to a fixed 150k, stopped only on the divergence stop** (EXPERIMENTS.md,
+2026-10-12 AMENDMENT, "every run to a fixed 150k", Aden). The reason: a residual that loses the
+base can win it back late (`eaqorqki` 0.04 at 50k, 0.30 at 80k), and every earlier equivariant
+residual was stopped before that could show. `fk9ayyco` keeps its own rule: collapse only, to 150k.
 
-| Arm | Change | Status |
-|---|---|---|
-| `resfit-residual-square-rerendered` | ResFiT on the re-rendered demos | launched 15:25 from `7db124d`, GPU 1, tmux `rfe-rerendered` (smoke `kvcdljaf` passed) |
-| `resfit-residual-square-noln` | no LayerNorm in ResFiT's actor or critic | waits for `diag`'s slot, GPU 1, about 19:00 (tmux `rfe-noln`); `notilt` did not stop at 30k |
-| `resfit-residual-square-limits` | the equivariant stack's action limits, in env units | code done; waits for `fk9ayyco`'s slot, GPU 0, about 01:00, no smoke |
-| `resfit-residual-square-noln-all` | `noln`, and the ViTs' LayerNorms | code done; the first free slot (tmux `rfe-queue`), likely about 08:00 on 2026-10-13, no smoke |
-| `resfit-residual-square-combined` | the three above together, only if each holds | conditional |
-| `equi-residual-square-arch`, `-arch-wide` | ResFiT's layout in the equivariant residual (RegularLayerNorm, 10 heads of 2 layers; the actor keeps its depth, ResFiT's already: AMENDMENT); the wide one with ResFiT's actor parameter count | queued after `noln-all` (tmux `rfe-queue`); `arch` smokes first. Likely 2026-10-13 |
+The schedule, launching itself through tmux scripts in `outputs/queue/launchers/`. Times are
+estimates: ResFiT runs take about 15 h to 150k and equivariant ones about 25 h, each plus about
+1 h 15 min for the gate and labelling; the `arch` arms are slower, by their smoke.
 
-The watchers are tmux `rfe-watch` for `resfit-equi-diff-1012` (from `7db124d`) and `arch-watch` for
-`equi-resfit-arch-1013`. The waiting launches
-are `outputs/queue/launchers/` scripts in tmux; each logs what it waits for.
-
-**The tilt diagnosis** (TODO B16 item 5d; plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
-local). Two seed groups, seed 1 each, pre-registered and launched on 2026-10-12 (EXPERIMENTS.md,
-PRE-REGISTERED and LAUNCHED of that date):
-
-| Arm | What it changes | Run | From | Where | To |
+| # | Run | Group | GPU (likely, for the queue) | Status | Ends about |
 |---|---|---|---|---|---|
-| `resfit-residual-square-rx` 1 (`resfit-rx-1012`) | `oj5k0jqb`'s launch with rx at the equivariant stack's range (`offline_data.min_action_range=2.0`) | `fk9ayyco`, from 09:56 | `60fce72` | GPU 0, tmux `resfit-rx` | 150k |
-| `equi-residual-square-notilt` 1 (`residual-tilt-1012`) | `eaqorqki`'s launch with the residual's tilt pair bounded at zero (`+equivariance.residual_field_bound.action_rx_ry=0.0`), a checkpoint every 10k | `dczf4k7v`, from 10:39 | `be0b7bb` | GPU 0, tmux `sq-tilt-notilt` | 300k |
-| `equi-residual-square-diag` 1 (`residual-tilt-1012`) | `eaqorqki`'s launch with a checkpoint every 2k, for the field test | `ls0thn4u`, from 10:33 | `be0b7bb` | GPU 1, tmux `sq-tilt-diag` | 60k |
+| 1 | `fk9ayyco` ResFiT, rx range | `resfit-rx-1012` | 0 | running; 0.66 at 100k | Tue 00:45 |
+| 2 | `dczf4k7v` equi `notilt` | `residual-tilt-1012` | 0 | running; 0.28 at 60k; stopped by its watcher at 150k | Tue 08:00 |
+| 3 | `bue9dupf` ResFiT `rerendered` | `resfit-equi-diff-1012` | 1 | running; 0.60, 0.16, 0.48, 0.60, 0.70 to 40k | Tue 05:00 |
+| 4 | `c1xca5uk` ResFiT `noln` | `resfit-equi-diff-1012` | 1 | running; 0.54, then 0.00 at 10k | Tue 10:00 |
+| 5 | equi baseline long (`6ng62tpm`'s launch), seed 2 | `equi-residual-long-1012` | 0 | queue #1 | Wed 03:00 |
+| 6 | equi `init0` long (`eaqorqki`'s launch), seed 2 | `equi-residual-long-1012` | 1 | queue #2 | Wed 07:00 |
+| 7 | ResFiT `limits` | `resfit-equi-diff-1012` | 0 | queue #3 | Wed 00:00 |
+| 8 | ResFiT `noln-all` | `resfit-equi-diff-1012` | 1 | queue #4 | Wed 02:00 |
+| 9 | equi `arch`, smoke first | `equi-resfit-arch-1013` | — | queue #5 | Thu |
+| 10 | equi `arch-wide` | `equi-resfit-arch-1013` | — | queue #6 | Thu |
+| 11 | ResFiT `combined`, iff `rerendered`, `noln` and `limits` hold (`tools/arms_hold.py`), else skipped | `resfit-equi-diff-1012` | — | queue #7 | Thu |
+| 12 | ResFiT `smallcritic` (5 heads × 1 layer) | `resfit-equi-diff-1012` | — | queue #8 | Thu |
+| 13 | ResFiT `noise` (σ in env units) | `resfit-equi-diff-1012` | — | queue #9 | Fri |
 
-- **Next decision points:**
-  - About 12:00, `diag`'s 10k checkpoint: **the field test**, from the main checkout on GPU 1
-    (`python -m tools.residual_field_ablation ls0thn4u --step 10000`), with its precondition and
-    verdict rule pre-registered. If it names a field other than tilt, or none, that goes to Aden;
-    no arm is added or stopped for it (Aden's decision).
-  - About 13:00, `fk9ayyco`'s 30k readout, with the rolled share scored blind
-    (`outputs/diagnostics/residual-collapse-1012/blind_rolled.py`).
-  - About 19:00, `diag` ends at 60k (43.2k at 16:10). `notilt` scored 0.02, 0.00 and 0.14 at 10k–30k,
-    against 0.54 at step 0, and did not stop. Its 30k readout NOTE is still to write.
-  - Overnight, `fk9ayyco` reaches 150k. Tomorrow morning, `notilt`'s 100k check.
-- **Rules** (`tools/square_rerendered_watch.py`, one instance per seed group, each from its runs'
-  worktree: tmux `rx-watch` for `resfit-rx-1012`, `tilt-watch` for `residual-tilt-1012`):
-  - `fk9ayyco`: stopped only at three evals in a row at or below 0.05; otherwise to 150k, with no
-    100k check. Seed 2 iff it collapses, or its 10k–30k evals pooled (150 episodes) fall below its
-    anchors' pooled 0.353 by two standard errors.
-  - `notilt`: the residual's rules. Stopped at three evals in a row at or below 0.05, or on
-    divergence; at 100k it passes iff its 60k–100k evals reach 155 of 250; convergence from 150k.
-    Seed 2 iff it passes its 100k check.
-  - `diag`: none; the watcher logs it and it ends at 60k.
+- **The queue:** tmux `rfe-queue` runs `slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`. Each
+  job goes into the first free slot, two runs per GPU, and gets its own tmux session,
+  `q-<arm>-<seed>`. Its log is `outputs/queue/launchers/slot_queue.log`.
+- **Watchers,** each enforcing its group's rule (`tools/square_rerendered_watch.py`):
+  - from the amendment's worktree: `rfe-watch` (`resfit-equi-diff-1012`), `arch-watch`
+    (`equi-resfit-arch-1013`), `long-watch` (`equi-residual-long-1012`) and `tilt-watch`
+    (`residual-tilt-1012`);
+  - `rx-watch` (`resfit-rx-1012`), as it was.
+- **Seed 2s are launched by hand**, per each group's rule, after the queue.
+- **For a later session:** a LAUNCHED entry, with its run ID, for each run the queue launches;
+  NOTEs at each arm's 30k and 150k; `notilt`'s 30k NOTE.
 
-  **Seed 2s are launched by hand.**
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field
     (`debug/residual_field/*`, `debug/dQ_da_field/*`) and save `models/step_<N>.pt`. They launched
@@ -213,7 +200,8 @@ PRE-REGISTERED and LAUNCHED of that date):
     field test, run from `534cc71`, has both.
   - `fk9ayyco` (from `60fce72`) has neither, as Aden chose: its evals and videos suffice.
 - **Resources:** about 20 GB of RAM per run at start and 35 GB by 150k; about 9.9 GB of GPU memory
-  per run, so two per GPU. Checkpoints are 87 MB each, up to 62 for the two `residual-tilt-1012`
+  per run, so two per GPU. **The disk had 26 GB free on 2026-10-12**, and each run writes about
+  1–2 GB to 150k: clearing space (old worktrees, the 11 GB wandb cache) is Aden's call. Checkpoints are 87 MB each, up to 62 for the two `residual-tilt-1012`
   arms (5.4 GB).
 - **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (`fk9ayyco`) and
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every

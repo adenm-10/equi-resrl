@@ -106,6 +106,12 @@ class ActorConfig:
     # critic's units stay ResFiT's. The equivariant agent refuses anything but "box": it always
     # bounds by its own equi_tanh and equi_clip.
     action_bound: str = "box"
+    # The units of the actor's exploration and target noise (σ, algo.stddev_*) and of its clip
+    # (agent.stddev_clip). "scaled", ResFiT's own: per axis in the ActionScaler's units, so 0.05 is
+    # 0.055 env units on most of Square's axes and 0.018 on rx. "env", the equivariant stack's: σ in
+    # env units on every axis, as resfit-residual-square-noise has it. ResFiT's residual agent
+    # alone; the equivariant agent refuses anything but "scaled".
+    noise_units: str = "scaled"
 
 
 @dataclass

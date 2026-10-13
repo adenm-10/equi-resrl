@@ -49,6 +49,12 @@ other four docs, with a pointer from here.
   (`tests/test_action_bound.py`).
 - **`noln-all`'s code:** `agent.vit.use_layer_norm=false` (EXPERIMENTS.md, CODE).
 - **`equi-resfit-arch-1013`'s arms** in `submit.sh`, and `tests/test_sweep_arms.py` for both groups.
+- `noln` launched itself into `diag`'s slot (`c1xca5uk`, 18:09) and scored 0.00 at 10k; its watcher
+  was stopped by hand before its 20k eval, so it could run on under the new rule.
+- **The schedule** (EXPERIMENTS.md, PRE-REGISTERED `equi-residual-long-1012`, AMENDMENT, CODE):
+  `agent.actor.noise_units`; the watcher's fixed length; `tools/arms_hold.py` for `combined`; the
+  five new arms in `submit.sh` and the sweep tests (three anchors); one slot queue for all nine
+  launches.
 - `outputs/queue/launchers/`: scripts that launch an arm when a run's process exits, or into the
   first free slot, so a launch does not need this session.
 
@@ -59,6 +65,13 @@ other four docs, with a pointer from here.
 - `equi-arch` keeps LayerNorm's own start.
 - `limits` may launch overnight without a smoke.
 - `equi-arch` keeps the actor's depth: amended, so `num_actor_layers` stays dead.
+- **Every run to a fixed 150k, stopped only on the divergence stop**, for both stacks: no
+  equivariant residual had been let run long enough to see the late recovery (`6ng62tpm` stopped at
+  30k; `eaqorqki` cancelled at 80k while climbing).
+- Rerun the equivariant baseline (`6ng62tpm`'s launch) and `init0` (`eaqorqki`'s) to 150k at seed 2.
+- Add `smallcritic` and `noise` to ResFiT's ablations; `combined` stays conditional.
+- The queue's order: the two long reruns first, then `limits`, `noln-all`, the `arch` arms,
+  `combined`, `smallcritic`, `noise`.
 
 ---
 

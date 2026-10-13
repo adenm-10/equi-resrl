@@ -1,4 +1,5 @@
-"""agent.actor.action_bound: ResFiT's residual given the equivariant stack's action limits.
+"""agent.actor.action_bound and agent.actor.noise_units: ResFiT's residual given the equivariant
+stack's action limits, and its noise.
 
 `box` is ResFiT's own, and every ResFiT run before 2026-10-12 ran it: the residual squashed per
 axis to ±action_scale in the scaler's units, the sum the critic scores clamped per axis to [-1, 1]
@@ -17,6 +18,9 @@ Tier 2, on the GPU (ResFiT's ViT encoder synchronizes CUDA in its forward):
     equivariant stack's IdentityScaler leaves it;
   - at one seed both bounds start from the same weights;
   - the field is refused where it means nothing.
+`noise_units="env"` is resfit-residual-square-noise's: σ in env units on every axis, as the
+equivariant stack draws it, and the target noise's clip in env units too. The same goldens pin
+"scaled", ResFiT's own.
 """
 
 from __future__ import annotations
@@ -76,7 +80,7 @@ GOLDEN = {
 }
 
 
-def _anchor_cfg(device, action_bound: str = "box"):
+def _anchor_cfg(device, action_bound: str = "box", noise_units: str = "scaled"):
     """oj5k0jqb's agent (resfit-residual-square 1), as resfit-equi-diff-1012's arms compose it."""
     from hydra import compose, initialize
 
@@ -85,7 +89,8 @@ def _anchor_cfg(device, action_bound: str = "box"):
     with initialize(version_base=None, config_path=None):
         cfg = compose(config_name="residual_td3_square_config",
                       overrides=["agent.critic.num_q=10", "base_policy.wt_version=v9",
-                                 f"agent.actor.action_bound={action_bound}"])
+                                 f"agent.actor.action_bound={action_bound}",
+                                 f"agent.actor.noise_units={noise_units}"])
     cfg.agent.device = str(device)
     cfg.agent.actor.actor_last_layer_init_scale = INIT_SCALE
     return cfg
@@ -313,9 +318,9 @@ def test_the_field_is_refused_where_it_means_nothing(device):
     from resfit.rl_finetuning.utils.normalization import ActionScaler
 
     cfg = _anchor_cfg(device, "equivariant")
-    with pytest.raises(ValueError, match="bounds a residual"):
+    with pytest.raises(ValueError, match="for a residual"):
         _agent(cfg, device, residual_actor=False)
-    with pytest.raises(ValueError, match="needs the run's ActionScaler"):
+    with pytest.raises(ValueError, match="the run's ActionScaler"):
         _agent(cfg, device, action_scaler=None)
     clamping = ActionScaler.from_dataset_stats(_stats(ACTION_DIM), action_scale=0.1, device=device)
     with pytest.raises(ValueError, match="clamp_unscaled=False"):
@@ -328,6 +333,68 @@ def test_the_field_is_refused_where_it_means_nothing(device):
 
     with pytest.raises(ValueError, match="ResFiT's agent's"):
         build_reference_agent(str(device), overrides={"agent.actor.action_bound": "equivariant"})
+
+
+# ---------------------------------------------------------------------------
+# noise_units: ResFiT's noise in env units
+# ---------------------------------------------------------------------------
+
+
+def _with_feat(agent, device):
+    obs = dict(fixed_batch()["obs"].to(device).items())
+    obs["feat"] = agent._encode(obs, augment=False)
+    return obs
+
+
+@pytest.mark.gpu
+def test_env_noise_is_sigma_in_env_units_on_every_axis_and_so_is_its_clip(device):
+    """σ = 0.05 in env units on every axis (the equivariant stack's), where ResFiT's own is 0.05 in
+    the scaler's units; and the target noise's clip, 0.3, in env units too, checked with a σ large
+    enough that it binds."""
+    stats = _off_centre_stats(ACTION_DIM)
+    ours = _agent(_anchor_cfg(device, noise_units="env"), device, stats=stats)
+    resfit = _agent(_anchor_cfg(device), device, stats=stats)
+    for agent in (ours, resfit):
+        agent.train(False)
+    with torch.no_grad():
+        obs = _with_feat(ours, device)
+        dist = ours.actor(obs, STDDEV)
+        torch.testing.assert_close(dist.scale * ours.action_half_range, torch.full_like(dist.scale, STDDEV))
+        assert torch.equal(resfit.actor(_with_feat(resfit, device), STDDEV).scale,
+                           torch.full_like(dist.scale, STDDEV))
+
+        mean = ours.actor(obs, 0.0).mean
+        draws = torch.stack([ours._act_default(obs=obs, eval_mode=False, stddev=1.0, clip=0.3, use_target=False)
+                             for _ in range(64)])
+        noise_env = (draws - mean) * ours.action_half_range
+        assert (noise_env.abs() <= 0.3 + 1e-5).all()
+        assert (noise_env.abs() > 0.299).any(dim=0).any(dim=0).all(), "the clip binds on every axis"
+
+
+@pytest.mark.gpu
+def test_both_noise_units_start_from_the_same_weights(device):
+    scaled = _agent(_anchor_cfg(device), device, seed=1).state_dict()
+    env = _agent(_anchor_cfg(device, noise_units="env"), device, seed=1).state_dict()
+    assert scaled.keys() == env.keys()
+    for key, value in env.items():
+        assert torch.equal(value, scaled[key]), key
+
+
+@pytest.mark.gpu
+def test_env_noise_is_refused_where_it_means_nothing(device):
+    cfg = _anchor_cfg(device, noise_units="env")
+    with pytest.raises(ValueError, match="for a residual"):
+        _agent(cfg, device, residual_actor=False)
+    with pytest.raises(ValueError, match="the run's ActionScaler"):
+        _agent(cfg, device, action_scaler=None)
+    cfg.agent.actor.noise_units = "world"
+    with pytest.raises(ValueError, match="'scaled' or 'env'"):
+        _agent(cfg, device)
+
+    from tools.agent_fingerprint import build_reference_agent
+
+    with pytest.raises(ValueError, match="noise_units is ResFiT's agent's"):
+        build_reference_agent(str(device), overrides={"agent.actor.noise_units": "env"})
 
 
 if __name__ == "__main__":

@@ -71,13 +71,14 @@ class Actor(nn.Module):
     def __init__(self, repr_dim, patch_repr_dim, prop_dim, action_dim, cfg: ActorConfig, residual_actor: bool = False,
                  action_layout=None, action_half_range: torch.Tensor | None = None):
         """action_layout and action_half_range, the ActionScaler's per-axis half-range, are read by
-        cfg.action_bound="equivariant" alone (config/rlpd.py), and required by it."""
+        cfg.action_bound="equivariant" and cfg.noise_units="env" alone (config/rlpd.py), and
+        required by them."""
         super().__init__()
 
         self.prop_dim = prop_dim
         self.residual_actor = residual_actor
         self.cfg = cfg
-        if cfg.action_bound == "equivariant":
+        if cfg.action_bound == "equivariant" or cfg.noise_units == "env":
             assert action_layout is not None and action_half_range is not None
             self.action_layout = action_layout
             # Not persistent: the scaler rebuilds it from the demos, and a checkpoint holds weights.
@@ -187,6 +188,10 @@ class Actor(nn.Module):
             scaled_mu = self.cfg.action_scale * equi_tanh(mu, self.action_layout) / self.action_half_range
         else:
             scaled_mu = mu * self.cfg.action_scale
+
+        if self.cfg.noise_units == "env":
+            # σ in env units on every axis, as the equivariant stack's; in the scaler's units here.
+            std = std / self.action_half_range
 
         # Create distribution with scaled mean but environment-scale std
         action_dist = utils.TruncatedNormal(scaled_mu, std)

@@ -1,10 +1,12 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Two seed groups, each with its
-anchor: resfit-equi-diff-1012's is oj5k0jqb's launch (resfit-residual-square 1
-at 9cf207d), equi-resfit-arch-1013's is eaqorqki's (square-residual-start-1011
-at 0af7655), less its run length.
+submit.sh's case table is checked here first. Three seed groups, and each arm
+against its anchor's launch, less the anchor's run length:
+  - resfit-equi-diff-1012: oj5k0jqb's (resfit-residual-square 1, 9cf207d);
+  - equi-resfit-arch-1013: eaqorqki's (square-residual-start-1011, 0af7655);
+  - equi-residual-long-1012: each arm is its anchor's launch, again: 6ng62tpm's
+    (square-rerendered-1009, eb90a0c) and eaqorqki's.
 
   Tier 1  its overrides are the pre-registered ones and set no key twice; it
           composes through train_residual_td3's Hydra configs to its anchor's
@@ -15,20 +17,23 @@ at 0af7655), less its run length.
           there; the smoke mode is the arm, briefly; and every arm launches.
   Tier 2  its agent builds on the GPU and runs one TD3 update, with finite
           losses. A ResFiT arm starts from the anchor's weights, bit for bit,
-          but for any norm it drops; noln has no LayerNorm in its actor or
-          critic and keeps its ViTs', and noln-all has no norm anywhere. What
-          limits' bound does is tested in tests/test_action_bound.py. An
-          equivariant arm is equivariant (its actor) and invariant (its critic)
-          at its own sizes, every input reaches its critic and its actor, and it
-          has ResFiT's layout: RegularLayerNorm after every hidden layer of the
-          actor and the critic, and 10 heads of 2 hidden layers. A test here
-          keeps on record that the fixed-env baselines' FieldNorm critic is
-          blind to every trivial input (2026-10-08 FINDING).
+          but for any norm it drops (smallcritic: its encoders); noln has no
+          LayerNorm in its actor or critic and keeps its ViTs', noln-all has no
+          norm anywhere, and smallcritic has 5 heads of 1 hidden layer. What
+          limits' bound and noise's units do is tested in
+          tests/test_action_bound.py. An equivariant arm is equivariant (its
+          actor) and invariant (its critic) at its own sizes, and every input
+          reaches its critic and its actor; the arch arms have ResFiT's layout:
+          RegularLayerNorm after every hidden layer of the actor and the
+          critic, and 10 heads of 2 hidden layers. A test here keeps on record
+          that the fixed-env baselines' FieldNorm critic is blind to every
+          trivial input (2026-10-08 FINDING).
 
-The arm list is pinned to the pre-registration (EXPERIMENTS.md, 2026-10-12
+The arm list is pinned to the pre-registrations (EXPERIMENTS.md, 2026-10-12
 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's
-differences one at a time; the equivariant residual given ResFiT's layout"),
-and its AMENDMENT of that date for equi-resfit-arch-1013.
+differences one at a time; the equivariant residual given ResFiT's layout", and
+"the equivariant residual's anchors again, to a fixed 150k") and the AMENDMENTs
+of that date.
 """
 
 from __future__ import annotations
@@ -50,13 +55,19 @@ LEROBOT_HOME = pathlib.Path.home() / ".cache/huggingface/lerobot"
 
 RESFIT_GROUP = "resfit-equi-diff-1012"
 EQUI_GROUP = "equi-resfit-arch-1013"
+LONG_GROUP = "equi-residual-long-1012"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
 LIMITS = "resfit-residual-square-limits"
 NOLN_ALL = "resfit-residual-square-noln-all"
+COMBINED = "resfit-residual-square-combined"
+SMALLCRITIC = "resfit-residual-square-smallcritic"
+NOISE = "resfit-residual-square-noise"
 ARCH = "equi-residual-square-arch"
 ARCH_WIDE = "equi-residual-square-arch-wide"
+LONG = "equi-residual-square-long"
+INIT0_LONG = "equi-residual-square-init0-long"
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -64,51 +75,69 @@ RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant r
 COMMON = {"algo.total_timesteps=150000", "read_buffer_caches=false", "write_buffer_caches=false",
           "seed=1", "debug=false"}
 # oj5k0jqb's launch at 9cf207d, the anchor every ResFiT arm is one change from.
-RESFIT_ANCHOR = {"--config-name=residual_td3_square_config", "agent.critic.num_q=10",
-                 "base_policy.wt_version=v9", *COMMON}
-# eaqorqki's launch at 0af7655 but for its run length, 300k: every schedule runs on fixed step
-# counts, so through 150k the two are the same run.
-EQUI_ANCHOR = {"--config-name=residual_equi_td3_square_config", "equivariance.residual_squash=true",
-               "agent.critic.num_q=5", "base_policy.wt_version=v9", f"offline_data.name={RERENDERED_DEMOS}",
-               "agent.actor.actor_last_layer_init_scale=0.0", *COMMON}
-EAQ_STEPS = ("algo.total_timesteps=150000", "algo.total_timesteps=300000")
+RESFIT_BASE = {"--config-name=residual_td3_square_config", "base_policy.wt_version=v9", *COMMON}
+RESFIT_ANCHOR = RESFIT_BASE | {"agent.critic.num_q=10"}
+# eaqorqki's launch at 0af7655 and 6ng62tpm's at eb90a0c, each but for its run length, 300k: every
+# schedule runs on fixed step counts, so through 150k each is the same run.
+EQUI_BASE = {"--config-name=residual_equi_td3_square_config", "equivariance.residual_squash=true",
+             "base_policy.wt_version=v9", f"offline_data.name={RERENDERED_DEMOS}", *COMMON}
+EQUI_ANCHOR = EQUI_BASE | {"agent.critic.num_q=5", "agent.actor.actor_last_layer_init_scale=0.0"}
+BASELINE_ANCHOR = EQUI_BASE | {"agent.critic.num_q=5", "agent.actor.actor_last_layer_init_scale=1e-4"}
+NOLN_OVERRIDES = {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false"}
 # ResFiT's layout in the equivariant residual, as amended (Aden, 2026-10-12): the actor keeps its depth.
 RESFIT_LAYOUT = {"equivariance.actor_norm=layer_norm", "equivariance.critic_norm=layer_norm",
                  "agent.critic.num_q=10", "equivariance.num_critic_layers=2"}
 LAUNCHED = {
     RERENDERED: RESFIT_ANCHOR | {f"offline_data.name={RERENDERED_DEMOS}"},
-    NOLN: RESFIT_ANCHOR | {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false"},
+    NOLN: RESFIT_ANCHOR | NOLN_OVERRIDES,
     LIMITS: RESFIT_ANCHOR | {"agent.actor.action_bound=equivariant"},
-    NOLN_ALL: RESFIT_ANCHOR | {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_norm=false",
-                               "agent.vit.use_layer_norm=false"},
+    NOLN_ALL: RESFIT_ANCHOR | NOLN_OVERRIDES | {"agent.vit.use_layer_norm=false"},
+    COMBINED: RESFIT_ANCHOR | {f"offline_data.name={RERENDERED_DEMOS}"} | NOLN_OVERRIDES
+              | {"agent.actor.action_bound=equivariant"},
+    SMALLCRITIC: RESFIT_BASE | {"agent.critic.num_q=5", "agent.critic.num_layers=1"},
+    NOISE: RESFIT_ANCHOR | {"agent.actor.noise_units=env"},
     ARCH: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | RESFIT_LAYOUT,
     ARCH_WIDE: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | RESFIT_LAYOUT | {"equivariance.actor_degree_channel=448"},
+    LONG: BASELINE_ANCHOR,
+    INIT0_LONG: EQUI_ANCHOR,
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
+NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
                 "equivariance.num_critic_layers"}
 FROM_ANCHOR = {
     RERENDERED: {"offline_data.name"},
-    NOLN: {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"},
+    NOLN: NOLN_PATHS,
     LIMITS: {"agent.actor.action_bound"},
-    NOLN_ALL: {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm", "agent.vit.use_layer_norm"},
+    NOLN_ALL: NOLN_PATHS | {"agent.vit.use_layer_norm"},
+    COMBINED: {"offline_data.name", "agent.actor.action_bound"} | NOLN_PATHS,
+    SMALLCRITIC: {"agent.critic.num_q", "agent.critic.num_layers"},
+    NOISE: {"agent.actor.noise_units"},
     ARCH: LAYOUT_PATHS,
     ARCH_WIDE: LAYOUT_PATHS | {"equivariance.actor_degree_channel"},
+    LONG: set(),
+    INIT0_LONG: set(),
 }
+NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
 ARM_VALUES = {
     RERENDERED: {"offline_data.name": RERENDERED_DEMOS},
-    NOLN: {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False},
+    NOLN: NOLN_VALUES,
     LIMITS: {"agent.actor.action_bound": "equivariant"},
-    NOLN_ALL: {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False,
-               "agent.vit.use_layer_norm": False},
+    NOLN_ALL: {**NOLN_VALUES, "agent.vit.use_layer_norm": False},
+    COMBINED: {"offline_data.name": RERENDERED_DEMOS, **NOLN_VALUES, "agent.actor.action_bound": "equivariant"},
+    SMALLCRITIC: {"agent.critic.num_q": 5, "agent.critic.num_layers": 1},
+    NOISE: {"agent.actor.noise_units": "env"},
     ARCH: LAYOUT_VALUES,
     ARCH_WIDE: {**LAYOUT_VALUES, "equivariance.actor_degree_channel": 448},
+    LONG: {},
+    INIT0_LONG: {},
 }
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
-             ARCH: RERENDERED_DEMOS, ARCH_WIDE: RERENDERED_DEMOS}
+             COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
+             ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -118,11 +147,11 @@ BASELINES = {
                             "write_buffer_caches=false", "seed=1", "debug=false"],
 }
 NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
-# Under CACHE_DIR, where every run package lives: a launch worktree has no outputs/.
-OJ5 = RUNS_ROOT / "robomimic-square-final/oj5k0jqb"
-EAQ = RUNS_ROOT / "robomimic-square-final/eaqorqki"
+WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
+         EQUI_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         LONG_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
-# The composed config every arm of a group must have: its anchor's, as its recorded config holds it.
+# The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
     "task": "Square", "algo.total_timesteps": 150_000, "read_buffer_caches": False,
     "write_buffer_caches": False, "algo.n_step": 3, "algo.gamma": 0.99, "algo.batch_size": 256,
@@ -134,37 +163,48 @@ TRAINING = {
     "base_policy.wt_version": "v9", "offline_data.use_base_policy_for_base_actions": True,
     "agent.actor_lr": 1e-6, "agent.critic_lr": 1e-4, "agent.critic_target_tau": 0.005,
     "algo.stddev_min": 0.05, "algo.stddev_max": 0.05, "agent.stddev_clip": 0.3,
-    "agent.actor.action_scale": 0.1, "agent.actor.actor_last_layer_init_scale": 0.0,
-    "algo.random_action_noise_scale": 0.2, "algo.use_base_policy_for_warmup": True,
-    "algo.actor_lr_warmup_steps": 0, "agent.bc_loss_coef": 0.0, "agent.critic.min_q_heads": 2,
-    "agent.critic.policy_gradient_type": "ensemble_mean", "agent.critic_grad_clip_norm": 1.0,
-    "agent.actor.action_bound": "box", "agent.vit.use_layer_norm": True,
+    "agent.actor.action_scale": 0.1, "algo.random_action_noise_scale": 0.2,
+    "algo.use_base_policy_for_warmup": True, "algo.actor_lr_warmup_steps": 0, "agent.bc_loss_coef": 0.0,
+    "agent.critic.min_q_heads": 2, "agent.critic.policy_gradient_type": "ensemble_mean",
+    "agent.critic_grad_clip_norm": 1.0, "agent.actor.action_bound": "box",
+    "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True,
 }
-GROUPS = {
-    RESFIT_GROUP: {
-        "anchor": RESFIT_ANCHOR, "package": OJ5, "wandb": ("robomimic-square-final", "residual-rl"),
+EQUI_TRAINING = {
+    **TRAINING, "offline_data.name": RERENDERED_DEMOS, "agent.critic.num_q": 5, "equivariance.N": 8,
+    "equivariance.use_equivariant_model": True, "equivariance.residual_squash": True,
+    "equivariance.encoder_norm": "none", "equivariance.actor_norm": "none",
+    "equivariance.critic_norm": "none", "equivariance.critic_pooled_norm": "none",
+    "equivariance.num_critic_layers": 1, "equivariance.critic_last_layer_init_scale": None,
+    "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
+    "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
+    "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True,
+}
+# Each anchor: its launch (at 150k), its run package, the run length it launched with, the composed
+# config its arms share, and the fields added since its commit, at the defaults that leave its run
+# as it was ("box", "scaled": ResFiT's own, as tests/test_action_bound.py's goldens pin them; the
+# equivariant agent reads no ResFiT field).
+ANCHORS = {
+    "oj5k0jqb": {
+        "launch": RESFIT_ANCHOR, "steps": 150_000,
         "shared": {**TRAINING, "offline_data.name": DEMOS, "equivariance": None,
                    "offline_data.min_state_std": 0.1, "agent.critic.num_q": 10,
+                   "agent.actor.actor_last_layer_init_scale": 0.0, "agent.critic.num_layers": 2,
                    "agent.actor.use_layer_norm": True, "agent.critic.use_layer_norm": True},
+        "added": {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box",
+                  "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True},
     },
-    EQUI_GROUP: {
-        "anchor": EQUI_ANCHOR, "package": EAQ, "wandb": ("robomimic-square-final", "equi-residual-rl"),
-        "shared": {**TRAINING, "offline_data.name": RERENDERED_DEMOS, "agent.critic.num_q": 5,
-                   "equivariance.N": 8, "equivariance.use_equivariant_model": True,
-                   "equivariance.residual_squash": True, "equivariance.encoder_norm": "none",
-                   "equivariance.actor_norm": "none", "equivariance.critic_norm": "none",
-                   "equivariance.critic_pooled_norm": "none", "equivariance.num_critic_layers": 1,
-                   "equivariance.critic_last_layer_init_scale": None,
-                   "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
-                   "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
-                   "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True},
+    "eaqorqki": {
+        "launch": EQUI_ANCHOR, "steps": 300_000,
+        "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 0.0},
+        "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
+                  "agent.vit.use_layer_norm": True},
     },
-}
-# Fields added since each anchor's commit, at the defaults that leave its run as it was.
-ADDED_SINCE = {
-    RESFIT_GROUP: {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box",
-                   "agent.vit.use_layer_norm": True},
-    EQUI_GROUP: {"agent.actor.action_bound": "box", "agent.vit.use_layer_norm": True},
+    "6ng62tpm": {
+        "launch": BASELINE_ANCHOR, "steps": 300_000,
+        "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 1e-4},
+        "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
+                  "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none"},
+    },
 }
 # Keys a run writes into its own recorded config, which no composition holds.
 RUNTIME_STAMPED = {"actor_name"}
@@ -178,11 +218,20 @@ def case_table_arms(script: str) -> list[str]:
 
 ARMS = case_table_arms(SUBMIT.read_text())
 EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-")]
+ARCH_ARMS = [arm for arm in EQUI_ARMS if arm in (ARCH, ARCH_WIDE)]
 RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
-    return EQUI_GROUP if arm in EQUI_ARMS else RESFIT_GROUP
+    if arm in RESFIT_ARMS:
+        return RESFIT_GROUP
+    return EQUI_GROUP if arm in ARCH_ARMS else LONG_GROUP
+
+
+def anchor_of(arm: str) -> str:
+    if arm in RESFIT_ARMS:
+        return "oj5k0jqb"
+    return "6ng62tpm" if arm == LONG else "eaqorqki"
 
 
 def _launch_order(overrides) -> list[str]:
@@ -246,11 +295,10 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
-    group = GROUPS[group_of(arm)]
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    expected = {**group["shared"], **ARM_VALUES[arm], "wandb.project": group["wandb"][0],
-                "wandb.group": group["wandb"][1], "wandb.name": f"{arm}-1",
-                "wandb.notes": f"{group_of(arm)}/{arm}/seed1"}
+    project, group = WANDB[group_of(arm)]
+    expected = {**ANCHORS[anchor_of(arm)]["shared"], **ARM_VALUES[arm], "wandb.project": project,
+                "wandb.group": group, "wandb.name": f"{arm}-1", "wandb.notes": f"{group_of(arm)}/{arm}/seed1"}
     for path, value in expected.items():
         assert flat.get(path, "absent") == value, f"{arm}: {path} = {flat.get(path, 'absent')}"
     assert "," not in flat["wandb.notes"], "hydra splits on commas"
@@ -263,24 +311,28 @@ def _differing(a: dict, b: dict) -> set[str]:
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_is_the_anchor_but_for_its_change(arm, tmp_path):
     ours = _flat(_compose(_overrides(arm, tmp_path)))
-    anchor = _flat(_compose(_launch_order(GROUPS[group_of(arm)]["anchor"])))
+    anchor = _flat(_compose(_launch_order(ANCHORS[anchor_of(arm)]["launch"])))
     assert _differing(ours, anchor) == FROM_ANCHOR[arm]
 
 
-def _anchor_as_launched(group: str) -> set[str]:
-    """The anchor run's own launch: eaqorqki's ran to 300k."""
-    anchor = GROUPS[group]["anchor"]
-    return (anchor - {EAQ_STEPS[0]}) | {EAQ_STEPS[1]} if group == EQUI_GROUP else anchor
+def _package(name: str) -> pathlib.Path:
+    # Under CACHE_DIR, where every run package lives: a launch worktree has no outputs/.
+    return RUNS_ROOT / "robomimic-square-final" / name
 
 
-@pytest.mark.parametrize("group", list(GROUPS))
-def test_each_anchor_is_what_its_run_launched_with(group):
-    package = GROUPS[group]["package"]
-    if not package.exists():
-        pytest.skip(f"{package.name}'s run package is not on this machine")
-    argv = json.loads((package / "manifest.json").read_text())["argv"][1:]
+def _anchor_as_launched(name: str) -> set[str]:
+    """The anchor run's own launch: eaqorqki and 6ng62tpm ran to 300k."""
+    anchor = ANCHORS[name]
+    return (anchor["launch"] - {"algo.total_timesteps=150000"}) | {f"algo.total_timesteps={anchor['steps']}"}
+
+
+@pytest.mark.parametrize("name", list(ANCHORS))
+def test_each_anchor_is_what_its_run_launched_with(name):
+    if not _package(name).exists():
+        pytest.skip(f"{name}'s run package is not on this machine")
+    argv = json.loads((_package(name) / "manifest.json").read_text())["argv"][1:]
     launched = {o for o in argv if o.split("=", 1)[0] not in (*NAMING, "hydra.run.dir")}
-    assert launched == _anchor_as_launched(group)
+    assert launched == _anchor_as_launched(name)
 
 
 def _number(value):
@@ -310,20 +362,17 @@ def _flat_recorded(path: pathlib.Path) -> dict[str, object]:
     return {k: v for k, v in out.items() if not k.startswith("wandb.")}
 
 
-@pytest.mark.parametrize("group", list(GROUPS))
-def test_each_anchor_composes_to_its_runs_recorded_config(group):
+@pytest.mark.parametrize("name", list(ANCHORS))
+def test_each_anchor_composes_to_its_runs_recorded_config(name):
     """So each anchor at this commit is the config its run ran with. A field added since is allowed
-    only at the default that leaves every earlier run as it was: "box" is ResFiT's own bound, as
-    oj5k0jqb ran it (tests/test_action_bound.py's golden), and the equivariant agent reads neither
-    ResFiT field."""
-    package = GROUPS[group]["package"]
-    if not package.exists():
-        pytest.skip(f"{package.name}'s run package is not on this machine")
-    recorded = _flat_recorded(package / "wandb_logs/config.yaml")
-    ours = {k: _number(v) for k, v in _flat(_compose(_launch_order(_anchor_as_launched(group)))).items()
+    only at the default that leaves every earlier run as it was."""
+    if not _package(name).exists():
+        pytest.skip(f"{name}'s run package is not on this machine")
+    recorded = _flat_recorded(_package(name) / "wandb_logs/config.yaml")
+    ours = {k: _number(v) for k, v in _flat(_compose(_launch_order(_anchor_as_launched(name)))).items()
             if not k.startswith("wandb.")}
     added = {k: ours[k] for k in ours.keys() - recorded.keys()}
-    assert added == ADDED_SINCE[group]
+    assert added == ANCHORS[name]["added"]
     changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
     assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
     assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
@@ -591,8 +640,8 @@ def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", EQUI_ARMS)
-def test_each_equivariant_arm_has_resfits_layout(arm, tmp_path, device):
+@pytest.mark.parametrize("arm", ARCH_ARMS)
+def test_each_arch_arm_has_resfits_layout(arm, tmp_path, device):
     """As amended (2026-10-12): RegularLayerNorm after each hidden Linear of the actor and of the
     critic, and no other norm, none in the encoder.
     - The actor keeps its depth, ResFiT's: three hidden layers (its visual projection, its trunk and
@@ -667,25 +716,30 @@ def _weights_in_order(module, drop_layer_norms: bool) -> list:
 @pytest.mark.parametrize("arm", RESFIT_ARMS)
 def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
     """At the same seed, the arm's initial weights are the anchor's bit for bit: rerendered changes
-    the data alone, limits the bound alone, which draws no random number and adds no weight, and
-    noln and noln-all drop LayerNorms, which draw no random number at init, so every other weight
-    is drawn as the anchor's. The episodes still differ, since `seed` does not reach the envs. An
-    equivariant arm's weights are not its anchor's: its ten deeper heads draw more numbers before
-    the actor's."""
+    the data alone; limits the bound and noise the noise's units, neither of which draws a random
+    number or adds a weight; noln, noln-all and combined drop LayerNorms, which draw no random number
+    at init, so every other weight is drawn as the anchor's. smallcritic's critic is smaller, and is
+    built before the actor, so only its encoders are the anchor's. The episodes still differ, since
+    `seed` does not reach the envs. An equivariant arch arm's weights are not its anchor's: its ten
+    deeper heads draw more numbers before the actor's."""
     import torch
 
     anchor = _seeded_agent(_compose(_launch_order(RESFIT_ANCHOR)), device)
     ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device)
-    if arm in (RERENDERED, LIMITS):
+    if arm in (RERENDERED, LIMITS, NOISE):
         theirs, mine = anchor.state_dict(), ours.state_dict()
         assert theirs.keys() == mine.keys()
         for key, value in mine.items():
             assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
         return
-    # noln: the anchor's actor and critic less their LayerNorms, and its encoders as they were.
+    if arm == SMALLCRITIC:
+        theirs, mine = anchor.encoders.state_dict(), ours.encoders.state_dict()
+        assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
+        return
+    # noln, combined: the anchor's actor and critic less their LayerNorms, its encoders as they were.
     # noln-all: its encoders less their LayerNorms too.
     for part in ("actor", "critic", "encoders"):
-        if part == "encoders" and arm == NOLN:
+        if part == "encoders" and arm in (NOLN, COMBINED):
             theirs, mine = anchor.encoders.state_dict(), ours.encoders.state_dict()
             assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
             continue
@@ -694,6 +748,19 @@ def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
         assert len(theirs) == len(mine), (part, len(theirs), len(mine))
         for i, (a, b) in enumerate(zip(theirs, mine)):
             assert a.shape == b.shape and torch.equal(a, b), f"{arm}: {part} tensor {i} differs"
+
+
+@pytest.mark.gpu
+def test_smallcritic_has_the_equivariant_residuals_five_heads_of_one_hidden_layer(tmp_path, device):
+    """eaqorqki's head count and depth (agent.critic.num_q=5, equivariance.num_critic_layers=1), at
+    ResFiT's width: each head a hidden Linear, then the output."""
+    import torch
+
+    ensemble = _agent(_compose(_overrides(SMALLCRITIC, tmp_path)), device).critic.q_ensemble
+    assert ensemble.num_heads == 5
+    linears = [m for m in ensemble._head_template.net if isinstance(m, torch.nn.Linear)]
+    assert len(linears) == 2 and linears[0].out_features == 1024
+    assert ensemble._vmap_param_net_0_weight.shape[0] == 5
 
 
 @pytest.mark.gpu
