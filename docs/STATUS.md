@@ -198,9 +198,10 @@ an equivariant one about 29 h, each including about 1 h 15 min for the gate and 
 | Thu ~01:30 | ResFiT `noln-vit`, seed 2 | `resfit-ln-place-1013` | (2a) | Thu ~05:30 | Thu ~12:30 |
 | Thu ~01:45 | open: seed 2 of `limits` or `noise` if either breaks, else a second `init0` or `notilt` seed | — | — | | |
 
-- **The queue:** tmux `rfe-queue` runs `slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`. Each
-  job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own tmux
-  session, `q-<arm>-<seed>`. Its log is `outputs/queue/launchers/slot_queue.log`. The scripts are in
+- **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`.
+  Each job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own
+  tmux session, `q-<arm>-<seed>`. A launch its gate stops is tried again, up to 3 tries 600 s apart
+  (2026-10-13 LAUNCHED). Its log is `outputs/queue/launchers/slot_queue.log`. The scripts are in
   `outputs/queue/launchers/`, which is gitignored (TODO: move them into `tools/` once the queue is
   empty).
 - **Watchers,** each enforcing its group's rule (`tools/square_rerendered_watch.py`):

@@ -7058,3 +7058,28 @@ by its watcher at its 150k eval (09:23), as the 2026-10-12 AMENDMENT set. Packag
 - **No reference yet:** no equivariant residual of its design had run past 80k. The baseline's
   seeds 2 and 3 (`equi-residual-long-1012`, launched today) give one at 150k, about Wednesday
   15:00. Whether 0.20 late is better or worse than the baseline waits for them.
+
+---
+
+## 2026-10-13 — LAUNCHED — the equivariant baseline's seeds 2 and 3 (`equi-residual-long-1012`); the queue retries a launch its gate stops
+
+The slot queue, restarted on the DEVIATION and AMENDMENT above. Consoles are in `outputs/queue/`.
+
+| Job | Launched | GPU | Gate | Trainer from |
+|---|---|---|---|---|
+| `equi-residual-square-long` 2 | 09:17, `arch-wide`'s slot | 1 | GO (Tier 1: 226 passed; Tier 2: 501 passed) | 09:47, `0b14c17` |
+| `equi-residual-square-long` 3 | 09:28, `notilt`'s slot | 0 | GO (Tier 1: 226 passed; Tier 2: 501 passed) | 09:58, `0b14c17` |
+
+- Each argv is `6ng62tpm`'s launch at its seed, to 150k (the 2026-10-12 PRE-REGISTERED entry). Their
+  wandb IDs appear after the demos are labelled, about 1 h 15 min after launch; the 30k NOTE
+  records them.
+- Both gates ran their GPU tier at once and took about 25 min, against 16 alone.
+- **The queue now retries a launch its gate stops,** up to 3 tries 600 s apart, holding the slot
+  between tries (`outputs/queue/launchers/retry/run_job.sh`, a copy of `run_job.sh`; the queue runs
+  `retry/slot_queue.sh`, an identical copy, from 10:00). A trainer that started is never relaunched.
+  Why: three of six gates failed the render-guard test on the night of 2026-10-12 and passed when
+  relaunched, and a stopped job would give its slot to the next job, out of the pre-registered
+  order. Tested on a stand-in `submit.sh` whose first gate fails: tried twice, launched once.
+- The queue's remaining order is the DEVIATION's: `noln` 2, the three placement arms' seed 1 (from
+  `25b22aa`, `resfit-ln-place-1013`, watched by tmux `ln-watch`), `limits`, `noise`, the placement
+  arms' seed 2.
