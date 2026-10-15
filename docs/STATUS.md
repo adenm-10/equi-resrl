@@ -13,7 +13,15 @@ This file describes what is true right now. Rewrite it in place; do not append. 
 
 ## Where the project is
 
-**New on 2026-10-15** (EXPERIMENTS.md, that date's NOTEs and DEVIATION):
+**New on 2026-10-15, evening: `arch-wide` scored the base policy's rate at 30k** (EXPERIMENTS.md,
+2026-10-15 NOTE, "wave 1 at 30k"; reported, deciding nothing). `h216n857`: 0.04, 0.16, 0.58 at
+10k–30k, 39 of 150 pooled, the most of any equivariant residual on these demos (before: 10). Of the
+parts alone only `actorln` is ahead of the anchor (16 of 150); `heads` 8, `criticln` 5. The critic's
+action slope is the same in every arm; `arch-wide`'s actor moves its residual 16 times faster at the
+start, to ResFiT's size, and its online value is the only one turning positive. The main readout
+(110k–150k) is due on 2026-10-16. `actor448` (wave 2) tests whether the actor's width is what does it.
+
+**Earlier on 2026-10-15** (EXPERIMENTS.md, that date's NOTEs and DEVIATION):
 - **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.** At two seeds
   each, 110k–150k: actor's off 0.144 and 0.264; critic's off 0.776 and 0.720; the ViTs' off 0.792
   and 0.812; both actor's and critic's off (`noln`) 0.032 at both; the anchors 0.714 pooled.

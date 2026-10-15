@@ -7571,3 +7571,67 @@ Read at 12:20 from each run's live record and from `/proc`.
   - Four runs at 150k come to about 136 GB, against 125 GB of RAM. Expect about 10 GB in swap near the
     end, most likely the workers' memory between evals, so evals may slow. `oav5gk76` showed no
     slowdown at 120k–130k in the last four-run overlap.
+
+---
+
+## 2026-10-15 — NOTE — `equi-arch-parts-1015` wave 1 at 30k: `arch-wide` 0.58 at 30k and 39 of 150 at 10k–30k; its actor, not its critic, is what differs
+
+The readouts the PRE-REGISTERED entry above lists as **reported, deciding nothing**: the 10k eval
+and 10k–30k pooled. The main readout is 110k–150k, on 2026-10-16. Evals are 50 episodes each.
+
+| Run | Arm | Evals 0, 10k, 20k, 30k | 10k–30k | Rolled-wrist share (`eval/tilt_over_30deg_frac`) |
+|---|---|---|---|---|
+| `oav5gk76` | init0, the anchor (seed 2, 2026-10-13) | 0.62, 0.00, 0.00, 0.20 | 10 of 150 | 0, 0.06, 0, 0.02 |
+| `od8u86i1` | the baseline (seed 2, 2026-10-13) | 0.56, 0.00, 0.00, 0.00 | 0 of 150 | 0, 0.26, 0.78, 0.24 |
+| `h216n857` | `arch-wide` | 0.58, 0.04, 0.16, **0.58** | **39 of 150** | 0.02, 0, 0.10, 0.02 |
+| `8sgfkskv` | `actorln` | 0.40, 0.02, 0.06, 0.24 | 16 of 150 | 0.02, 0.22, 0.02, 0.08 |
+| `5cj1rbpu` | `criticln` | 0.34, 0.00, 0.02, 0.08 | 5 of 150 | 0.02, 0.08, 0, 0.02 |
+| `dhhq151o` | `heads` | 0.40, 0.00, 0.04, 0.12 | 8 of 150 | 0.04, 0.04, 0.20, 0.02 |
+
+- **`arch-wide` is the first equivariant residual on these demos to score the base policy's rate after
+  losing it:** 0.58 at 30k, one eval, so about ±0.14 at 95%. It lost the base by 10k as every
+  equivariant residual has (0.04).
+- **Its 39 of 150 at 10k–30k is the highest of any equivariant residual on these demos.** The previous
+  best was `oav5gk76`'s 10 and `notilt`'s 8. It sits between ResFiT's two anchors (71 and 35) and is
+  about 4.7 standard errors above `oav5gk76`. Its seed 1 (`grvwhcfr`) was the only equivariant run off
+  zero at 10k (0.12). For context only, since this group's rules do not use it: by
+  `equi-resfit-arch-1013`'s 10k–30k rule, 39 "escapes the collapse" (8 or more) and is one short of
+  "matches ResFiT" (40).
+- **Of the parts alone, only `actorln` is ahead of the anchor** (16 against 10). `heads` (8) and
+  `criticln` (5) are at or below it.
+- No critic value above 1.5 (the largest to 30k, 0.42, is `arch-wide`'s), and no stop.
+
+**The diagnostics** (training-batch means over each window; ResFiT's working runs from the 2026-10-15
+NOTEs):
+
+| | anchor | `arch-wide` | `actorln` | `criticln` | `heads` | ResFiT |
+|---|---|---|---|---|---|---|
+| `debug/dQ_da_mean_abs` (×1e-5), 0–30k | 7.1–8.5 | 5.6–7.0 | 6.5–7.8 | 6.7–7.6 | 7.3–8.9 | — |
+| `train/residual_l1_magnitude`, 0–3k | 0.002 | **0.036** | 0.011 | 0.005 | 0.002 | about 0.03 |
+| `train/actor_grad_norm`, 0–3k | 0.004 | **0.039** | 0.028 | 0.014 | 0.005 | 0.06, rising |
+| `debug/q_advantage_ratio`, 25k–30k | 0.6% | **2.1%** | 1.5% | 1.1% | 0.7% | about 2% |
+| `debug/q_data_online`, 25k–30k | −0.006 | **+0.023** | −0.017 | −0.032 | −0.026 | positive by 5k, about 0.2 by 120k |
+| `debug/q_data_demo`, 25k–30k | 0.26 | 0.35 | 0.31 | 0.27 | 0.23 | 0.42–0.48 by 150k |
+
+- **The critic's slope with respect to the action is the same in every arm** (`arch-wide`'s is a little
+  lower). No critic change makes the critic more sensitive to the action.
+- **`arch-wide`'s actor turns that slope into a residual 16 times the anchor's in the first 3k steps,**
+  at ResFiT's size. Its critic then rates the residual at about 2% of the base action's value, as
+  ResFiT's does, and its online value is the only one turning positive (from about 14k). These are
+  the first of ResFiT's health signs any equivariant residual has shown.
+- `actorln` is second on each sign. `heads` matches the anchor on each. `criticln`'s early actor
+  gradient is three times the anchor's (0.014), but its residual barely moves (0.005).
+- By 6k every arm's residual is about 0.03, and only `arch-wide`'s keeps growing (0.059 at 25k–30k).
+  So early speed alone may not explain the gap.
+
+**Claude's reading, deciding nothing (a hypothesis):** what differs is how fast the actor can move
+its output.
+- AdamW moves each weight by about the learning rate per step, so the output's speed grows with how
+  many free weights feed it and how large their inputs are.
+- RegularLayerNorm keeps the actor's hidden features at unit scale. `actorln` alone, at ResFiT's 1,024
+  channels but with about 1/8 of a dense layer's free weights (each C8 layer shares its weights),
+  reached a third of ResFiT's early residual.
+- `arch-wide` adds 3.5 times the width (448 fields, chosen to match ResFiT's actor's parameter count),
+  and reached ResFiT's early residual size.
+- `actor448` (width without the norm, wave 2) is the first test of this. A direct check would be the
+  hidden features' scale at init in the anchor and in `actorln`.
