@@ -7083,3 +7083,184 @@ The slot queue, restarted on the DEVIATION and AMENDMENT above. Consoles are in 
 - The queue's remaining order is the DEVIATION's: `noln` 2, the three placement arms' seed 1 (from
   `25b22aa`, `resfit-ln-place-1013`, watched by tmux `ln-watch`), `limits`, `noise`, the placement
   arms' seed 2.
+
+---
+
+## 2026-10-15 — LAUNCHED — the queue's nine ResFiT launches, 2026-10-13 to 10-14 (`noln` 2, `resfit-ln-place-1013`'s six, `limits`, `noise`); the equivariant baseline's run IDs
+
+The slot queue (`outputs/queue/launchers/retry/slot_queue.sh`, tmux `rfe-queue`) over the order the
+2026-10-13 DEVIATION set. Consoles are in `outputs/queue/`. **Every gate said GO at its first try**,
+so the retry never ran. Each run package records its commit, clean, and mujoco 3.3.2, and each
+argv is its pre-registered one (checked against the manifests).
+
+| Job | Launched | GPU | From | Gate (Tier 1; Tier 2 passed) | In wandb | Run | Ended |
+|---|---|---|---|---|---|---|---|
+| `resfit-residual-square-noln` 2 | 10-13 17:33 | 1 | `7db124d` | 226; 413 | 18:51 | [**`xjdldyvu`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/xjdldyvu) | 10-14 09:27 |
+| `resfit-residual-square-noln-actor` 1 | 10-14 06:29 | 0 | `25b22aa` | 226; 528 | 07:52 | [**`vsy97qbz`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/vsy97qbz) | 10-14 19:26 |
+| `resfit-residual-square-noln-critic` 1 | 10-14 08:24 | 1 | `25b22aa` | 226; 528 | 09:31 | [**`z8sj1nmt`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/z8sj1nmt) | 10-14 19:44 |
+| `resfit-residual-square-noln-vit` 1 | 10-14 09:32 | 1 | `25b22aa` | 226; 528 | 10:41 | [**`on6qdbuo`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/on6qdbuo) | 10-14 20:47 |
+| `resfit-residual-square-limits` 1 | 10-14 12:59 | 0 | `304167e` | 226; 421 | 13:59 | [**`uw2aa908`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/uw2aa908) | 10-14 23:51 |
+| `resfit-residual-square-noise` 1 | 10-14 19:30 | 0 | `0b14c17` | 226; 501 | 20:39 | [**`spfcsqte`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/spfcsqte) | 10-15 06:19 |
+| `resfit-residual-square-noln-actor` 2 | 10-14 19:49 | 1 | `25b22aa` | 226; 528 | 20:55 | [**`grkiw1l1`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/grkiw1l1) | 10-15 07:13 |
+| `resfit-residual-square-noln-critic` 2 | 10-14 20:52 | 1 | `25b22aa` | 226; 528 | 22:01 | [**`948yzbi3`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/948yzbi3) | 10-15 08:09 |
+| `resfit-residual-square-noln-vit` 2 | 10-14 23:56 | 0 | `25b22aa` | 226; 528 | 10-15 01:03 | [**`vqzx1ir9`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/vqzx1ir9) | running: 0.86 at 130k (08:19) |
+
+- **The equivariant baseline's seeds 2 and 3** (2026-10-13 LAUNCHED) are
+  [**`od8u86i1`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/od8u86i1)
+  (seed 2, in wandb 10-13 10:24, ended 10-14 08:19) and
+  [**`dja2kbb6`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/dja2kbb6)
+  (seed 3, 10:51, ended 10-14 12:54).
+- A ResFiT run took 11–13 h from launch to 150k (`xjdldyvu` 16 h, beside an equivariant run); an
+  equivariant one 23–29 h, two per GPU.
+- The queue ran out at 10-14 23:57. From 10-15 06:19 slots stood idle; by 08:09 three of four.
+- **Config caveats:** none known on ResFiT's agent at these commits (ARCHITECTURE.md's provenance
+  table covers the equivariant config).
+
+---
+
+## 2026-10-15 — NOTE — `equi-residual-long-1012` at 150k: the equivariant baseline's first reference; neither start gets back to the base
+
+The pre-registered readouts (2026-10-12), each run to 150k. Evals are 50 episodes; 10k–30k pooled is
+150 episodes, 110k–150k pooled 250.
+
+| Run | Evals 0, 10k, …, 150k | 10k–30k | 110k–150k | Readout |
+|---|---|---|---|---|
+| `od8u86i1` baseline (last layer 1e-4), seed 2 | 0.56, 0.00, 0.00, 0.00, 0.06, 0.00, 0.12, 0.24, 0.18, 0.30, 0.26, 0.34, 0.22, 0.24, 0.22, 0.34 | 0 of 150 | 68 of 250, **0.272** | below the base |
+| `dja2kbb6` baseline, seed 3 | 0.60, 0.02, 0.02, 0.10, 0.00, 0.08, 0.08, 0.24, 0.18, 0.10, 0.32, 0.16, 0.16, 0.16, 0.30, 0.30 | 7 of 150 | 54 of 250, **0.216** | below the base |
+| `oav5gk76` init0, seed 2 | 0.62, 0.00, 0.00, 0.20, 0.02, 0.12, 0.28, 0.18, 0.30, 0.28, 0.24, 0.24, 0.40, 0.24, 0.44, 0.34 | 10 of 150 | 83 of 250, **0.332** | below the base |
+
+- **All three are below B_sq = 0.582 by far more than two standard errors** (back to the base needs
+  about 127 of 250), so none is back to or past the base, nor at ResFiT's 0.714. By the rule no
+  arm has a seed 3 due; the baseline's seed 3 ran by the 2026-10-13 AMENDMENT.
+- **Predictions:** 1 (both starts recover partly and stay below the base) was right. 2 (the starts do
+  not differ by more than two standard errors at 110k–150k) was right: 0.332 against 0.272, a
+  difference of 0.060 against two standard errors of 0.082.
+- **Reported:**
+  - the first eval at or above 0.30: 90k (`od8u86i1`), 100k (`dja2kbb6`), 80k (`oav5gk76`);
+  - `train/residual_l1_magnitude` 0.002–0.005 at 0–3k, 0.052–0.054 at 120k–150k;
+  - the rolled-wrist share (`eval/tilt_over_30deg_frac`) peaks at 0.78 (`od8u86i1`, 20k), and is 0.06
+    or less in every run from 110k;
+  - no critic value above 1.5 (`train/critic_qt` at most 0.23).
+- **What it gives the earlier runs:** the baseline pooled is 122 of 500 (0.244) at 110k–150k.
+  - **Late partial recovery is this design's normal course:** each run climbs from about zero at
+    10k–50k to 0.2–0.34 from 70k. So `eaqorqki`'s climb to 0.30 by 80k and `notilt`'s 0.16–0.36
+    were not their changes' doing.
+  - `notilt` (`dczf4k7v`, seed 1, 0.200) is within the baseline's two seeds (0.216, 0.272): removing
+    tilt did not help late.
+  - **init0 is ahead in both matched pairs** (same seed, weights alike but the last layer): seed 1
+    10k–30k, 3 of 150 (`eaqorqki`) against 1 (`6ng62tpm`); seed 2, 10 against 0, and 0.332 against
+    0.272 late. The gap is about the baseline's own seed spread (0.272 against 0.216): consistent in
+    direction, not established.
+- **The critic and the actor, against ResFiT's working runs** (both stacks log the same keys):
+  - `debug/q_data_online` stays between −0.04 and +0.03 throughout, where ResFiT's climbs to about
+    0.2 by 120k; `debug/q_data_demo` reaches 0.33–0.34 (ResFiT's 0.42–0.48);
+  - `debug/q_advantage` 0.001–0.002, about 1% of `debug/q_base_only_mean` (ResFiT's about 2%);
+  - `train/actor_grad_norm` 0.004–0.007, flat (ResFiT's rises from 0.06 to 0.33–0.50).
+- **Config caveats:** `equivariance.num_actor_layers` is logged as 2 and is dead (the actor has one
+  hidden layer); `equivariance.initialize` reaches the encoder only.
+
+---
+
+## 2026-10-15 — NOTE — `resfit-ln-place-1013`, `noln` seed 2 and `noln-all`: ResFiT's residual needs its actor's LayerNorm; the 10k–30k rule cannot separate the critic's or the ViTs'
+
+The pre-registered readouts (2026-10-13 PRE-REGISTERED; `noln` and `noln-all` from 2026-10-12's).
+An arm breaks iff its 10k–30k evals pooled are at most 39 of 150, or three evals in a row are at or
+below 0.05. The anchors (`oj5k0jqb`, `s8opblsd`): 71 and 35 of 150 at 10k–30k, 0.800 and 0.628 at
+110k–150k (0.714 pooled).
+
+| Run | Change | Seed | 10k–30k | By the rule | 110k–150k |
+|---|---|---|---|---|---|
+| `c1xca5uk` | `noln` (actor + critic) | 1 | 0 | breaks | 8 of 250, 0.032 |
+| `xjdldyvu` | `noln` | 2 | 0 | breaks | 8 of 250, 0.032 |
+| `ra6024xn` | `noln-all` (+ the ViTs) | 1 | 0 | breaks | 2 of 250, 0.008 |
+| `vsy97qbz` | `noln-actor` | 1 | 0 | breaks | 36 of 250, **0.144** |
+| `grkiw1l1` | `noln-actor` | 2 | 11 | breaks | 66 of 250, **0.264** |
+| `z8sj1nmt` | `noln-critic` | 1 | 37 | breaks | 194 of 250, **0.776** |
+| `948yzbi3` | `noln-critic` | 2 | 34 | breaks | 180 of 250, **0.720** |
+| `on6qdbuo` | `noln-vit` | 1 | 50 | holds | 198 of 250, **0.792** |
+| `vqzx1ir9` | `noln-vit` | 2 | 37 | breaks | 120 of 150 to 130k, 0.800 (running) |
+
+Evals 0, 10k, …, 150k:
+- `xjdldyvu`: 0.38, then 0.00–0.04 at every eval.
+- `vsy97qbz`: 0.54, 0.00 to 100k but 0.02 at 60k, then 0.10, 0.08, 0.20, 0.20, 0.14.
+- `grkiw1l1`: 0.66, 0.00, 0.06, 0.16, 0.42, 0.30, 0.44, 0.34, 0.46, 0.40, 0.34, 0.16, 0.34, 0.24, 0.18, 0.40.
+- `z8sj1nmt`: 0.34, 0.04, 0.30, 0.40, 0.52, 0.48, 0.78, 0.66, 0.70, 0.72, 0.82, 0.74, 0.66, 0.80, 0.82, 0.86.
+- `948yzbi3`: 0.58, 0.04, 0.36, 0.28, 0.56, 0.54, 0.46, 0.48, 0.60, 0.60, 0.60, 0.64, 0.66, 0.80, 0.70, 0.80.
+- `on6qdbuo`: 0.50, 0.10, 0.40, 0.50, 0.44, 0.62, 0.50, 0.62, 0.66, 0.62, 0.72, 0.78, 0.84, 0.80, 0.76, 0.78.
+- `vqzx1ir9` to 130k: 0.56, 0.20, 0.20, 0.34, 0.30, 0.52, 0.56, 0.52, 0.62, 0.64, 0.76, 0.84, 0.70, 0.86.
+
+- **By the rules as registered:**
+  - `noln` breaks at both seeds: question (1) of Aden's order is answered at two seeds, as is
+    `noln-all`'s break at one.
+  - `noln-actor` breaks at both seeds: its place is **needed**.
+  - `noln-critic` breaks at both seeds (37 and 34): by the rule its place is **needed** too.
+  - `noln-vit`'s seeds disagree (50, 37): **no verdict**, seed 3 due (set aside: DEVIATION below).
+- **The rule's bar sits inside the anchors' own spread.** `s8opblsd`, the anchor's seed 2, scored 35
+  of 150 at 10k–30k: by this bar the anchor itself breaks. So the bar cannot tell `noln-critic`
+  (37, 34) or `noln-vit`'s seed 2 (37) from the anchor.
+- **The late window,** registered as reported, separates every arm. `noln-critic` (0.776, 0.720) and
+  `noln-vit` (0.792; 0.800 to 130k) land at or above the anchors' 0.714. `noln-actor` (0.144, 0.264)
+  and `noln` (0.032 at both) are far below even the base (0.582).
+- **Claude's reading, deciding nothing formally:** the actor's LayerNorm is what ResFiT's residual
+  needs here. The critic's and the ViTs' make the recovery from the 10k dip faster and are not
+  needed for where the run ends. With the actor's and the critic's both off it ends worse (0.032)
+  than with the actor's alone (0.144, 0.264): the critic's LayerNorm partly makes up for the
+  actor's.
+- **The mechanism, reported** (training-batch diagnostics, means over each window):
+  - Without the actor's LayerNorm the residual is at once near its cap: `train/residual_l1_magnitude`
+    0.066–0.070 at 0–3k, against the anchors' 0.029–0.030 and `noln-critic`'s 0.031–0.034. That is
+    prediction 1's mechanism, the saturation `9phsy6sf` showed in tuned RLPD.
+  - Its actor's gradient then falls (`train/actor_grad_norm` 0.063–0.100 at 6k–10k, 0.030–0.039 at
+    120k–150k), where the anchors' rises to 0.33–0.37 and `noln-critic`'s to 0.11–0.13.
+  - Its online value stays near zero (`debug/q_data_online` −0.008 and +0.046 at 120k–150k); in the
+    placement arms that hold it ends at 0.17–0.22 (the anchors' at 0.21 and 0.12).
+- **Predictions** (2026-10-13): 1 (`noln-actor` breaks) right. 2 (`noln-critic` holds) wrong by the
+  rule, right by the late window. 3 (`noln-vit` holds) right at seed 1; at seed 2 wrong by the rule,
+  right by the late window.
+- **For the equivariant residual:** the same symptom is not there. Its residual is 0.002–0.005 at
+  0–3k and its actor's gradient 0.004–0.007, flat (the NOTE above): too slow rather than saturated.
+  So "ResFiT's actor needs LayerNorm" does not yet say what the equivariant actor lacks; the next
+  experiment tests RegularLayerNorm there directly (DEVIATION below).
+- **Config caveats:** none known on ResFiT's agent at these commits.
+
+---
+
+## 2026-10-15 — NOTE — `limits` and `noise` hold: the equivariant stack's action limits and noise do not break ResFiT's residual
+
+`resfit-equi-diff-1012`'s last two arms, seed 1 each (2026-10-12 PRE-REGISTERED and AMENDMENT).
+
+| Run | Change | Evals 0, 10k, …, 150k | 10k–30k | Verdict | 110k–150k |
+|---|---|---|---|---|---|
+| `uw2aa908` | `limits` (`agent.actor.action_bound=equivariant`) | 0.52, 0.40, 0.54, 0.48, 0.58, 0.44, 0.76, 0.60, 0.72, 0.62, 0.80, 0.76, 0.84, 0.74, 0.80, 0.86 | **71 of 150** | holds | 200 of 250, **0.800** |
+| `spfcsqte` | `noise` (`agent.actor.noise_units=env`) | 0.44, 0.30, 0.58, 0.56, 0.44, 0.50, 0.52, 0.76, 0.78, 0.80, 0.78, 0.88, 0.88, 0.80, 0.80, 0.76 | **72 of 150** | holds | 206 of 250, **0.824** |
+
+- Both hold, so no seed 2 is due. Their predictions (both hold, moderate confidence) were right.
+  `combined` was dropped on 2026-10-13 and never ran.
+- Their 10k–30k readouts (71, 72) are level with `oj5k0jqb`'s 71, the highest of any ResFiT residual
+  run, and `limits`' 0.40 is the highest 10k eval of the ResFiT runs since the render fix. One seed each, and both late windows sit inside
+  the anchors' own 0.63–0.80: **"no harm", not "helps"**.
+- With `fk9ayyco` (rx's range alone, 0.716): the circle bounds, rx's cap at 0.1 env units instead of
+  0.036, the critic scoring `equi_clip`'s sum, the env clipping what is executed, and σ 0.05 in env
+  units (rx's from 0.018) are each carried by ResFiT's residual. **The equivariant residual's action
+  space is not what breaks it.**
+- `limits`' `debug/residual_max_abs` reads 0.276 in the scaler's units: 0.1 env units on rx over rx's
+  half-range of 0.36, as its bound sets.
+- **Config caveats:** none known on ResFiT's agent at these commits.
+
+---
+
+## 2026-10-15 — DEVIATION and DECISION — the work turns to the equivariant residual; `noln-vit`'s seed 3 set aside; the next experiment planned
+
+Aden's decisions, 2026-10-15, after the NOTEs above:
+- **The focus is the equivariant residual.** No further ResFiT ablations now.
+- **`noln-vit`'s seed 3, due by its rule (its seeds disagree), is set aside.** The rule's bar sits
+  inside the anchor's own spread, and both seeds' late windows are at ResFiT's level.
+- **The next experiment** (planned, not yet pre-registered): `arch-wide` again, to 150k at seed 2,
+  beside each of its four parts alone on the init0 anchor (`eaqorqki`'s launch: RegularLayerNorm in
+  the actor; in the critic; ResFiT's 10 heads of 2 layers; the actor at 448 fields), and init0's
+  seed 3 (an AMENDMENT to `equi-residual-long-1012`). init0 is the anchor. The main readout moves to
+  the 110k–150k window, against `oav5gk76`'s 0.332, because of the bar problem above. The plan, with
+  every step: `docs/plans/2026-10-15-equi-arch-parts.md` (local). Its pre-registration goes here
+  before any of its runs launch.
+- **Disk:** 11.6 GB free at 08:30. The wandb artifact cache holds 22 GB (+18 GB since 2026-10-13);
+  the plan clears it first.

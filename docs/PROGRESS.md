@@ -17,6 +17,45 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-13 (afternoon) to 2026-10-15 — ResFiT needs its actor's LayerNorm; the action space is ruled out; the equivariant baseline's 150k reference; the plan for `equi-arch-parts-1015`
+
+**Found** (EXPERIMENTS.md, 2026-10-15 NOTEs)
+
+- **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'**, at two seeds each,
+  110k–150k: actor's off 0.144, 0.264; critic's off 0.776, 0.720; ViTs' off 0.792, 0.800 (to 130k).
+  Without it the residual saturates by 3k (0.07 of 0.1) and the actor's gradient falls.
+- **The registered 10k–30k bar sits inside seed spread:** `noln-critic` "breaks" by it (37, 34 of
+  150), and so would the anchor's own seed 2 (35). The late window separates every arm. Recorded as
+  a conflict, not reread.
+- **The action space does not break ResFiT:** `limits` 0.800, `noise` 0.824 (one seed each).
+- **The equivariant baseline's 150k reference:** 0.272 and 0.216 late; init0 0.332 (ahead in both
+  matched pairs, by about the baseline's seed spread); `notilt` 0.200. Every equivariant run climbs
+  partly from about 70k: that is the design's normal course, not its changes'. Nothing beats it.
+- The equivariant actor's failure is not ResFiT's no-LayerNorm one: its residual is too slow
+  (0.002–0.005 at 3k, gradient 0.004–0.007), not saturated.
+- The disk fell from 29.6 GB to 11.6 GB in two days; the wandb artifact cache is 22 GB.
+
+**Decided (Aden, 2026-10-15)**
+
+- Focus on the equivariant residual. `noln-vit`'s seed 3 (due by its rule) set aside.
+- Next: `arch-wide` again to 150k beside each of its four parts alone (actor RegularLayerNorm,
+  critic RegularLayerNorm, 10 × 2 heads, actor at 448 fields), on the init0 anchor at seed 2, plus
+  init0's seed 3. The late window becomes the main readout. Why: ResFiT's lesson points at the
+  actor's normalization, and `arch-wide` was the only equivariant run not at zero at 10k.
+
+**Done**
+
+- EXPERIMENTS.md: the 2026-10-15 LAUNCHED (nine ResFiT launches, run IDs, every gate GO first try),
+  NOTEs (`equi-residual-long-1012` at 150k; `resfit-ln-place-1013` with `noln` 2 and `noln-all`;
+  `limits` and `noise`), and the DEVIATION and DECISION.
+- STATUS, TODO (B17 new; B16 items 5d, 5e done); ARCHITECTURE.md: how to read the critic and actor
+  diagnostics.
+- **The plan, step by step: `docs/plans/2026-10-15-equi-arch-parts.md`** (local, not in git).
+
+**Next:** the plan's phase 0 (clear the wandb cache; `vqzx1ir9`'s 150k NOTE), then phases 1–4.
+
+---
+
 ## 2026-10-13 (mid-morning) — a question order for LayerNorm; the equivariant baseline to 150k first; `resfit-ln-place-1013` pre-registered
 
 **Found**

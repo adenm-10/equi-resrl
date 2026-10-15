@@ -9,7 +9,27 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B16. Demos rendered by our env, then the equivariant residual on them — NOW (Aden, 2026-10-08) `[SC]`
+### B17. Which part of ResFiT's layout helps the equivariant residual — NOW (Aden, 2026-10-15) `[SC]`
+
+**The plan, step by step: [docs/plans/2026-10-15-equi-arch-parts.md](plans/2026-10-15-equi-arch-parts.md)**
+(local, not in git). Why: ResFiT's residual needs its actor's LayerNorm and carries the equivariant
+action space (B16 item 5e), and `arch-wide`, the equivariant residual with ResFiT's layout, was the
+only equivariant run not at zero at 10k. Seed group `equi-arch-parts-1015`, all at seed 2 on the
+init0 anchor (pairing each with `oav5gk76`); main readout 110k–150k against its 0.332 (better iff
+at least 105 of 250).
+
+0. Housekeeping: clear the wandb artifact cache (11.6 GB free on 2026-10-15); `vqzx1ir9`'s 150k
+   NOTE; stop `ln-watch`, `rfe-watch`, `tilt-watch`.
+1. Pre-register: `arch-wide`, `actorln`, `criticln`, `heads` (wave 1), `actor448` (wave 2); and an
+   AMENDMENT for init0's seed 3 (`equi-residual-long-1012`, wave 2).
+2. `submit.sh`, `tests/test_sweep_arms.py` (incl. the LayerNorm arms starting from the anchor's
+   weights bit for bit), the watcher's group; CPU and GPU tiers.
+3. Commit through `/git_proc`, pin a worktree.
+4. The jobs file, restart `rfe-queue` on `retry/slot_queue.sh`, start `parts-watch`.
+5. Readouts: LAUNCHED with run IDs; NOTEs at 150k; seed 3 of the best one or two better than init0;
+   then by the plan's "what follows".
+
+### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 
 Why: the demos' video codec gave the critic a perfect online/demo cue, and coding the env's frames
 to match let equivariant tuned RLPD learn Can (`gkck6eqp`, 0.94 at 10k). Aden chose to fix the
@@ -40,56 +60,26 @@ demos").
    by 10k. The 1e-4 start is not the cause, and a better-informed critic did not stop the drift.
    The penalty named next is held (2026-10-12 FINDING: it would hold ResFiT's useful residual down
    too).
-5d. **NOW: the tilt diagnosis** (plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`, local;
-   Aden, 2026-10-12). The collapse is a wrist that rolls after the grasp (2026-10-12 FINDING).
-   1. **Running: `resfit-rx-1012`** (`fk9ayyco`), ResFiT's residual with rx at the equivariant
-      stack's range (`offline_data.min_action_range=2.0`). Read at 30k and 150k, with the rolled
-      share scored blind (`outputs/diagnostics/residual-collapse-1012/blind_rolled.py`).
-   2. **Running: `residual-tilt-1012`.** `notilt` (`dczf4k7v`; the residual's tilt pair bounded at
-      zero) under the residual's rules, and `diag` (`ls0thn4u`; init0 with a checkpoint every 2k, to
-      60k). Read `notilt` at 10k, 30k and 100k, and `diag` at 10k, 30k and 60k.
-   3. **DONE 2026-10-12: the field test** at `diag`'s 10k checkpoint (EXPERIMENTS.md, NOTE): no
-      single field is the cause (−tilt 1 of 100, against 57 with no residual). Told to Aden, so
-      nothing is added or stopped for it.
-   4. **Conditional:**
-      - a tilt bound of 0.03 iff `notilt` holds the base through 30k but fails its 100k check;
-      - the L2 penalty only if the per-field slopes show a gap between drifting and useful fields
-        (w = 256 × logged `dQ_da` / (2 r*));
-      - if `notilt` falls in a new mode, the critic is the target (its online value), in a plan of
-        its own.
-5e. **NOW: the 2026-10-13 schedule** (EXPERIMENTS.md, 2026-10-13 DEVIATION and AMENDMENT, and
-   PRE-REGISTERED `resfit-ln-place-1013`; STATUS "Running now" has the table). It launches itself:
-   `outputs/queue/launchers/slot_queue.sh`, in tmux `rfe-queue`.
-   1. **Aden's question order (2026-10-13):** (1) is LayerNorm an enabler of ResFiT's residual;
-      (2a) which placement; (2b) how to do what it does in the equivariant residual; then the actor's
-      bounds and noise if LayerNorm does not carry it. Claude's caveats, agreed in conversation:
-      ResFiT needing LayerNorm does not make it what the equivariant stack lacks, so a failed (2b)
-      sends the chain on to the bounds and noise; and (2b) needs what LayerNorm does measured first,
-      because `noln`'s residual saturates by 3k (0.083 of 0.1) while the equivariant one is slow
-      (0.003 at 3k, 10–100× less actor gradient).
-   2. **The reference first:** the equivariant baseline (`6ng62tpm`'s launch) at seeds 2 and 3 to
-      150k, the first of its design past 30k. `init0` (`oav5gk76`) and `notilt` (`dczf4k7v`) are
-      read against it at 150k (about Wednesday 15:00).
-   3. **Then, in the queue:** `noln` seed 2; `resfit-ln-place-1013` seed 1 (`noln-actor`,
-      `noln-critic`, `noln-vit`); `limits`; `noise`; `resfit-ln-place-1013` seed 2. Set aside (Aden):
-      the actor's architecture (`arch`, `arch-wide`), `smallcritic`, the weight-init scheme.
-   4. **Each session:**
-      - a LAUNCHED entry for each run the queue started (`slot_queue.log` and the `q-*` consoles
-        say which, from when);
-      - NOTEs at each 30k and 150k readout: `notilt`'s 150k, the baseline's, `oav5gk76`'s,
-        `noln` seed 2's, each placement arm's;
-      - the open slot from about Thursday 01:45: seed 2 of `limits` or `noise` if either breaks,
-        else a second `init0` or `notilt` seed (Aden's call).
-   5. **The gate's flaky test:** `test_rerender_demos.py::test_every_guard_passes_on_cans_first_demos`
-      failed three gates overnight on 2026-10-12, each the minute a run exited, and passed 3 of 3 by
-      hand. Make `preflight.py` record the failing assertion (not just the test's name), and find
-      which guard trips. The queue's 300 s settle wait is the workaround.
-   6. **Housekeeping:**
-      - Move `outputs/queue/launchers/` into `tools/` once the queue is empty. It is gitignored now,
-        and the running queue reads its scripts from there.
-      - **Disk:** the pip and conda caches were cleared on 2026-10-13 (Aden). The old worktrees are
-        about 4 MB each, so removing them frees nothing; the wandb artifact cache (14 GB, +4 GB a
-        day, copies of uploaded best models and the base policies) is the next to clear if needed.
+5d. **DONE 2026-10-13: the tilt diagnosis** (plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
+   local). No single field of the residual carries the collapse (the field test, 2026-10-12 NOTE),
+   and `notilt` ended at 0.200 at 110k–150k, within the equivariant baseline's 0.216–0.272
+   (2026-10-13 and 2026-10-15 NOTEs). Its conditional follow-ups (a tilt bound of 0.03, the L2
+   penalty) are not triggered: tilt is not the cause.
+5e. **DONE 2026-10-15: the 2026-10-13 schedule** (EXPERIMENTS.md, 2026-10-15 LAUNCHED and NOTEs).
+   - (1) LayerNorm is needed by ResFiT's residual (`noln` 0 of 150 at both seeds); (2a) the actor's
+     is the one (`noln-actor` 0.144, 0.264 late; `noln-critic` 0.776, 0.720; `noln-vit` 0.792 and
+     0.800 to 130k). By the registered 10k–30k rule `noln-critic` also "breaks" (37, 34 of 150), but
+     the anchor's own seed 2 scored 35 there: the bar sits inside seed spread (recorded as a
+     conflict).
+   - `limits` (0.800) and `noise` (0.824) hold: the action space does not break ResFiT.
+   - The equivariant baseline's 150k reference: 0.272, 0.216; init0 seed 2 0.332; neither back to
+     the base.
+   - Left: `vqzx1ir9`'s (`noln-vit` 2) 150k NOTE (B17 step 0.2). `noln-vit`'s seed 3 was set aside
+     (2026-10-15 DEVIATION).
+   - Still open from this item: move `outputs/queue/launchers/` into `tools/` (the queue is empty
+     between experiments now); make `preflight.py` record a failing assertion, not just the test's
+     name (the render-guard test that failed three gates on 2026-10-12; it has not failed since the
+     300 s settle wait).
 6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
    it is not triggered as written, but its residual half stands: **the residual's collapse is a
    different failure** (no value carried to online states; online value negative by 20k), which

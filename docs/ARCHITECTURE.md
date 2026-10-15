@@ -417,6 +417,27 @@ queues all four updates and moves on. The GPU wait would then be timed under `en
 last update's `gradient_update` timer puts it back, so `timing/gradient_update_*` still measures
 the updates. It costs one sync per env step, which `act()` would have made anyway.
 
+### Reading the critic and actor diagnostics
+
+Both stacks log the same keys, on the logged update's batch (online rows, then demo rows):
+- `debug/q_data_{online,demo}`: Q at the action stored in the buffer: the executed action online,
+  the demo's own on the demos. `debug/q_policy_{online,demo}`: Q at the actor's noise-free action,
+  combined with the base. Both are the mean over heads, from `critic_diagnostics`.
+- `debug/q_advantage`: Q(base + residual) − Q(base alone), the critic's view of what the residual
+  adds, over both halves (`debug/q_base_only_mean` is the second term).
+- `train/residual_l1_magnitude`, `debug/residual_max_abs`: the residual's size, in the actor's units
+  (ResFiT's: the scaler's; a cap of 0.1). `train/actor_grad_norm`, before clipping.
+
+What ResFiT's working runs show (EXPERIMENTS.md, 2026-10-15 NOTEs), against the failing ones
+(ResFiT without its actor's LayerNorm, every equivariant residual):
+- online value positive by about 5k and climbing to about 0.2 by 120k, with training success
+  (failing: −0.04 to +0.05 throughout; rewards are 0 or 1, so a negative value is the critic's error);
+- demo value climbing to 0.42–0.48 (equivariant: 0.33–0.34 by 150k);
+- `q_advantage` steady at about 2% of `q_base_only_mean` (equivariant: about 1%);
+- the residual about 0.03 at 0–3k (without the actor's LayerNorm 0.07, saturated; equivariant
+  0.002–0.005), and the actor's gradient rising, from 0.06 to 0.13–0.50 (failing: falling, or flat
+  at 0.004–0.007 in the equivariant actor).
+
 ### Why the update used to stall
 
 The CPU queues GPU work and moves on, so while the GPU runs one layer the CPU can already queue the
