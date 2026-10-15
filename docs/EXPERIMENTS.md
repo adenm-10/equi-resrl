@@ -7508,3 +7508,36 @@ Made before the run launches.
   - It gives `equi-arch-parts-1015`'s anchor a second seed.
 - **Its rules and readouts** are seed 2's (2026-10-12 PRE-REGISTERED). `long-watch` enforces them.
 - **Launch:** sixth in `equi-arch-parts-1015`'s queue (above), in wave 2.
+
+---
+
+## 2026-10-15 — LAUNCHED — `equi-arch-parts-1015` wave 1: `arch-wide` (`h216n857`), `actorln` (`8sgfkskv`), `criticln` (`5cj1rbpu`), `heads` (`dhhq151o`)
+
+The slot queue (`outputs/queue/launchers/retry/slot_queue.sh`, tmux `rfe-queue`, restarted at 09:46
+with the six jobs of the PRE-REGISTERED entry above), from `974e281` in the worktree
+`~/projects/equi-resrl-974e281`. Consoles are in `outputs/queue/`. **Every gate said GO at its
+first try.** Each run package records `974e281`, clean, and mujoco 3.3.2, and each argv is its
+pre-registered one: checked against the worktree's own dry run of the arm at seed 2.
+
+| Job | Launched | GPU | Gate (Tier 1; Tier 2 passed) | In wandb | Run |
+|---|---|---|---|---|---|
+| `equi-residual-square-arch-wide` 2 | 09:51 | 0 | 226; 578 | 11:12 | [**`h216n857`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/h216n857) |
+| `equi-residual-square-actorln` 2 | 09:57 | 0 | 226; 578 | 11:22 | [**`8sgfkskv`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/8sgfkskv) |
+| `equi-residual-square-criticln` 2 | 10:02 | 1 | 226; 578 | 11:25 | [**`5cj1rbpu`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/5cj1rbpu) |
+| `equi-residual-square-heads` 2 | 10:08 | 1 | 226; 578 | 11:34 | [**`dhhq151o`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/dhhq151o) |
+
+- **The gates:** Tier 2 took 38–40 min each, the four running at once (one alone: about 24 min). Two
+  warnings each, as at every launch since 2026-10-12: the BC policy is not in the worktree's
+  `artifacts/` (the trainer loads it from the main checkout's), and the disk (33 GB free).
+- **Watched** by tmux `parts-watch` (each TRACKed at its wandb start). `long-watch` waits for init0's
+  seed 3.
+- **RAM** at 11:18, three runs still labelling the demos: 78 GB used of 125.
+- **Speed, expected:** the last equivariant runs took 1.87 h per 10k beside another equivariant run on
+  their GPU (`oav5gk76`, `dja2kbb6`), and about 1.42 h beside a ResFiT run (`od8u86i1`); `arch-wide`
+  took 1.57 h beside a ResFiT run (`grvwhcfr`). Each GPU here holds two equivariant runs, two of them
+  larger. So expect about 1.9–2.1 h per 10k, and 150k 29–32 h after each run's wandb start: from
+  about 16:00 to 19:30 on 2026-10-16. That is later than the pre-registration's 23–29 h: its shorter
+  runs shared their GPU with a ResFiT run for some or all of their length, and `oav5gk76`, beside an
+  equivariant run throughout, took 29 h.
+- **Wave 2** (`actor448`, then init0's seed 3) waits in the queue for the first two slots wave 1
+  frees.

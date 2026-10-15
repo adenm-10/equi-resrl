@@ -25,10 +25,10 @@ at least 105 of 250).
 2. **DONE 2026-10-15:** `submit.sh`, `tests/test_sweep_arms.py`, the watcher's group, and their test
    and README rows.
 3. **DONE 2026-10-15:** committed, with this item, and pinned in a worktree.
-4. **NOW:** the queue (`rfe-queue`, `retry/slot_queue.sh`) runs the six jobs: wave 1 (`arch-wide`,
-   `actorln`, `criticln`, `heads`) into the four free slots, then wave 2 (`actor448`, init0 seed 3);
-   `parts-watch` and `long-watch` watch them. The LAUNCHED entry, with run IDs, is due once wave 1
-   is in wandb.
+4. **NOW:** wave 1 runs (EXPERIMENTS.md, 2026-10-15 LAUNCHED): `arch-wide` `h216n857`, `actorln`
+   `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched by `parts-watch`. Wave 2
+   (`actor448`, init0 seed 3) waits in `rfe-queue` for the first two slots wave 1 frees, about
+   2026-10-16 16:00–19:30; its LAUNCHED entry then.
 5. Readouts: NOTEs at 150k; seed 3 of the best one or two better than init0; then by the
    pre-registration's "what follows". Check the disk each session: the wandb cache refills with
    each best upload (STATUS, "Resources").

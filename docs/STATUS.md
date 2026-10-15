@@ -4,9 +4,9 @@
 session-end docs), and this file's own commit after it: `equi-arch-parts-1015`'s pre-registration,
 its four new arms in `submit.sh`, the tests and the watcher. No agent code changed since `0b14c17`.
 
-**Next session: `equi-arch-parts-1015` is running** ([the plan](plans/2026-10-15-equi-arch-parts.md),
-`docs/plans/`, local, not in git; its phase 5 lists the readouts and when they fall). Write its
-LAUNCHED entry if it is not written, then the readouts as they come.
+**Next session: `equi-arch-parts-1015`'s wave 1 is running** ("Running now" below;
+[the plan](plans/2026-10-15-equi-arch-parts.md), `docs/plans/`, local, not in git, phase 5 lists the
+readouts). Next: its readouts as they come, and wave 2's LAUNCHED entry when the queue starts it.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -195,13 +195,14 @@ base can win it back late, and every equivariant run since has (2026-10-15 NOTE)
 **`equi-arch-parts-1015`, from about 10:00 on 2026-10-15** (EXPERIMENTS.md, 2026-10-15
 PRE-REGISTERED and AMENDMENT). Every arm at seed 2 on the init0 anchor, each paired with `oav5gk76`;
 main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
-- **Wave 1,** queued into the four free slots: `arch-wide`, `actorln`, `criticln`, `heads`.
-- **Wave 2,** into the first two slots wave 1 frees: `actor448`, then `equi-residual-square-init0-long`
-  seed 3 (from `0b14c17`, `equi-residual-long-1012`).
-- **Due:** training starts about 1 h 15 min after each launch; the 10k eval at about +4 h; wave 1's
-  150k on 2026-10-16, from about 09:30 to 15:30 if it runs at the 23–29 h equivariant runs took;
-  wave 2's on 2026-10-17. The LAUNCHED entry, with run IDs, is due once all four of wave 1 are in
-  wandb.
+- **Wave 1, running** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; every gate GO at its first try):
+  `arch-wide` `h216n857` and `actorln` `8sgfkskv` on GPU 0, `criticln` `5cj1rbpu` and `heads`
+  `dhhq151o` on GPU 1, in wandb from 11:12 to 11:34.
+- **Wave 2, queued** into the first two slots wave 1 frees: `actor448`, then
+  `equi-residual-square-init0-long` seed 3 (from `0b14c17`, `equi-residual-long-1012`).
+- **Due:** with two equivariant runs on each GPU, about 1.9–2.1 h per 10k (LAUNCHED entry), so the
+  10k evals from about 13:30 and wave 1's 150k on 2026-10-16, about 16:00 to 19:30. Wave 2 then
+  runs to 2026-10-17 evening or later.
 
 Every run finished up to 2026-10-15, with its readouts, is in EXPERIMENTS.md (that date's LAUNCHED
 and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 23–29 h, two per GPU.
