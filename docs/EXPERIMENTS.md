@@ -7541,3 +7541,33 @@ pre-registered one: checked against the worktree's own dry run of the arm at see
   equivariant run throughout, took 29 h.
 - **Wave 2** (`actor448`, then init0's seed 3) waits in the queue for the first two slots wave 1
   frees.
+
+---
+
+## 2026-10-15 — MEASUREMENT — wave 1's speed and memory, at about 3k steps
+
+Read at 12:20 from each run's live record and from `/proc`.
+
+- **Speed** (training rows after the step-0 eval):
+
+  | Run | Step-0 eval | Steps per hour | Per 10k, with its eval | 150k due (2026-10-16) |
+  |---|---|---|---|---|
+  | `h216n857` `arch-wide` | 11:36 (0.58) | 5,070 | 2.02 h | about 17:50 |
+  | `8sgfkskv` `actorln` | 11:48 (0.40) | 5,400 | 1.90 h | about 16:20 |
+  | `5cj1rbpu` `criticln` | 11:50 (0.34) | 5,470 | 1.88 h | about 16:00 |
+  | `dhhq151o` `heads` | 12:02 (0.40) | 5,140 | 1.99 h | about 17:55 |
+
+  - The calibration: `oav5gk76` ran at 5,370 steps per hour over its first 3k steps and 5,460–5,510
+    from 3k to 130k, and each 10k with its eval took 1.88 h. So an early rate holds, and an eval adds
+    about 0.05 h.
+  - The larger arms run about 6% slower than their neighbours on the same GPU.
+  - The step-0 evals are the base policy (B_sq = 0.582); they decide nothing.
+- **Memory: a run is its trainer and 11 worker processes.** At about 3k steps, by anonymous memory: each
+  trainer 9.8–12.7 GB, and each run's workers 10.5–10.7 GB together. 100 GB in use, 23.7 GB available,
+  1.2 GB in swap.
+  - A trainer grows as its buffer fills, from about 11 GB to 23 GB by 150k (`oav5gk76`'s RSS). So a
+    run is about 34 GB at 150k, which matches the earlier "about 20 GB at start and 35 GB by 150k"
+    (2026-10-13 PRE-REGISTERED): that count included the workers.
+  - Four runs at 150k come to about 136 GB, against 125 GB of RAM. Expect about 10 GB in swap near the
+    end, most likely the workers' memory between evals, so evals may slow. `oav5gk76` showed no
+    slowdown at 120k–130k in the last four-run overlap.

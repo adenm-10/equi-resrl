@@ -200,9 +200,11 @@ main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
   `dhhq151o` on GPU 1, in wandb from 11:12 to 11:34.
 - **Wave 2, queued** into the first two slots wave 1 frees: `actor448`, then
   `equi-residual-square-init0-long` seed 3 (from `0b14c17`, `equi-residual-long-1012`).
-- **Due:** with two equivariant runs on each GPU, about 1.9–2.1 h per 10k (LAUNCHED entry), so the
-  10k evals from about 13:30 and wave 1's 150k on 2026-10-16, about 16:00 to 19:30. Wave 2 then
-  runs to 2026-10-17 evening or later.
+- **Due** (measured, 2026-10-15 MEASUREMENT): 1.88–2.02 h per 10k, so the 10k evals at about
+  13:40–14:00, and wave 1's 150k on 2026-10-16 at about 16:00 (`criticln`), 16:20 (`actorln`),
+  17:50 (`arch-wide`) and 17:55 (`heads`). Wave 2 then launches into the first two freed slots
+  (about 16:10 and 16:25) and reaches 150k on 2026-10-17, from mid-afternoon to near midnight
+  depending on what shares its GPUs.
 
 Every run finished up to 2026-10-15, with its readouts, is in EXPERIMENTS.md (that date's LAUNCHED
 and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 23–29 h, two per GPU.
@@ -225,12 +227,12 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 
     before `534cc71`, so their eval Q overlays keep the old error and they log no `eval/tilt_*`; the
     field test, run from `534cc71`, has both.
   - `fk9ayyco` (from `60fce72`) has neither, as Aden chose: its evals and videos suffice.
-- **Resources: four runs fill the machine's 125 GB of RAM.** In the last four-run overlap (10-14
-  03:00–06:24, three equivariant runs near 150k and one ResFiT run), available memory sat at
-  0.3–0.7 GB and about 1 GB went to swap (225 GB). No run was lost. Each trainer's process peaks at
-  23–24 GB, and the rest of a run accounts for the remainder. `equi-arch-parts-1015`'s wave 1 reaches
-  the same point near 150k. About 9.9 GB of GPU memory per run: two runs peak at 21–23 GB of a
-  24.5 GB GPU.
+- **Resources: four runs fill the machine's 125 GB of RAM.** A run is its trainer and 11 worker
+  processes: about 21–23 GB at start (the workers 10.6 GB of it), and about 34 GB at 150k as the
+  trainer's buffer grows (EXPERIMENTS.md, 2026-10-15 MEASUREMENT). In the last four-run overlap (10-14
+  03:00–06:24) available memory sat at 0.3–0.7 GB and about 1 GB went to swap (225 GB), with no run
+  lost and no slowdown. Wave 1's four at 150k come to about 136 GB, so expect about 10 GB in swap near
+  the end. About 9.9 GB of GPU memory per run: two runs peak at 21–23 GB of a 24.5 GB GPU.
   - **The disk had 31 GB free at 09:05 on 2026-10-15,** after the wandb artifact cache was cleared
     (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it

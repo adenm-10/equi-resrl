@@ -28,7 +28,7 @@ at least 105 of 250).
 4. **NOW:** wave 1 runs (EXPERIMENTS.md, 2026-10-15 LAUNCHED): `arch-wide` `h216n857`, `actorln`
    `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched by `parts-watch`. Wave 2
    (`actor448`, init0 seed 3) waits in `rfe-queue` for the first two slots wave 1 frees, about
-   2026-10-16 16:00–19:30; its LAUNCHED entry then.
+   2026-10-16 16:00–16:25 (measured; STATUS, "Running now"); its LAUNCHED entry then.
 5. Readouts: NOTEs at 150k; seed 3 of the best one or two better than init0; then by the
    pre-registration's "what follows". Check the disk each session: the wandb cache refills with
    each best upload (STATUS, "Resources").
