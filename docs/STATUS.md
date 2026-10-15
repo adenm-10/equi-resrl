@@ -1,11 +1,12 @@
 # Status
 
-**Last updated:** 2026-10-15, about 09:00 · **Last verified commit:** `25b22aa`
-(`resfit-ln-place-1013`'s pre-registration and arms, whose six runs launched from it and finished),
-with `8951bc0` and the 2026-10-15 session-end docs after it. No code changed since `25b22aa`.
+**Last updated:** 2026-10-15, about 10:00 · **Last verified commit:** `51c62dc` (the 2026-10-15
+session-end docs), and this file's own commit after it: `equi-arch-parts-1015`'s pre-registration,
+its four new arms in `submit.sh`, the tests and the watcher. No agent code changed since `0b14c17`.
 
-**Next session: start from [the plan](plans/2026-10-15-equi-arch-parts.md)** (`docs/plans/`, local,
-not in git): `equi-arch-parts-1015`, which part of ResFiT's layout helps the equivariant residual.
+**Next session: `equi-arch-parts-1015` is running** ([the plan](plans/2026-10-15-equi-arch-parts.md),
+`docs/plans/`, local, not in git; its phase 5 lists the readouts and when they fall). Write its
+LAUNCHED entry if it is not written, then the readouts as they come.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -15,8 +16,8 @@ This file describes what is true right now. Rewrite it in place; do not append. 
 **New on 2026-10-15** (EXPERIMENTS.md, that date's NOTEs and DEVIATION):
 - **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.** At two seeds
   each, 110k–150k: actor's off 0.144 and 0.264; critic's off 0.776 and 0.720; the ViTs' off 0.792
-  and 0.800 (to 130k); both actor's and critic's off (`noln`) 0.032 at both; the anchors 0.714
-  pooled.
+  and 0.812; both actor's and critic's off (`noln`) 0.032 at both; the anchors 0.714 pooled.
+  `resfit-ln-place-1013` is complete (`vqzx1ir9` ended at 09:03).
   - Without the actor's LayerNorm the residual is near its cap within 3k steps (0.07 of 0.1,
     against 0.03), its actor's gradient then falls, and its online value stays near zero.
   - **By the registered rule** (10k–30k at most 39 of 150 "breaks"), `noln-critic` breaks at both
@@ -37,7 +38,8 @@ This file describes what is true right now. Rewrite it in place; do not append. 
   still `arch-wide` (0.12 at 10k, stopped there on 2026-10-13).
 - **Aden's decisions (2026-10-15):** the focus turns to the equivariant residual; `noln-vit`'s seed
   3 is set aside; next, `arch-wide` again to 150k beside each of its four parts alone on the init0
-  anchor, with the late window as the main readout ([the plan](plans/2026-10-15-equi-arch-parts.md)).
+  anchor, with the late window as the main readout. Pre-registered as `equi-arch-parts-1015`
+  (EXPERIMENTS.md, 2026-10-15 PRE-REGISTERED), with init0's seed 3 (that date's AMENDMENT).
 
 **New on 2026-10-13: without LayerNorm, ResFiT's residual fails as the equivariant one does**
 (EXPERIMENTS.md, 2026-10-13 NOTE). `noln` (`c1xca5uk`) lost the base by 10k (0 of 150 at 10k–30k)
@@ -190,25 +192,29 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 2026-10-12 AMENDMENT, "every run to a fixed 150k", Aden). The reason: a residual that loses the
 base can win it back late, and every equivariant run since has (2026-10-15 NOTE).
 
-**On 2026-10-15 at 09:00 one run is left,** `vqzx1ir9` (`noln-vit` 2, the last of
-`resfit-ln-place-1013`): 0.86 at 130k, ending about 09:30. Its 150k readout is the plan's step 0.2.
-The queue launched its last job at 2026-10-14 23:57 and is empty; three of the four GPU slots stand
-idle. Nothing else is queued: the next experiment waits for its pre-registration
-([the plan](plans/2026-10-15-equi-arch-parts.md), phases 1–4).
+**`equi-arch-parts-1015`, from about 10:00 on 2026-10-15** (EXPERIMENTS.md, 2026-10-15
+PRE-REGISTERED and AMENDMENT). Every arm at seed 2 on the init0 anchor, each paired with `oav5gk76`;
+main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
+- **Wave 1,** queued into the four free slots: `arch-wide`, `actorln`, `criticln`, `heads`.
+- **Wave 2,** into the first two slots wave 1 frees: `actor448`, then `equi-residual-square-init0-long`
+  seed 3 (from `0b14c17`, `equi-residual-long-1012`).
+- **Due:** training starts about 1 h 15 min after each launch; the 10k eval at about +4 h; wave 1's
+  150k on 2026-10-16, from about 09:30 to 15:30 if it runs at the 23–29 h equivariant runs took;
+  wave 2's on 2026-10-17. The LAUNCHED entry, with run IDs, is due once all four of wave 1 are in
+  wandb.
 
-Every run finished since 2026-10-13, with its readouts, is in EXPERIMENTS.md: 2026-10-15 LAUNCHED (run
-IDs, gates) and that date's NOTEs. A ResFiT run took 11–13 h from launch to 150k, an equivariant
-one 23–29 h, two per GPU.
+Every run finished up to 2026-10-15, with its readouts, is in EXPERIMENTS.md (that date's LAUNCHED
+and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 23–29 h, two per GPU.
 
 - **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`
   (the name is historical). Each job goes into the first slot to have been free for 300 s, two runs
   per GPU, and gets its own tmux session, `q-<arm>-<seed>`. A launch its gate stops is tried again,
-  up to 3 tries 600 s apart (2026-10-13 LAUNCHED); no gate has needed it yet. Its log is
+  up to 3 tries 600 s apart (2026-10-13 LAUNCHED). Its log is
   `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`, which is
   gitignored (TODO: move them into `tools/`).
-- **Watchers** (`tools/square_rerendered_watch.py`): `long-watch` (`equi-residual-long-1012`, from
-  `0b14c17`) stays, for the plan's init0 seed 3. `ln-watch`, `rfe-watch` and `tilt-watch` have no
-  run left once `vqzx1ir9` ends, and can be stopped (the plan's step 0.2).
+- **Watchers** (`tools/square_rerendered_watch.py`): `parts-watch` (`equi-arch-parts-1015`, from its
+  pinned worktree) and `long-watch` (`equi-residual-long-1012`, from `0b14c17`, for init0's seed 3).
+  `ln-watch`, `rfe-watch` and `tilt-watch` were stopped at 09:06 on 2026-10-15, with no run left.
 - **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells; the old queue
   runners `gpu0`, `gpu1` and `gpu1-bars` are idle too.
 
@@ -218,12 +224,20 @@ one 23–29 h, two per GPU.
     before `534cc71`, so their eval Q overlays keep the old error and they log no `eval/tilt_*`; the
     field test, run from `534cc71`, has both.
   - `fk9ayyco` (from `60fce72`) has neither, as Aden chose: its evals and videos suffice.
-- **Resources:** about 20 GB of RAM per run at start and 35 GB by 150k; about 9.9 GB of GPU memory
-  per run, so two per GPU. **The disk had 11.6 GB free at 08:30 on 2026-10-15,** down from 29.6 GB
-  on 2026-10-13: about 0.4 GB an hour with four runs. The wandb artifact cache holds 22 GB (copies
-  of uploaded best models); the base policies are in `artifacts/` (2.4 GB), so it can be cleared,
-  and the plan's step 0.1 does that first. The old worktrees are about 4 MB each. Equivariant
-  checkpoints are 87 MB each and ResFiT's 223 MB.
+- **Resources: four runs fill the machine's 125 GB of RAM.** In the last four-run overlap (10-14
+  03:00–06:24, three equivariant runs near 150k and one ResFiT run), available memory sat at
+  0.3–0.7 GB and about 1 GB went to swap (225 GB). No run was lost. Each trainer's process peaks at
+  23–24 GB, and the rest of a run accounts for the remainder. `equi-arch-parts-1015`'s wave 1 reaches
+  the same point near 150k. About 9.9 GB of GPU memory per run: two runs peak at 21–23 GB of a
+  24.5 GB GPU.
+  - **The disk had 31 GB free at 09:05 on 2026-10-15,** after the wandb artifact cache was cleared
+    (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
+  - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
+    grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
+    the disk falls below about 10 GB. Each run's current best is also in its run package's
+    `wandb_best/`.
+  - The old worktrees are about 4 MB each. Equivariant checkpoints are 87 MB each and ResFiT's
+    223 MB.
 - **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (`fk9ayyco`) and
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every
   watcher action, and consoles are in `outputs/queue/`.
@@ -240,8 +254,9 @@ one 23–29 h, two per GPU.
   README's env, with torch 2.7.1+cu128 and torchvision 0.22.1+cu128 in place of the 2.14.1 its
   unpinned install gives, which cannot load torchcodec 0.4.0 or torchrl 0.9.2's extension. Freeze
   files beside the clone. Launcher: `~/projects/resfit-upstream-runs/launch.sh`.
-- **RAM:** about 15 GB per Can tuned-RLPD run at 30k. Two Square residual runs at 40.3 GiB each
-  fit; a third does not.
+- **RAM:** 125 GB, and 225 GB of swap. About 15 GB per Can tuned-RLPD run at 30k. Square runs:
+  four at once fill it near 150k (Running now, "Resources"). The older count of 40.3 GiB per Square
+  residual run, with two fitting and not a third, predates 2026-10-13, when four first ran at once.
 - **Disk:** 34 GB free on 2026-10-12, before `residual-tilt-1012`'s checkpoints (up to 5.4 GB).
   Two cache deletions on 2026-10-07, with Aden's approval: upstream's buffer caches (21 GB) and
   `online_buffer_cache/66c46c51` (16 GB, Square, frames from mujoco 3.8.1, which the new key cannot
@@ -329,7 +344,7 @@ one 23–29 h, two per GPU.
 
 ## The plan, and why
 
-**0. Now: which part of ResFiT's layout helps the equivariant residual** (`equi-arch-parts-1015`;
+**0. Running: which part of ResFiT's layout helps the equivariant residual** (`equi-arch-parts-1015`;
 [the plan](plans/2026-10-15-equi-arch-parts.md), TODO B17). Why: ResFiT's residual needs its actor's
 LayerNorm and tolerates the equivariant action space, and the one equivariant run with ResFiT's
 layout (`arch-wide`, four changes) was the only one not at zero at 10k. So `arch-wide` reruns to 150k

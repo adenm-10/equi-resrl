@@ -17,6 +17,46 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-15 (morning) — `equi-arch-parts-1015` pre-registered and queued; `resfit-ln-place-1013` complete; the wandb cache cleared
+
+**Found**
+
+- `vqzx1ir9` (`noln-vit` 2) ended at 0.812 at 110k–150k, so both `noln-vit` seeds are at ResFiT's
+  level late (0.792, 0.812). `resfit-ln-place-1013` is complete, and its reading stands: the actor's
+  LayerNorm is the one ResFiT's residual needs.
+- **The wandb artifact cache** (23 GB) held copies of each run's current best upload (7.0 GB, each
+  also in its run package's `wandb_best/`), of the v9 base policy (0.4 GB, also in `artifacts/`),
+  and about 16 GB of best uploads that later bests had superseded, which wandb had already deleted.
+  Nothing an analysis reads. Cleared with Aden's approval: 31 GB free.
+- **Four runs fill the machine's RAM.** In the last four-run overlap (10-14 03:00–06:24) available
+  memory sat at 0.3–0.7 GB and about 1 GB went to swap, with no run lost. A trainer's own RSS
+  (23–24 GB) undercounts a run, so the system's available memory is the measure to watch.
+- **The "every input moves the critic" test measured the heads' mean, which can cancel.** `heads`
+  failed it, with the arm's height at 6.2e-5, though each of its ten heads moves by at least 1.9e-3.
+  It now requires every head to see every input, with the bar re-measured between the two groups
+  (1e-5: working heads at least 1.1e-4, FieldNorm's blind inputs at most 1.7e-6). The gate runs
+  this file, so the old test would have stopped every launch from this commit.
+
+**Decided (Aden, 2026-10-15):** commit the session-end docs (`51c62dc`), keep the pptx out of git,
+clear the cache, and run the plan as written.
+
+**Done**
+
+- EXPERIMENTS.md: `vqzx1ir9`'s NOTE (with the cache cleanup), `equi-arch-parts-1015`'s
+  PRE-REGISTERED entry, and the AMENDMENT running init0's seed 3 now.
+- `submit.sh`: the four new arms, and `arch-wide` launching into the new group.
+  `tests/test_sweep_arms.py`: the arms in every table; each part arm's layout; at seed 2, `actorln`
+  and `criticln` start from the anchor's weights bit for bit less their RegularLayerNorms,
+  `actor448` from its encoder and critic, `heads` and `arch-wide` from its encoder.
+  `tools/square_rerendered_watch.py`: the group, to a fixed 150k. The helper that drops norms from a
+  weight list now takes the norm classes to drop.
+- STATUS, TODO B17, tests/README.md.
+
+**Next:** the LAUNCHED entry once wave 1 is in wandb; the 10k readouts (reported only) at about +4 h;
+wave 1's 150k on 2026-10-16.
+
+---
+
 ## 2026-10-13 (afternoon) to 2026-10-15 — ResFiT needs its actor's LayerNorm; the action space is ruled out; the equivariant baseline's 150k reference; the plan for `equi-arch-parts-1015`
 
 **Found** (EXPERIMENTS.md, 2026-10-15 NOTEs)

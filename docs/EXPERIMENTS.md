@@ -7264,3 +7264,247 @@ Aden's decisions, 2026-10-15, after the NOTEs above:
   before any of its runs launch.
 - **Disk:** 11.6 GB free at 08:30. The wandb artifact cache holds 22 GB (+18 GB since 2026-10-13);
   the plan clears it first.
+
+---
+
+## 2026-10-15 — NOTE — `vqzx1ir9` (`noln-vit` 2) at 150k: `resfit-ln-place-1013` is complete; the wandb artifact cache cleared
+
+`resfit-ln-place-1013`'s last run (2026-10-13 PRE-REGISTERED) reached 150k and exited at 09:03,
+package complete, from `25b22aa`, clean.
+
+- **Evals 0, 10k, …, 150k:** 0.56, 0.20, 0.20, 0.34, 0.30, 0.52, 0.56, 0.52, 0.62, 0.64, 0.76,
+  0.84, 0.70, 0.86, 0.72, 0.94.
+- **10k–30k:** 37 of 150, so it breaks by the rule, as the NOTE above recorded. **110k–150k:** 203 of
+  250, **0.812**.
+- **`noln-vit` at both seeds:** 0.792 and 0.812 late (401 of 500, 0.802), at or above the anchors'
+  0.714. The anchors' own two seeds differ by about 4 SE (0.800, 0.628), so this is not read as a
+  gain. The verdict stands as the NOTE above gave it: the seeds disagree by the 10k–30k rule, so no
+  verdict, and seed 3 is set aside (DEVIATION above).
+- **The group at 110k–150k, complete:** `noln-actor` 0.144 and 0.264; `noln-critic` 0.776 and 0.720;
+  `noln-vit` 0.792 and 0.812. The NOTE's reading stands: the actor's LayerNorm is the one ResFiT's
+  residual needs.
+- **Reported:** `train/residual_l1_magnitude` 0.025 at 0–3k (the anchors' 0.029–0.030);
+  `train/actor_grad_norm` 0.132 and `debug/q_data_online` 0.194 at 120k–150k (means); no critic value
+  above 1.5 (the largest 0.513).
+- **Watchers:** `ln-watch`, `rfe-watch` and `tilt-watch` stopped at 09:06, since their groups have no
+  run left. `long-watch` stays for `equi-residual-long-1012`.
+- **The wandb artifact cache was cleared** with `wandb artifact cache cleanup 2GB` at about 09:05,
+  with Aden's approval, once `vqzx1ir9` had exited and no wandb process was left. It reclaimed 21.7 GB, leaving 1.8 GB, so the
+  disk went from 11 GB free to 31 GB. What it held, checked against every run package first:
+  - copies of each run's current best upload: 7.0 GB, each also in its run package's `wandb_best/`
+    (the same files by md5, in every package since 2026-10-08) and on wandb;
+  - the v9 base policy: 0.4 GB, also in `artifacts/`, where the trainer loads it;
+  - about 16 GB that were only there: the best uploads a run's later, better eval superseded, which
+    `upload_best` had already deleted from wandb by design. For example, wandb holds `bue9dupf`'s
+    v4 alone.
+  - No eval history, config, video or checkpoint was in it. The cache fills again with each new
+    best upload: it grew 18 GB in the two days before.
+
+---
+
+## 2026-10-15 — PRE-REGISTERED — the equivariant residual on Square with each part of ResFiT's layout alone, and all four again (`equi-arch-parts-1015`)
+
+**Question** (Aden, 2026-10-15; (2b) of the 2026-10-13 question order: how to do in the equivariant
+residual what LayerNorm does for ResFiT's). ResFiT's residual needs its actor's LayerNorm (NOTEs
+above), and the equivariant stack's action limits and noise do not break ResFiT's residual
+(`limits` 0.800, `noise` 0.824). The one equivariant residual with ResFiT's layout, `arch-wide`
+(`grvwhcfr`, four changes at once), scored 0.12 at 10k, where every other one on these demos
+scored 0.00–0.02 (3 of 300 pooled). It was stopped there (2026-10-13 DEVIATION). Does any of its
+four parts, alone, lift the equivariant residual above init0 late? Do all four together, run to
+150k?
+
+**Seed group `equi-arch-parts-1015`**, seed 2 of each arm, in two waves (Launch, below).
+- **Names:** `<arm>-<seed>`; notes `equi-arch-parts-1015/<arm>/seed<seed>`; wandb
+  `robomimic-square-final` / `equi-residual-rl`.
+- **The anchor** is `eaqorqki`'s launch (`square-residual-start-1011`, `0af7655`), to 150k:
+  `--config-name=residual_equi_td3_square_config equivariance.residual_squash=true
+  agent.critic.num_q=5 base_policy.wt_version=v9
+  offline_data.name=local/robomimic-mh-square-rerendered agent.actor.actor_last_layer_init_scale=0.0
+  algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false seed=<seed>
+  debug=false`.
+- At seed 2 that launch is **`oav5gk76`** (`equi-residual-square-init0-long` 2, from `0b14c17`,
+  150k: 0.332 at 110k–150k). Every arm is compared with it, and at seed 2 each pairs with it.
+
+| Arm | Change from the anchor | Wave |
+|---|---|---|
+| `equi-residual-square-arch-wide` | all four below: `equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2 equivariance.actor_degree_channel=448`, as `equi-resfit-arch-1013`'s AMENDMENT set it (its seed 1, `grvwhcfr`, stopped at 10k) | 1 |
+| `equi-residual-square-actorln` | `equivariance.actor_norm=layer_norm`: RegularLayerNorm after each of the actor's three hidden Linears (its visual projection, its trunk and its one policy layer) | 1 |
+| `equi-residual-square-criticln` | `equivariance.critic_norm=layer_norm`: RegularLayerNorm after the critic's two projections (visual, trunk) and each head's hidden Linear, 2 + 5 × 1 = 7 | 1 |
+| `equi-residual-square-heads` | `agent.critic.num_q=10 equivariance.num_critic_layers=2`: ResFiT's 10 heads of 2 hidden layers | 1 |
+| `equi-residual-square-actor448` | `equivariance.actor_degree_channel=448`: the actor's three hidden layers at 448 regular fields | 2 |
+
+- **RegularLayerNorm** is in the places of ResFiT's LayerNorm. It normalizes each sample over all its
+  channels, as torch's does, but its scale and shift are shared by a field's 8 channels, which keeps
+  it equivariant; torch's per-channel affine would not be (EQUIVARIANCE.md). It starts at scale 1 and
+  shift 0, LayerNorm's own start.
+- **Parameter counts,** measured 2026-10-15 on the arms' composed configs (the sweep's test builder):
+
+  | | Encoder | Actor | Critic |
+  |---|---|---|---|
+  | The anchor (`oav5gk76`) | 0.627M | 0.305M | 0.839M |
+  | `actorln` | 0.627M | 0.306M | 0.839M |
+  | `criticln` | 0.627M | 0.305M | 0.840M |
+  | `heads` | 0.627M | 0.305M | 2.819M |
+  | `actor448` | 0.627M | 3.361M | 0.839M |
+  | `arch-wide` | 0.627M | 3.364M | 2.824M |
+  | ResFiT's residual (`oj5k0jqb`, 2026-10-12) | 0.76M | 3.86M | 23.6M |
+
+- **Config caveats:** `equivariance.num_actor_layers` is dead (logged as 2; the actor has one policy
+  layer whatever its value), so no arm changes the actor's depth, which is ResFiT's already (the
+  2026-10-12 AMENDMENT). `equivariance.initialize` reaches the encoder only.
+
+**What varies, and what is held.**
+- Each arm's change alone. `arch-wide`'s four are declared as one.
+- **The starting weights,** at seed 2 (`tests/test_sweep_arms.py`). The agent builds its encoder,
+  then its critic, then its actor.
+  - `actorln` and `criticln`: the anchor's bit for bit, less their RegularLayerNorms', which draw no
+    random number.
+  - `actor448`: the anchor's encoder and critic; its larger actor is drawn after them.
+  - `heads` and `arch-wide`: the anchor's encoder; their larger critics draw more numbers, so their
+    critics and actors differ.
+  - The episodes differ between runs, as always: `seed` does not reach the envs.
+- **The code** is this commit's. `git diff 0b14c17` (`oav5gk76`'s commit) touches no file under
+  `resfit/`, and the equivariant agent is pinned by `tests/test_regression_agent.py`'s goldens.
+- **The slots:** two runs per GPU, as `oav5gk76` ran. Wave 1 is the first wave of four equivariant
+  runs at once, and two of them are larger. That changes how long the runs take, not what they
+  compute.
+
+**Rules.** The watcher enforces them (`--group equi-arch-parts-1015`).
+- **To a fixed 150k,** stopped only on the divergence stop.
+- **The main readout:** the 110k–150k evals pooled (250 episodes), against `oav5gk76`'s 83 of 250
+  (0.332).
+  - **Better than init0** iff above 0.332 by two standard errors,
+    √(p(1−p)/250 + 0.332·0.668/250): **at least 105 of 250** (0.42).
+  - **Back to the base** iff not below B_sq = 0.582 (500 episodes) by two standard errors,
+    √(p(1−p)/250 + 0.582·0.418/500): **at least 127 of 250**.
+  - **ResFiT's level** iff not below the ResFiT anchors' 0.714 (`oj5k0jqb` and `s8opblsd`, 500
+    episodes) by two standard errors: **at least 161 of 250**.
+- **Why the late window, not 10k–30k:** the 10k–30k bar of `resfit-ln-place-1013` sat inside seed
+  spread (the ResFiT anchor's own seed 2 scored under it), and the late window separated every ResFiT
+  arm cleanly (the NOTEs above). The bar of 105 is 0.088 above init0. That is about 1.5 times the
+  late gap between the baseline's two seeds (0.272 and 0.216) and between init0 and the baseline at
+  seed 2 (0.332 and 0.272). One seed against one seed, so a pass is followed by a seed 3.
+- **Seed 3** of each arm better than init0 at 150k, the two highest if more than two qualify, from
+  this commit, into the first free slot.
+- **What follows:**
+  - One part alone better than init0: that part is the equivariant residual's answer to (2b). Its
+    seed 3, then whether it reaches ResFiT's level.
+  - `arch-wide` better, and no single part: a wave of `arch-wide` less one part at a time.
+  - Nothing better than init0: the encoder (the equivariant CNN against ResFiT's ViT) is the next
+    difference. Then the scalar ablation of this stack as a control (STATUS, "What is not").
+- **Reported, deciding nothing:**
+  - the 10k eval and 10k–30k pooled, against `oav5gk76`'s 0.00 and 10 of 150, the baseline's 0 and
+    7 (`od8u86i1`, `dja2kbb6`), and `grvwhcfr`'s 0.12 at 10k;
+  - the first eval at or above 0.30, and the best eval (no equivariant residual on these demos has
+    scored above 0.44 after step 0: `oav5gk76` at 140k);
+  - the signs ResFiT's working runs show (NOTEs above; ARCHITECTURE.md, "Reading the critic and actor
+    diagnostics"):
+    - `train/residual_l1_magnitude` at 0–3k: about 0.03 in ResFiT's anchors, 0.002–0.005 in the
+      equivariant baseline, and 0.07 in ResFiT without its actor's LayerNorm;
+    - `train/actor_grad_norm`: rising in ResFiT (0.06 to 0.13–0.42), against flat (equivariant,
+      0.004–0.007) or falling (ResFiT without its actor's LayerNorm);
+    - `debug/q_data_online`: positive by about 5k and climbing to about 0.2 in ResFiT, against −0.04
+      to +0.03 throughout in the equivariant runs;
+    - `debug/q_advantage`: about 2% of `debug/q_base_only_mean` in ResFiT, about 1% in the
+      equivariant runs;
+  - `eval/tilt_over_30deg_frac`, and critic values above 1.5 (the watcher's FLAG).
+- **No checkpoints** (87 MB each for the anchor's agent, more for the larger arms), as in
+  `equi-residual-long-1012`.
+
+**Predictions** (Claude's, before launch):
+1. `actorln` is better than init0. Low confidence. ResFiT's lesson is its actor's LayerNorm, but
+   ResFiT without it fails the opposite way: a residual at its cap within 3k. The equivariant
+   residual is too slow instead (0.002–0.005 at 3k, its actor's gradient flat).
+2. `arch-wide` is better than init0. Low-to-moderate confidence: its 0.12 at 10k, one eval of one
+   seed.
+3. `criticln`, `heads` and `actor448` are each not better than init0. Low confidence.
+4. No arm is back to the base (127 of 250). Moderate confidence: no equivariant residual has scored
+   above 0.44 at any eval after step 0.
+
+**Launch.** Through `outputs/queue/launchers/retry/slot_queue.sh` (tmux `rfe-queue`), from this
+entry's commit in its own pinned worktree. Each job goes into the first slot free for 300 s, two per
+GPU. A launch its gate stops is tried again, up to 3 times 600 s apart.
+
+| # | Job | Seed | From | Wave |
+|---|---|---|---|---|
+| 1 | `equi-residual-square-arch-wide` | 2 | this commit | 1 |
+| 2 | `equi-residual-square-actorln` | 2 | this commit | 1 |
+| 3 | `equi-residual-square-criticln` | 2 | this commit | 1 |
+| 4 | `equi-residual-square-heads` | 2 | this commit | 1 |
+| 5 | `equi-residual-square-actor448` | 2 | this commit | 2 |
+| 6 | `equi-residual-square-init0-long` | 3 | `0b14c17` | 2 (AMENDMENT below) |
+
+- Wave 1 fills the four free slots. Wave 2 takes the first two slots wave 1 frees. Seed 3s join after
+  wave 1's readouts.
+- **Watchers:** tmux `parts-watch`, from this commit, for the group; `long-watch` (from `0b14c17`)
+  for init0's seed 3.
+- **No smoke runs:** `grvwhcfr`'s first 10k measured `arch-wide`'s speed (about 1 h 35 min per 10k,
+  beside one run) and its RAM, and the single-part arms are smaller.
+
+**Resources and timeline.**
+- **Speed:** equivariant runs took 23–29 h from launch to 150k, two per GPU (`od8u86i1`, `dja2kbb6`,
+  `oav5gk76`), and about 1 h 15 min from launch to training (the gate, then labelling the demos).
+  The larger arms may be slower.
+- **RAM: four runs fill the machine's 125 GB.** Each trainer's own process peaks at 23–24 GB
+  (`proc.memory.rssMB`: `oav5gk76`, `od8u86i1`, `dja2kbb6`, and ResFiT's `xjdldyvu`), but that leaves
+  out the rest of a run. The system's own count is the one that matters: in the last four-run
+  overlap (three equivariant runs at about 110k–150k and `xjdldyvu`, 10-14 03:00–06:24), available
+  memory sat at 0.3–0.7 GB for three hours, and about 1 GB went to swap (225 GB of it). No run was
+  lost or stopped. Wave 1's four reach that point together, near 150k, so expect the same. The
+  larger arms add only megabytes of weights; the buffers dominate.
+- **GPU memory:** two runs on one 24.5 GB GPU have peaked at 21–23 GB (`oav5gk76`'s; `grvwhcfr`'s
+  with a ResFiT run beside it). The queue fills GPU 0 first, so `arch-wide` and `actorln` share GPU
+  0, and `criticln` and `heads` GPU 1.
+- **Disk:** 31 GB free after the cache cleanup above. The cache refills with each new best upload,
+  so clear it again if the disk falls below about 10 GB.
+- **Expected:** wave 1 launches about 10:00–10:30 on 2026-10-15, so its 150k falls on 2026-10-16,
+  from about 09:30 (at 23 h) to about 15:30 (at 29 h), later if the larger arms are slower. Wave 2
+  starts as wave 1's first two runs end, and reaches 150k on 2026-10-17.
+
+**Checks before the commit:**
+- `tests/test_sweep_arms.py` and `tests/test_square_rerendered_watch.py`, CPU tier: 128 passed.
+  - Each new arm launches exactly its pre-registered overrides, and composes to `eaqorqki`'s config
+    but for its one change.
+  - `arch-wide` launches into this group with `equi-resfit-arch-1013`'s overrides.
+  - The watcher runs the new group's five arms to a fixed 150k, with the divergence stop.
+- **Each arm's argv against `oav5gk76`'s recorded one** (its manifest, less naming): each adds its
+  change alone, and `heads` and `arch-wide` replace `agent.critic.num_q=5`.
+- **A test fixed before the commit.** On its first GPU run, `heads` failed
+  `test_every_input_can_move_the_critic_and_the_actor`: Q moved by 6.2e-5 with the arm's height,
+  under the bar of 1e-4.
+  - **It is not blind.** The test took the change of the heads' mean Q. Per head, each of `heads`'
+    ten moves by at least 1.9e-3 with the height, as the anchor's five do (at least 1.8e-3). Their
+    signs differ, and at torch seed 0 the mean cancels to 6.2e-5. At seeds 1 and 2 the mean is 3.7e-4
+    and 2.1e-3.
+  - **The fix:** the test now takes each head's change and requires every head to see every input.
+    That is stricter, since a critic blind by its structure is blind in every head.
+  - **The bar is re-measured:** each head moves by at least 1.1e-4 in every arm (`heads`, with the
+    gripper opening), the FieldNorm critic's heads by at most 1.7e-6 with a trivial input, and the
+    actor by at least 7.4e-4. So the bar moves from 1e-4 to 1e-5, between the two.
+  - No run's code changes, and every earlier arm passes under the new measure.
+- `tests/test_sweep_arms.py`, GPU tier on GPU 1, after the fix: **71 passed** (17 min 47 s).
+  - Every arm builds and runs one update.
+  - Each equivariant arm's actor commutes with the group and its critic is invariant, at its own
+    sizes. Every input reaches each of its critic's heads and its actor.
+  - Each part arm has its one part and the anchor's design elsewhere (the counts in the arms table).
+  - At seed 2, `actorln` and `criticln` start from the anchor's weights bit for bit, less their
+    RegularLayerNorms. `actor448` keeps the anchor's encoder and critic, and `heads` and `arch-wide`
+    its encoder.
+  - The ResFiT arms' weight tests pass with the shared helper's new argument (the norm classes to
+    drop).
+
+---
+
+## 2026-10-15 — AMENDMENT — `equi-residual-long-1012`: init0's seed 3 now
+
+Made before the run launches.
+- **What changes:** `equi-residual-square-init0-long` seed 3 launches now, from `0b14c17` as its seed
+  2 did. Before, its rule ran seed 3 only if seed 2 was back to the base at 150k, and seed 2
+  (`oav5gk76`, 0.332) was not.
+- **Why** (Aden, 2026-10-15):
+  - It pairs with the baseline's seed 3 (`dja2kbb6`, 0.216) for a third init0-against-baseline pair.
+    init0 is ahead in the other two (seed 1 at 10k–30k: 3 of 150 against 1; seed 2: 10 against 0,
+    and 0.332 against 0.272 late), by about the baseline's own seed spread.
+  - It gives `equi-arch-parts-1015`'s anchor a second seed.
+- **Its rules and readouts** are seed 2's (2026-10-12 PRE-REGISTERED). `long-watch` enforces them.
+- **Launch:** sixth in `equi-arch-parts-1015`'s queue (above), in wave 2.

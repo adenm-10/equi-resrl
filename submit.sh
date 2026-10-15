@@ -6,15 +6,19 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: ResFiT's residual on Square given the equivariant stack's differences
-# (seed-group resfit-equi-diff-1012), pre-registered in docs/EXPERIMENTS.md, "2026-10-12 —
-# PRE-REGISTERED — ResFiT's residual on Square, given the equivariant stack's differences one at a
-# time; the equivariant residual given ResFiT's layout". Its second group, equi-resfit-arch-1013,
-# is in this table from its amendment of the same date, and equi-residual-long-1012 (the
-# equivariant residual's anchors again, to a fixed 150k) from its own pre-registration, and
-# resfit-ln-place-1013 (which of ResFiT's LayerNorms its residual needs) from "2026-10-13 —
-# PRE-REGISTERED — ResFiT's residual on Square with LayerNorm off in one place". Launch inside tmux
-# from a worktree pinned to a commit, with CACHE_DIR pointing at the main checkout.
+# Currently configured for: which part of ResFiT's layout helps the equivariant residual
+# (seed-group equi-arch-parts-1015), pre-registered in docs/EXPERIMENTS.md, "2026-10-15 —
+# PRE-REGISTERED — the equivariant residual on Square with each part of ResFiT's layout alone, and
+# all four again (equi-arch-parts-1015)". The groups before it stay in this table, each as it
+# launched: resfit-equi-diff-1012 and equi-resfit-arch-1013 ("2026-10-12 — PRE-REGISTERED —
+# ResFiT's residual on Square, given the equivariant stack's differences one at a time; the
+# equivariant residual given ResFiT's layout", and that date's amendment), equi-residual-long-1012
+# (the equivariant residual's anchors again, to a fixed 150k), and resfit-ln-place-1013 (which of
+# ResFiT's LayerNorms its residual needs, "2026-10-13 — PRE-REGISTERED — ResFiT's residual on Square
+# with LayerNorm off in one place"). equi-residual-square-arch-wide now launches into
+# equi-arch-parts-1015; its seed 1 (grvwhcfr) launched into equi-resfit-arch-1013 from 95490f9.
+# Launch inside tmux from a worktree pinned to a commit, with CACHE_DIR pointing at the main
+# checkout.
 #
 #   SMOKE=1 ./submit.sh <arm> <seed> [gpu]   # the arm's own overrides for 1,000 steps after 300
 #                                            # learning starts, no eval, recorded offline in
@@ -87,6 +91,18 @@
 #                                      its input projection and each head's hidden layers.
 #   resfit-residual-square-noln-vit    none in the two ViT encoders (agent.vit.use_layer_norm=false):
 #                                      two per transformer layer and a final one.
+#
+# equi-arch-parts-1015: eaqorqki's launch (the init0 anchor) with arch-wide's four parts, each
+# alone, and all four again, to a fixed 150k at seed 2, which pairs each with oav5gk76 (init0 at
+# seed 2); wandb robomimic-square-final / equi-residual-rl.
+#   equi-residual-square-arch-wide     all four below (as in equi-resfit-arch-1013).
+#   equi-residual-square-actorln       RegularLayerNorm after each of the actor's three hidden
+#                                      Linears (equivariance.actor_norm=layer_norm).
+#   equi-residual-square-criticln      RegularLayerNorm after the critic's two projections and each
+#                                      head's hidden Linear (equivariance.critic_norm=layer_norm).
+#   equi-residual-square-heads         ResFiT's 10 critic heads of 2 hidden layers
+#                                      (agent.critic.num_q=10 equivariance.num_critic_layers=2).
+#   equi-residual-square-actor448      the actor at 448 fields (equivariance.actor_degree_channel=448).
 #
 # Every arm here runs to a fixed 150k, stopped only on the divergence stop (AMENDMENT of
 # 2026-10-12): the watcher, not the run length, carries the rule.
@@ -161,6 +177,14 @@ case "$ARM" in
         ARM_OVERRIDES=("${EQUI_BASE[@]}" agent.critic.num_q=5 agent.actor.actor_last_layer_init_scale=1e-4) ;;
     equi-residual-square-init0-long)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5) ;;
+    equi-residual-square-actorln)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_norm=layer_norm) ;;
+    equi-residual-square-criticln)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.critic_norm=layer_norm) ;;
+    equi-residual-square-heads)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=10 equivariance.num_critic_layers=2) ;;
+    equi-residual-square-actor448)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_degree_channel=448) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
@@ -173,6 +197,9 @@ case "$ARM" in
     resfit-*)
         SEED_GROUP=resfit-equi-diff-1012 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;
+    equi-residual-square-arch-wide|equi-residual-square-actorln|equi-residual-square-criticln|equi-residual-square-heads|equi-residual-square-actor448)
+        SEED_GROUP=equi-arch-parts-1015 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     equi-residual-square-arch*)
         SEED_GROUP=equi-resfit-arch-1013 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

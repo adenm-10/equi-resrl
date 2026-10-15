@@ -1,11 +1,13 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Four seed groups, and each arm
+submit.sh's case table is checked here first. Five seed groups, and each arm
 against its anchor's launch, less the anchor's run length:
   - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
     (resfit-residual-square 1, 9cf207d);
-  - equi-resfit-arch-1013: eaqorqki's (square-residual-start-1011, 0af7655);
+  - equi-resfit-arch-1013 and equi-arch-parts-1015: eaqorqki's
+    (square-residual-start-1011, 0af7655); arch-wide launches into
+    equi-arch-parts-1015 now;
   - equi-residual-long-1012: each arm is its anchor's launch, again: 6ng62tpm's
     (square-rerendered-1009, eb90a0c) and eaqorqki's.
 
@@ -28,16 +30,21 @@ against its anchor's launch, less the anchor's run length:
           actor) and invariant (its critic) at its own sizes, and every input
           reaches its critic and its actor; the arch arms have ResFiT's layout:
           RegularLayerNorm after every hidden layer of the actor and the
-          critic, and 10 heads of 2 hidden layers. A test here keeps on record
-          that the fixed-env baselines' FieldNorm critic is blind to every
-          trivial input (2026-10-08 FINDING).
+          critic, and 10 heads of 2 hidden layers. Each of arch-wide's four
+          parts alone has its one part and the anchor's design elsewhere;
+          actorln and criticln start from the anchor's weights bit for bit but
+          for their RegularLayerNorms, actor448 from its encoder and critic,
+          heads from its encoder. A test here keeps on record that the
+          fixed-env baselines' FieldNorm critic is blind to every trivial input
+          (2026-10-08 FINDING).
 
 The arm list is pinned to the pre-registrations (EXPERIMENTS.md, 2026-10-12
 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's
 differences one at a time; the equivariant residual given ResFiT's layout", and
 "the equivariant residual's anchors again, to a fixed 150k"), the AMENDMENTs of
-that date, and 2026-10-13 PRE-REGISTERED, "ResFiT's residual on Square with
-LayerNorm off in one place".
+that date, 2026-10-13 PRE-REGISTERED, "ResFiT's residual on Square with
+LayerNorm off in one place", and 2026-10-15 PRE-REGISTERED, "the equivariant
+residual on Square with each part of ResFiT's layout alone, and all four again".
 """
 
 from __future__ import annotations
@@ -61,6 +68,7 @@ RESFIT_GROUP = "resfit-equi-diff-1012"
 EQUI_GROUP = "equi-resfit-arch-1013"
 LONG_GROUP = "equi-residual-long-1012"
 LN_GROUP = "resfit-ln-place-1013"
+PARTS_GROUP = "equi-arch-parts-1015"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -77,6 +85,11 @@ NOLN_ACTOR = "resfit-residual-square-noln-actor"
 NOLN_CRITIC = "resfit-residual-square-noln-critic"
 NOLN_VIT = "resfit-residual-square-noln-vit"
 LN_ARMS = (NOLN_ACTOR, NOLN_CRITIC, NOLN_VIT)
+ACTORLN = "equi-residual-square-actorln"
+CRITICLN = "equi-residual-square-criticln"
+HEADS = "equi-residual-square-heads"
+ACTOR448 = "equi-residual-square-actor448"
+PARTS_ARMS = (ARCH_WIDE, ACTORLN, CRITICLN, HEADS, ACTOR448)
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -112,6 +125,10 @@ LAUNCHED = {
     NOLN_ACTOR: RESFIT_ANCHOR | {"agent.actor.use_layer_norm=false"},
     NOLN_CRITIC: RESFIT_ANCHOR | {"agent.critic.use_layer_norm=false"},
     NOLN_VIT: RESFIT_ANCHOR | {"agent.vit.use_layer_norm=false"},
+    ACTORLN: EQUI_ANCHOR | {"equivariance.actor_norm=layer_norm"},
+    CRITICLN: EQUI_ANCHOR | {"equivariance.critic_norm=layer_norm"},
+    HEADS: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | {"agent.critic.num_q=10", "equivariance.num_critic_layers=2"},
+    ACTOR448: EQUI_ANCHOR | {"equivariance.actor_degree_channel=448"},
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
@@ -132,6 +149,10 @@ FROM_ANCHOR = {
     NOLN_ACTOR: {"agent.actor.use_layer_norm"},
     NOLN_CRITIC: {"agent.critic.use_layer_norm"},
     NOLN_VIT: {"agent.vit.use_layer_norm"},
+    ACTORLN: {"equivariance.actor_norm"},
+    CRITICLN: {"equivariance.critic_norm"},
+    HEADS: {"agent.critic.num_q", "equivariance.num_critic_layers"},
+    ACTOR448: {"equivariance.actor_degree_channel"},
 }
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
@@ -151,12 +172,17 @@ ARM_VALUES = {
     NOLN_ACTOR: {"agent.actor.use_layer_norm": False},
     NOLN_CRITIC: {"agent.critic.use_layer_norm": False},
     NOLN_VIT: {"agent.vit.use_layer_norm": False},
+    ACTORLN: {"equivariance.actor_norm": "layer_norm"},
+    CRITICLN: {"equivariance.critic_norm": "layer_norm"},
+    HEADS: {"agent.critic.num_q": 10, "equivariance.num_critic_layers": 2},
+    ACTOR448: {"equivariance.actor_degree_channel": 448},
 }
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
              ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS,
-             NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS}
+             NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS, ACTORLN: RERENDERED_DEMOS,
+             CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -169,7 +195,8 @@ NAMING = ("wandb.name", "wandb.notes", "wandb.project", "wandb.group")
 WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          EQUI_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          LONG_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         LN_GROUP: ("robomimic-square-final", "residual-rl")}
+         LN_GROUP: ("robomimic-square-final", "residual-rl"),
+         PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -245,6 +272,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 def group_of(arm: str) -> str:
     if arm in LN_ARMS:
         return LN_GROUP
+    if arm in PARTS_ARMS:
+        return PARTS_GROUP
     if arm in RESFIT_ARMS:
         return RESFIT_GROUP
     return EQUI_GROUP if arm in ARCH_ARMS else LONG_GROUP
@@ -579,8 +608,10 @@ def test_equivariant_arm_commutes_with_the_group(arm, training, tmp_path, device
 # Changes to one input of the reference batch, each large against that input's range. Every input
 # reaches the critic and the actor; the trivial-type ones are the wrist camera, the arm's height,
 # the gripper opening, and the z, yaw and gripper actions.
-SEES = 1e-4  # every input moves Q by at least 1.1e-3 without FieldNorm, a trivial one by at most
-             # 6.7e-6 with it (2026-10-08, on this batch at init)
+SEES = 1e-5  # every input moves every head's Q by at least 1.1e-4 without FieldNorm (heads' least
+             # head, with the gripper), a trivial one by at most 1.7e-6 with it, and the actor by at
+             # least 7.4e-4 (2026-10-15, on this batch at init). From 2026-10-08 to 10-15 Q's change
+             # was the heads' mean, which can cancel (_output_changes), and the bar was 1e-4.
 TRIVIAL_INPUTS = ("wrist image", "state z", "state gripper", "action z", "action yaw", "action gripper")
 
 
@@ -607,7 +638,12 @@ def _input_changes():
 
 
 def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
-    """Per input change, the largest change in Q (mean over heads) and in the actor's mean action.
+    """Per input change, the change in Q and the largest change in the actor's mean action.
+
+    Q's is each head's largest change, then the least of those: every head must see the input, as a
+    critic made blind by its structure is blind in every head. The heads' mean can cancel instead: at
+    torch seed 0, the heads arm's ten heads each move by at least 1.9e-3 with the arm's height, and
+    their mean by 6.2e-5 (2026-10-15).
 
     A residual actor's last layer starts scaled down (1e-4), and its mean is squashed and multiplied
     by its action scale (0.1); each is a fixed map on the output that shrinks every input's change
@@ -638,13 +674,14 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
             change(obs, act)
         with torch.no_grad():
             actor_feat, critic_feat = agent.enc(obs)
-            return agent.critic(critic_feat, act).mean(dim=0), agent.actor(actor_feat, std=None)
+            return agent.critic(critic_feat, act), agent.actor(actor_feat, std=None)  # Q: [heads, batch, 1]
 
     q0, pi0 = outputs()
     changes = {}
     for name, change in _input_changes().items():
         q, pi = outputs(change)
-        changes[name] = ((q - q0).abs().max().item(), (pi - pi0).abs().max().item())
+        dq_per_head = (q - q0).abs().flatten(1).max(dim=1).values
+        changes[name] = (dq_per_head.min().item(), (pi - pi0).abs().max().item())
     return changes
 
 
@@ -699,6 +736,52 @@ def test_each_arch_arm_has_resfits_layout(arm, tmp_path, device):
     assert count(agent.critic, RegularLayerNorm) == 2 + 10 * 2
 
 
+# Each of arch-wide's parts alone, against the anchor's design: RegularLayerNorms in the actor and in
+# the critic, critic heads, Linears per head, and the fields of each of the actor's hidden layers.
+# init0-long is the anchor's launch, so its row is the anchor's design.
+PART_LAYOUTS = {INIT0_LONG: (0, 0, 5, 2, 128), ACTORLN: (3, 0, 5, 2, 128), CRITICLN: (0, 2 + 5, 5, 2, 128),
+                HEADS: (0, 0, 10, 3, 128), ACTOR448: (0, 0, 5, 2, 448)}
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", list(PART_LAYOUTS))
+def test_each_part_arm_has_its_one_part_and_the_anchors_design_elsewhere(arm, tmp_path, device):
+    """equi-arch-parts-1015 (arch-wide, all four parts at once, is the test above's).
+    - actorln: RegularLayerNorm after each of the actor's three hidden Linears.
+    - criticln: after the critic's two projections and each of its 5 heads' one hidden Linear.
+    - heads: 10 heads of two hidden layers, three Linears each, the output after pooling.
+    - actor448: the actor's three hidden layers at 448 fields.
+    No other norm anywhere, and none in the encoder."""
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import (
+        FieldNorm,
+        RegularInnerBatchNorm,
+        RegularLayerNorm,
+        TrivialLayerNorm,
+    )
+
+    def count(module, cls):
+        return sum(isinstance(m, cls) for m in module.modules())
+
+    actor_norms, critic_norms, num_heads, head_linears, fields = PART_LAYOUTS[arm]
+    agent = _agent(_compose(_overrides(arm, tmp_path)), device)
+    others = (enn.IIDBatchNorm1d, RegularInnerBatchNorm, FieldNorm, TrivialLayerNorm)
+    for part in (agent.enc, agent.actor, agent.critic):
+        assert count(part, others) == 0, f"{arm}: another norm in {type(part).__name__}"
+    assert count(agent.enc, RegularLayerNorm) == 0
+    assert count(agent.actor, RegularLayerNorm) == actor_norms
+    assert count(agent.critic, RegularLayerNorm) == critic_norms
+
+    assert count(agent.actor, enn.Linear) == 4
+    for hidden in (agent.actor.visual_proj[0], agent.actor.input_proj[0], agent.actor.policy[0]):
+        assert hidden.out_type.size == fields * 8, (arm, hidden.out_type.size)
+
+    heads = agent.critic.q_ensemble.heads
+    assert len(heads) == num_heads
+    assert all(count(head, enn.Linear) == head_linears for head in heads)
+
+
 def _seeded_agent(cfg, device, seed: int = 1):
     import random
 
@@ -711,9 +794,9 @@ def _seeded_agent(cfg, device, seed: int = 1):
     return _agent(cfg, device)
 
 
-def _weights_in_order(module, drop_layer_norms: bool) -> list:
-    """Every entry of the module's state, in order, less LayerNorms' if asked. Dropping a LayerNorm
-    renumbers the Sequentials after it, so names cannot be matched; the order can. The critic's
+def _weights_in_order(module, drop: tuple[type, ...] = ()) -> list:
+    """Every entry of the module's state, in order, less those of the norms in `drop`. Dropping a norm
+    renumbers the Sequentials after it, so names cannot be matched; the order can. ResFiT's critic
     ensemble also keeps its heads' parameters stacked, as `_vmap_param_net_<i>_*` for layer i of
     its head template, so those of a template LayerNorm are dropped too."""
     import re
@@ -728,7 +811,7 @@ def _weights_in_order(module, drop_layer_norms: bool) -> list:
         if stacked:
             ensemble = owners[stacked.group(1).rstrip(".")]
             owner = ensemble._head_template.net[int(stacked.group(2))]
-        if drop_layer_norms and isinstance(owner, torch.nn.LayerNorm):
+        if isinstance(owner, drop):
             continue
         out.append(tensor)
     return out
@@ -769,11 +852,41 @@ def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
             theirs, mine = getattr(anchor, part).state_dict(), getattr(ours, part).state_dict()
             assert theirs.keys() == mine.keys() and all(torch.equal(mine[k], theirs[k]) for k in mine)
             continue
-        theirs = _weights_in_order(getattr(anchor, part), drop_layer_norms=True)
-        mine = _weights_in_order(getattr(ours, part), drop_layer_norms=False)
+        theirs = _weights_in_order(getattr(anchor, part), drop=(torch.nn.LayerNorm,))
+        mine = _weights_in_order(getattr(ours, part))
         assert len(theirs) == len(mine), (part, len(theirs), len(mine))
         for i, (a, b) in enumerate(zip(theirs, mine)):
             assert a.shape == b.shape and torch.equal(a, b), f"{arm}: {part} tensor {i} differs"
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", [ACTORLN, CRITICLN, HEADS, ACTOR448, ARCH_WIDE])
+def test_each_part_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
+    """At seed 2, oav5gk76's (init0 at seed 2), which every arm of equi-arch-parts-1015 pairs with. The
+    agent builds its encoder, then its critic, then its actor.
+    - actorln and criticln: the anchor's weights bit for bit, less their RegularLayerNorms', which
+      start at scale 1 and shift 0 and draw no random number.
+    - actor448: its actor is larger and is built last, so its encoder and critic are the anchor's.
+    - heads and arch-wide: their critics are larger, so only their encoders are the anchor's.
+    The episodes still differ, since `seed` does not reach the envs."""
+    import torch
+
+    from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import RegularLayerNorm
+
+    anchor = _seeded_agent(_compose(_launch_order(EQUI_ANCHOR)), device, seed=2)
+    ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device, seed=2)
+    if arm in (ACTORLN, CRITICLN):
+        theirs, mine = _weights_in_order(anchor), _weights_in_order(ours, drop=(RegularLayerNorm,))
+        assert len(_weights_in_order(ours)) > len(mine), f"{arm}: no RegularLayerNorm dropped"
+        assert len(theirs) == len(mine), (len(theirs), len(mine))
+        for i, (a, b) in enumerate(zip(theirs, mine)):
+            assert a.shape == b.shape and torch.equal(a, b), f"{arm}: tensor {i} differs"
+        return
+    for part in {ACTOR448: ("enc", "critic"), HEADS: ("enc",), ARCH_WIDE: ("enc",)}[arm]:
+        theirs, mine = getattr(anchor, part).state_dict(), getattr(ours, part).state_dict()
+        assert theirs.keys() == mine.keys(), part
+        for key, value in mine.items():
+            assert torch.equal(value, theirs[key]), f"{arm}: {part}.{key} differs from the anchor's"
 
 
 @pytest.mark.gpu

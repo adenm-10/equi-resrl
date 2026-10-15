@@ -18,16 +18,20 @@ only equivariant run not at zero at 10k. Seed group `equi-arch-parts-1015`, all 
 init0 anchor (pairing each with `oav5gk76`); main readout 110k–150k against its 0.332 (better iff
 at least 105 of 250).
 
-0. Housekeeping: clear the wandb artifact cache (11.6 GB free on 2026-10-15); `vqzx1ir9`'s 150k
-   NOTE; stop `ln-watch`, `rfe-watch`, `tilt-watch`.
-1. Pre-register: `arch-wide`, `actorln`, `criticln`, `heads` (wave 1), `actor448` (wave 2); and an
-   AMENDMENT for init0's seed 3 (`equi-residual-long-1012`, wave 2).
-2. `submit.sh`, `tests/test_sweep_arms.py` (incl. the LayerNorm arms starting from the anchor's
-   weights bit for bit), the watcher's group; CPU and GPU tiers.
-3. Commit through `/git_proc`, pin a worktree.
-4. The jobs file, restart `rfe-queue` on `retry/slot_queue.sh`, start `parts-watch`.
-5. Readouts: LAUNCHED with run IDs; NOTEs at 150k; seed 3 of the best one or two better than init0;
-   then by the plan's "what follows".
+0. **DONE 2026-10-15:** the wandb artifact cache cleared (21.7 GB; 31 GB free), `vqzx1ir9`'s 150k
+   NOTE (0.812 late), and `ln-watch`, `rfe-watch`, `tilt-watch` stopped.
+1. **DONE 2026-10-15:** pre-registered (EXPERIMENTS.md, 2026-10-15 PRE-REGISTERED), with the
+   AMENDMENT for init0's seed 3 (`equi-residual-long-1012`).
+2. **DONE 2026-10-15:** `submit.sh`, `tests/test_sweep_arms.py`, the watcher's group, and their test
+   and README rows.
+3. **DONE 2026-10-15:** committed, with this item, and pinned in a worktree.
+4. **NOW:** the queue (`rfe-queue`, `retry/slot_queue.sh`) runs the six jobs: wave 1 (`arch-wide`,
+   `actorln`, `criticln`, `heads`) into the four free slots, then wave 2 (`actor448`, init0 seed 3);
+   `parts-watch` and `long-watch` watch them. The LAUNCHED entry, with run IDs, is due once wave 1
+   is in wandb.
+5. Readouts: NOTEs at 150k; seed 3 of the best one or two better than init0; then by the
+   pre-registration's "what follows". Check the disk each session: the wandb cache refills with
+   each best upload (STATUS, "Resources").
 
 ### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 
