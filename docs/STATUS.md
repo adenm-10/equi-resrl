@@ -1,8 +1,9 @@
 # Status
 
-**Last updated:** 2026-10-16, about 11:30 · **Last verified commit:** this file's own commit. The
-last code commit is `equi-actor-speed-1016`'s pre-registration (its arms, tests, watcher group and
-`tools/parts_seed3.py`); the running runs launched from `974e281`. No agent code changed since
+**Last updated:** 2026-10-16, about 10:30 · **Last verified commit:** `dd6f753`, and this file's own
+commit after it. The last code commit is `dd6f753`, `equi-actor-speed-1016`'s pre-registration (its
+arms, tests, watcher group and `tools/parts_seed3.py`), pinned in `~/projects/equi-resrl-dd6f753`;
+the running runs launched from `974e281`. No agent code changed since
 `0b14c17`. Main is ahead of origin and not pushed: pushing waits for Aden.
 
 **Next session: everything below is queued and launches by itself** ("Running now"). What is left
@@ -243,9 +244,9 @@ main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
   | # | Job | From | Launch | 150k |
   |---|---|---|---|---|
   | 1 | `actor448` 2 (`equi-arch-parts-1015`, wave 2) | `974e281` | 10-16 about 16:10 | 10-18 about 00:40 |
-  | 2 | `actorln448` 2 (`equi-actor-speed-1016`) | the pre-registration's commit | about 17:15 | 10-18 about 01:45 |
-  | 3 | `actorlr1e-5` 2 | the same | about 17:50 | 10-18 about 00:20 |
-  | 4 | `actorlr3e-5` 2 | the same | about 18:35 | 10-18 about 01:05 |
+  | 2 | `actorln448` 2 (`equi-actor-speed-1016`) | `dd6f753` | about 17:15 | 10-18 about 01:45 |
+  | 3 | `actorlr1e-5` 2 | `dd6f753` | about 17:50 | 10-18 about 00:20 |
+  | 4 | `actorlr3e-5` 2 | `dd6f753` | about 18:35 | 10-18 about 01:05 |
   | 5 | `init0-long` 3 (`equi-residual-long-1012`) | `0b14c17` | 10-18 about 00:30 | 10-19 about 07:00 |
   | 6–9 | seed 3 of `actorln`, `actor448`, `criticln`, `heads`, iff due | `974e281` | 10-18 about 00:45–02:00 | 10-19 about 07:30–10:00 |
 - **The seed 3s of `equi-arch-parts-1015`** launch iff `tools/parts_seed3.py` says due: better than
@@ -257,7 +258,7 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k. An equivariant one 
 ResFiT run, and about 30–32 h beside another equivariant run.
 
 - **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-equi-actor-speed-1016.txt`
-  (restarted on 2026-10-16 with the jobs above). Each job goes into the first slot to have been free for 300 s, two runs
+  (restarted on 2026-10-16 at 10:21 with the jobs above; it counts 2 of 2 slots held on each GPU). Each job goes into the first slot to have been free for 300 s, two runs
   per GPU, and gets its own tmux session, `q-<arm>-<seed>`. A launch its gate stops is tried again,
   up to 3 tries 600 s apart (2026-10-13 LAUNCHED). Its log is
   `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`, which is
