@@ -424,7 +424,9 @@ Both stacks log the same keys, on the logged update's batch (online rows, then d
   the demo's own on the demos. `debug/q_policy_{online,demo}`: Q at the actor's noise-free action,
   combined with the base. Both are the mean over heads, from `critic_diagnostics`.
 - `debug/q_advantage`: Q(base + residual) − Q(base alone), the critic's view of what the residual
-  adds, over both halves (`debug/q_base_only_mean` is the second term).
+  adds, over both halves (`debug/q_base_only_mean` is the second term). `debug/q_advantage_ratio`
+  is it over `debug/q_combined_mean`, Q(base + residual); at a ratio of a few percent that is within
+  a few percent of the ratio over the base's Q.
 - `train/residual_l1_magnitude`, `debug/residual_max_abs`: the residual's size, in the actor's units
   (ResFiT's: the scaler's; a cap of 0.1). `train/actor_grad_norm`, before clipping.
 

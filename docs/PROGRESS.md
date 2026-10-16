@@ -17,6 +17,44 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-15 (late morning) to 2026-10-16 (morning) — `equi-arch-parts-1015` wave 1 launched and at 100k–110k; `arch-wide` back to the base and holding
+
+**Found**
+
+- **`arch-wide` (`h216n857`) is the first equivariant residual on these demos to get the base back
+  and hold it:** 0.04 at 10k, 0.58 at 30k, then 0.46–0.64 to 100k (198 of 350 at 40k–100k, against the
+  anchor's 71). `actorln` is second (115 of 350); `criticln` (76) and `heads` (71) sit at the anchor.
+  Reported only: the deciding readout is 110k–150k, today (EXPERIMENTS.md, 2026-10-15 NOTE at 30k,
+  2026-10-16 NOTE).
+- **What differs is the actor.** Every arm's critic has the same slope with respect to the action.
+  `arch-wide`'s actor moved its residual 16 times the anchor's in the first 3k steps, to ResFiT's
+  size, and its critic then valued the residual as ResFiT's does (about 2% of the base action's
+  value). Claude's hypothesis: under AdamW the actor's output speed grows with its free weights and
+  their inputs' scale; RegularLayerNorm sets the scale, the 448 fields add weights. `actor448` tests
+  the width alone; TODO B17 item 6 is a cheaper direct check.
+- **Two equivariant runs on one GPU take about 1.9–2.05 h per 10k,** against about 1.42 h beside a
+  ResFiT run, so wave 1 runs about 30–32 h, not the 23–29 h the pre-registration estimated.
+- **A run is its trainer and 11 worker processes:** about 21–23 GB at start and 34 GB at 150k. Four
+  at once overfill the 125 GB of RAM near the end. At 100k–110k: 119 GB in use, 11 GB in swap, no
+  slowdown.
+
+**Decided:** nothing new from Aden; the plan runs as pre-registered. Aden asked how `arch-wide`
+differs from the equivariant baseline and from ResFiT (answered from ARCHITECTURE.md's side-by-side
+table and the pre-registration's parameter counts). Whether to push the session's commits waits for
+Aden.
+
+**Done**
+
+- Wave 1 launched from `974e281` (09:51–10:08), every gate GO at its first try (Tier 1 226, Tier 2
+  578). In wandb 11:12–11:34. LAUNCHED, MEASUREMENT (speed and memory), the 30k NOTE, and the
+  2026-10-16 NOTE at 100k–110k (with the config caveats the LAUNCHED and 30k entries left out).
+- STATUS rewritten for 2026-10-16; TODO B17 items 4–6 (the 150k steps, seed 3s through a restarted
+  queue, the hypothesis check).
+
+**Next:** the 150k NOTEs today (about 16:00–18:25); seed 3s by the rule; wave 2's LAUNCHED entry.
+
+---
+
 ## 2026-10-15 (morning) — `equi-arch-parts-1015` pre-registered and queued; `resfit-ln-place-1013` complete; the wandb cache cleared
 
 **Found**

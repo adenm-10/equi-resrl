@@ -1,25 +1,39 @@
 # Status
 
-**Last updated:** 2026-10-15, about 10:00 · **Last verified commit:** `51c62dc` (the 2026-10-15
-session-end docs), and this file's own commit after it: `equi-arch-parts-1015`'s pre-registration,
-its four new arms in `submit.sh`, the tests and the watcher. No agent code changed since `0b14c17`.
+**Last updated:** 2026-10-16, about 09:15 · **Last verified commit:** `ad1a5f6` (the 30k NOTE), and
+this file's own session-end commit after it. The last code commit is `974e281`
+(`equi-arch-parts-1015`'s pre-registration, arms, tests and watcher), which every running run
+launched from. No agent code changed since `0b14c17`. Main is ahead of origin and not pushed: pushing
+waits for Aden.
 
-**Next session: `equi-arch-parts-1015`'s wave 1 is running** ("Running now" below;
-[the plan](plans/2026-10-15-equi-arch-parts.md), `docs/plans/`, local, not in git, phase 5 lists the
-readouts). Next: its readouts as they come, and wave 2's LAUNCHED entry when the queue starts it.
+**Next session: `equi-arch-parts-1015`'s wave 1 reaches 150k today, 2026-10-16, from about 16:00 to
+18:25** ("Running now" below). Write each run's 150k NOTE with the main readout, apply the seed-3 rule,
+and record wave 2's launch (TODO B17 has the steps, including how to add jobs to the queue).
+[The plan](plans/2026-10-15-equi-arch-parts.md) (`docs/plans/`, local, not in git) has the
+background; the pre-registration in EXPERIMENTS.md is the rule.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**New on 2026-10-15, evening: `arch-wide` scored the base policy's rate at 30k** (EXPERIMENTS.md,
-2026-10-15 NOTE, "wave 1 at 30k"; reported, deciding nothing). `h216n857`: 0.04, 0.16, 0.58 at
-10k–30k, 39 of 150 pooled, the most of any equivariant residual on these demos (before: 10). Of the
-parts alone only `actorln` is ahead of the anchor (16 of 150); `heads` 8, `criticln` 5. The critic's
-action slope is the same in every arm; `arch-wide`'s actor moves its residual 16 times faster at the
-start, to ResFiT's size, and its online value is the only one turning positive. The main readout
-(110k–150k) is due on 2026-10-16. `actor448` (wave 2) tests whether the actor's width is what does it.
+**New on 2026-10-15/16: `arch-wide` gets back to the base policy's rate and holds it**
+(EXPERIMENTS.md, 2026-10-15 NOTE "wave 1 at 30k" and 2026-10-16 NOTE "wave 1 at 100k–110k"; reported,
+deciding nothing until 110k–150k).
+- `h216n857` lost the base by 10k as every equivariant residual does (0.04), then scored 0.58 at 30k
+  and 0.46–0.64 at every eval to 100k: 198 of 350 (0.566) at 40k–100k, against the anchor
+  `oav5gk76`'s 71 of 350 (0.203). No earlier equivariant residual on these demos held the base after
+  losing it. It has not gone above the base.
+- Of the parts alone, only `actorln` is clearly ahead of the anchor (115 of 350, 0.329). `criticln`
+  (76) and `heads` (71) are at the anchor's level.
+- **What differs is the actor, not the critic.** The critic's slope with respect to the action is the
+  same in every arm. `arch-wide`'s actor moved its residual 16 times faster in the first 3k steps
+  (0.036 against 0.002, ResFiT's size). Its critic values the residual at about 2% of the base
+  action's value, as ResFiT's does, and its online value is the only one that turned positive.
+- **Claude's hypothesis:** under AdamW the actor's output speed grows with its free weights and the
+  scale of their inputs. RegularLayerNorm sets the scale; 448 fields add the weights (each C8 layer
+  shares its weights, so at 1,024 channels it has about 1/8 of a dense layer's). `actor448` (wave 2:
+  width, no norm) is the first test.
 
 **Earlier on 2026-10-15** (EXPERIMENTS.md, that date's NOTEs and DEVIATION):
 - **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.** At two seeds
@@ -35,24 +49,20 @@ start, to ResFiT's size, and its online value is the only one turning positive. 
 - **The equivariant stack's action limits and noise do not hurt ResFiT's residual:** `limits` 0.800
   and `noise` 0.824 at 110k–150k, one seed each, with the best 10k–30k readouts of any ResFiT run
   (71, 72). With `fk9ayyco` (0.716), the residual's action space is ruled out as what breaks the
-  equivariant residual.
+  equivariant residual, and so are the re-rendered demos (`bue9dupf`, ResFiT on them: 0.828;
+  2026-10-13 NOTE).
 - **The equivariant baseline's first 150k reference:** 0.272 and 0.216 at 110k–150k (seeds 2 and 3,
   `od8u86i1`, `dja2kbb6`), below the base (0.582). Every equivariant run climbs from about zero at
   10k–50k to 0.2–0.34 from 70k: late partial recovery is the design's normal course.
   - init0 (seed 2, `oav5gk76`): 0.332, ahead of the baseline in both matched seed pairs by about the
     baseline's own seed spread. Not established.
   - `notilt` (0.200) is within the baseline's range: removing tilt did not help.
-- **Nothing tried so far lifts the equivariant residual above its baseline.** The one early sign is
-  still `arch-wide` (0.12 at 10k, stopped there on 2026-10-13).
+- **Before `equi-arch-parts-1015`, nothing lifted the equivariant residual above its baseline.** The
+  one early sign was `arch-wide`'s seed 1 (`grvwhcfr`, 0.12 at 10k, stopped there on 2026-10-13).
 - **Aden's decisions (2026-10-15):** the focus turns to the equivariant residual; `noln-vit`'s seed
   3 is set aside; next, `arch-wide` again to 150k beside each of its four parts alone on the init0
   anchor, with the late window as the main readout. Pre-registered as `equi-arch-parts-1015`
   (EXPERIMENTS.md, 2026-10-15 PRE-REGISTERED), with init0's seed 3 (that date's AMENDMENT).
-
-**New on 2026-10-13: without LayerNorm, ResFiT's residual fails as the equivariant one does**
-(EXPERIMENTS.md, 2026-10-13 NOTE). `noln` (`c1xca5uk`) lost the base by 10k (0 of 150 at 10k–30k)
-and never won it back (0.032 at 110k–150k). `rerendered` (`bue9dupf`, 0.828) and `fk9ayyco`
-(0.716) hold.
 
 **The equivariant residual on Square loses the base policy within 10k steps in every run, and the
 loss looks like a wrist that rolls after the grasp** (EXPERIMENTS.md, 2026-10-12 FINDING and NOTE).
@@ -203,19 +213,23 @@ base can win it back late, and every equivariant run since has (2026-10-15 NOTE)
 **`equi-arch-parts-1015`, from about 10:00 on 2026-10-15** (EXPERIMENTS.md, 2026-10-15
 PRE-REGISTERED and AMENDMENT). Every arm at seed 2 on the init0 anchor, each paired with `oav5gk76`;
 main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
-- **Wave 1, running** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; every gate GO at its first try):
-  `arch-wide` `h216n857` and `actorln` `8sgfkskv` on GPU 0, `criticln` `5cj1rbpu` and `heads`
-  `dhhq151o` on GPU 1, in wandb from 11:12 to 11:34.
-- **Wave 2, queued** into the first two slots wave 1 frees: `actor448`, then
-  `equi-residual-square-init0-long` seed 3 (from `0b14c17`, `equi-residual-long-1012`).
-- **Due** (measured, 2026-10-15 MEASUREMENT): 1.88–2.02 h per 10k, so the 10k evals at about
-  13:40–14:00, and wave 1's 150k on 2026-10-16 at about 16:00 (`criticln`), 16:20 (`actorln`),
-  17:50 (`arch-wide`) and 17:55 (`heads`). Wave 2 then launches into the first two freed slots
-  (about 16:10 and 16:25) and reaches 150k on 2026-10-17, from mid-afternoon to near midnight
-  depending on what shares its GPUs.
+- **Wave 1, running** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; every gate GO at its first try), from
+  `974e281` in `~/projects/equi-resrl-974e281`: `arch-wide` `h216n857` and `actorln` `8sgfkskv` on
+  GPU 0, `criticln` `5cj1rbpu` and `heads` `dhhq151o` on GPU 1. At 100k–110k at 09:10 on 2026-10-16,
+  with no stop or FLAG (2026-10-16 NOTE).
+- **150k due on 2026-10-16** at the pace each has held since 30k: `actorln` about 16:00 (1.87 h per
+  10k), `criticln` 17:05 (1.95 h), `heads` 17:40 (1.97 h), `arch-wide` 18:25 (2.05 h).
+- **Wave 2, queued** into the first two slots wave 1 frees: `actor448` (from `974e281`) into
+  `actorln`'s on GPU 0, about 16:05, then `equi-residual-square-init0-long` seed 3 (from `0b14c17`,
+  `equi-residual-long-1012`) into `criticln`'s on GPU 1, about 17:10. Each spends about 1 h 20 min
+  in its gate and labelling. Both reach 150k on 2026-10-17, from about 13:30 (alone on a GPU) to about
+  23:30 (if seed 3s share their GPUs).
+- **Seed 3s,** by the pre-registered rule (better than init0: at least 105 of 250 at 110k–150k; the
+  two highest if more qualify), from `974e281`, into the two slots left after wave 2.
 
 Every run finished up to 2026-10-15, with its readouts, is in EXPERIMENTS.md (that date's LAUNCHED
-and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 23–29 h, two per GPU.
+and NOTEs). A ResFiT run took 11–13 h from launch to 150k. An equivariant one took 23–29 h beside a
+ResFiT run, and about 30–32 h beside another equivariant run.
 
 - **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`
   (the name is historical). Each job goes into the first slot to have been free for 300 s, two runs
@@ -223,9 +237,14 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 
   up to 3 tries 600 s apart (2026-10-13 LAUNCHED). Its log is
   `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`, which is
   gitignored (TODO: move them into `tools/`).
+  - **The queue reads its jobs file once, at start.** A job appended later is not seen. To add jobs
+    (the seed 3s), wait for its log's "every job launched" (after init0's seed 3 launches, about
+    17:10), then rewrite the file with the new jobs and start `rfe-queue` again (TODO B17).
+  - The gate prints nothing until each tier ends: its console is blank for its first 40 minutes.
 - **Watchers** (`tools/square_rerendered_watch.py`): `parts-watch` (`equi-arch-parts-1015`, from its
-  pinned worktree) and `long-watch` (`equi-residual-long-1012`, from `0b14c17`, for init0's seed 3).
-  `ln-watch`, `rfe-watch` and `tilt-watch` were stopped at 09:06 on 2026-10-15, with no run left.
+  pinned worktree; it will also watch `actor448` and the seed 3s) and `long-watch`
+  (`equi-residual-long-1012`, from `0b14c17`, for init0's seed 3). `ln-watch`, `rfe-watch` and
+  `tilt-watch` were stopped at 09:06 on 2026-10-15, with no run left.
 - **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells; the old queue
   runners `gpu0`, `gpu1` and `gpu1-bars` are idle too.
 
@@ -239,10 +258,11 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 
   processes: about 21–23 GB at start (the workers 10.6 GB of it), and about 34 GB at 150k as the
   trainer's buffer grows (EXPERIMENTS.md, 2026-10-15 MEASUREMENT). In the last four-run overlap (10-14
   03:00–06:24) available memory sat at 0.3–0.7 GB and about 1 GB went to swap (225 GB), with no run
-  lost and no slowdown. Wave 1's four at 150k come to about 136 GB, so expect about 10 GB in swap near
-  the end. About 9.9 GB of GPU memory per run: two runs peak at 21–23 GB of a 24.5 GB GPU.
-  - **The disk had 31 GB free at 09:05 on 2026-10-15,** after the wandb artifact cache was cleared
-    (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
+  lost and no slowdown. Wave 1's four at 150k come to about 136 GB. At 100k–110k (2026-10-16 09:10)
+  119 GB were in use and 11 GB in swap, with no slowdown. About 9.9 GB of GPU memory per run: two runs
+  peak at 21–23 GB of a 24.5 GB GPU.
+  - **The disk had 27 GB free at 09:10 on 2026-10-16,** the wandb cache back to 3.6 GB. It was
+    cleared on 2026-10-15 (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
     the disk falls below about 10 GB. Each run's current best is also in its run package's
@@ -253,8 +273,11 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every
   watcher action, and consoles are in `outputs/queue/`.
   - Watch `eval/success_rate`, `debug/q_data_online` against `debug/q_data_demo`,
-    `train/residual_l1_magnitude` and `debug/dQ_da_mean_abs`, and for `notilt` and `diag` the
-    per-field keys.
+    `train/residual_l1_magnitude`, `train/actor_grad_norm`, `debug/q_advantage_ratio` and
+    `debug/dQ_da_mean_abs` (ARCHITECTURE.md, "Reading the critic and actor diagnostics"), and for
+    `notilt` and `diag` the per-field keys.
+  - Read a live run's history with `_history_from_record` (`resfit/lerobot/utils/load_policy.py`) on
+    its `run-<id>.wandb` record; the run package's `wandb_logs/` is written only when it ends.
 
 ## The machine
 
@@ -347,8 +370,9 @@ and NOTEs). A ResFiT run took 11–13 h from launch to 150k, an equivariant one 
   "Known rough edges"). Left as it is, for comparability.
 - **What breaks the equivariant residual on Square.** Not one field of its residual (the field
   test, 2026-10-12), not tilt (`notilt` 0.200 against the baseline's 0.216–0.272), and not its
-  action limits or noise, which ResFiT carries (2026-10-15 NOTE). Open: its networks (the plan) and
-  its encoder.
+  action limits or noise, which ResFiT carries (2026-10-15 NOTE). Open: its networks and its encoder.
+  ResFiT's layout in its actor and critic (`arch-wide`) holds the base from 30k to 100k so far, one
+  seed (2026-10-16 NOTE); which part does it is what `equi-arch-parts-1015` reads at 150k.
 - **Whether training and execution should combine the residual alike** (TODO H11). The actor loss
   and the TD target clip each pair of base plus residual to the unit disk; the env adds them and
   robosuite clips each component. They differ only for pairs longer than 1.
@@ -366,6 +390,8 @@ actor at 448 fields), on the init0 anchor at seed 2, which pairs each with `oav5
 - Only the bundle: `arch-wide` less one part at a time.
 - Nothing: the encoder (the equivariant CNN against ResFiT's ViT), then the scalar ablation of this
   stack as a control.
+- So far (reported only): `arch-wide` far ahead, `actorln` second, the critic parts at the anchor's
+  level. If that holds at 150k, `actor448` (wave 2) separates the actor's width from its norm.
 
 **1. Read the residual and equivariant history again** once the plan reports: which conclusions
 survive the render fix.

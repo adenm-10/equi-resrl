@@ -25,13 +25,29 @@ at least 105 of 250).
 2. **DONE 2026-10-15:** `submit.sh`, `tests/test_sweep_arms.py`, the watcher's group, and their test
    and README rows.
 3. **DONE 2026-10-15:** committed, with this item, and pinned in a worktree.
-4. **NOW:** wave 1 runs (EXPERIMENTS.md, 2026-10-15 LAUNCHED): `arch-wide` `h216n857`, `actorln`
-   `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched by `parts-watch`. Wave 2
-   (`actor448`, init0 seed 3) waits in `rfe-queue` for the first two slots wave 1 frees, about
-   2026-10-16 16:00–16:25 (measured; STATUS, "Running now"); its LAUNCHED entry then.
-5. Readouts: NOTEs at 150k; seed 3 of the best one or two better than init0; then by the
-   pre-registration's "what follows". Check the disk each session: the wandb cache refills with
-   each best upload (STATUS, "Resources").
+4. **NOW: wave 1 runs** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; 2026-10-16 NOTE at 100k–110k):
+   `arch-wide` `h216n857`, `actorln` `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched
+   by `parts-watch`. 150k due on 2026-10-16 at about 16:00, 17:05, 17:40 and 18:25 (STATUS, "Running
+   now"). Wave 2 (`actor448`, then init0's seed 3) launches by itself into the first two freed slots,
+   about 16:05 and 17:10.
+5. **At 150k, in order:**
+   1. A NOTE with each run's evals to 150k and the main readout: 110k–150k pooled against
+      `oav5gk76`'s 83 of 250. Better than init0 at 105 or more, back to the base at 127, ResFiT's
+      level at 161. Then the reported items, the predictions (1–4), and the config caveats (the
+      2026-10-16 NOTE has them).
+   2. **Seed 3s** for the arms better than init0, the two highest if more than two qualify, once all
+      four readouts are in (about 18:25). From `974e281`: job lines
+      `/home/aden/projects/equi-resrl-974e281 <arm> 3 0`. The queue reads its jobs file once, so
+      wait for "every job launched" in `outputs/queue/launchers/slot_queue.log`, rewrite
+      `jobs-resfit-equi-diff-1012.txt` with the seed 3s, and start `rfe-queue` again with the plan's
+      step 4.2 command. `parts-watch` watches them already.
+   3. LAUNCHED entries for wave 2 (run IDs about 1 h 20 min after each launch) and for any seed 3s.
+   4. Then the pre-registration's "what follows". Check the disk each session: the wandb cache refills
+      with each best upload (STATUS, "Resources").
+6. **Optional, no run needed (Claude's suggestion, 2026-10-15):** test the hypothesis for `arch-wide`'s
+   lead directly. At init, measure the actor's hidden-feature scale and how far one AdamW step moves
+   the residual, in the anchor, `actorln`, `actor448` and `arch-wide`. If the step size ranks them as
+   their early residuals do (0.002, 0.011, ?, 0.036), the actor's output speed is the mechanism.
 
 ### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 

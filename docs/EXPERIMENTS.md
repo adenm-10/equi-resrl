@@ -7635,3 +7635,32 @@ its output.
   and reached ResFiT's early residual size.
 - `actor448` (width without the norm, wave 2) is the first test of this. A direct check would be the
   hidden features' scale at init in the anchor and in `actorln`.
+
+---
+
+## 2026-10-16 — NOTE — `equi-arch-parts-1015` wave 1 at 100k–110k: `arch-wide` holds at the base rate from 30k; config caveats for this group's entries
+
+Read at 09:10 from the live records; reported, deciding nothing (the main readout is 110k–150k).
+No stop, no FLAG (the largest critic value in any run is 0.45), every run still going.
+
+| Run | Arm | Evals 0, 10k, …, last | 40k–100k pooled |
+|---|---|---|---|
+| `oav5gk76` | init0, the anchor (2026-10-13) | 0.62, 0.00, 0.00, 0.20, 0.02, 0.12, 0.28, 0.18, 0.30, 0.28, 0.24 (100k) | 71 of 350, 0.203 |
+| `h216n857` | `arch-wide` | 0.58, 0.04, 0.16, 0.58, 0.60, 0.52, 0.50, 0.64, 0.64, 0.60, 0.46 (100k) | **198 of 350, 0.566** |
+| `8sgfkskv` | `actorln` | 0.40, 0.02, 0.06, 0.24, 0.24, 0.38, 0.38, 0.46, 0.32, 0.22, 0.30, 0.44 (110k) | 115 of 350, 0.329 |
+| `5cj1rbpu` | `criticln` | 0.34, 0.00, 0.02, 0.08, 0.14, 0.12, 0.08, 0.24, 0.24, 0.32, 0.38 (100k) | 76 of 350, 0.217 |
+| `dhhq151o` | `heads` | 0.40, 0.00, 0.04, 0.12, 0.16, 0.20, 0.24, 0.16, 0.10, 0.20, 0.36 (100k) | 71 of 350, 0.203 |
+
+- **`arch-wide` has held at about the base policy's rate (B_sq = 0.582) from 30k to 100k,** not above
+  it. No earlier equivariant residual on these demos held it after losing it.
+- `actorln` is ahead of the anchor throughout. `criticln` and `heads` are at the anchor's level, both
+  climbing in their last two evals.
+- **Speed:** each 10k takes 1.87 h (`actorln`), 1.95 h (`criticln`), 1.97 h (`heads`) and 2.05 h
+  (`arch-wide`), unchanged since 30k. So 150k is due on 2026-10-16 at about 16:00, 17:05, 17:40 and
+  18:25. These replace the MEASUREMENT's estimates, which were taken over the first 3k steps.
+- **Memory:** 119 of 125 GB in use and 11 GB in swap, as the MEASUREMENT projected, with no slowdown.
+  The disk had 27 GB free, and the wandb cache was back to 3.6 GB.
+- **Config caveats** (for this entry, and for the 2026-10-15 LAUNCHED entry and the NOTE at 30k, which
+  left the field out): `equivariance.num_actor_layers` is logged as 2 and is dead (the actor has one
+  policy layer whatever its value), and `equivariance.initialize` reaches the encoder only
+  (ARCHITECTURE.md's provenance table). `vqzx1ir9`'s NOTE (ResFiT's agent): none known at `25b22aa`.
