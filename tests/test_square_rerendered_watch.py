@@ -25,6 +25,7 @@ from square_rerendered_watch import (  # noqa: E402
     Q_KEYS,
     DIAG,
     NOTILT,
+    EQUI_ACTOR_SPEED,
     EQUI_ARCH_PARTS,
     EQUI_LONG,
     EQUI_RESFIT_ARCH,
@@ -149,7 +150,7 @@ def test_every_arm_of_the_2026_10_12_amendment_runs_to_a_fixed_150k():
     """Never stopped for collapse (2026-10-12 AMENDMENT, "every run to a fixed 150k"): the ResFiT
     and equivariant arms of resfit-equi-diff-1012 and equi-resfit-arch-1013, the two long reruns,
     resfit-ln-place-1013's three arms (2026-10-13 PRE-REGISTERED), equi-arch-parts-1015's five
-    (2026-10-15 PRE-REGISTERED), and notilt, which is stopped at 150k because it was launched for
+    (2026-10-15 PRE-REGISTERED), equi-actor-speed-1016's three (2026-10-16 PRE-REGISTERED), and notilt, which is stopped at 150k because it was launched for
     300k. The divergence stop still applies to each, and the diagnostic run is never stopped."""
     assert GROUPS["resfit-equi-diff-1012"] == RESFIT_EQUI_DIFF and len(RESFIT_EQUI_DIFF) == 7
     assert GROUPS["equi-resfit-arch-1013"] == EQUI_RESFIT_ARCH and len(EQUI_RESFIT_ARCH) == 2
@@ -157,9 +158,10 @@ def test_every_arm_of_the_2026_10_12_amendment_runs_to_a_fixed_150k():
     assert GROUPS["residual-tilt-1012"] == (NOTILT, DIAG)
     assert GROUPS["resfit-ln-place-1013"] == RESFIT_LN_PLACE and len(RESFIT_LN_PLACE) == 3
     assert GROUPS["equi-arch-parts-1015"] == EQUI_ARCH_PARTS and len(EQUI_ARCH_PARTS) == 5
+    assert GROUPS["equi-actor-speed-1016"] == EQUI_ACTOR_SPEED and len(EQUI_ACTOR_SPEED) == 3
     collapsed_for_good = KYV7CLFC + [0.0] * 9   # 16 evals, 0 to 150k
     for arm in (*RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS,
-                NOTILT):
+                *EQUI_ACTOR_SPEED, NOTILT):
         for rates in (collapsed_for_good, OJ5K0JQB, S8OPBLSD, [0.58] * 16):
             for i in range(1, len(rates) + 1):
                 stop_at_150k = arm == NOTILT and i == 16
@@ -201,3 +203,22 @@ def test_arms_hold_is_the_preregistered_break_rule():
     assert holds(evals([0.6, 0.26, 0.26, 0.28]))[0] is True                      # 40 of 150
     assert holds(evals(OJ5K0JQB[:3]))[0] is None
     assert holds(evals([0.6, 0.5, 0.0, 0.0, 0.0]))[0] is False                   # collapsed after 30k
+
+
+def test_parts_seed3_is_the_preregistered_rule_less_arch_wide():
+    """tools/parts_seed3.py, which decides equi-arch-parts-1015's seed 3s: better than init0 at 105
+    of 250 at 110k-150k and not 104 (oav5gk76's 83, two standard errors); the two highest if more
+    than two qualify, a tie for second launching both; arch-wide is not a candidate (2026-10-16
+    DEVIATION)."""
+    from parts_seed3 import CANDIDATES, better_than_init0, due
+
+    assert better_than_init0(105) and not better_than_init0(104)
+    assert "equi-residual-square-arch-wide" not in CANDIDATES and len(CANDIDATES) == 4
+    actorln, criticln, heads, actor448 = CANDIDATES
+    late = {actorln: 140, criticln: 90, heads: 104, actor448: 105}
+    assert [due(arm, late) for arm in CANDIDATES] == [True, False, False, True]
+    late = {actorln: 140, criticln: 120, heads: 110, actor448: 105}
+    assert [due(arm, late) for arm in CANDIDATES] == [True, True, False, False]
+    late = {actorln: 140, criticln: 120, heads: 120, actor448: 60}
+    assert [due(arm, late) for arm in CANDIDATES] == [True, True, True, False]
+    assert not any(due(arm, dict.fromkeys(CANDIDATES, 83)) for arm in CANDIDATES)

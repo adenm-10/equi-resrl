@@ -6,11 +6,13 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: which part of ResFiT's layout helps the equivariant residual
-# (seed-group equi-arch-parts-1015), pre-registered in docs/EXPERIMENTS.md, "2026-10-15 —
-# PRE-REGISTERED — the equivariant residual on Square with each part of ResFiT's layout alone, and
-# all four again (equi-arch-parts-1015)". The groups before it stay in this table, each as it
-# launched: resfit-equi-diff-1012 and equi-resfit-arch-1013 ("2026-10-12 — PRE-REGISTERED —
+# Currently configured for: the equivariant residual with arch-wide's actor alone, and with a larger
+# actor learning rate (seed-group equi-actor-speed-1016), pre-registered in docs/EXPERIMENTS.md,
+# "2026-10-16 — PRE-REGISTERED — the equivariant residual on Square with arch-wide's actor alone,
+# and with a faster actor (equi-actor-speed-1016)". The groups before it stay in this table, each as
+# it launched: equi-arch-parts-1015 ("2026-10-15 — PRE-REGISTERED — the equivariant residual on
+# Square with each part of ResFiT's layout alone, and all four again"; its seed 3s launch from
+# 974e281), resfit-equi-diff-1012 and equi-resfit-arch-1013 ("2026-10-12 — PRE-REGISTERED —
 # ResFiT's residual on Square, given the equivariant stack's differences one at a time; the
 # equivariant residual given ResFiT's layout", and that date's amendment), equi-residual-long-1012
 # (the equivariant residual's anchors again, to a fixed 150k), and resfit-ln-place-1013 (which of
@@ -104,6 +106,14 @@
 #                                      (agent.critic.num_q=10 equivariance.num_critic_layers=2).
 #   equi-residual-square-actor448      the actor at 448 fields (equivariance.actor_degree_channel=448).
 #
+# equi-actor-speed-1016: eaqorqki's launch again, at seed 2 (paired with oav5gk76); wandb
+# robomimic-square-final / equi-residual-rl.
+#   equi-residual-square-actorln448    arch-wide's actor alone: actorln and actor448 at once
+#                                      (equivariance.actor_norm=layer_norm
+#                                      equivariance.actor_degree_channel=448), init0's critic.
+#   equi-residual-square-actorlr1e-5   the actor's learning rate at 1e-5, 10x (agent.actor_lr=1e-5).
+#   equi-residual-square-actorlr3e-5   at 3e-5, 30x (agent.actor_lr=3e-5).
+#
 # Every arm here runs to a fixed 150k, stopped only on the divergence stop (AMENDMENT of
 # 2026-10-12): the watcher, not the run length, carries the rule.
 
@@ -185,6 +195,13 @@ case "$ARM" in
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=10 equivariance.num_critic_layers=2) ;;
     equi-residual-square-actor448)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_degree_channel=448) ;;
+    equi-residual-square-actorln448)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_norm=layer_norm
+                       equivariance.actor_degree_channel=448) ;;
+    equi-residual-square-actorlr1e-5)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 agent.actor_lr=1e-5) ;;
+    equi-residual-square-actorlr3e-5)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 agent.actor_lr=3e-5) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
@@ -197,6 +214,9 @@ case "$ARM" in
     resfit-*)
         SEED_GROUP=resfit-equi-diff-1012 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;
+    equi-residual-square-actorln448|equi-residual-square-actorlr1e-5|equi-residual-square-actorlr3e-5)
+        SEED_GROUP=equi-actor-speed-1016 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     equi-residual-square-arch-wide|equi-residual-square-actorln|equi-residual-square-criticln|equi-residual-square-heads|equi-residual-square-actor448)
         SEED_GROUP=equi-arch-parts-1015 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

@@ -9,45 +9,53 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B17. Which part of ResFiT's layout helps the equivariant residual — NOW (Aden, 2026-10-15) `[SC]`
+### B18. arch-wide's actor alone, and a faster actor (`equi-actor-speed-1016`) — NOW (Aden, 2026-10-16) `[SC]`
 
-**The plan, step by step: [docs/plans/2026-10-15-equi-arch-parts.md](plans/2026-10-15-equi-arch-parts.md)**
-(local, not in git). Why: ResFiT's residual needs its actor's LayerNorm and carries the equivariant
-action space (B16 item 5e), and `arch-wide`, the equivariant residual with ResFiT's layout, was the
-only equivariant run not at zero at 10k. Seed group `equi-arch-parts-1015`, all at seed 2 on the
-init0 anchor (pairing each with `oav5gk76`); main readout 110k–150k against its 0.332 (better iff
-at least 105 of 250).
+**The plan: [docs/plans/2026-10-16-actor-speed.md](plans/2026-10-16-actor-speed.md)** (local, not in
+git). Why: `arch-wide` holds near the base from 30k, and its actor, not its critic, differs (its
+residual 16 times the anchor's at 0–3k). `actorln448` asks whether its actor is the whole effect;
+`actorlr1e-5` and `actorlr3e-5` ask whether the actor's speed alone is (EXPERIMENTS.md, 2026-10-16
+PRE-REGISTERED). All at seed 2 on the init0 anchor, paired with `oav5gk76`.
 
-0. **DONE 2026-10-15:** the wandb artifact cache cleared (21.7 GB; 31 GB free), `vqzx1ir9`'s 150k
-   NOTE (0.812 late), and `ln-watch`, `rfe-watch`, `tilt-watch` stopped.
-1. **DONE 2026-10-15:** pre-registered (EXPERIMENTS.md, 2026-10-15 PRE-REGISTERED), with the
-   AMENDMENT for init0's seed 3 (`equi-residual-long-1012`).
-2. **DONE 2026-10-15:** `submit.sh`, `tests/test_sweep_arms.py`, the watcher's group, and their test
-   and README rows.
-3. **DONE 2026-10-15:** committed, with this item, and pinned in a worktree.
+1. **DONE 2026-10-16:** pre-registered, with the DEVIATION for `equi-arch-parts-1015`'s seed 3s; arms,
+   tests, watcher group, `tools/parts_seed3.py`; committed and pinned; the queue restarted;
+   `speed-watch` started; the step-size calibration (MEASUREMENT).
+2. **Tonight:** the new arms launch at about 17:15, 17:50 and 18:35 (STATUS, "Running now"). Once
+   each is in wandb (about 1 h 20 min later), a LAUNCHED entry, with `actor448`'s (about 16:10): check
+   each package's commit, clean tree, mujoco 3.3.2 and argv against the worktree's dry run.
+3. **About 3 h after each launch:** the speed readout, `train/residual_l1_magnitude` over the first 3k
+   steps against 0.018 (reaches `arch-wide`'s speed) and 0.07 (saturates, with the actor's gradient
+   falling by 6k–10k). Reported in a NOTE; it reads the arms at 150k with the main readout.
+4. **Before the new arms reach 110k (2026-10-17 about 17:00):** record the "matches `arch-wide`" bar
+   from `h216n857`'s 110k–150k (the formula is in the pre-registration).
+5. **2026-10-18, about 00:20–01:45:** each arm's 150k NOTE with the main readout and the pre-registered
+   reading, the predictions (1–3), and the config caveats (the weight-decay one included). Then what
+   follows, for the 2026-10-19 meeting.
+
+### B17. Which part of ResFiT's layout helps the equivariant residual — RUNNING (Aden, 2026-10-15) `[SC]`
+
+**The plan: [docs/plans/2026-10-15-equi-arch-parts.md](plans/2026-10-15-equi-arch-parts.md)** (local,
+not in git). Seed group `equi-arch-parts-1015`, all at seed 2 on the init0 anchor (pairing each with
+`oav5gk76`); main readout 110k–150k against its 0.332 (better iff at least 105 of 250). Items 0–3
+(the cache, the pre-registration, the code, the commit `974e281`) were done on 2026-10-15.
+
 4. **NOW: wave 1 runs** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; 2026-10-16 NOTE at 100k–110k):
    `arch-wide` `h216n857`, `actorln` `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched
-   by `parts-watch`. 150k due on 2026-10-16 at about 16:00, 17:05, 17:40 and 18:25 (STATUS, "Running
-   now"). Wave 2 (`actor448`, then init0's seed 3) launches by itself into the first two freed slots,
-   about 16:05 and 17:10.
+   by `parts-watch`. 150k due on 2026-10-16 at about 16:00, 17:05, 17:40 and 18:25. `actor448` launches
+   by itself into the first freed slot (about 16:10).
 5. **At 150k, in order:**
    1. A NOTE with each run's evals to 150k and the main readout: 110k–150k pooled against
       `oav5gk76`'s 83 of 250. Better than init0 at 105 or more, back to the base at 127, ResFiT's
       level at 161. Then the reported items, the predictions (1–4), and the config caveats (the
-      2026-10-16 NOTE has them).
-   2. **Seed 3s** for the arms better than init0, the two highest if more than two qualify, once all
-      four readouts are in (about 18:25). From `974e281`: job lines
-      `/home/aden/projects/equi-resrl-974e281 <arm> 3 0`. The queue reads its jobs file once, so
-      wait for "every job launched" in `outputs/queue/launchers/slot_queue.log`, rewrite
-      `jobs-resfit-equi-diff-1012.txt` with the seed 3s, and start `rfe-queue` again with the plan's
-      step 4.2 command. `parts-watch` watches them already.
-   3. LAUNCHED entries for wave 2 (run IDs about 1 h 20 min after each launch) and for any seed 3s.
+      2026-10-16 NOTE has them). `actor448`'s comes on 2026-10-18 about 00:40.
+   2. **Seed 3s are queued** (2026-10-16 DEVIATION): no `arch-wide` seed 3 (Aden); the queue's jobs
+      6–9 launch the parts' seed 3s iff `tools/parts_seed3.py` says due, from about 00:45 on
+      2026-10-18. Check `slot_queue.log` for its verdicts. A part whose run ended without a 150k eval
+      makes the tool skip: then a human decides.
+   3. LAUNCHED entries for `actor448`, init0's seed 3 and any seed 3s.
    4. Then the pre-registration's "what follows". Check the disk each session: the wandb cache refills
       with each best upload (STATUS, "Resources").
-6. **Optional, no run needed (Claude's suggestion, 2026-10-15):** test the hypothesis for `arch-wide`'s
-   lead directly. At init, measure the actor's hidden-feature scale and how far one AdamW step moves
-   the residual, in the anchor, `actorln`, `actor448` and `arch-wide`. If the step size ranks them as
-   their early residuals do (0.002, 0.011, ?, 0.036), the actor's output speed is the mechanism.
+6. **Folded into B18:** the step-size calibration (EXPERIMENTS.md, 2026-10-16 MEASUREMENT).
 
 ### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 

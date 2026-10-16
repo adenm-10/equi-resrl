@@ -1,12 +1,12 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Five seed groups, and each arm
+submit.sh's case table is checked here first. Six seed groups, and each arm
 against its anchor's launch, less the anchor's run length:
   - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
     (resfit-residual-square 1, 9cf207d);
-  - equi-resfit-arch-1013 and equi-arch-parts-1015: eaqorqki's
-    (square-residual-start-1011, 0af7655); arch-wide launches into
+  - equi-resfit-arch-1013, equi-arch-parts-1015 and equi-actor-speed-1016:
+    eaqorqki's (square-residual-start-1011, 0af7655); arch-wide launches into
     equi-arch-parts-1015 now;
   - equi-residual-long-1012: each arm is its anchor's launch, again: 6ng62tpm's
     (square-rerendered-1009, eb90a0c) and eaqorqki's.
@@ -34,7 +34,11 @@ against its anchor's launch, less the anchor's run length:
           parts alone has its one part and the anchor's design elsewhere;
           actorln and criticln start from the anchor's weights bit for bit but
           for their RegularLayerNorms, actor448 from its encoder and critic,
-          heads from its encoder. A test here keeps on record that the
+          heads from its encoder. equi-actor-speed-1016's actorln448 has both
+          actor parts and the anchor's critic, and starts from its encoder and
+          critic; the two learning-rate arms start from the anchor's weights bit
+          for bit, and their actor's AdamW steps at their rate, the critic's and
+          the encoder's at the anchor's. A test here keeps on record that the
           fixed-env baselines' FieldNorm critic is blind to every trivial input
           (2026-10-08 FINDING).
 
@@ -43,8 +47,10 @@ PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's
 differences one at a time; the equivariant residual given ResFiT's layout", and
 "the equivariant residual's anchors again, to a fixed 150k"), the AMENDMENTs of
 that date, 2026-10-13 PRE-REGISTERED, "ResFiT's residual on Square with
-LayerNorm off in one place", and 2026-10-15 PRE-REGISTERED, "the equivariant
-residual on Square with each part of ResFiT's layout alone, and all four again".
+LayerNorm off in one place", 2026-10-15 PRE-REGISTERED, "the equivariant
+residual on Square with each part of ResFiT's layout alone, and all four again",
+and 2026-10-16 PRE-REGISTERED, "the equivariant residual on Square with
+arch-wide's actor alone, and with a faster actor".
 """
 
 from __future__ import annotations
@@ -69,6 +75,7 @@ EQUI_GROUP = "equi-resfit-arch-1013"
 LONG_GROUP = "equi-residual-long-1012"
 LN_GROUP = "resfit-ln-place-1013"
 PARTS_GROUP = "equi-arch-parts-1015"
+SPEED_GROUP = "equi-actor-speed-1016"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -90,6 +97,11 @@ CRITICLN = "equi-residual-square-criticln"
 HEADS = "equi-residual-square-heads"
 ACTOR448 = "equi-residual-square-actor448"
 PARTS_ARMS = (ARCH_WIDE, ACTORLN, CRITICLN, HEADS, ACTOR448)
+ACTORLN448 = "equi-residual-square-actorln448"
+ACTORLR1E5 = "equi-residual-square-actorlr1e-5"
+ACTORLR3E5 = "equi-residual-square-actorlr3e-5"
+LR_ARMS = {ACTORLR1E5: 1e-5, ACTORLR3E5: 3e-5}  # each arm's actor learning rate; the anchor's is 1e-6
+SPEED_ARMS = (ACTORLN448, *LR_ARMS)
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -129,6 +141,9 @@ LAUNCHED = {
     CRITICLN: EQUI_ANCHOR | {"equivariance.critic_norm=layer_norm"},
     HEADS: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | {"agent.critic.num_q=10", "equivariance.num_critic_layers=2"},
     ACTOR448: EQUI_ANCHOR | {"equivariance.actor_degree_channel=448"},
+    ACTORLN448: EQUI_ANCHOR | {"equivariance.actor_norm=layer_norm", "equivariance.actor_degree_channel=448"},
+    ACTORLR1E5: EQUI_ANCHOR | {"agent.actor_lr=1e-5"},
+    ACTORLR3E5: EQUI_ANCHOR | {"agent.actor_lr=3e-5"},
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
@@ -153,6 +168,9 @@ FROM_ANCHOR = {
     CRITICLN: {"equivariance.critic_norm"},
     HEADS: {"agent.critic.num_q", "equivariance.num_critic_layers"},
     ACTOR448: {"equivariance.actor_degree_channel"},
+    ACTORLN448: {"equivariance.actor_norm", "equivariance.actor_degree_channel"},
+    ACTORLR1E5: {"agent.actor_lr"},
+    ACTORLR3E5: {"agent.actor_lr"},
 }
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
@@ -176,13 +194,17 @@ ARM_VALUES = {
     CRITICLN: {"equivariance.critic_norm": "layer_norm"},
     HEADS: {"agent.critic.num_q": 10, "equivariance.num_critic_layers": 2},
     ACTOR448: {"equivariance.actor_degree_channel": 448},
+    ACTORLN448: {"equivariance.actor_norm": "layer_norm", "equivariance.actor_degree_channel": 448},
+    ACTORLR1E5: {"agent.actor_lr": 1e-5},
+    ACTORLR3E5: {"agent.actor_lr": 3e-5},
 }
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
              ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS,
              NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS, ACTORLN: RERENDERED_DEMOS,
-             CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS}
+             CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS,
+             ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -196,7 +218,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          EQUI_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          LONG_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          LN_GROUP: ("robomimic-square-final", "residual-rl"),
-         PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         SPEED_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -274,6 +297,8 @@ def group_of(arm: str) -> str:
         return LN_GROUP
     if arm in PARTS_ARMS:
         return PARTS_GROUP
+    if arm in SPEED_ARMS:
+        return SPEED_GROUP
     if arm in RESFIT_ARMS:
         return RESFIT_GROUP
     return EQUI_GROUP if arm in ARCH_ARMS else LONG_GROUP
@@ -736,11 +761,13 @@ def test_each_arch_arm_has_resfits_layout(arm, tmp_path, device):
     assert count(agent.critic, RegularLayerNorm) == 2 + 10 * 2
 
 
-# Each of arch-wide's parts alone, against the anchor's design: RegularLayerNorms in the actor and in
-# the critic, critic heads, Linears per head, and the fields of each of the actor's hidden layers.
-# init0-long is the anchor's launch, so its row is the anchor's design.
+# Each of arch-wide's parts alone, and its two actor parts together, against the anchor's design:
+# RegularLayerNorms in the actor and in the critic, critic heads, Linears per head, and the fields of
+# each of the actor's hidden layers. init0-long is the anchor's launch, and a learning-rate arm the
+# anchor's networks, so their rows are the anchor's design.
 PART_LAYOUTS = {INIT0_LONG: (0, 0, 5, 2, 128), ACTORLN: (3, 0, 5, 2, 128), CRITICLN: (0, 2 + 5, 5, 2, 128),
-                HEADS: (0, 0, 10, 3, 128), ACTOR448: (0, 0, 5, 2, 448)}
+                HEADS: (0, 0, 10, 3, 128), ACTOR448: (0, 0, 5, 2, 448), ACTORLN448: (3, 0, 5, 2, 448),
+                ACTORLR1E5: (0, 0, 5, 2, 128), ACTORLR3E5: (0, 0, 5, 2, 128)}
 
 
 @pytest.mark.gpu
@@ -751,6 +778,8 @@ def test_each_part_arm_has_its_one_part_and_the_anchors_design_elsewhere(arm, tm
     - criticln: after the critic's two projections and each of its 5 heads' one hidden Linear.
     - heads: 10 heads of two hidden layers, three Linears each, the output after pooling.
     - actor448: the actor's three hidden layers at 448 fields.
+    equi-actor-speed-1016: actorln448 is actorln and actor448 at once; actorlr1e-5 and actorlr3e-5
+    are the anchor's design.
     No other norm anywhere, and none in the encoder."""
     from escnn import nn as enn
 
@@ -860,13 +889,15 @@ def test_each_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", [ACTORLN, CRITICLN, HEADS, ACTOR448, ARCH_WIDE])
+@pytest.mark.parametrize("arm", [ACTORLN, CRITICLN, HEADS, ACTOR448, ARCH_WIDE, *SPEED_ARMS])
 def test_each_part_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
-    """At seed 2, oav5gk76's (init0 at seed 2), which every arm of equi-arch-parts-1015 pairs with. The
-    agent builds its encoder, then its critic, then its actor.
+    """At seed 2, oav5gk76's (init0 at seed 2), which every arm of equi-arch-parts-1015 and
+    equi-actor-speed-1016 pairs with. The agent builds its encoder, then its critic, then its actor.
     - actorln and criticln: the anchor's weights bit for bit, less their RegularLayerNorms', which
       start at scale 1 and shift 0 and draw no random number.
-    - actor448: its actor is larger and is built last, so its encoder and critic are the anchor's.
+    - actorlr1e-5 and actorlr3e-5: the anchor's weights bit for bit; a learning rate draws nothing.
+    - actor448 and actorln448: their actors are larger and are built last, so their encoders and
+      critics are the anchor's.
     - heads and arch-wide: their critics are larger, so only their encoders are the anchor's.
     The episodes still differ, since `seed` does not reach the envs."""
     import torch
@@ -875,6 +906,12 @@ def test_each_part_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
 
     anchor = _seeded_agent(_compose(_launch_order(EQUI_ANCHOR)), device, seed=2)
     ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device, seed=2)
+    if arm in LR_ARMS:
+        theirs, mine = anchor.state_dict(), ours.state_dict()
+        assert theirs.keys() == mine.keys()
+        for key, value in mine.items():
+            assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from the anchor's"
+        return
     if arm in (ACTORLN, CRITICLN):
         theirs, mine = _weights_in_order(anchor), _weights_in_order(ours, drop=(RegularLayerNorm,))
         assert len(_weights_in_order(ours)) > len(mine), f"{arm}: no RegularLayerNorm dropped"
@@ -882,11 +919,38 @@ def test_each_part_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
         for i, (a, b) in enumerate(zip(theirs, mine)):
             assert a.shape == b.shape and torch.equal(a, b), f"{arm}: tensor {i} differs"
         return
-    for part in {ACTOR448: ("enc", "critic"), HEADS: ("enc",), ARCH_WIDE: ("enc",)}[arm]:
+    for part in {ACTOR448: ("enc", "critic"), ACTORLN448: ("enc", "critic"), HEADS: ("enc",),
+                 ARCH_WIDE: ("enc",)}[arm]:
         theirs, mine = getattr(anchor, part).state_dict(), getattr(ours, part).state_dict()
         assert theirs.keys() == mine.keys(), part
         for key, value in mine.items():
             assert torch.equal(value, theirs[key]), f"{arm}: {part}.{key} differs from the anchor's"
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS])
+def test_each_speed_arm_steps_its_actor_at_its_rate_and_the_rest_at_the_anchors(arm, tmp_path, device):
+    """equi-actor-speed-1016. The actor's AdamW steps at agent.actor_lr (the anchor's 1e-6, or the
+    arm's), and the critic's and the encoder's at agent.critic_lr, 1e-4, in every arm. No scheduler
+    rescales either (agent.lr_warmup_steps and algo.actor_lr_warmup_steps are 0), and the actor's
+    gradient clip and AdamW's weight decay are the anchor's: the decay, 0.01 of the rate per step,
+    is the one other thing a rate moves (the PRE-REGISTERED entry's caveat). One update, and each
+    rate is still the one it started at."""
+    from tools.agent_fingerprint import STDDEV, fixed_batch
+
+    cfg = _compose(_overrides(arm, tmp_path))
+    assert cfg.agent.lr_warmup_steps == 0 and cfg.algo.actor_lr_warmup_steps == 0
+    assert cfg.agent.actor_grad_clip_norm == 1.0
+    agent = _agent(cfg, device)
+    assert agent.actor_scheduler is agent.critic_scheduler is agent.encoder_scheduler is None
+    agent.train(True)
+    agent.update(fixed_batch(base_action=True).to(device), stddev=STDDEV, update_actor=True)
+    rates = {"actor": LR_ARMS.get(arm, 1e-6), "critic": 1e-4, "encoder": 1e-4}
+    for part, rate in rates.items():
+        opt = getattr(agent, f"{part}_opt")
+        assert type(opt).__name__ == "AdamW", part
+        for group in opt.param_groups:
+            assert group["lr"] == rate and group["weight_decay"] == 0.01, (arm, part, group["lr"])
 
 
 @pytest.mark.gpu

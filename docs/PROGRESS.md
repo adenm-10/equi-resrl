@@ -17,6 +17,37 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-16 (morning) — `equi-actor-speed-1016` pre-registered and queued: `arch-wide`'s actor alone, and a faster actor
+
+**Decided (Aden):**
+- No third `arch-wide` run. The other parts' seed-3 rule stays, after the new group (EXPERIMENTS.md,
+  2026-10-16 DEVIATION).
+- Next: `arch-wide`'s actor alone (`actorln448`), and the speed hypothesis tested directly
+  (`actorlr1e-5`, `actorlr3e-5`: init0 with its actor's learning rate at 10 and 30 times). The
+  recommended choices of the plan (`docs/plans/2026-10-16-actor-speed.md`, local) were approved.
+
+**Done**
+- Pre-registered `equi-actor-speed-1016` (EXPERIMENTS.md, 2026-10-16 PRE-REGISTERED). The main readout
+  is `equi-arch-parts-1015`'s, plus a "matches `arch-wide`" bar and speed thresholds over the first
+  3k steps. Config only: `agent.actor_lr` is live, with no scheduler, and AdamW's weight decay scales
+  with it (a caveat, about 1.5% and 4.4% over a run).
+- Code: `submit.sh`'s three arms. `tests/test_sweep_arms.py`: the arms, their layouts and starting
+  weights, and a new test that each optimizer steps at its rate. The watcher's group.
+  `tools/parts_seed3.py`, so the queue applies the seed-3 rule by itself.
+- The queue now runs `actor448`, the three new arms, init0's seed 3, then up to two parts' seed 3s.
+  `slot_queue.sh` passes `JOB_ARM` and `JOB_SEED` to a job's condition. New watcher `speed-watch`.
+- **The step-size calibration** (EXPERIMENTS.md, 2026-10-16 MEASUREMENT; no run). One AdamW step moves
+  the residual by the rate times a gain the layout sets. The gain follows the summed size of the last
+  layer's input: init0 1, `actor448` 2.1, `actorln` 3.5, `actorln448` 11.6, `arch-wide` 12.0. The rate
+  arms step exactly 10 and 30 times init0. This ranks the arms as their real early residuals do. It
+  predicts `actorln448` at `arch-wide`'s speed, `actorlr1e-5` just past the "reaches the speed" bar,
+  and `actorlr3e-5` at the "saturates" bar.
+- **A near miss:** the first CPU-tier try ran with the GPUs visible and put 2.3 GB on GPU 0 (0.5 GB
+  left) for about 10 minutes before it was stopped. No trainer was lost. Run the tiers with
+  `CUDA_VISIBLE_DEVICES=""` while the GPUs are full.
+
+---
+
 ## 2026-10-15 (late morning) to 2026-10-16 (morning) — `equi-arch-parts-1015` wave 1 launched and at 100k–110k; `arch-wide` back to the base and holding
 
 **Found**

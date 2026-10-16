@@ -7664,3 +7664,274 @@ No stop, no FLAG (the largest critic value in any run is 0.45), every run still 
   left the field out): `equivariance.num_actor_layers` is logged as 2 and is dead (the actor has one
   policy layer whatever its value), and `equivariance.initialize` reaches the encoder only
   (ARCHITECTURE.md's provenance table). `vqzx1ir9`'s NOTE (ResFiT's agent): none known at `25b22aa`.
+
+---
+
+## 2026-10-16 — DEVIATION and DECISION — `equi-arch-parts-1015`: no seed 3 of `arch-wide`; the other arms' seed-3 rule kept, after the next group; init0's seed 3 moves back in the queue
+
+Aden's decisions, 2026-10-16 about 09:50, before any of this group's 150k readouts:
+- **`arch-wide`'s seed 3 is not run,** though its rule will very likely call for it (198 of 350 at
+  40k–100k, far above init0; its 110k–150k readout comes tonight). Aden: no third `arch-wide` run.
+  Its two seeds are `grvwhcfr` (stopped at 10k, 0.12) and `h216n857`.
+- **The seed-3 rule stays for the four parts alone:** seed 3 of each one better than init0 at
+  110k–150k (at least 105 of 250), the two highest if more than two qualify, now counted among the
+  four without `arch-wide`. A tie for second launches both.
+  - `tools/parts_seed3.py` decides it for the queue, from each run's live record. It waits up to 8 h for
+    a part whose run is still going, and skips the job if a part's run ended without its 150k eval.
+    That case is left to a human.
+  - The seed 3s launch from `974e281`, as the rule says.
+- **The queue's order changes.** The pre-registration put the seed 3s "into the first free slot" after
+  wave 1's readouts. The AMENDMENT put init0's seed 3 sixth, in wave 2. Both now wait for
+  `equi-actor-speed-1016`'s three arms (PRE-REGISTERED below), so that those finish before the
+  2026-10-19 meeting.
+  - `actor448` keeps its place, next to launch.
+  - init0's seed 3 keeps its rules (the 2026-10-12 PRE-REGISTERED entry for seed 2) and `long-watch`.
+  - The new order is in the PRE-REGISTERED entry's launch table.
+
+---
+
+## 2026-10-16 — PRE-REGISTERED — the equivariant residual on Square with arch-wide's actor alone, and with a faster actor (`equi-actor-speed-1016`)
+
+**Question** (Aden, 2026-10-16, from the NOTEs above). `arch-wide` holds near the base policy's rate
+from 30k (198 of 350 at 40k–100k). Its actor, not its critic, is what differs: at 0–3k its residual is
+16 times the anchor's, while the critic's slope with respect to the action is the same in every arm
+(2026-10-15 NOTE at 30k). Two questions follow.
+1. **Is `arch-wide`'s gain all in its actor?** `actorln448` is `arch-wide` less its two critic parts:
+   RegularLayerNorm and 448 fields in the actor, and init0's critic. Next to `actorln` and `actor448`
+   (one actor part each, in `equi-arch-parts-1015`), it also says whether the two actor parts work
+   together.
+2. **Is it the actor's speed?** Claude's hypothesis (the 2026-10-15 NOTE at 30k): AdamW moves each
+   weight by about the learning rate per step, so how fast the actor's output moves grows with its free
+   weights and the scale of their inputs, and `arch-wide`'s layout makes its actor faster. The direct
+   test leaves the networks alone and raises the actor's learning rate. AdamW's step is close to the
+   learning rate times the gradient's sign, so the output's early speed scales with the rate:
+   1e-5 (10 times init0's) and 3e-5 (30 times) bracket `arch-wide`'s 16 times. The larger also tests
+   the other side. ResFiT's residual without its actor's LayerNorm failed by moving too fast (a
+   residual of 0.07 within 3k, its actor's gradient falling), and an equivariant actor at 30 times
+   its rate may do the same.
+
+**Seed group `equi-actor-speed-1016`**, seed 2 of each arm.
+- **Names:** `<arm>-<seed>`; notes `equi-actor-speed-1016/<arm>/seed<seed>`; wandb
+  `robomimic-square-final` / `equi-residual-rl`.
+- **The anchor** is `eaqorqki`'s launch, to 150k, as in `equi-arch-parts-1015` (its PRE-REGISTERED
+  entry has the argv). At seed 2 that launch is **`oav5gk76`** (from `0b14c17`; 83 of 250, 0.332, at
+  110k–150k). Every arm pairs with it, and `actorln448` with `arch-wide` seed 2 (`h216n857`) too.
+
+| Arm | Change from the anchor |
+|---|---|
+| `equi-residual-square-actorln448` | `equivariance.actor_norm=layer_norm equivariance.actor_degree_channel=448`: `arch-wide`'s actor (RegularLayerNorm after each of the actor's three hidden Linears, each at 448 fields), with the anchor's critic (5 heads of 1 hidden layer, no norm) |
+| `equi-residual-square-actorlr1e-5` | `agent.actor_lr=1e-5`: the actor's AdamW at 10 times the anchor's 1e-6 |
+| `equi-residual-square-actorlr3e-5` | `agent.actor_lr=3e-5`: at 30 times |
+
+- **Parameter counts** (as in the 2026-10-15 table): `actorln448` has `arch-wide`'s actor, 3.364M (the
+  anchor's 0.305M), with the anchor's encoder (0.627M) and critic (0.839M). The learning-rate arms are
+  the anchor's networks.
+- **The learning rate is live:** `agent.actor_lr` goes to the actor's AdamW and nowhere else (the critic
+  and encoder step at `agent.critic_lr`, 1e-4). No scheduler rescales it: `agent.lr_warmup_steps` and
+  `algo.actor_lr_warmup_steps` are 0 in `oav5gk76`'s recorded config. The actor's gradient clip (1.0)
+  has not bound in any equivariant arm, whose actor gradient norms are 0.004–0.04. It clips the
+  gradient, not the step: a larger rate does not scale the gradient.
+- **Config caveats:**
+  - `equivariance.num_actor_layers` is dead (logged as 2; the actor has one policy layer whatever its
+    value), and `equivariance.initialize` reaches the encoder only.
+  - **AdamW's weight decay** (torch's default, 0.01) scales with the learning rate. It shrinks each
+    weight by 0.01 × the rate per step: over at most 150k actor steps (one per env step), at most
+    about 0.15% at 1e-6, 1.5% at 1e-5 and 4.4% at 3e-5. So a learning-rate arm also changes the decay,
+    slightly. This is the one other thing the rate moves.
+  - The trainer's generated run name (`actor_name` in the recorded config) includes the rate, so it
+    differs. It is a label only.
+
+**What varies, and what is held.**
+- Each arm's change alone. `actorln448`'s two parts are declared as one.
+- **The starting weights,** at seed 2 (`tests/test_sweep_arms.py`). The agent builds its encoder, then
+  its critic, then its actor.
+  - The learning-rate arms: the anchor's, bit for bit. A learning rate draws no random number.
+  - `actorln448`: the anchor's encoder and critic. Its larger actor is drawn after them.
+  - The episodes differ between runs, as always: `seed` does not reach the envs.
+- **The code** is this commit's. `git diff 0b14c17` touches no file under `resfit/`, and the
+  equivariant agent is pinned by `tests/test_regression_agent.py`'s goldens.
+- **The slots:** two equivariant runs per GPU, as `equi-arch-parts-1015`'s wave 1 ran. That changes
+  how long the runs take, not what they compute.
+
+**Rules.** The watcher enforces them (`--group equi-actor-speed-1016`, tmux `speed-watch`).
+- **To a fixed 150k,** stopped only on the divergence stop.
+- **The main readout:** the 110k–150k evals pooled (250 episodes), against `oav5gk76`'s 83 of 250,
+  with `equi-arch-parts-1015`'s bars: **better than init0** at 105 or more; **back to the base**
+  (B_sq = 0.582) at 127 or more; **ResFiT's level** (0.714) at 161 or more.
+- **Matches `arch-wide`** iff not below `h216n857`'s 110k–150k rate p_aw by two standard errors:
+  p − p_aw ≥ −2·√(p(1−p)/250 + p_aw(1−p_aw)/250). The formula fixes the bar once `h216n857` reaches
+  150k (tonight). The next NOTE records the number, before any arm here reaches 110k.
+- **The speed, from the first 3k steps** (`train/residual_l1_magnitude` there, as the 2026-10-15 NOTE
+  at 30k reads it: the anchor 0.002, `arch-wide` 0.036):
+  - **reaches `arch-wide`'s speed** iff at least 0.018, half of `arch-wide`'s;
+  - **saturates** iff at least 0.07 (ResFiT without its actor's LayerNorm), with
+    `train/actor_grad_norm`'s mean at 6k–10k below its mean at 0–3k.
+- **How the learning-rate arms will be read** (each arm, then the two together):
+  - **Speed is enough:** it reaches the speed, is better than init0, and matches `arch-wide`. Then
+    `arch-wide`'s gain at this seed is its actor's step size, and a rate is the cheaper fix.
+  - **Speed is part of it:** it reaches the speed and is better than init0, but falls below
+    `arch-wide`. The norm and the width add more than speed.
+  - **Speed alone does not help:** it reaches the speed, does not saturate, and is not better than
+    init0. The hypothesis fails as stated: what the layout does is not its speed alone.
+  - **Too fast:** it saturates. If 1e-5 is better than init0 and 3e-5 is not, the useful rates lie
+    between, near `arch-wide`'s speed.
+  - **The step-size model is wrong:** neither reaches the speed, even at 30 times the rate.
+- **How `actorln448` will be read:**
+  - **Matches `arch-wide`:** `arch-wide`'s critic parts are not needed, and its actor is the whole
+    effect at this seed.
+  - **Better than init0 but below `arch-wide`:** the critic parts add something in combination. Next
+    would be `arch-wide` less one critic part (`criticln`'s norms, or the 10 heads).
+  - **Not better than init0:** the actor's two parts need the critic's.
+- **No seed-3 rule** (Aden): seeds are decided after the readouts.
+- **Reported, deciding nothing:**
+  - the 10k eval, 10k–30k and 40k–100k pooled, against the anchor (`oav5gk76`) and `arch-wide`
+    (`h216n857`);
+  - `debug/q_data_online` at 30k–60k and 60k–100k (`arch-wide` 0.07 and 0.11), and `debug/q_data_demo`;
+  - `train/actor_grad_norm` over the run; the residual by action component (`field_metrics.py`);
+    `eval/tilt_over_30deg_frac`; critic values above 1.5 (the watcher's FLAG);
+  - the step-size calibration below, next to each run's own speed.
+- **No checkpoints,** as in `equi-arch-parts-1015`.
+
+**The step-size calibration** (no run, on the CPU, reported as a MEASUREMENT). For init0 at the three
+rates, and for `actorln`, `actor448`, `actorln448` and `arch-wide`: each agent is built at seed 2 and
+its features are taken once on the reference batch. Then 50 actor-only AdamW steps are taken with the
+critic frozen at its starting weights, logging the residual's mean size each step. It measures how
+far each actor's output moves per step with everything else held, which is the hypothesis's claim,
+and decides nothing.
+
+**Predictions** (Claude's, before launch):
+1. `actorln448` is better than init0 and matches `arch-wide`. Low-to-moderate confidence.
+2. `actorlr1e-5` reaches `arch-wide`'s speed (moderate confidence) and is better than init0
+   (low-to-moderate), but does not match `arch-wide` (low).
+3. `actorlr3e-5` saturates, or scores below `actorlr1e-5`. Low confidence.
+
+**Launch.** Through `outputs/queue/launchers/retry/slot_queue.sh` (tmux `rfe-queue`), restarted with
+the jobs below. The new arms launch from this entry's commit in its own pinned worktree. Each job goes
+into the first slot free for 300 s, two per GPU. A launch its gate stops is tried again, up to 3
+times 600 s apart.
+
+| # | Job | Seed | From | Group | Launches iff |
+|---|---|---|---|---|---|
+| 1 | `equi-residual-square-actor448` | 2 | `974e281` | `equi-arch-parts-1015`, wave 2 | always |
+| 2 | `equi-residual-square-actorln448` | 2 | this commit | this one | always |
+| 3 | `equi-residual-square-actorlr1e-5` | 2 | this commit | this one | always |
+| 4 | `equi-residual-square-actorlr3e-5` | 2 | this commit | this one | always |
+| 5 | `equi-residual-square-init0-long` | 3 | `0b14c17` | `equi-residual-long-1012` (AMENDMENT) | always |
+| 6–9 | `actorln`, `actor448`, `criticln`, `heads` | 3 | `974e281` | `equi-arch-parts-1015` | `tools/parts_seed3.py` says due (the DEVIATION above) |
+
+- At most two of jobs 6–9 launch.
+- **Watchers:** `speed-watch` (new, from this commit) for this group; `parts-watch` for `actor448` and
+  the seed 3s; `long-watch` for init0's seed 3.
+- **No smoke runs:** `arch-wide` and `actor448` measure a 448-field actor's speed and RAM, and the
+  learning-rate arms are the anchor's networks.
+
+**Resources and timeline.**
+- **Speed** (wave 1, two equivariant runs per GPU): 1.87–1.97 h per 10k at 128 fields and 2.05 h with
+  a 448-field actor. About 1 h 20 min from launch to wandb, and so 150k about 30.5 h (128 fields) to
+  32.5 h (448) after launch.
+- **RAM:** four equivariant runs at once, as now: about 136 GB at 150k against 125 GB, so up to about
+  10 GB of swap (15 GB in use today at 09:50, with no slowdown).
+- **Disk:** 27 GB free at 09:50. Clear the wandb cache if it falls below about 15 GB.
+- **Expected** (wave 1's 150k at about 16:00, 17:05, 17:40 and 18:25 today, plus the 300 s settle):
+
+  | Job | Launch | 150k |
+  |---|---|---|
+  | `actor448` 2 | 2026-10-16 about 16:10 | 10-18 about 00:40 |
+  | `actorln448` 2 | about 17:15 | 10-18 about 01:45 |
+  | `actorlr1e-5` 2 | about 17:50 | 10-18 about 00:20 |
+  | `actorlr3e-5` 2 | about 18:35 | 10-18 about 01:05 |
+  | init0-long 3 | 10-18 about 00:30 | 10-19 about 07:00 |
+  | up to two seed 3s | 10-18 about 00:45–02:00 | 10-19 about 07:30–10:00 |
+
+  The speed readout (0–3k) comes about 3 h after each launch.
+
+**Checks before the commit:**
+- `tests/test_sweep_arms.py` and `tests/test_square_rerendered_watch.py`, CPU tier: **147 passed** (93 GPU
+  tests skipped).
+  - Each new arm launches exactly its pre-registered overrides. Each composes to `eaqorqki`'s config
+    but for its change, with `agent.actor_lr` a float (1e-5, 3e-5).
+  - The watcher runs the group's three arms to a fixed 150k, with the divergence stop.
+  - `tools/parts_seed3.py`'s rule: 105 of 250 and not 104; the two highest; a tie for second; no
+    `arch-wide`.
+- **The new arms' Tier 2 tests, on the CPU,** because both GPUs have about 3 GB free beside wave 1:
+  `-k "actorln448 or actorlr or speed_arm"`, **40 passed** (10 min 54 s).
+  - Each new arm builds and runs one update. Its actor commutes with the group and its critic is
+    invariant. Every input reaches each critic head and the actor.
+  - `actorln448` has 3 RegularLayerNorms in its actor and none elsewhere, its actor's hidden layers
+    at 448 fields, and the anchor's 5 heads of one hidden layer. The learning-rate arms have the
+    anchor's design.
+  - At seed 2, the learning-rate arms start from the anchor's weights bit for bit, and `actorln448`
+    from its encoder and critic.
+  - In each arm and the anchor, the actor's AdamW steps at its rate (1e-6, 1e-5, 3e-5), and the
+    critic's and the encoder's at 1e-4. There is no scheduler, the weight decay is 0.01, and each rate
+    is unchanged after an update.
+  - The full Tier 2 runs on the GPU in each launch's gate, as always. A failure there stops that launch
+    (three tries), and its slot goes to the next job.
+- **A first try of the CPU tier ran with the GPUs visible** (`device` is CUDA when one is). It put
+  2.3 GB on GPU 0, leaving 0.5 GB, for about 10 minutes, and was stopped. Every trainer kept running.
+  The tiers above ran with `CUDA_VISIBLE_DEVICES=""`.
+
+---
+
+## 2026-10-16 — MEASUREMENT — the step-size calibration: one AdamW step moves each actor's residual in proportion to its rate and to the size of its last layer's input
+
+No run. This is `equi-actor-speed-1016`'s calibration (PRE-REGISTERED above), measured before any of its
+runs launched, on the CPU (`CUDA_VISIBLE_DEVICES=""`), on this entry's commit's tree (no file under
+`resfit/` changed since `0b14c17`). The script and its
+per-step numbers are in `outputs/diagnostics/actor-step-size-1016/` (`calibrate.py`, `results.json`;
+gitignored).
+- **Method:** each arm's agent is built from its composed config at seed 2. Its features are taken
+  once on the reference batch (`tools/agent_fingerprint.fixed_batch`, 4 samples). Then come 51 calls of
+  the agent's own `update_actor`, so the critic is frozen at its starting weights.
+- **The residual** is `debug/residual_mean_abs`, the mean |residual| that the trainer logs as
+  `train/residual_l1_magnitude`, read before each step. "After k steps" is the value read at call
+  k + 1.
+
+| Arm | Actor lr | Actor | Last layer's input: channels, mean \|x\| | Residual after 1 step | after 10 | after 50 | Per step, against init0 |
+|---|---|---|---|---|---|---|---|
+| init0 (`oav5gk76`'s launch) | 1e-6 | 0.305M | 1,024, 0.103 | 1.93e-6 | 1.94e-5 | 9.8e-5 | 1 |
+| `actorlr1e-5` | 1e-5 | 0.305M | 1,024, 0.103 | 1.93e-5 | 1.96e-4 | 1.10e-3 | 10.0 |
+| `actorlr3e-5` | 3e-5 | 0.305M | 1,024, 0.103 | 5.80e-5 | 6.10e-4 | 4.29e-3 | 30.0 |
+| `actor448` | 1e-6 | 3.361M | 3,584, 0.062 | 4.06e-6 | 4.07e-5 | 2.09e-4 | 2.1 |
+| `actorln` | 1e-6 | 0.306M | 1,024, 0.401 | 6.74e-6 | 6.74e-5 | 3.38e-4 | 3.5 |
+| `actorln448` | 1e-6 | 3.364M | 3,584, 0.392 | 2.23e-5 | 2.23e-4 | 1.13e-3 | 11.6 |
+| `arch-wide` | 1e-6 | 3.364M | 3,584, 0.406 | 2.32e-5 | 2.31e-4 | 1.17e-3 | 12.0 |
+
+- **The step is the rate times a gain the layout sets.** At the first step the residual moves by
+  exactly 1.93 × the rate in each of init0's three rates. The last layer starts at zero, so the first
+  step moves it alone. AdamW moves each of its weights by about the rate, and the output moves by about
+  the rate times the summed size of that layer's input.
+- **The gain follows that input's summed size,** channels × mean |x|:
+
+  | | init0 | `actor448` | `actorln` | `actorln448` | `arch-wide` |
+  |---|---|---|---|---|---|
+  | summed size, against init0 | 1 | 2.1 | 3.9 | 13.4 | 13.9 |
+  | per-step gain, against init0 | 1 | 2.1 | 3.5 | 11.6 | 12.0 |
+
+  - RegularLayerNorm raises the input's scale about 4 times (0.10 to 0.40).
+  - 448 fields raise its width 3.5 times. Without the norm, a wider layer's features are smaller
+    (0.062), so width alone gains 2.1 times.
+  - Together the two multiply (11.6). `actorln448` steps as `arch-wide` does: they are the same actor,
+    and their critics differ.
+- **Beyond the first step the growth is faster than linear at the larger gains.** For example,
+  `actorlr3e-5` reaches 4.29e-3 after 50 steps against 50 × 5.80e-5 = 2.9e-3: once the last layer is
+  off zero, the earlier layers move the output too. init0 at 1e-6 stays linear (9.8e-5).
+- **Against the runs' own residual over the first 3k steps** (the 2026-10-15 NOTE at 30k): the anchor
+  0.002, `actorln` 0.011 (about 5 times) and `arch-wide` 0.036 (about 16 times). The ranking matches.
+  - The real ratios are about 1.3–1.4 times the calibrated ones, likely because a run's 3k steps
+    compound (the growth above) and its critic is trained.
+  - The real runs move at about 40–50% of this fixed-batch speed (init0 3,000 × 1.93e-6 = 0.006,
+    against 0.002; `arch-wide` 0.07, against 0.036). Their gradients change direction from batch to
+    batch.
+- **What this predicts for the queued runs' first 3k steps** (Claude's, from the gains and the ratios
+  above; reported, deciding nothing): `actor448` about 0.004–0.006; `actorln448` about 0.025–0.036,
+  `arch-wide`'s speed; `actorlr1e-5` about 0.02, just above the "reaches `arch-wide`'s speed" bar of
+  0.018; `actorlr3e-5` about 0.06–0.07, at the "saturates" bar of 0.07. The residual's cap is the
+  action scale, 0.1.
+- **Limits:**
+  - One batch of 4 samples, and an untrained critic. AdamW normalizes the gradient's size, so the
+    critic sets the step's direction more than its size. The actor gradients here (0.03–0.20) are
+    larger than the runs' (0.004–0.04 at 0–3k).
+  - This measures the output's speed, not whether the speed helps. That is the runs' question.
+- **Config caveats:** as in the PRE-REGISTERED entry above (`equivariance.num_actor_layers` dead,
+  `equivariance.initialize` encoder-only).

@@ -1,21 +1,38 @@
 # Status
 
-**Last updated:** 2026-10-16, about 09:15 · **Last verified commit:** `ad1a5f6` (the 30k NOTE), and
-this file's own session-end commit after it. The last code commit is `974e281`
-(`equi-arch-parts-1015`'s pre-registration, arms, tests and watcher), which every running run
-launched from. No agent code changed since `0b14c17`. Main is ahead of origin and not pushed: pushing
-waits for Aden.
+**Last updated:** 2026-10-16, about 11:30 · **Last verified commit:** this file's own commit. The
+last code commit is `equi-actor-speed-1016`'s pre-registration (its arms, tests, watcher group and
+`tools/parts_seed3.py`); the running runs launched from `974e281`. No agent code changed since
+`0b14c17`. Main is ahead of origin and not pushed: pushing waits for Aden.
 
-**Next session: `equi-arch-parts-1015`'s wave 1 reaches 150k today, 2026-10-16, from about 16:00 to
-18:25** ("Running now" below). Write each run's 150k NOTE with the main readout, apply the seed-3 rule,
-and record wave 2's launch (TODO B17 has the steps, including how to add jobs to the queue).
-[The plan](plans/2026-10-15-equi-arch-parts.md) (`docs/plans/`, local, not in git) has the
-background; the pre-registration in EXPERIMENTS.md is the rule.
+**Next session: everything below is queued and launches by itself** ("Running now"). What is left
+is the records (TODO B17):
+- **Tonight (2026-10-16),** `equi-arch-parts-1015`'s wave 1 reaches 150k from about 16:00 to 18:25.
+  Write each run's 150k NOTE. `h216n857`'s readout fixes `equi-actor-speed-1016`'s "matches `arch-wide`"
+  bar: record the number before the new arms reach 110k (2026-10-17 about 17:00).
+- **LAUNCHED entries** for `actor448` and the three new arms, once each is in wandb (the last about
+  20:00 tonight). Check each package's commit, clean tree, mujoco 3.3.2 and argv.
+- **The speed readout** (the residual over the first 3k steps) of each new arm, about 3 h after its
+  launch.
+- **The 150k readouts** of `actor448` and the new arms on 2026-10-18, about 00:20–01:45.
+[The plan](plans/2026-10-16-actor-speed.md) (`docs/plans/`, local, not in git) has the background;
+the pre-registration in EXPERIMENTS.md is the rule.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
+
+**New on 2026-10-16: `equi-actor-speed-1016` is pre-registered and queued** (EXPERIMENTS.md, 2026-10-16
+DEVIATION and PRE-REGISTERED). Two questions about `arch-wide`'s actor, each on the init0 anchor at
+seed 2:
+- Is its gain all in its actor? `actorln448` is `arch-wide`'s actor (RegularLayerNorm at 448 fields)
+  with init0's critic.
+- Is it the actor's speed? `actorlr1e-5` and `actorlr3e-5` are init0 with its actor's learning rate
+  at 10 and 30 times, and no other change. They bracket `arch-wide`'s 16-times-faster early residual.
+- Aden: no third `arch-wide` run. The other parts' seed-3 rule stays and runs after the new arms.
+- A no-run step-size calibration on the CPU measures each actor's output speed per AdamW step
+  (EXPERIMENTS.md, 2026-10-16 MEASUREMENT).
 
 **New on 2026-10-15/16: `arch-wide` gets back to the base policy's rate and holds it**
 (EXPERIMENTS.md, 2026-10-15 NOTE "wave 1 at 30k" and 2026-10-16 NOTE "wave 1 at 100k–110k"; reported,
@@ -219,31 +236,42 @@ main readout 110k–150k against its 83 of 250 (better iff at least 105 of 250).
   with no stop or FLAG (2026-10-16 NOTE).
 - **150k due on 2026-10-16** at the pace each has held since 30k: `actorln` about 16:00 (1.87 h per
   10k), `criticln` 17:05 (1.95 h), `heads` 17:40 (1.97 h), `arch-wide` 18:25 (2.05 h).
-- **Wave 2, queued** into the first two slots wave 1 frees: `actor448` (from `974e281`) into
-  `actorln`'s on GPU 0, about 16:05, then `equi-residual-square-init0-long` seed 3 (from `0b14c17`,
-  `equi-residual-long-1012`) into `criticln`'s on GPU 1, about 17:10. Each spends about 1 h 20 min
-  in its gate and labelling. Both reach 150k on 2026-10-17, from about 13:30 (alone on a GPU) to about
-  23:30 (if seed 3s share their GPUs).
-- **Seed 3s,** by the pre-registered rule (better than init0: at least 105 of 250 at 110k–150k; the
-  two highest if more qualify), from `974e281`, into the two slots left after wave 2.
+- **Next in the queue** (2026-10-16 PRE-REGISTERED's launch table), each into the next slot to free.
+  Wave 1's slots free at about 16:00, 17:05, 17:40 and 18:25. Each new run spends about 1 h 20 min in
+  its gate and labelling, then takes 1.9–2.05 h per 10k.
+
+  | # | Job | From | Launch | 150k |
+  |---|---|---|---|---|
+  | 1 | `actor448` 2 (`equi-arch-parts-1015`, wave 2) | `974e281` | 10-16 about 16:10 | 10-18 about 00:40 |
+  | 2 | `actorln448` 2 (`equi-actor-speed-1016`) | the pre-registration's commit | about 17:15 | 10-18 about 01:45 |
+  | 3 | `actorlr1e-5` 2 | the same | about 17:50 | 10-18 about 00:20 |
+  | 4 | `actorlr3e-5` 2 | the same | about 18:35 | 10-18 about 01:05 |
+  | 5 | `init0-long` 3 (`equi-residual-long-1012`) | `0b14c17` | 10-18 about 00:30 | 10-19 about 07:00 |
+  | 6–9 | seed 3 of `actorln`, `actor448`, `criticln`, `heads`, iff due | `974e281` | 10-18 about 00:45–02:00 | 10-19 about 07:30–10:00 |
+- **The seed 3s of `equi-arch-parts-1015`** launch iff `tools/parts_seed3.py` says due: better than
+  init0 (at least 105 of 250 at 110k–150k), the two highest if more qualify, `arch-wide` left out
+  (2026-10-16 DEVIATION). At most two launch.
 
 Every run finished up to 2026-10-15, with its readouts, is in EXPERIMENTS.md (that date's LAUNCHED
 and NOTEs). A ResFiT run took 11–13 h from launch to 150k. An equivariant one took 23–29 h beside a
 ResFiT run, and about 30–32 h beside another equivariant run.
 
-- **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-resfit-equi-diff-1012.txt`
-  (the name is historical). Each job goes into the first slot to have been free for 300 s, two runs
+- **The queue:** tmux `rfe-queue` runs `retry/slot_queue.sh` over `jobs-equi-actor-speed-1016.txt`
+  (restarted on 2026-10-16 with the jobs above). Each job goes into the first slot to have been free for 300 s, two runs
   per GPU, and gets its own tmux session, `q-<arm>-<seed>`. A launch its gate stops is tried again,
   up to 3 tries 600 s apart (2026-10-13 LAUNCHED). Its log is
   `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`, which is
   gitignored (TODO: move them into `tools/`).
-  - **The queue reads its jobs file once, at start.** A job appended later is not seen. To add jobs
-    (the seed 3s), wait for its log's "every job launched" (after init0's seed 3 launches, about
-    17:10), then rewrite the file with the new jobs and start `rfe-queue` again (TODO B17).
+  - **The queue reads its jobs file once, at start.** A job appended later is not seen. To change
+    the jobs, stop `rfe-queue` while it is only waiting for a slot (its last log line is a launch,
+    more than a minute old), rewrite the file and start it again.
+  - A job with `if=<script>` runs that script (in `retry/`) once a slot is free, with `JOB_WORKTREE`,
+    `JOB_ARM` and `JOB_SEED` set, and launches only on exit 0. The seed 3s use `parts_seed3_due.sh`.
   - The gate prints nothing until each tier ends: its console is blank for its first 40 minutes.
 - **Watchers** (`tools/square_rerendered_watch.py`): `parts-watch` (`equi-arch-parts-1015`, from its
-  pinned worktree; it will also watch `actor448` and the seed 3s) and `long-watch`
-  (`equi-residual-long-1012`, from `0b14c17`, for init0's seed 3). `ln-watch`, `rfe-watch` and
+  pinned worktree; it will also watch `actor448` and the seed 3s), `speed-watch`
+  (`equi-actor-speed-1016`, from its pinned worktree) and `long-watch` (`equi-residual-long-1012`,
+  from `0b14c17`, for init0's seed 3). `ln-watch`, `rfe-watch` and
   `tilt-watch` were stopped at 09:06 on 2026-10-15, with no run left.
 - **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells; the old queue
   runners `gpu0`, `gpu1` and `gpu1-bars` are idle too.

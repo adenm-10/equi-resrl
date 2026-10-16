@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Ten seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
+Eleven seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -31,7 +31,10 @@ Ten seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
     150k;
   - equi-arch-parts-1015: the 2026-10-15 PRE-REGISTERED entry ("the equivariant residual on Square
     with each part of ResFiT's layout alone, and all four again"): five equivariant residual arms,
-    arch-wide among them, to a fixed 150k.
+    arch-wide among them, to a fixed 150k;
+  - equi-actor-speed-1016: the 2026-10-16 PRE-REGISTERED entry ("the equivariant residual on Square
+    with arch-wide's actor alone, and with a faster actor"): three equivariant residual arms, to a
+    fixed 150k.
 An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
 STOP_AT step when its trainer would run on past it.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
@@ -87,21 +90,24 @@ RESFIT_LN_PLACE = ("resfit-residual-square-noln-actor", "resfit-residual-square-
 EQUI_ARCH_PARTS = ("equi-residual-square-arch-wide", "equi-residual-square-actorln",
                    "equi-residual-square-criticln", "equi-residual-square-heads",
                    "equi-residual-square-actor448")
+EQUI_ACTOR_SPEED = ("equi-residual-square-actorln448", "equi-residual-square-actorlr1e-5",
+                    "equi-residual-square-actorlr3e-5")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
           "equi-resfit-arch-1013": EQUI_RESFIT_ARCH, "equi-residual-long-1012": EQUI_LONG,
-          "resfit-ln-place-1013": RESFIT_LN_PLACE, "equi-arch-parts-1015": EQUI_ARCH_PARTS}
+          "resfit-ln-place-1013": RESFIT_LN_PLACE, "equi-arch-parts-1015": EQUI_ARCH_PARTS,
+          "equi-actor-speed-1016": EQUI_ACTOR_SPEED}
 RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
                  *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG,
-                 *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS}  # every other arm is tuned RLPD
+                 *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
 COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
 # To a fixed length (2026-10-12 AMENDMENT, Aden): a residual that loses the base policy can win it
 # back late (eaqorqki: 0.04 at 50k, 0.30 at 80k), so only the divergence stop applies. Each ends at
 # its own total_timesteps, or at its STOP_AT step.
 FIXED_LENGTH_ARMS = {NOTILT, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *RESFIT_LN_PLACE,
-                     *EQUI_ARCH_PARTS}
+                     *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED}
 STOP_AT = {NOTILT: 150_000}  # launched for 300k
 # Tracked and logged, never stopped: a run that must go through its collapse to its own end.
 WATCH_ONLY_ARMS = {DIAG}
