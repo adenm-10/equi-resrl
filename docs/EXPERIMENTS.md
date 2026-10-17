@@ -7935,3 +7935,194 @@ gitignored).
   - This measures the output's speed, not whether the speed helps. That is the runs' question.
 - **Config caveats:** as in the PRE-REGISTERED entry above (`equivariance.num_actor_layers` dead,
   `equivariance.initialize` encoder-only).
+
+---
+
+## 2026-10-17 — NOTE — `equi-arch-parts-1015` wave 1 at 150k: `arch-wide` better than init0 and back to the base (160 of 250); no part alone better than init0 (`actorln` 104, one short)
+
+Read on 2026-10-17 from the four run packages (each finished and complete: `8sgfkskv` 16:03, `5cj1rbpu`
+17:05, `dhhq151o` 17:25, `h216n857` 17:39 on 10-16), against the 2026-10-15 PRE-REGISTERED rules. No stop,
+no FLAG (the largest critic value in any of them is 0.46).
+
+| Run | Arm | Evals 0, 10k, …, 150k | 110k–150k | Better than init0 (≥ 105) | Back to the base (≥ 127) | ResFiT's level (≥ 161) |
+|---|---|---|---|---|---|---|
+| `oav5gk76` | init0, the anchor | 0.62 0.00 0.00 0.20 0.02 0.12 0.28 0.18 0.30 0.28 0.24 0.24 0.40 0.24 0.44 0.34 | 83 (0.332) | — | — | — |
+| `h216n857` | `arch-wide` | 0.58 0.04 0.16 0.58 0.60 0.52 0.50 0.64 0.64 0.60 0.46 0.50 0.66 0.64 0.82 0.58 | **160 (0.640)** | **yes** | **yes** | no, by one episode |
+| `8sgfkskv` | `actorln` | 0.40 0.02 0.06 0.24 0.24 0.38 0.38 0.46 0.32 0.22 0.30 0.44 0.30 0.40 0.44 0.50 | 104 (0.416) | **no, by one episode** | no | no |
+| `5cj1rbpu` | `criticln` | 0.34 0.00 0.02 0.08 0.14 0.12 0.08 0.24 0.24 0.32 0.38 0.30 0.36 0.22 0.30 0.24 | 71 (0.284) | no | no | no |
+| `dhhq151o` | `heads` | 0.40 0.00 0.04 0.12 0.16 0.20 0.24 0.16 0.10 0.20 0.36 0.28 0.22 0.16 0.26 0.20 | 56 (0.224) | no | no | no |
+
+- **`arch-wide` is the first equivariant residual on these demos back to the base at 110k–150k,** and
+  its 0.82 at 140k is the best eval of any equivariant residual after step 0 (the earlier best was
+  `oav5gk76`'s 0.44). One seed.
+- **No part alone is better than init0.** `actorln` is the closest, one episode under the bar. The two
+  critic parts are at or below the anchor.
+- **Seed 3s:** by the rule, none of `actorln`, `criticln` or `heads` is due. `arch-wide`'s is not run
+  (2026-10-16 DEVIATION). `actor448` (wave 2, `vnpqtnva`) reaches 150k about 21:50 on 10-17. Aden has
+  since set every seed 3 aside for now (DEVIATION below), so its readout will be reported only.
+- **What follows:** the pre-registered branch is "`arch-wide` better, and no single part: a wave of
+  `arch-wide` less one part at a time". `equi-actor-speed-1016` (2026-10-16, Aden) took its place:
+  its `actorln448` is `arch-wide` less both critic parts.
+- **The predictions:**
+  1. `actorln` better than init0: **wrong**, by one episode.
+  2. `arch-wide` better than init0: **right**.
+  3. `criticln`, `heads` and `actor448` not better: **right** for `criticln` and `heads`;
+     `actor448` is not in yet.
+  4. No arm back to the base: **wrong** (`arch-wide`).
+- **Reported, deciding nothing:**
+
+  | | anchor | `arch-wide` | `actorln` | `criticln` | `heads` | ResFiT's anchors |
+  |---|---|---|---|---|---|---|
+  | 10k–30k (of 150) | 10 | 39 | 16 | 5 | 8 | 71, 35 |
+  | 40k–100k (of 350) | 71 | 198 | 115 | 76 | 71 | 212, 165 |
+  | First eval ≥ 0.30 | 80k | 30k | 50k | 90k | 100k | — |
+  | `train/residual_l1_magnitude`, 0–3k | 0.002 | 0.037 | 0.012 | 0.006 | 0.002 | 0.030 |
+  | `train/actor_grad_norm`, 0–3k → 120k–150k | 0.005 → 0.006 | 0.038 → 0.012 | 0.028 → 0.006 | 0.014 → 0.008 | 0.005 → 0.005 | 0.06 → 0.33–0.37 |
+  | `debug/q_data_online`, 120k–150k | 0.033 | 0.137 | 0.052 | 0.024 | 0.007 | 0.118–0.213 |
+  | `debug/q_data_demo`, 120k–150k | 0.339 | 0.376 | 0.362 | 0.352 | 0.323 | 0.470, 0.479 |
+  | `debug/q_advantage_ratio`, 25k–30k | 0.6% | 2.1% | 1.5% | 1.1% | 0.8% | about 2% |
+  | `eval/tilt_over_30deg_frac`, 110k–150k | 0.02 | 0.04 | 0.03 | 0.00 | 0.01 | — |
+
+  - **`arch-wide` sits inside ResFiT's seed range on every window,** at its lower end late: 0.640
+    against ResFiT's anchors' 0.800 and 0.628 (`oj5k0jqb`, `s8opblsd`). Unlike ResFiT's, its actor's
+    gradient falls over the run, and its value of the demos is lower.
+  - Every arm still loses the base by 10k (0.00–0.04).
+- **Config caveats:** `equivariance.num_actor_layers` is logged as 2 and is dead (the actor has one
+  policy layer whatever its value); `equivariance.initialize` reaches the encoder only (ARCHITECTURE.md's
+  provenance table).
+
+---
+
+## 2026-10-17 — LAUNCHED — `actor448` (`vnpqtnva`; `equi-arch-parts-1015` wave 2) and `equi-actor-speed-1016`: `actorln448` (`x3xopn1y`), `actorlr1e-5` (`0jqo4jrx`), `actorlr3e-5` (`762bhig5`)
+
+The slot queue (tmux `rfe-queue`, restarted on 2026-10-16 at 10:21 with the 2026-10-16 PRE-REGISTERED
+launch table) launched each into a slot wave 1 freed. **Every gate said GO at its first try.** Each
+run package records its commit, clean (no uncommitted file), mujoco 3.3.2, and an argv equal to the
+worktree's dry run of the arm at seed 2: `oav5gk76`'s argv plus the arm's change, less naming.
+
+| Job | From | Launched (10-16) | GPU | Gate: Tier 1; Tier 2 | In wandb | Run |
+|---|---|---|---|---|---|---|
+| `equi-residual-square-actor448` 2 | `974e281` | 16:08 | 0 | 226; 578 (34 min) | 17:40 | [**`vnpqtnva`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/vnpqtnva) |
+| `equi-residual-square-actorln448` 2 | `dd6f753` | 17:10 | 1 | 226; 618 (46 min) | 18:37 | [**`x3xopn1y`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/x3xopn1y) |
+| `equi-residual-square-actorlr1e-5` 2 | `dd6f753` | 17:30 | 1 | 226; 618 (47 min) | 19:11 | [**`0jqo4jrx`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/0jqo4jrx) |
+| `equi-residual-square-actorlr3e-5` 2 | `dd6f753` | 17:43 | 0 | 226; 618 (46 min) | 19:26 | [**`762bhig5`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/762bhig5) |
+
+- The gates' two warnings, as at every launch since 2026-10-12: the BC policy is not in the worktree's
+  `artifacts/` (the trainer loads it from the main checkout's), and the disk.
+- Wave 1 ended 20–45 minutes before the 2026-10-16 NOTE's estimates, so the launches came early too.
+- **Speed:** 5,100–5,300 steps per hour, two equivariant runs per GPU. 150k is due at about 21:50 on
+  10-17 (`actor448`), and about 00:00, 00:05 and 00:30 on 10-18 (`actorlr3e-5`, `actorlr1e-5`,
+  `actorln448`).
+- Watched by `parts-watch` and `speed-watch` until 12:57 on 10-17, when both were stopped (DEVIATION
+  below). Neither had stopped or FLAGged anything.
+- **Config caveats:** as in the PRE-REGISTERED entries (2026-10-15 and 2026-10-16): `num_actor_layers`
+  dead, `initialize` encoder-only, and for the rate arms AdamW's weight decay scaling with the rate.
+
+---
+
+## 2026-10-17 — NOTE — `equi-actor-speed-1016`: the "matches `arch-wide`" bar is 139 of 250; every arm reaches `arch-wide`'s early speed and none saturates by the registered bar, but both rate arms sit at the limit on yaw and z from 3k to 10k
+
+Recorded at about 13:00 on 10-17. The arms are at 90k–100k, so no arm has reached 110k (the first
+should get there about 16:40).
+
+- **The bar, fixed by the PRE-REGISTERED formula from `h216n857`'s 160 of 250 (p_aw = 0.640):** an
+  arm matches `arch-wide` iff p − 0.640 ≥ −2·√(p(1−p)/250 + 0.640·0.360/250), that is **at least 139
+  of 250** at 110k–150k.
+- **The speed readout** (`train/residual_l1_magnitude` over the first 3k steps):
+
+  | Run | Arm | Residual, 0–3k | Reaches `arch-wide`'s speed (≥ 0.018) | Saturates (≥ 0.07, gradient falling) | `train/actor_grad_norm`, 0–3k → 6k–10k |
+  |---|---|---|---|---|---|
+  | `x3xopn1y` | `actorln448` | 0.033 | yes | no | 0.039 → 0.011 |
+  | `0jqo4jrx` | `actorlr1e-5` | 0.051 | yes | no | 0.0048 → 0.0027 |
+  | `762bhig5` | `actorlr3e-5` | 0.065 | yes | no (0.065) | 0.0042 → 0.0030 |
+  | for reference: `h216n857` | `arch-wide` | 0.037 | — | — | 0.038 → 0.012 |
+
+  Every gradient falls by 6k–10k, `arch-wide`'s too, so a falling gradient alone does not mark the
+  ResFiT-without-LayerNorm failure.
+- **Per action component** (the residual's mean size on the online batch, `debug/residual_field/*`;
+  the limit is 0.1; reported, deciding nothing):
+
+  | Run, 3k–10k | xy | z | tilt | yaw | yaw's signed mean, 3k–10k → 10k–20k | Evals at 10k, 20k |
+  |---|---|---|---|---|---|---|
+  | `oav5gk76` init0 | 0.030 | 0.040 | 0.017 | 0.037 | +0.037 → +0.070 | 0.00, 0.00 |
+  | `8sgfkskv` `actorln` | 0.060 | 0.060 | 0.019 | 0.057 | +0.057 → +0.010 | 0.02, 0.06 |
+  | `h216n857` `arch-wide` | 0.074 | 0.072 | 0.050 | 0.059 | −0.006 → +0.002 | 0.04, 0.16 |
+  | `x3xopn1y` `actorln448` | 0.073 | 0.091 | 0.048 | 0.052 | +0.013 → −0.024 | 0.04, 0.14 |
+  | `0jqo4jrx` `actorlr1e-5` | 0.090 | **0.100** | 0.078 | **0.100** | **+0.100** → −0.037 | 0.00, 0.00 |
+  | `762bhig5` `actorlr3e-5` | 0.094 | **0.100** | 0.087 | **0.100** | +0.046 → −0.052 | 0.00, 0.00 |
+
+  - Every equivariant actor first pushes yaw one way.
+    - init0's drifts there slowly and is still there at 10k–20k.
+    - `arch-wide`'s and `actorln448`'s push it in the first 3k steps (+0.054, +0.057) and have
+      corrected it by 3k–10k.
+    - The rate arms' reach the limit on yaw and z for 3k–10k, then reverse by 10k–20k.
+  - The pooled 0–3k mean (the registered measure) does not show this, as `field_metrics.py`'s
+    docstring warns. Both rate arms lost the base at 10k and 20k, as init0 did, and scored 12 and
+    4 of 150 at 10k–30k, against `actorln448`'s 22 and `arch-wide`'s 39.
+- **The step-size calibration's predictions** (2026-10-16 MEASUREMENT) against these:
+
+  | Arm | Predicted | Measured |
+  |---|---|---|
+  | `actorln448` | 0.025–0.036 | 0.033, right |
+  | `actorlr3e-5` | 0.06–0.07 | 0.065, right |
+  | `actorlr1e-5` | about 0.02 | 0.051, 2.5 times faster |
+  | `actor448` (`vnpqtnva`) | 0.004–0.006 | 0.014, 2–3 times faster |
+
+- **To 90k–100k** (reported, deciding nothing; the main readout is 110k–150k):
+
+  | Run | Arm | Evals 0, 10k, … | 10k–30k | 40k–90k (of 300) |
+  |---|---|---|---|---|
+  | `oav5gk76` | init0 | as above | 10 | 59 |
+  | `h216n857` | `arch-wide` | as above | 39 | 175 |
+  | `x3xopn1y` | `actorln448` | 0.58 0.04 0.14 0.26 0.46 0.58 0.56 0.60 0.52 0.56 | 22 | 164 |
+  | `0jqo4jrx` | `actorlr1e-5` | 0.46 0.00 0.00 0.24 0.38 0.56 0.42 0.46 0.36 0.46 | 12 | 132 |
+  | `762bhig5` | `actorlr3e-5` | 0.64 0.00 0.00 0.08 0.24 0.40 0.48 0.72 0.62 0.54 | 4 | 150 |
+  | `vnpqtnva` | `actor448` | 0.50 0.04 0.00 0.04 0.16 0.28 0.30 0.24 0.42 0.36 0.32 | 4 | 104 of 350 at 40k–100k |
+
+  - Each critic's slope with respect to the action is the anchor's (`debug/dQ_da_mean_abs` 6.7–7.9e-5
+    at 0–30k).
+  - Each of the three arms' advantage ratio is `arch-wide`'s (2.0–2.3% at 25k–30k, against 2.1%; the
+    anchor 0.6%).
+  - Online value is positive by 30k–60k: +0.042, +0.033, +0.028 (`arch-wide` +0.070, the anchor +0.011).
+- **Config caveats:** as in the 2026-10-16 PRE-REGISTERED entry, the weight-decay one included.
+
+---
+
+## 2026-10-17 — DEVIATION and DECISION — no seed 3 for any run for now; no automatic stop of any run; the queue and the watchers stopped; `equi-speed-matched-1017` planned
+
+Aden's decisions, 2026-10-17, after the NOTEs above:
+- **No seed 3 for any run, for now.**
+  - init0's seed 3 (`equi-residual-long-1012`'s 2026-10-15 AMENDMENT, fifth in the queue since
+    2026-10-16) is set aside.
+  - So is `actor448`'s, which `equi-arch-parts-1015`'s rule would launch at 105 or more of 250. Its
+    150k readout is reported only.
+  - `actorln`'s seed 3 is not run, though it missed the bar by a single episode. The rule says the
+    same.
+- **Every run defaults to its full 150k, and no automatic stop of any kind applies.** That includes
+  the divergence stop, the last one left after the 2026-10-12 AMENDMENT. Aden makes any early stop by
+  hand.
+  - This changes the rules of the four running runs (`vnpqtnva`, `x3xopn1y`, `0jqo4jrx`,
+    `762bhig5`), each pre-registered with the divergence stop.
+  - `parts-watch`, `speed-watch` and `long-watch` were stopped at 12:57. They were the only things
+    that could stop these runs. Each trainer ends itself at 150k and completes its own package.
+  - With no watcher, nothing logs their evals to `outputs/queue/watch.log`, FLAGs a critic value above
+    1.5, or finalizes a package left incomplete by a crash (`finalize_run_package` by hand).
+- **The queue (`rfe-queue`) was stopped at 12:57,** before init0's seed 3 could launch into
+  `actor448`'s slot (about 21:55). Its other remaining jobs were the four conditional part seed 3s. Its
+  scripts and jobs file are unchanged in `outputs/queue/launchers/`.
+- **Next: `equi-speed-matched-1017`** (planned, not yet pre-registered), every arm at seed 2, an
+  existing run plus a learning rate:
+
+  | Arm | Its parent run | Its role |
+  |---|---|---|
+  | `actorln` at lr 3e-6 | `8sgfkskv` | a missing cell of the 2×2 of norm and width at about `arch-wide`'s early speed |
+  | `actor448` at lr 3e-6 | `vnpqtnva` | the other missing cell |
+  | `actorln448` at lr 1e-5 | `x3xopn1y` | everything stacked |
+  | init0 at lr 1e-4 | `oav5gk76` | the plain actor's rate curve, and where it fails |
+
+  - The 2×2's other two cells are `actorlr1e-5` and `actorln448`, now running.
+  - Its new cells take priority (Aden).
+  - Every arm runs to 150k with no stop.
+  - The plan, with every step: `docs/plans/2026-10-17-speed-matched.md` (local). Its
+    pre-registration goes here before any of its runs launch, into the slots that free from about
+    21:50 on 10-17.

@@ -9,53 +9,68 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B18. arch-wide's actor alone, and a faster actor (`equi-actor-speed-1016`) — NOW (Aden, 2026-10-16) `[SC]`
+### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — NEXT (Aden, 2026-10-17) `[SC]`
 
-**The plan: [docs/plans/2026-10-16-actor-speed.md](plans/2026-10-16-actor-speed.md)** (local, not in
-git). Why: `arch-wide` holds near the base from 30k, and its actor, not its critic, differs (its
-residual 16 times the anchor's at 0–3k). `actorln448` asks whether its actor is the whole effect;
-`actorlr1e-5` and `actorlr3e-5` ask whether the actor's speed alone is (EXPERIMENTS.md, 2026-10-16
-PRE-REGISTERED). All at seed 2 on the init0 anchor, paired with `oav5gk76`.
+**The plan, with every step and command: [docs/plans/2026-10-17-speed-matched.md](plans/2026-10-17-speed-matched.md)**
+(local, not in git). Every decision is made (Aden, 2026-10-17; EXPERIMENTS.md, that date's DEVIATION).
 
-1. **DONE 2026-10-16:** pre-registered, with the DEVIATION for `equi-arch-parts-1015`'s seed 3s; arms,
-   tests, watcher group, `tools/parts_seed3.py`; committed and pinned; the queue restarted;
-   `speed-watch` started; the step-size calibration (MEASUREMENT).
-2. **Tonight:** the new arms launch at about 17:15, 17:50 and 18:35 (STATUS, "Running now"). Once
-   each is in wandb (about 1 h 20 min later), a LAUNCHED entry, with `actor448`'s (about 16:10): check
-   each package's commit, clean tree, mujoco 3.3.2 and argv against the worktree's dry run.
-3. **About 3 h after each launch:** the speed readout, `train/residual_l1_magnitude` over the first 3k
-   steps against 0.018 (reaches `arch-wide`'s speed) and 0.07 (saturates, with the actor's gradient
-   falling by 6k–10k). Reported in a NOTE; it reads the arms at 150k with the main readout.
-4. **Before the new arms reach 110k (2026-10-17 about 17:00):** record the "matches `arch-wide`" bar
-   from `h216n857`'s 110k–150k (the formula is in the pre-registration).
-5. **2026-10-18, about 00:20–01:45:** each arm's 150k NOTE with the main readout and the pre-registered
-   reading, the predictions (1–3), and the config caveats (the weight-decay one included). Then what
-   follows, for the 2026-10-19 meeting.
+Four arms at seed 2, each an existing run plus `agent.actor_lr`, so each starts from its parent's
+weights bit for bit:
 
-### B17. Which part of ResFiT's layout helps the equivariant residual — RUNNING (Aden, 2026-10-15) `[SC]`
+| Arm | Parent | Role |
+|---|---|---|
+| `actorln` at 3e-6 | `8sgfkskv` | the 2×2's norm cell |
+| `actor448` at 3e-6 | `vnpqtnva` | the 2×2's width cell |
+| `actorln448` at 1e-5 | `x3xopn1y` | everything stacked |
+| init0 at 1e-4 | `oav5gk76` | the plain actor's rate curve |
 
-**The plan: [docs/plans/2026-10-15-equi-arch-parts.md](plans/2026-10-15-equi-arch-parts.md)** (local,
-not in git). Seed group `equi-arch-parts-1015`, all at seed 2 on the init0 anchor (pairing each with
-`oav5gk76`); main readout 110k–150k against its 0.332 (better iff at least 105 of 250). Items 0–3
-(the cache, the pre-registration, the code, the commit `974e281`) were done on 2026-10-15.
+The 2×2's other two cells are `actorlr1e-5` and `actorln448`, which are running. Every arm runs to 150k
+with **no stop of any kind**. The watcher is watch-only, and Aden stops runs by hand.
 
-4. **NOW: wave 1 runs** (EXPERIMENTS.md, 2026-10-15 LAUNCHED; 2026-10-16 NOTE at 100k–110k):
-   `arch-wide` `h216n857`, `actorln` `8sgfkskv`, `criticln` `5cj1rbpu`, `heads` `dhhq151o`, watched
-   by `parts-watch`. 150k due on 2026-10-16 at about 16:00, 17:05, 17:40 and 18:25. `actor448` launches
-   by itself into the first freed slot (about 16:10).
-5. **At 150k, in order:**
-   1. A NOTE with each run's evals to 150k and the main readout: 110k–150k pooled against
-      `oav5gk76`'s 83 of 250. Better than init0 at 105 or more, back to the base at 127, ResFiT's
-      level at 161. Then the reported items, the predictions (1–4), and the config caveats (the
-      2026-10-16 NOTE has them). `actor448`'s comes on 2026-10-18 about 00:40.
-   2. **Seed 3s are queued** (2026-10-16 DEVIATION): no `arch-wide` seed 3 (Aden); the queue's jobs
-      6–9 launch the parts' seed 3s iff `tools/parts_seed3.py` says due, from about 00:45 on
-      2026-10-18. Check `slot_queue.log` for its verdicts. A part whose run ended without a 150k eval
-      makes the tool skip: then a human decides.
-   3. LAUNCHED entries for `actor448`, init0's seed 3 and any seed 3s.
-   4. Then the pre-registration's "what follows". Check the disk each session: the wandb cache refills
-      with each best upload (STATUS, "Resources").
-6. **Folded into B18:** the step-size calibration (EXPERIMENTS.md, 2026-10-16 MEASUREMENT).
+1. **Pre-register** in EXPERIMENTS.md: the plan's "Rules and readouts" and "Predictions", with the
+   calibration extended to the four arms.
+2. **Code, config only:**
+   - `submit.sh`'s cases;
+   - `tests/test_sweep_arms.py`: the tables, plus a new test that each arm is its parent but for the
+     rate, in its config and its weights at seed 2;
+   - the watcher's group in `WATCH_ONLY_ARMS`, with a test that it is never stopped;
+   - `tests/README.md`.
+
+   Run the CPU tier and the new arms' Tier 2, both with `CUDA_VISIBLE_DEVICES=""`.
+3. **Commit** through `/git_proc` (no trailer), then pin a worktree and dry-run each arm against its
+   parent's recorded argv.
+4. **Launch:** `jobs-equi-speed-matched-1017.txt`, start `rfe-queue`, and start `matched-watch`.
+   - Slots free from about 21:50 on 10-17 (STATUS, "Running now").
+   - Then the LAUNCHED entry.
+5. **Readouts:** early speed and pinning about 3.5 h after each launch, 10k–30k about 7.5 h after, and
+   150k on 10-19 at about 04:30–08:45 if launched tonight.
+
+### B18. arch-wide's actor alone, and a faster actor (`equi-actor-speed-1016`) — RUNNING (Aden, 2026-10-16) `[SC]`
+
+[The plan](plans/2026-10-16-actor-speed.md) (local). `actorln448` (`x3xopn1y`), `actorlr1e-5`
+(`0jqo4jrx`) and `actorlr3e-5` (`762bhig5`) are at seed 2, paired with `oav5gk76`.
+- **Done:** items 1–4, through 2026-10-17. That is the pre-registration, the code and the
+  calibration; LAUNCHED; the speed readout; and the "matches `arch-wide`" bar, 139 of 250 (2026-10-17
+  NOTE).
+- **Since 2026-10-17 they run with no stop** (DEVIATION).
+
+5. **2026-10-18, about 00:00–00:30:** each arm's 150k NOTE.
+   - The main readout: 110k–150k against 105/127/161 and 139.
+   - The pre-registered reading: speed enough, part of it, not enough, too fast, or the model wrong;
+     and for `actorln448`, whether it matches `arch-wide`.
+   - The predictions (1–3), the per-component residual (reported), and the config caveats, the
+     weight-decay one included.
+   - Then what follows, for the 2026-10-19 meeting.
+
+### B17. Which part of ResFiT's layout helps the equivariant residual — ONE RUN LEFT (Aden, 2026-10-15) `[SC]`
+
+[The plan](plans/2026-10-15-equi-arch-parts.md) (local). Wave 1 finished on 2026-10-16. Its 150k NOTE
+is in EXPERIMENTS.md (2026-10-17): `arch-wide` 160 of 250, back to the base; `actorln` 104; `criticln`
+71; `heads` 56; init0 83.
+- **Seed 3s:** none, by the rule and by Aden's 2026-10-17 decision (no seed 3 for any run for now).
+- **Left:** `actor448` (`vnpqtnva`) reaches 150k about 21:50 on 10-17. Its NOTE scores prediction 3
+  for it and is reported only. Check the disk each session: the wandb cache refills with each best
+  upload (STATUS, "Resources").
 
 ### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 

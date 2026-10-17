@@ -17,6 +17,50 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-17 — `equi-arch-parts-1015` at 150k, the speed arms at 90k, and the analysis; `equi-speed-matched-1017` planned
+
+**Found** (EXPERIMENTS.md, 2026-10-17 NOTEs)
+- **`arch-wide` is back to the base at 110k–150k** (160 of 250, against init0's 83), one episode short
+  of ResFiT's level. No part alone is better than init0: `actorln` 104 (one episode short),
+  `criticln` 71, `heads` 56.
+- **The speed hypothesis holds so far.** All three `equi-actor-speed-1016` arms recover far faster
+  than init0 (40k–90k: 132–164 of 300, against 59; `arch-wide` 175).
+  - `actorln448`, `arch-wide`'s actor with init0's critic, tracks `arch-wide`.
+  - A 10× or 30× actor rate, with no network change, gets most of the gain.
+- **Speed is not all of it.** Per component, both rate arms sit at the limit on yaw and z from 3k to
+  10k and lose the base early (10k–30k: 12 and 4 of 150, against `actorln448`'s 22). The registered
+  pooled-mean bar missed this.
+- **Against ResFiT:** `arch-wide` sits inside ResFiT's seed range on every window, at its lower end
+  late, at a quarter of ResFiT's parameters. The critic parts add nothing anywhere, so critic width is
+  low priority.
+
+**Decided (Aden)**
+- **No seed 3 for any run for now.** init0's and `actor448`'s are set aside, and `actorln`'s (one
+  short) is not run.
+- **Every run to its full 150k with no automatic stop of any kind,** the divergence stop included.
+  Aden stops runs by hand. Why: comparability, since a residual that loses the base can win it back
+  late. This is saved as a standing rule in memory (`runs-default-to-150k`).
+- **Next: `equi-speed-matched-1017`,** four arms, the new 2×2 cells first.
+  - `actorln` and `actor448` at lr 3e-6: the 2×2 of norm and width at matched speed.
+  - `actorln448` at 1e-5: everything stacked.
+  - init0 at 1e-4: the rate curve.
+  - Why: the components all turn the same knob (the actor's step size) and multiply, so naive stacking
+    overshoots. The question is what the norm adds beyond speed, and whether the small normed actor
+    plus a faster rate is the cheap recipe.
+
+**Done**
+- EXPERIMENTS.md: wave 1's 150k NOTE; LAUNCHED for `vnpqtnva`, `x3xopn1y`, `0jqo4jrx` and `762bhig5`
+  (every gate GO at its first try); the speed readout and the bar (139, recorded before any arm
+  reached 110k); the DEVIATION and DECISION.
+- **Stopped at 12:57:** `rfe-queue`, before init0's seed 3 could launch, and the three watchers, whose
+  only remaining action was the divergence stop. The four runs end by themselves at 150k.
+- The plan: `docs/plans/2026-10-17-speed-matched.md`, ready to implement. STATUS, TODO B17–B19.
+
+**Next:** implement and launch B19 (slots free from about 21:50 on 10-17). Also `vnpqtnva`'s 150k NOTE,
+and `equi-actor-speed-1016`'s 150k readout (10-18, about 00:00–00:30).
+
+---
+
 ## 2026-10-16 (morning) — `equi-actor-speed-1016` pre-registered and queued: `arch-wide`'s actor alone, and a faster actor
 
 **Decided (Aden):**
