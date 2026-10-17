@@ -17,6 +17,32 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-17 (afternoon) — `equi-speed-matched-1017` pre-registered, its code and tests, queued
+
+**Done**
+- Committed the morning session's 2026-10-17 records on their own (`8999d81`). Its message lacks the
+  blank line after the subject, so `git log --oneline` shows the whole message; left as it is, since
+  fixing it means amending.
+- EXPERIMENTS.md: **PRE-REGISTERED `equi-speed-matched-1017`**, transcribing the plan's arms, rules,
+  readouts and predictions, with the step-size calibration extended to the four arms. The new arms'
+  first steps are exactly the rate times their parent's gain: `actorln-lr3e-6` 10.5× init0,
+  `actor448-lr3e-6` 6.3×, `actorln448-lr1e-5` 116×, `actorlr1e-4` 100×. The seven older arms reproduce
+  their 2026-10-16 numbers exactly.
+- Code, config only: `submit.sh`'s four cases; `tests/test_sweep_arms.py`'s tables and three new
+  tests (each arm is its parent but for the rate in its overrides, its parent run's recorded argv,
+  its composed config, and its weights at seed 2); the watcher's group, watch-only, with its test;
+  `tests/README.md`. CPU tier 180 passed (121 skipped); the new arms' Tier 2 on the CPU, 64 passed.
+
+**Decided (Claude, within the plan)**
+- The calibration runs from its own directory (`outputs/diagnostics/actor-step-size-1017/`), not by
+  editing the 2026-10-16 script, so that entry's files stay as it cites them.
+
+**Next:** pin the worktree, dry-run each arm against its parent's argv, start `rfe-queue` and
+`matched-watch`; then the LAUNCHED entry, `vnpqtnva`'s 150k NOTE (about 21:50) and
+`equi-actor-speed-1016`'s 150k readout (10-18, about 00:00–00:30; TODO B18).
+
+---
+
 ## 2026-10-17 — `equi-arch-parts-1015` at 150k, the speed arms at 90k, and the analysis; `equi-speed-matched-1017` planned
 
 **Found** (EXPERIMENTS.md, 2026-10-17 NOTEs)

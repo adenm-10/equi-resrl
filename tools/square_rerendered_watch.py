@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Eleven seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
+Twelve seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -34,9 +34,15 @@ Eleven seed groups (GROUPS), on the re-rendered Square demos unless said otherwi
     arch-wide among them, to a fixed 150k;
   - equi-actor-speed-1016: the 2026-10-16 PRE-REGISTERED entry ("the equivariant residual on Square
     with arch-wide's actor alone, and with a faster actor"): three equivariant residual arms, to a
-    fixed 150k.
+    fixed 150k;
+  - equi-speed-matched-1017: the 2026-10-17 PRE-REGISTERED entry ("the equivariant residual on
+    Square with the actor's parts at matched speed, and the speed's two edges"): four equivariant
+    residual arms, each to its own 150k, never stopped (watch-only).
 An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
-STOP_AT step when its trainer would run on past it.
+STOP_AT step when its trainer would run on past it. A watch-only arm (WATCH_ONLY_ARMS) is never
+signalled: from 2026-10-17 (DEVIATION) no automatic stop of any kind applies to a new group, and Aden
+stops a run by hand. Its evals are still logged, its critic values FLAGged and its package
+finalized.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -92,15 +98,18 @@ EQUI_ARCH_PARTS = ("equi-residual-square-arch-wide", "equi-residual-square-actor
                    "equi-residual-square-actor448")
 EQUI_ACTOR_SPEED = ("equi-residual-square-actorln448", "equi-residual-square-actorlr1e-5",
                     "equi-residual-square-actorlr3e-5")
+EQUI_SPEED_MATCHED = ("equi-residual-square-actorln-lr3e-6", "equi-residual-square-actor448-lr3e-6",
+                      "equi-residual-square-actorln448-lr1e-5", "equi-residual-square-actorlr1e-4")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
           "equi-resfit-arch-1013": EQUI_RESFIT_ARCH, "equi-residual-long-1012": EQUI_LONG,
           "resfit-ln-place-1013": RESFIT_LN_PLACE, "equi-arch-parts-1015": EQUI_ARCH_PARTS,
-          "equi-actor-speed-1016": EQUI_ACTOR_SPEED}
+          "equi-actor-speed-1016": EQUI_ACTOR_SPEED, "equi-speed-matched-1017": EQUI_SPEED_MATCHED}
 RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
                  *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG,
-                 *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED}  # every other arm is tuned RLPD
+                 *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED,
+                 *EQUI_SPEED_MATCHED}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
 COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
 # To a fixed length (2026-10-12 AMENDMENT, Aden): a residual that loses the base policy can win it
@@ -109,8 +118,9 @@ COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
 FIXED_LENGTH_ARMS = {NOTILT, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *RESFIT_LN_PLACE,
                      *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED}
 STOP_AT = {NOTILT: 150_000}  # launched for 300k
-# Tracked and logged, never stopped: a run that must go through its collapse to its own end.
-WATCH_ONLY_ARMS = {DIAG}
+# Tracked and logged, never stopped: a run that must go through its collapse to its own end, and
+# every arm of a group pre-registered from 2026-10-17, when Aden ruled out any automatic stop.
+WATCH_ONLY_ARMS = {DIAG, *EQUI_SPEED_MATCHED}
 EPISODES = 50                       # per eval
 COLLAPSE_RATE, COLLAPSE_RUN = 0.05, 3
 CHECK_STEP = 100_000

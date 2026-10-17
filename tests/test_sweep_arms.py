@@ -1,13 +1,15 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Six seed groups, and each arm
+submit.sh's case table is checked here first. Seven seed groups, and each arm
 against its anchor's launch, less the anchor's run length:
   - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
     (resfit-residual-square 1, 9cf207d);
-  - equi-resfit-arch-1013, equi-arch-parts-1015 and equi-actor-speed-1016:
-    eaqorqki's (square-residual-start-1011, 0af7655); arch-wide launches into
-    equi-arch-parts-1015 now;
+  - equi-resfit-arch-1013, equi-arch-parts-1015, equi-actor-speed-1016 and
+    equi-speed-matched-1017: eaqorqki's (square-residual-start-1011, 0af7655);
+    arch-wide launches into equi-arch-parts-1015 now. Each arm of
+    equi-speed-matched-1017 is also checked against its parent arm and its
+    parent's seed-2 run: the same but for agent.actor_lr;
   - equi-residual-long-1012: each arm is its anchor's launch, again: 6ng62tpm's
     (square-rerendered-1009, eb90a0c) and eaqorqki's.
 
@@ -38,9 +40,11 @@ against its anchor's launch, less the anchor's run length:
           actor parts and the anchor's critic, and starts from its encoder and
           critic; the two learning-rate arms start from the anchor's weights bit
           for bit, and their actor's AdamW steps at their rate, the critic's and
-          the encoder's at the anchor's. A test here keeps on record that the
-          fixed-env baselines' FieldNorm critic is blind to every trivial input
-          (2026-10-08 FINDING).
+          the encoder's at the anchor's. Each arm of equi-speed-matched-1017 has
+          its parent's design, starts from its parent's weights bit for bit at
+          seed 2, and steps its actor at its own rate. A test here keeps on
+          record that the fixed-env baselines' FieldNorm critic is blind to
+          every trivial input (2026-10-08 FINDING).
 
 The arm list is pinned to the pre-registrations (EXPERIMENTS.md, 2026-10-12
 PRE-REGISTERED, "ResFiT's residual on Square, given the equivariant stack's
@@ -49,8 +53,10 @@ differences one at a time; the equivariant residual given ResFiT's layout", and
 that date, 2026-10-13 PRE-REGISTERED, "ResFiT's residual on Square with
 LayerNorm off in one place", 2026-10-15 PRE-REGISTERED, "the equivariant
 residual on Square with each part of ResFiT's layout alone, and all four again",
-and 2026-10-16 PRE-REGISTERED, "the equivariant residual on Square with
-arch-wide's actor alone, and with a faster actor".
+2026-10-16 PRE-REGISTERED, "the equivariant residual on Square with arch-wide's
+actor alone, and with a faster actor", and 2026-10-17 PRE-REGISTERED, "the
+equivariant residual on Square with the actor's parts at matched speed, and the
+speed's two edges".
 """
 
 from __future__ import annotations
@@ -76,6 +82,7 @@ LONG_GROUP = "equi-residual-long-1012"
 LN_GROUP = "resfit-ln-place-1013"
 PARTS_GROUP = "equi-arch-parts-1015"
 SPEED_GROUP = "equi-actor-speed-1016"
+MATCHED_GROUP = "equi-speed-matched-1017"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -102,6 +109,17 @@ ACTORLR1E5 = "equi-residual-square-actorlr1e-5"
 ACTORLR3E5 = "equi-residual-square-actorlr3e-5"
 LR_ARMS = {ACTORLR1E5: 1e-5, ACTORLR3E5: 3e-5}  # each arm's actor learning rate; the anchor's is 1e-6
 SPEED_ARMS = (ACTORLN448, *LR_ARMS)
+ACTORLN_LR3E6 = "equi-residual-square-actorln-lr3e-6"
+ACTOR448_LR3E6 = "equi-residual-square-actor448-lr3e-6"
+ACTORLN448_LR1E5 = "equi-residual-square-actorln448-lr1e-5"
+ACTORLR1E4 = "equi-residual-square-actorlr1e-4"
+# Each arm's parent arm and its actor learning rate, as launched: the arm is its parent but for the rate.
+MATCHED_ARMS = {ACTORLN_LR3E6: (ACTORLN, "3e-6"), ACTOR448_LR3E6: (ACTOR448, "3e-6"),
+                ACTORLN448_LR1E5: (ACTORLN448, "1e-5"), ACTORLR1E4: (INIT0_LONG, "1e-4")}
+# Each parent arm's seed-2 run, which its matched arm pairs with.
+PARENT_RUNS = {ACTORLN: "8sgfkskv", ACTOR448: "vnpqtnva", ACTORLN448: "x3xopn1y", INIT0_LONG: "oav5gk76"}
+# Every arm's actor learning rate that is not the anchor's 1e-6.
+ACTOR_LRS = {**LR_ARMS, **{arm: float(rate) for arm, (_, rate) in MATCHED_ARMS.items()}}
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -144,6 +162,11 @@ LAUNCHED = {
     ACTORLN448: EQUI_ANCHOR | {"equivariance.actor_norm=layer_norm", "equivariance.actor_degree_channel=448"},
     ACTORLR1E5: EQUI_ANCHOR | {"agent.actor_lr=1e-5"},
     ACTORLR3E5: EQUI_ANCHOR | {"agent.actor_lr=3e-5"},
+    ACTORLN_LR3E6: EQUI_ANCHOR | {"equivariance.actor_norm=layer_norm", "agent.actor_lr=3e-6"},
+    ACTOR448_LR3E6: EQUI_ANCHOR | {"equivariance.actor_degree_channel=448", "agent.actor_lr=3e-6"},
+    ACTORLN448_LR1E5: EQUI_ANCHOR | {"equivariance.actor_norm=layer_norm", "equivariance.actor_degree_channel=448",
+                                     "agent.actor_lr=1e-5"},
+    ACTORLR1E4: EQUI_ANCHOR | {"agent.actor_lr=1e-4"},
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
@@ -171,6 +194,10 @@ FROM_ANCHOR = {
     ACTORLN448: {"equivariance.actor_norm", "equivariance.actor_degree_channel"},
     ACTORLR1E5: {"agent.actor_lr"},
     ACTORLR3E5: {"agent.actor_lr"},
+    ACTORLN_LR3E6: {"equivariance.actor_norm", "agent.actor_lr"},
+    ACTOR448_LR3E6: {"equivariance.actor_degree_channel", "agent.actor_lr"},
+    ACTORLN448_LR1E5: {"equivariance.actor_norm", "equivariance.actor_degree_channel", "agent.actor_lr"},
+    ACTORLR1E4: {"agent.actor_lr"},
 }
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
@@ -197,6 +224,11 @@ ARM_VALUES = {
     ACTORLN448: {"equivariance.actor_norm": "layer_norm", "equivariance.actor_degree_channel": 448},
     ACTORLR1E5: {"agent.actor_lr": 1e-5},
     ACTORLR3E5: {"agent.actor_lr": 3e-5},
+    ACTORLN_LR3E6: {"equivariance.actor_norm": "layer_norm", "agent.actor_lr": 3e-6},
+    ACTOR448_LR3E6: {"equivariance.actor_degree_channel": 448, "agent.actor_lr": 3e-6},
+    ACTORLN448_LR1E5: {"equivariance.actor_norm": "layer_norm", "equivariance.actor_degree_channel": 448,
+                       "agent.actor_lr": 1e-5},
+    ACTORLR1E4: {"agent.actor_lr": 1e-4},
 }
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
@@ -204,7 +236,8 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              ARCH_WIDE: RERENDERED_DEMOS, LONG: RERENDERED_DEMOS, INIT0_LONG: RERENDERED_DEMOS,
              NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS, ACTORLN: RERENDERED_DEMOS,
              CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS,
-             ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS}
+             ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
+             **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -219,7 +252,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          LONG_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          LN_GROUP: ("robomimic-square-final", "residual-rl"),
          PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         SPEED_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         SPEED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         MATCHED_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -299,6 +333,8 @@ def group_of(arm: str) -> str:
         return PARTS_GROUP
     if arm in SPEED_ARMS:
         return SPEED_GROUP
+    if arm in MATCHED_ARMS:
+        return MATCHED_GROUP
     if arm in RESFIT_ARMS:
         return RESFIT_GROUP
     return EQUI_GROUP if arm in ARCH_ARMS else LONG_GROUP
@@ -452,6 +488,36 @@ def test_each_anchor_composes_to_its_runs_recorded_config(name):
     changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
     assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
     assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
+
+
+def _unnamed(overrides, drop=()) -> set[str]:
+    return {o for o in overrides if o.split("=", 1)[0] not in (*NAMING, *drop)}
+
+
+@pytest.mark.parametrize("arm", list(MATCHED_ARMS))
+def test_each_matched_arm_is_its_parent_but_for_the_rate(arm, tmp_path):
+    """equi-speed-matched-1017 (2026-10-17 PRE-REGISTERED): each arm launches its parent arm's
+    overrides plus agent.actor_lr, and composes to its parent's config but for that rate."""
+    parent, rate = MATCHED_ARMS[arm]
+    ours, theirs = _overrides(arm, tmp_path), _overrides(parent, tmp_path)
+    assert _unnamed(ours) == _unnamed(theirs) | {f"agent.actor_lr={rate}"}
+    ours, theirs = _flat(_compose(ours)), _flat(_compose(theirs))
+    assert _differing(ours, theirs) == {"agent.actor_lr"}
+    assert (theirs["agent.actor_lr"], ours["agent.actor_lr"]) == (1e-6, float(rate))
+
+
+@pytest.mark.parametrize("arm", list(MATCHED_ARMS))
+def test_each_matched_arm_is_its_parent_runs_launch_but_for_the_rate(arm, tmp_path):
+    """Against the parent's seed-2 run's recorded argv (its run package's manifest), less naming,
+    Hydra's run directory and the seed: the same overrides, plus agent.actor_lr."""
+    parent, rate = MATCHED_ARMS[arm]
+    run = PARENT_RUNS[parent]
+    if not _package(run).exists():
+        pytest.skip(f"{run}'s run package is not on this machine")
+    argv = json.loads((_package(run) / "manifest.json").read_text())["argv"][1:]
+    assert "seed=2" in argv
+    unseeded = ("hydra.run.dir", "seed")
+    assert _unnamed(_overrides(arm, tmp_path), unseeded) == _unnamed(argv, unseeded) | {f"agent.actor_lr={rate}"}
 
 
 def test_the_rerendered_demos_leave_the_action_scaler_as_it_was():
@@ -767,7 +833,9 @@ def test_each_arch_arm_has_resfits_layout(arm, tmp_path, device):
 # anchor's networks, so their rows are the anchor's design.
 PART_LAYOUTS = {INIT0_LONG: (0, 0, 5, 2, 128), ACTORLN: (3, 0, 5, 2, 128), CRITICLN: (0, 2 + 5, 5, 2, 128),
                 HEADS: (0, 0, 10, 3, 128), ACTOR448: (0, 0, 5, 2, 448), ACTORLN448: (3, 0, 5, 2, 448),
-                ACTORLR1E5: (0, 0, 5, 2, 128), ACTORLR3E5: (0, 0, 5, 2, 128)}
+                ACTORLR1E5: (0, 0, 5, 2, 128), ACTORLR3E5: (0, 0, 5, 2, 128),
+                ACTORLN_LR3E6: (3, 0, 5, 2, 128), ACTOR448_LR3E6: (0, 0, 5, 2, 448),
+                ACTORLN448_LR1E5: (3, 0, 5, 2, 448), ACTORLR1E4: (0, 0, 5, 2, 128)}
 
 
 @pytest.mark.gpu
@@ -780,6 +848,8 @@ def test_each_part_arm_has_its_one_part_and_the_anchors_design_elsewhere(arm, tm
     - actor448: the actor's three hidden layers at 448 fields.
     equi-actor-speed-1016: actorln448 is actorln and actor448 at once; actorlr1e-5 and actorlr3e-5
     are the anchor's design.
+    equi-speed-matched-1017: each arm is its parent's design (actorln, actor448, actorln448,
+    init0-long).
     No other norm anywhere, and none in the encoder."""
     from escnn import nn as enn
 
@@ -928,14 +998,30 @@ def test_each_part_arm_starts_from_the_anchors_weights(arm, tmp_path, device):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS])
+@pytest.mark.parametrize("arm", list(MATCHED_ARMS))
+def test_each_matched_arm_starts_from_its_parents_weights(arm, tmp_path, device):
+    """equi-speed-matched-1017: at seed 2, its parent's starting weights (those of 8sgfkskv,
+    vnpqtnva, x3xopn1y or oav5gk76) bit for bit, since a learning rate draws no random number. The
+    episodes still differ, since `seed` does not reach the envs."""
+    import torch
+
+    parent, _ = MATCHED_ARMS[arm]
+    theirs = _seeded_agent(_compose(_overrides(parent, tmp_path)), device, seed=2).state_dict()
+    mine = _seeded_agent(_compose(_overrides(arm, tmp_path)), device, seed=2).state_dict()
+    assert theirs.keys() == mine.keys()
+    for key, value in mine.items():
+        assert torch.equal(value, theirs[key]), f"{arm}: {key} differs from {parent}'s"
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS, *MATCHED_ARMS])
 def test_each_speed_arm_steps_its_actor_at_its_rate_and_the_rest_at_the_anchors(arm, tmp_path, device):
-    """equi-actor-speed-1016. The actor's AdamW steps at agent.actor_lr (the anchor's 1e-6, or the
-    arm's), and the critic's and the encoder's at agent.critic_lr, 1e-4, in every arm. No scheduler
-    rescales either (agent.lr_warmup_steps and algo.actor_lr_warmup_steps are 0), and the actor's
-    gradient clip and AdamW's weight decay are the anchor's: the decay, 0.01 of the rate per step,
-    is the one other thing a rate moves (the PRE-REGISTERED entry's caveat). One update, and each
-    rate is still the one it started at."""
+    """equi-actor-speed-1016 and equi-speed-matched-1017. The actor's AdamW steps at agent.actor_lr
+    (the anchor's 1e-6, or the arm's), and the critic's and the encoder's at agent.critic_lr, 1e-4,
+    in every arm. No scheduler rescales either (agent.lr_warmup_steps and
+    algo.actor_lr_warmup_steps are 0), and the actor's gradient clip and AdamW's weight decay are
+    the anchor's: the decay, 0.01 of the rate per step, is the one other thing a rate moves (the
+    PRE-REGISTERED entries' caveat). One update, and each rate is still the one it started at."""
     from tools.agent_fingerprint import STDDEV, fixed_batch
 
     cfg = _compose(_overrides(arm, tmp_path))
@@ -945,7 +1031,7 @@ def test_each_speed_arm_steps_its_actor_at_its_rate_and_the_rest_at_the_anchors(
     assert agent.actor_scheduler is agent.critic_scheduler is agent.encoder_scheduler is None
     agent.train(True)
     agent.update(fixed_batch(base_action=True).to(device), stddev=STDDEV, update_actor=True)
-    rates = {"actor": LR_ARMS.get(arm, 1e-6), "critic": 1e-4, "encoder": 1e-4}
+    rates = {"actor": ACTOR_LRS.get(arm, 1e-6), "critic": 1e-4, "encoder": 1e-4}
     for part, rate in rates.items():
         opt = getattr(agent, f"{part}_opt")
         assert type(opt).__name__ == "AdamW", part

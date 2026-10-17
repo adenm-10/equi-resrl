@@ -9,41 +9,43 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — NEXT (Aden, 2026-10-17) `[SC]`
+### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — PRE-REGISTERED, LAUNCHING (Aden, 2026-10-17) `[SC]`
 
-**The plan, with every step and command: [docs/plans/2026-10-17-speed-matched.md](plans/2026-10-17-speed-matched.md)**
-(local, not in git). Every decision is made (Aden, 2026-10-17; EXPERIMENTS.md, that date's DEVIATION).
+**The plan: [docs/plans/2026-10-17-speed-matched.md](plans/2026-10-17-speed-matched.md)** (local, not in
+git). Every decision is Aden's (EXPERIMENTS.md, 2026-10-17 DEVIATION). Its rules, readouts and
+predictions are in EXPERIMENTS.md's 2026-10-17 PRE-REGISTERED entry.
 
 Four arms at seed 2, each an existing run plus `agent.actor_lr`, so each starts from its parent's
 weights bit for bit:
 
 | Arm | Parent | Role |
 |---|---|---|
-| `actorln` at 3e-6 | `8sgfkskv` | the 2×2's norm cell |
-| `actor448` at 3e-6 | `vnpqtnva` | the 2×2's width cell |
-| `actorln448` at 1e-5 | `x3xopn1y` | everything stacked |
-| init0 at 1e-4 | `oav5gk76` | the plain actor's rate curve |
+| `equi-residual-square-actorln-lr3e-6` | `8sgfkskv` (`actorln`) | the 2×2's norm cell |
+| `equi-residual-square-actor448-lr3e-6` | `vnpqtnva` (`actor448`) | the 2×2's width cell |
+| `equi-residual-square-actorln448-lr1e-5` | `x3xopn1y` (`actorln448`) | everything stacked |
+| `equi-residual-square-actorlr1e-4` | `oav5gk76` (init0) | the plain actor's rate curve |
 
 The 2×2's other two cells are `actorlr1e-5` and `actorln448`, which are running. Every arm runs to 150k
 with **no stop of any kind**. The watcher is watch-only, and Aden stops runs by hand.
 
-1. **Pre-register** in EXPERIMENTS.md: the plan's "Rules and readouts" and "Predictions", with the
-   calibration extended to the four arms.
-2. **Code, config only:**
-   - `submit.sh`'s cases;
-   - `tests/test_sweep_arms.py`: the tables, plus a new test that each arm is its parent but for the
-     rate, in its config and its weights at seed 2;
-   - the watcher's group in `WATCH_ONLY_ARMS`, with a test that it is never stopped;
-   - `tests/README.md`.
+- **Done (2026-10-17):** items 1–2 of the plan. The PRE-REGISTERED entry, with the step-size
+  calibration extended to the four arms (`outputs/diagnostics/actor-step-size-1017/`); `submit.sh`'s
+  four cases; `tests/test_sweep_arms.py`'s tables and three new tests (each arm is its parent but for
+  the rate, in its overrides, its parent run's recorded argv and its composed config; and at seed 2 in
+  its weights); the watcher's group in `WATCH_ONLY_ARMS`, with its test; `tests/README.md`.
 
-   Run the CPU tier and the new arms' Tier 2, both with `CUDA_VISIBLE_DEVICES=""`.
-3. **Commit** through `/git_proc` (no trailer), then pin a worktree and dry-run each arm against its
-   parent's recorded argv.
-4. **Launch:** `jobs-equi-speed-matched-1017.txt`, start `rfe-queue`, and start `matched-watch`.
+3. **Commit and pin:** the pre-registration's commit, pinned in its own worktree, and each arm dry-run
+   from it against its parent's recorded argv.
+4. **Launch:** `outputs/queue/launchers/jobs-equi-speed-matched-1017.txt`, `rfe-queue` restarted with
+   it, and `matched-watch` started from the worktree.
    - Slots free from about 21:50 on 10-17 (STATUS, "Running now").
-   - Then the LAUNCHED entry.
-5. **Readouts:** early speed and pinning about 3.5 h after each launch, 10k–30k about 7.5 h after, and
-   150k on 10-19 at about 04:30–08:45 if launched tonight.
+   - Then the LAUNCHED entry, once each run is in wandb (about 1 h 20 min after its launch): its
+     commit, a clean tree, mujoco 3.3.2, and its argv against the dry run.
+5. **Readouts** (if launched tonight; the PRE-REGISTERED entry has the timeline):
+   - early speed (0–3k) and pinning (3k–10k), about 3.5 h after each launch: the matched-speed check
+     and the norm's effect on pinning;
+   - 10k–30k, about 7.5 h after: the 2×2's early half;
+   - 150k on 10-19 at about 04:25–08:45: the main readout, the 2×2's late half and both edges.
 
 ### B18. arch-wide's actor alone, and a faster actor (`equi-actor-speed-1016`) — RUNNING (Aden, 2026-10-16) `[SC]`
 

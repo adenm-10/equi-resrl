@@ -8126,3 +8126,235 @@ Aden's decisions, 2026-10-17, after the NOTEs above:
   - The plan, with every step: `docs/plans/2026-10-17-speed-matched.md` (local). Its
     pre-registration goes here before any of its runs launch, into the slots that free from about
     21:50 on 10-17.
+
+---
+
+## 2026-10-17 — PRE-REGISTERED — the equivariant residual on Square with the actor's parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`)
+
+**Question** (Aden, 2026-10-17, from the NOTEs above; the plan is `docs/plans/2026-10-17-speed-matched.md`,
+local). The actor's norm, its width and its learning rate each speed up how fast the actor moves its
+output early, and the gains multiply (2026-10-16 MEASUREMENT). So stacking them overshoots. This group
+holds the early speed near `arch-wide`'s and varies how it is reached.
+1. **At matched speed, which part keeps the actor off its limit?** Both rate arms of
+   `equi-actor-speed-1016` sat at the limit (0.100) on yaw and z from 3k to 10k; `actorln448` did not
+   (0.091 at most). They also lost the base early, as the layout arms did not (10k–30k: 12 and 4 of
+   150, against `actorln448`'s 22 and `arch-wide`'s 39).
+2. **Is the small normed actor (0.306M parameters) plus a faster rate enough to match `arch-wide`
+   (3.364M)?** If so, that is the cheap recipe.
+3. **The speed's two edges:** everything stacked, far past the matched speed, with the norm; and
+   init0's plain actor at 1e-4, the fourth point of its rate curve (1e-6, 1e-5, 3e-5, 1e-4).
+
+The 2×2 of norm and width, at seed 2:
+
+| | No width (128 fields) | Width (448 fields) |
+|---|---|---|
+| **No norm** | `actorlr1e-5` (`0jqo4jrx`, running; 0–3k residual 0.051, 21× init0) | **new: `actor448` at lr 3e-6** |
+| **Norm** | **new: `actorln` at lr 3e-6** | `actorln448` (`x3xopn1y`, running; 0.033, 14×) |
+
+**Seed group `equi-speed-matched-1017`**, seed 2 of each arm.
+- **Names:** `<arm>-2`; notes `equi-speed-matched-1017/<arm>/seed2`; wandb `robomimic-square-final` /
+  `equi-residual-rl`.
+- **Each arm is its parent run's recorded argv plus `agent.actor_lr`,** at seed 2. The parents'
+  recorded argv (each run package's `manifest.json`), beyond `EQUI_ANCHOR` and before the run length
+  and naming:
+
+| # | Arm | Parent run | Parent's argv beyond `EQUI_ANCHOR` (its commit) | Change | Early speed against init0, expected from the real runs' ratios |
+|---|---|---|---|---|---|
+| 1 | `equi-residual-square-actorln-lr3e-6` | `8sgfkskv` (`actorln`) | `agent.critic.num_q=5 equivariance.actor_norm=layer_norm` (`974e281`) | `agent.actor_lr=3e-6` | about 14× (`actorln`'s 4.8× × 3; `arch-wide` 15×) |
+| 2 | `equi-residual-square-actor448-lr3e-6` | `vnpqtnva` (`actor448`) | `agent.critic.num_q=5 equivariance.actor_degree_channel=448` (`974e281`) | `agent.actor_lr=3e-6` | about 18× (5.9× × 3) |
+| 3 | `equi-residual-square-actorln448-lr1e-5` | `x3xopn1y` (`actorln448`) | `agent.critic.num_q=5 equivariance.actor_norm=layer_norm equivariance.actor_degree_channel=448` (`dd6f753`) | `agent.actor_lr=1e-5` | about 140× |
+| 4 | `equi-residual-square-actorlr1e-4` | `oav5gk76` (init0) | `agent.critic.num_q=5` (`0b14c17`) | `agent.actor_lr=1e-4` | about 200× |
+
+  `EQUI_ANCHOR` (in `submit.sh`) is `--config-name=residual_equi_td3_square_config
+  equivariance.residual_squash=true base_policy.wt_version=v9
+  offline_data.name=local/robomimic-mh-square-rerendered agent.actor.actor_last_layer_init_scale=0.0`.
+  Every parent's argv then has `algo.total_timesteps=150000 read_buffer_caches=false
+  write_buffer_caches=false`, its naming, `seed=2 debug=false` and Hydra's run directory.
+  - The early speeds are init0's 0–3k residual (0.0024) times each parent's real ratio times the rate's
+    multiple. The residual is capped at 0.1, and growth compounds (the 2026-10-16 MEASUREMENT), so for
+    arms 3 and 4 they say "far past", not a number.
+- **Parameter counts:** each arm is its parent's. Actors: `actorln` 0.306M, `actor448` 3.361M,
+  `actorln448` 3.364M, init0 0.305M. Every encoder 0.627M, every critic 0.839M.
+- **The learning rate is live** (2026-10-16 PRE-REGISTERED): `agent.actor_lr` goes to the actor's AdamW
+  and nowhere else. No scheduler rescales it, and the actor's gradient clip (1.0) clips the gradient,
+  not the step.
+- **Config caveats:**
+  - **AdamW's weight decay** (torch's default, 0.01) scales with the rate. Over at most 150k actor
+    steps it shrinks the actor's weights by at most about 0.45% at 3e-6, 1.5% at 1e-5 and **14% at
+    1e-4**. At 1e-4 that is a real confound: arm 4 changes the decay as well as the step.
+  - **"Matched" speed is approximate.** The CPU calibration underestimated `actor448`'s and
+    `actorlr1e-5`'s real early speed by 2–3 times (2026-10-17 NOTE), so each new cell's own measured
+    speed is checked (the matched-speed rule below).
+  - `equivariance.num_actor_layers` is dead (logged as 2; the actor has one policy layer whatever its
+    value), and `equivariance.initialize` reaches the encoder only.
+  - The trainer's generated run name (`actor_name` in the recorded config) includes the rate. It is a
+    label only.
+
+**What varies, and what is held.**
+- **Each arm against its parent: `agent.actor_lr` alone.** `tests/test_sweep_arms.py` checks that each
+  arm's overrides are its parent arm's and its parent run's recorded argv plus the rate, and that its
+  composed config differs from its parent's in that one path.
+- **The starting weights,** at seed 2: the parent's bit for bit, since a learning rate draws no random
+  number (the same file, on the GPU). The episodes still differ, since `seed` does not reach the envs.
+- **The code** is this entry's commit's. No commit since `0b14c17` touches a file under `resfit/`
+  (`git log 0b14c17..HEAD -- resfit/` is empty), so each arm runs its parent's agent and trainer
+  code, and `tests/test_regression_agent.py`'s goldens pin the equivariant agent.
+- **The env:** mujoco 3.3.2, as for every parent.
+- **The slots:** two equivariant runs per GPU, as each parent ran. That changes how long the runs take,
+  not what they compute.
+
+**Rules.**
+- **To a fixed 150k, with no stop of any kind** (2026-10-17 DEVIATION). The watcher (tmux
+  `matched-watch`, `--group equi-speed-matched-1017`) tracks each run, logs every eval, FLAGs critic
+  values above 1.5 and finalizes a package a crash leaves incomplete. It never signals a run: the
+  group's arms are in its `WATCH_ONLY_ARMS` (`tests/test_square_rerendered_watch.py`). Aden stops a
+  run early by hand if one needs it.
+- **The main readout:** the 110k–150k evals pooled (250 episodes).
+  - Against `oav5gk76`'s 83 of 250, with `equi-arch-parts-1015`'s bars (the 2026-10-15 formulas):
+    **better than init0** at 105 or more; **back to the base** (B_sq = 0.582) at 127 or more;
+    **ResFiT's level** (0.714) at 161 or more.
+  - **Matches `arch-wide`** at **139** or more (2026-10-17 NOTE, from `h216n857`'s 160).
+- **The rate's effect:** each arm against its parent at 110k–150k. An effect counts at two standard
+  errors, |p₁ − p₂| ≥ 2·√(p₁(1−p₁)/250 + p₂(1−p₂)/250) (about 21 of 250 near p = 0.5). A pass is
+  provisional until a second seed: the ResFiT anchors' seeds differ by 0.17.
+- **Matched speed:** a 2×2 cell is matched iff its `train/residual_l1_magnitude` over the first 3k
+  steps is in 0.024–0.060, that is 10–25 times init0's 0.0024. The running cells are 0.051
+  (`actorlr1e-5`) and 0.033 (`actorln448`), both matched. A new cell outside that range is reported,
+  and the 2×2 is read with that caveat.
+- **The 2×2's effects:**
+  - **Norm:** the two norm cells pooled (500 episodes at 110k–150k, 300 at 10k–30k) against the two
+    no-norm cells. **Width:** likewise, the two 448-field cells against the two 128-field cells.
+  - Each is measured at 10k–30k and at 110k–150k. An effect counts at two standard errors,
+    2·√(p₁(1−p₁)/n + p₂(1−p₂)/n) with n the pooled episodes per side (about 0.06 at 110k–150k).
+  - The interaction is reported only.
+- **Pinning:** an arm pins iff, over 3k–10k steps, the online residual's mean size on any one of xy
+  (`debug/residual_field/action_xy_0_length_online`), z (`action_z_0_mean_abs_online`), yaw
+  (`action_rz_0_mean_abs_online`) or tilt (`action_rx_ry_0_length_online`) is **at least 0.098**:
+  almost every sample at the 0.1 limit. The gripper is not in the rule.
+  - **This bar was set after seeing the running cells** (0.100 on yaw and z for `actorlr1e-5`, against
+    0.091 at most for `actorln448`). For them it is descriptive; for the new arms it is predictive.
+  - **"The norm keeps the actor off the limit"** iff both norm cells stay under the bar and at least
+    one no-norm cell pins. `actorlr1e-5` already pins and `actorln448` does not, so this turns on
+    `actorln-lr3e-6` staying under the bar.
+- **The rate curve on init0's actor** (1e-6 `oav5gk76`, 1e-5 `0jqo4jrx`, 3e-5 `762bhig5`, 1e-4 arm 4):
+  reported at each window, with pinning.
+  - **"The plain actor's upper limit lies below 1e-4"** iff arm 4 pins and stays under 105 at
+    110k–150k.
+- **How it will be read:**
+  - `actorln-lr3e-6` at 139 or more: **the cheap recipe** (the norm plus a 3× rate) matches
+    `arch-wide`.
+  - "The norm keeps the actor off the limit", and the 2×2's norm effect at 10k–30k counts (the norm
+    cells hold more of the base early): **the norm's job is keeping the residual in range**, and the
+    width only adds speed.
+  - Stacked (arm 3) at 139 or more despite a pin: there is no useful upper speed limit with the norm.
+    Stacked below its parent by the rate's-effect rule: the norm does not protect against an
+    overshoot.
+- **No seed-3 rule** (Aden): no seed 3 for any run for now.
+- **Reported, deciding nothing:**
+  - the 10k eval, and 40k–100k pooled;
+  - `debug/q_data_online` and `debug/q_data_demo`, `train/actor_grad_norm`, the residual by action
+    component (`field_metrics.py`), `eval/tilt_over_30deg_frac`, any critic value above 1.5 (the
+    watcher's FLAG);
+  - the step-size calibration below, next to each run's own speed.
+- **No checkpoints,** as in `equi-arch-parts-1015` and `equi-actor-speed-1016`.
+
+**Predictions** (Claude's, before launch):
+1. `actorln-lr3e-6` does not pin and is better than init0 (moderate confidence); it matches
+   `arch-wide` (low-to-moderate).
+2. `actor448-lr3e-6` pins (low).
+3. Stacked (`actorln448-lr1e-5`) pins and scores below `actorln448` at 10k–30k, but recovers to 105 or
+   more at 110k–150k (low).
+4. `actorlr1e-4` pins and does not recover (low).
+
+**The step-size calibration** (no run; on the CPU with `CUDA_VISIBLE_DEVICES=""`, on this entry's tree;
+reported, deciding nothing). The script, its log and its per-step numbers are in
+`outputs/diagnostics/actor-step-size-1017/` (`calibrate.py`, `log.txt`, `results.json`; gitignored). It
+is the 2026-10-16 script unchanged but for its arm list, kept in its own directory so that the
+2026-10-16 MEASUREMENT's files stay as that entry cites them (the plan said to add the arms to that
+script; this is the only difference). Method as on 2026-10-16: each agent at seed 2, its features
+taken once on the reference batch, then 51 calls of its own `update_actor` with the critic frozen.
+**The seven arms of 2026-10-16 reproduce its numbers exactly,** at the printed precision.
+
+| Arm | Actor lr | Actor | Last layer's input: channels, mean \|x\| | Residual after 1 step | after 10 | after 50 | Per step, against init0 |
+|---|---|---|---|---|---|---|---|
+| init0 (`oav5gk76`'s launch) | 1e-6 | 0.305M | 1,024, 0.103 | 1.93e-6 | 1.94e-5 | 9.78e-5 | 1 |
+| `actorln-lr3e-6` | 3e-6 | 0.306M | 1,024, 0.401 | 2.02e-5 | 2.02e-4 | 1.03e-3 | 10.5 (`actorln`'s 3.5 × 3) |
+| `actor448-lr3e-6` | 3e-6 | 3.361M | 3,584, 0.062 | 1.22e-5 | 1.23e-4 | 6.75e-4 | 6.3 (`actor448`'s 2.1 × 3) |
+| `actorln448-lr1e-5` | 1e-5 | 3.364M | 3,584, 0.392 | 2.23e-4 | 2.28e-3 | 1.26e-2 | 116 (`actorln448`'s 11.6 × 10) |
+| `actorlr1e-4` | 1e-4 | 0.305M | 1,024, 0.103 | 1.93e-4 | 2.29e-3 | 2.85e-2 | 100 |
+
+- **The first step is the rate times the parent's gain,** exactly, as the 2026-10-16 MEASUREMENT found.
+  Each arm's actor has its parent's parameter count and last-layer input.
+- **At the two edges the growth is faster than linear:** after 50 steps `actorlr1e-4` is at 2.85e-2,
+  against 50 × 1.93e-4 = 9.7e-3, and `actorln448-lr1e-5` at 1.26e-2, against 1.1e-2.
+- **On this fixed batch the two new cells are not matched to each other** (10.5× and 6.3×). The real
+  runs moved 1.2–2.8 times faster than calibrated (2026-10-17 NOTE: `actorln448` 1.2, `actorln` 1.4,
+  `actorlr1e-5` 2.1, `actor448` 2.8). With each parent's real ratio, Claude expects 0–3k residuals of
+  about 0.035 (`actorln-lr3e-6`) and 0.042 (`actor448-lr3e-6`), both inside the matched range
+  (0.024–0.060). Reported, deciding nothing; the matched-speed rule reads each run's own value.
+- Limits as on 2026-10-16: one batch of 4 samples and an untrained critic. It measures the output's
+  speed, not whether the speed helps.
+
+**Launch.** Through `outputs/queue/launchers/retry/slot_queue.sh` (tmux `rfe-queue`, stopped since
+12:57 and started again with `jobs-equi-speed-matched-1017.txt`). Every arm launches from this
+entry's commit, in its own pinned worktree. Each job goes into the first slot free for 300 s, two per
+GPU. A launch its gate stops is tried again, up to 3 times 600 s apart.
+
+| # | Job | Seed | Launches iff | Takes the slot of (expected) |
+|---|---|---|---|---|
+| 1 | `equi-residual-square-actorln-lr3e-6` | 2 | always | `vnpqtnva` (GPU 0) |
+| 2 | `equi-residual-square-actor448-lr3e-6` | 2 | always | `762bhig5` (GPU 0) |
+| 3 | `equi-residual-square-actorln448-lr1e-5` | 2 | always | `0jqo4jrx` (GPU 1) |
+| 4 | `equi-residual-square-actorlr1e-4` | 2 | always | `x3xopn1y` (GPU 1) |
+
+- The new cells first (Aden). The order puts one 448-field and one 128-field run on each GPU if the
+  slots free in the expected order.
+- **No smoke runs:** each arm's networks are its parent's, whose speed and RAM are measured.
+
+**Resources and timeline.**
+- **Speed:** about 30.5 h from launch to 150k at 128 fields and 32.5 h at 448, about 1 h 20 min of
+  that in the gate and demo labelling (2026-10-17 LAUNCHED).
+- **GPU:** each GPU holds one 448-field and one 128-field run, as wave 1 did (21–23 GB of 24.5).
+- **RAM:** four equivariant runs reach about 136 GB at 150k against 125 GB, so up to about 10 GB of
+  swap, with no slowdown seen so far (13 GB in swap at 13:15 on 10-17).
+- **Disk:** 23 GB free at 13:15 on 10-17. Clear the wandb cache (`wandb artifact cache cleanup 2GB`)
+  if it falls below about 15 GB and no run is uploading a best.
+- **Expected** (slots free at about 21:50 on 10-17, and 00:00, 00:05 and 00:30 on 10-18, plus the
+  300 s settle):
+
+  | Job | Launch | Speed and pinning, to 10k (about 3.5 h after) | 10k–30k (about 7.5 h after) | 150k |
+  |---|---|---|---|---|
+  | `actorln-lr3e-6` | 10-17 about 21:55 | 10-18 about 01:25 | about 05:25 | 10-19 about 04:25 |
+  | `actor448-lr3e-6` | 10-18 about 00:10 | about 03:40 | about 07:40 | 10-19 about 08:40 |
+  | `actorln448-lr1e-5` | 10-18 about 00:15 | about 03:45 | about 07:45 | 10-19 about 08:45 |
+  | `actorlr1e-4` | 10-18 about 00:35 | about 04:05 | about 08:05 | 10-19 about 07:05 |
+
+  If the slots free in another order, or later, every time shifts with them.
+
+**Checks before the commit:**
+- `tests/test_sweep_arms.py` and `tests/test_square_rerendered_watch.py`, CPU tier, with
+  `CUDA_VISIBLE_DEVICES=""`: **180 passed**, 121 GPU tests skipped. On 2026-10-16 it was 147 and 93; the
+  difference is exactly the four arms' cases and the new tests.
+  - Each new arm launches exactly its pre-registered overrides. Each composes to `eaqorqki`'s config
+    but for its parent's change and `agent.actor_lr`, a float (3e-6, 1e-5, 1e-4).
+  - **Each arm is its parent but for the rate** (new). Its overrides are its parent arm's plus
+    `agent.actor_lr`. So are its parent run's recorded argv (`8sgfkskv`, `vnpqtnva`, `x3xopn1y`,
+    `oav5gk76`), less naming, the seed and Hydra's run directory. Its composed config differs from its
+    parent's in `agent.actor_lr` alone.
+  - The watcher never stops any of the group's four arms (new). That holds on every eval sequence
+    tested (collapsed for good, `oj5k0jqb`'s, `s8opblsd`'s, flat at 0.58 and 0.70, 20 zeros), with the
+    100k check passed or not, and with a diverged critic (every critic value at 50 throughout).
+- **The new arms' Tier 2 tests, on the CPU,** because the GPUs hold four runs: `-k "lr3e-6 or
+  actorln448-lr1e-5 or actorlr1e-4 or speed_arm or matched"`. **64 passed** in 17 min 46 s, 32 of them
+  GPU-marked.
+  - Each new arm builds and runs one update. Its actor commutes with the group and its critic is
+    invariant, in train and eval mode. Every input reaches each critic head and the actor.
+  - Each has its parent's design: 3 RegularLayerNorms in the norm arms' actors and none elsewhere,
+    the actor's hidden layers at 128 or 448 fields, and 5 heads of one hidden layer.
+  - **At seed 2, each starts from its parent's weights bit for bit** (new).
+  - The actor's AdamW steps at the arm's rate and the critic's and the encoder's at 1e-4. There is no
+    scheduler, the weight decay is 0.01, and each rate is unchanged after an update. This holds in
+    the four new arms and in the four older ones the test covered (init0, `actorln448`, the two rate
+    arms).
+  - The full Tier 2 runs on the GPU in each launch's gate, as always. A failure there stops that
+    launch (three tries), and its slot goes to the next job.

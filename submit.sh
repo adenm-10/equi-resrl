@@ -6,11 +6,13 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: the equivariant residual with arch-wide's actor alone, and with a larger
-# actor learning rate (seed-group equi-actor-speed-1016), pre-registered in docs/EXPERIMENTS.md,
-# "2026-10-16 — PRE-REGISTERED — the equivariant residual on Square with arch-wide's actor alone,
-# and with a faster actor (equi-actor-speed-1016)". The groups before it stay in this table, each as
-# it launched: equi-arch-parts-1015 ("2026-10-15 — PRE-REGISTERED — the equivariant residual on
+# Currently configured for: the actor's norm and width at matched speed, and the speed's two edges
+# (seed-group equi-speed-matched-1017), pre-registered in docs/EXPERIMENTS.md, "2026-10-17 —
+# PRE-REGISTERED — the equivariant residual on Square with the actor's parts at matched speed, and
+# the speed's two edges (equi-speed-matched-1017)". The groups before it stay in this table, each as
+# it launched: equi-actor-speed-1016 ("2026-10-16 — PRE-REGISTERED — the equivariant residual on
+# Square with arch-wide's actor alone, and with a faster actor"; from dd6f753),
+# equi-arch-parts-1015 ("2026-10-15 — PRE-REGISTERED — the equivariant residual on
 # Square with each part of ResFiT's layout alone, and all four again"; its seed 3s launch from
 # 974e281), resfit-equi-diff-1012 and equi-resfit-arch-1013 ("2026-10-12 — PRE-REGISTERED —
 # ResFiT's residual on Square, given the equivariant stack's differences one at a time; the
@@ -114,8 +116,17 @@
 #   equi-residual-square-actorlr1e-5   the actor's learning rate at 1e-5, 10x (agent.actor_lr=1e-5).
 #   equi-residual-square-actorlr3e-5   at 3e-5, 30x (agent.actor_lr=3e-5).
 #
-# Every arm here runs to a fixed 150k, stopped only on the divergence stop (AMENDMENT of
-# 2026-10-12): the watcher, not the run length, carries the rule.
+# equi-speed-matched-1017: each arm is a parent arm above, at seed 2 (so its parent's seed-2 run's
+# starting weights, bit for bit), plus the actor's learning rate (agent.actor_lr); wandb
+# robomimic-square-final / equi-residual-rl.
+#   equi-residual-square-actorln-lr3e-6    actorln (8sgfkskv) at 3e-6: the 2x2's norm cell.
+#   equi-residual-square-actor448-lr3e-6   actor448 (vnpqtnva) at 3e-6: the 2x2's width cell.
+#   equi-residual-square-actorln448-lr1e-5 actorln448 (x3xopn1y) at 1e-5: everything stacked.
+#   equi-residual-square-actorlr1e-4       init0-long (oav5gk76) at 1e-4: the plain actor's rate
+#                                          curve's fourth point.
+#
+# Every arm here runs to its full 150k. From 2026-10-17 (DEVIATION) no automatic stop of any kind
+# applies, the divergence stop included: Aden stops a run by hand.
 
 set -euo pipefail
 
@@ -202,6 +213,17 @@ case "$ARM" in
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 agent.actor_lr=1e-5) ;;
     equi-residual-square-actorlr3e-5)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 agent.actor_lr=3e-5) ;;
+    equi-residual-square-actorln-lr3e-6)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_norm=layer_norm
+                       agent.actor_lr=3e-6) ;;
+    equi-residual-square-actor448-lr3e-6)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_degree_channel=448
+                       agent.actor_lr=3e-6) ;;
+    equi-residual-square-actorln448-lr1e-5)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 equivariance.actor_norm=layer_norm
+                       equivariance.actor_degree_channel=448 agent.actor_lr=1e-5) ;;
+    equi-residual-square-actorlr1e-4)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=5 agent.actor_lr=1e-4) ;;
     *)
         echo "error: unknown arm '$ARM'" >&2
         exit 2
@@ -214,6 +236,9 @@ case "$ARM" in
     resfit-*)
         SEED_GROUP=resfit-equi-diff-1012 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;
+    equi-residual-square-actorln-lr3e-6|equi-residual-square-actor448-lr3e-6|equi-residual-square-actorln448-lr1e-5|equi-residual-square-actorlr1e-4)
+        SEED_GROUP=equi-speed-matched-1017 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     equi-residual-square-actorln448|equi-residual-square-actorlr1e-5|equi-residual-square-actorlr3e-5)
         SEED_GROUP=equi-actor-speed-1016 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

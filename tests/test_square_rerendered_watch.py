@@ -2,6 +2,7 @@
 square-trlpd-stab-1010's, which are its tuned-RLPD rules, square-residual-start-1011's, which are
 its residual rules, resfit-rx-1012's, which are the residual's collapse stop alone, and
 residual-tilt-1012's: notilt to a fixed 150k (2026-10-12 AMENDMENT), and none for the diagnostic run.
+From 2026-10-17 (DEVIATION), no automatic stop of any kind: equi-speed-matched-1017's arms are watch-only.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -29,6 +30,7 @@ from square_rerendered_watch import (  # noqa: E402
     EQUI_ARCH_PARTS,
     EQUI_LONG,
     EQUI_RESFIT_ARCH,
+    EQUI_SPEED_MATCHED,
     RESFIT_EQUI_DIFF,
     RESFIT_LN_PLACE,
     RESFIT_RX,
@@ -222,3 +224,22 @@ def test_parts_seed3_is_the_preregistered_rule_less_arch_wide():
     late = {actorln: 140, criticln: 120, heads: 120, actor448: 60}
     assert [due(arm, late) for arm in CANDIDATES] == [True, True, True, False]
     assert not any(due(arm, dict.fromkeys(CANDIDATES, 83)) for arm in CANDIDATES)
+
+
+def test_equi_speed_matched_is_never_stopped():
+    """equi-speed-matched-1017 (2026-10-17 PRE-REGISTERED): every arm to its own 150k with no
+    automatic stop of any kind, the divergence stop included (2026-10-17 DEVIATION). Its arms are
+    watch-only: logged, FLAGged and finalized, never signalled. Its arms are residual arms."""
+    from square_rerendered_watch import RESIDUAL_ARMS, WATCH_ONLY_ARMS
+
+    assert GROUPS["equi-speed-matched-1017"] == EQUI_SPEED_MATCHED and len(EQUI_SPEED_MATCHED) == 4
+    assert set(EQUI_SPEED_MATCHED) <= WATCH_ONLY_ARMS and set(EQUI_SPEED_MATCHED) <= RESIDUAL_ARMS
+    collapsed_for_good = KYV7CLFC + [0.0] * 9   # 16 evals, 0 to 150k
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in EQUI_SPEED_MATCHED:
+        for rates in (collapsed_for_good, OJ5K0JQB, S8OPBLSD, [0.58] * 16, [0.70] * 16, [0.0] * 20):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed)[0] is None, (arm, i)
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+        assert decide(arm, evals(KYV7CLFC[:4]), 0, False, _qs(25_000, 30_000, 50.0))[0] is None

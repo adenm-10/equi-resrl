@@ -1,15 +1,18 @@
 # Status
 
-**Last updated:** 2026-10-17, about 13:45 · **Last verified commit:** this file's own commit (the
-2026-10-17 records). The last code commit is `dd6f753` (`equi-actor-speed-1016`), pinned in
-`~/projects/equi-resrl-dd6f753`; `vnpqtnva` launched from `974e281`. No agent code changed since
-`0b14c17`. Main is ahead of origin and not pushed: pushing waits for Aden.
+**Last updated:** 2026-10-17, about 14:00 · **Last verified commit:** this file's own commit, the
+pre-registration of `equi-speed-matched-1017` and its code (config only); its runs launch from it, in
+its own pinned worktree. The running runs launched from `dd6f753` (`equi-actor-speed-1016`) and
+`974e281` (`vnpqtnva`). No agent code changed since `0b14c17`. Main is ahead of origin and not pushed:
+pushing waits for Aden.
 
-**Next session: implement and launch `equi-speed-matched-1017`** ([the plan](plans/2026-10-17-speed-matched.md),
-`docs/plans/`, local; TODO B19). Every decision is Aden's and already made. What is left:
-pre-register, add the four config-only arms and their tests, commit and pin, and start the queue and
-a watch-only watcher. **Nothing is queued now.** Slots free as the four running runs reach 150k:
-about 21:50 on 10-17, then about 00:00, 00:05 and 00:30 on 10-18. Also due:
+**Now: `equi-speed-matched-1017` is pre-registered** (EXPERIMENTS.md, 2026-10-17 PRE-REGISTERED;
+[the plan](plans/2026-10-17-speed-matched.md), `docs/plans/`, local; TODO B19). Four config-only arms
+at seed 2, each an existing seed-2 run plus `agent.actor_lr`. Next: pin a worktree at this commit,
+dry-run each arm against its parent's recorded argv, then start `rfe-queue` with
+`jobs-equi-speed-matched-1017.txt` and the watch-only `matched-watch`. Slots free as the four running
+runs reach 150k: about 21:50 on 10-17, then about 00:00, 00:05 and 00:30 on 10-18. Also due:
+- the group's LAUNCHED entry, once each run is in wandb (about 1 h 20 min after its launch);
 - **`vnpqtnva`'s 150k NOTE** (about 21:50), reported only.
 - **`equi-actor-speed-1016`'s 150k readout** (about 00:00–00:30 on 10-18) against its pre-registered
   bars and reading (TODO B18).
@@ -399,9 +402,9 @@ needs it. New groups go in the watcher's watch-only set.
 
 ## The plan, and why
 
-**0. Next: the actor parts at matched speed** (`equi-speed-matched-1017`;
-[the plan](plans/2026-10-17-speed-matched.md), TODO B19). Every arm is an existing seed-2 run plus a
-learning rate:
+**0. Now: the actor parts at matched speed** (`equi-speed-matched-1017`, pre-registered on
+2026-10-17; [the plan](plans/2026-10-17-speed-matched.md), TODO B19). Every arm is an existing seed-2
+run plus a learning rate:
 - `actorln` and `actor448` at 3e-6 fill the 2×2 of norm and width at about `arch-wide`'s early speed.
   The other two cells are `actorlr1e-5` and `actorln448`.
 - `actorln448` at 1e-5 is everything stacked.
