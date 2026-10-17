@@ -37,9 +37,13 @@ other four docs, with a pointer from here.
 - The calibration runs from its own directory (`outputs/diagnostics/actor-step-size-1017/`), not by
   editing the 2026-10-16 script, so that entry's files stay as it cites them.
 
-**Next:** pin the worktree, dry-run each arm against its parent's argv, start `rfe-queue` and
-`matched-watch`; then the LAUNCHED entry, `vnpqtnva`'s 150k NOTE (about 21:50) and
-`equi-actor-speed-1016`'s 150k readout (10-18, about 00:00–00:30; TODO B18).
+- Pinned `8e8eceb` in `~/projects/equi-resrl-8e8eceb`. Each arm's dry run from it is its parent's
+  recorded argv plus the rate, less naming. Wrote `jobs-equi-speed-matched-1017.txt`, and started
+  `rfe-queue` and the watch-only `matched-watch` at 13:45.
+
+**Next:** the LAUNCHED entry once the runs are in wandb (the first about 23:15 on 10-17);
+`vnpqtnva`'s 150k NOTE (about 21:50, reported only); `equi-actor-speed-1016`'s 150k readout (10-18,
+about 00:00–00:30; TODO B18).
 
 ---
 

@@ -1,17 +1,17 @@
 # Status
 
-**Last updated:** 2026-10-17, about 14:00 · **Last verified commit:** this file's own commit, the
-pre-registration of `equi-speed-matched-1017` and its code (config only); its runs launch from it, in
-its own pinned worktree. The running runs launched from `dd6f753` (`equi-actor-speed-1016`) and
-`974e281` (`vnpqtnva`). No agent code changed since `0b14c17`. Main is ahead of origin and not pushed:
+**Last updated:** 2026-10-17, about 13:50 · **Last verified commit:** this file's own commit (the
+queue's restart). The last code commit is `8e8eceb`, the pre-registration of `equi-speed-matched-1017`
+and its code (config only), pinned in `~/projects/equi-resrl-8e8eceb`; its runs launch from there. The
+running runs launched from `dd6f753` (`equi-actor-speed-1016`) and `974e281` (`vnpqtnva`). No agent code changed since `0b14c17`. Main is ahead of origin and not pushed:
 pushing waits for Aden.
 
-**Now: `equi-speed-matched-1017` is pre-registered** (EXPERIMENTS.md, 2026-10-17 PRE-REGISTERED;
-[the plan](plans/2026-10-17-speed-matched.md), `docs/plans/`, local; TODO B19). Four config-only arms
-at seed 2, each an existing seed-2 run plus `agent.actor_lr`. Next: pin a worktree at this commit,
-dry-run each arm against its parent's recorded argv, then start `rfe-queue` with
-`jobs-equi-speed-matched-1017.txt` and the watch-only `matched-watch`. Slots free as the four running
-runs reach 150k: about 21:50 on 10-17, then about 00:00, 00:05 and 00:30 on 10-18. Also due:
+**Now: `equi-speed-matched-1017` is pre-registered and queued** (EXPERIMENTS.md, 2026-10-17
+PRE-REGISTERED; [the plan](plans/2026-10-17-speed-matched.md), `docs/plans/`, local; TODO B19). Four
+config-only arms at seed 2, each an existing seed-2 run plus `agent.actor_lr`. Each arm's dry run from
+the worktree is its parent's recorded argv plus the rate, less naming. `rfe-queue` and the watch-only
+`matched-watch` started at 13:45 on 10-17. Its jobs launch as the four running runs reach 150k: about
+21:50 on 10-17, then about 00:00, 00:05 and 00:30 on 10-18. Also due:
 - the group's LAUNCHED entry, once each run is in wandb (about 1 h 20 min after its launch);
 - **`vnpqtnva`'s 150k NOTE** (about 21:50), reported only.
 - **`equi-actor-speed-1016`'s 150k readout** (about 00:00–00:30 on 10-18) against its pre-registered
@@ -228,7 +228,7 @@ full run, and 0.69 s/step, so 500k steps is about 4 days.
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
 needs it. New groups go in the watcher's watch-only set.
 
-**Four runs, two per GPU, none watched, nothing queued:**
+**Four runs, two per GPU, none watched; `equi-speed-matched-1017`'s four jobs queued behind them:**
 
 | Run | Arm | Group | From | GPU | At 13:00 on 10-17 | 150k due |
 |---|---|---|---|---|---|---|
@@ -245,8 +245,10 @@ needs it. New groups go in the watcher's watch-only set.
   11–13 h from launch to 150k. An equivariant one takes about 30.5 h (128 fields) to 32.5 h (448)
   beside another equivariant run, about 1 h 20 min of that in the gate and demo labelling.
 
-- **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, normally in tmux `rfe-queue`
-  (stopped at 12:57 on 10-17; the plan's Phase 4 starts it again).
+- **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, in tmux `rfe-queue`. Restarted at 13:45
+  on 10-17 with `jobs-equi-speed-matched-1017.txt`: the four arms at seed 2 from
+  `~/projects/equi-resrl-8e8eceb`, in the order `actorln-lr3e-6`, `actor448-lr3e-6`,
+  `actorln448-lr1e-5`, `actorlr1e-4`. At 13:45 it held 2 slots on each GPU and waited.
   - Start it with `bash slot_queue.sh <jobs file> 2>&1 | tee -a slot_queue.log` (the plan has the
     full command). Job lines are `<worktree> <arm> <seed> <smoke_first> [if=<script>]`.
   - Each job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own
@@ -262,9 +264,9 @@ needs it. New groups go in the watcher's watch-only set.
     `tools/parts_seed3.py`, is unused now.
   - The gate prints nothing until each tier ends, so its console is blank for its first 40 minutes.
 - **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group,
-  from the group's pinned worktree): none is running.
-  - `equi-speed-matched-1017`'s will be `matched-watch`, watch-only. It logs evals, FLAGs and
-    finalizes, and never signals.
+  from the group's pinned worktree): `matched-watch` alone, from `~/projects/equi-resrl-8e8eceb`, started
+  at 13:45 on 10-17. It is watch-only: it logs evals, FLAGs and finalizes, and never signals. It tracks
+  `equi-speed-matched-1017`'s runs only, so the four running runs stay unwatched.
   - The older groups' watchers enforced stops that no longer apply.
 - **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells; the old queue
   runners `gpu0`, `gpu1` and `gpu1-bars` are idle too.

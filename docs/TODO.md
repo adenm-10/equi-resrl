@@ -9,7 +9,7 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — PRE-REGISTERED, LAUNCHING (Aden, 2026-10-17) `[SC]`
+### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — QUEUED (Aden, 2026-10-17) `[SC]`
 
 **The plan: [docs/plans/2026-10-17-speed-matched.md](plans/2026-10-17-speed-matched.md)** (local, not in
 git). Every decision is Aden's (EXPERIMENTS.md, 2026-10-17 DEVIATION). Its rules, readouts and
@@ -34,13 +34,13 @@ with **no stop of any kind**. The watcher is watch-only, and Aden stops runs by 
   the rate, in its overrides, its parent run's recorded argv and its composed config; and at seed 2 in
   its weights); the watcher's group in `WATCH_ONLY_ARMS`, with its test; `tests/README.md`.
 
-3. **Commit and pin:** the pre-registration's commit, pinned in its own worktree, and each arm dry-run
-   from it against its parent's recorded argv.
-4. **Launch:** `outputs/queue/launchers/jobs-equi-speed-matched-1017.txt`, `rfe-queue` restarted with
-   it, and `matched-watch` started from the worktree.
-   - Slots free from about 21:50 on 10-17 (STATUS, "Running now").
-   - Then the LAUNCHED entry, once each run is in wandb (about 1 h 20 min after its launch): its
-     commit, a clean tree, mujoco 3.3.2, and its argv against the dry run.
+3. **DONE 2026-10-17: commit and pin.** `8e8eceb`, pinned in `~/projects/equi-resrl-8e8eceb` (clean).
+   Each arm's dry run from it is its parent's recorded argv plus the rate, less naming.
+4. **Launch:** `rfe-queue` restarted at 13:45 on 10-17 with
+   `outputs/queue/launchers/jobs-equi-speed-matched-1017.txt`, and `matched-watch` started from the
+   worktree. The jobs launch as slots free, from about 21:50 on 10-17 (STATUS, "Running now").
+   - **Left: the LAUNCHED entry,** once each run is in wandb (about 1 h 20 min after its launch): its
+     gate's result, its commit, a clean tree, mujoco 3.3.2, and its argv against the dry run.
 5. **Readouts** (if launched tonight; the PRE-REGISTERED entry has the timeline):
    - early speed (0–3k) and pinning (3k–10k), about 3.5 h after each launch: the matched-speed check
      and the norm's effect on pinning;
