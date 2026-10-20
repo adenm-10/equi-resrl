@@ -17,6 +17,42 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-19 and 10-20 — the actor-speed groups at 150k, analyzed together; the work turns to architecture
+
+**Found** (EXPERIMENTS.md, the 2026-10-20 NOTEs)
+- **`equi-speed-matched-1017`:** at matched early speed the actor's norm keeps the residual off its
+  limit and scores more (+0.12 at 10k–30k, +0.09 at 110k–150k). The width does not help. No arm
+  matches `arch-wide`. Everything stacked (78 of 250) is below its parent.
+- **`equi-actor-speed-1016`:** every arm is better than init0, and none matches `arch-wide`.
+  `actorln448` scored 128 and the rate arms 110 and 115. **`vnpqtnva`** (`actor448`): 93. So
+  `equi-arch-parts-1015` is complete.
+- **Across the 13 runs** (Aden's question: why do they plateau at about the base, and was
+  `arch-wide`'s 0.82 real?):
+  - A 50-episode eval is about 1.4 times as noisy as binomial: the base alone scored 0.34–0.68 at
+    step 0. So the 0.82 is most likely luck: training-episode success did not move.
+  - Every fast arm settles by 50k–70k at or below the base, its xy and tilt corrections near their
+    limit.
+  - The level is set early, by the residual's early speed (best at 0.03–0.04, ResFiT's own) and the
+    actor's norm.
+  - What holds the plateau is open: the residual's range, or the seed (ResFiT's seed 2 settles where
+    `arch-wide` does).
+
+**Decided (Aden, 2026-10-20)**
+- The next experiments are architectural, not yet planned. No follow-up of the speed line is planned,
+  and none was put in the docs.
+
+**Done**
+- EXPERIMENTS.md: the overdue LAUNCHED entry for `equi-speed-matched-1017`. One gate failed the
+  render-guard test and its retry passed, as on 10-12. Then the 150k NOTEs of the three groups, the
+  cross-run NOTE, and the DECISION.
+- STATUS rewritten: nothing running; a new section, "What the actor-speed groups leave", for the
+  architecture work, with the freeze note CLAUDE.md points to. TODO: B17–B19 done.
+- `matched-watch` stopped (its runs had exited); `rfe-queue` had ended on 10-18.
+
+**Next:** plan the architectural experiments with Aden.
+
+---
+
 ## 2026-10-17 (afternoon) — `equi-speed-matched-1017` pre-registered, its code and tests, queued
 
 **Done**

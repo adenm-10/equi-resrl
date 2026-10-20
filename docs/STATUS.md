@@ -1,68 +1,70 @@
 # Status
 
-**Last updated:** 2026-10-17, about 13:50 · **Last verified commit:** this file's own commit (the
-queue's restart). The last code commit is `8e8eceb`, the pre-registration of `equi-speed-matched-1017`
-and its code (config only), pinned in `~/projects/equi-resrl-8e8eceb`; its runs launch from there. The
-running runs launched from `dd6f753` (`equi-actor-speed-1016`) and `974e281` (`vnpqtnva`). No agent code changed since `0b14c17`. Main is ahead of origin and not pushed:
-pushing waits for Aden.
+**Last updated:** 2026-10-20 · **Last verified commit:** this file's own commit (the readouts of
+`equi-arch-parts-1015`, `equi-actor-speed-1016` and `equi-speed-matched-1017`, and Aden's decision).
+The last code commit is `8e8eceb` (`equi-speed-matched-1017`, config only). No agent code changed
+since `0b14c17` (the freeze note, below). Main is ahead of origin and not pushed: pushing waits for
+Aden.
 
-**Now: `equi-speed-matched-1017` is pre-registered and queued** (EXPERIMENTS.md, 2026-10-17
-PRE-REGISTERED; [the plan](plans/2026-10-17-speed-matched.md), `docs/plans/`, local; TODO B19). Four
-config-only arms at seed 2, each an existing seed-2 run plus `agent.actor_lr`. Each arm's dry run from
-the worktree is its parent's recorded argv plus the rate, less naming. `rfe-queue` and the watch-only
-`matched-watch` started at 13:45 on 10-17. Its jobs launch as the four running runs reach 150k: about
-21:50 on 10-17, then about 00:00, 00:05 and 00:30 on 10-18. Also due:
-- the group's LAUNCHED entry, once each run is in wandb (about 1 h 20 min after its launch);
-- **`vnpqtnva`'s 150k NOTE** (about 21:50), reported only.
-- **`equi-actor-speed-1016`'s 150k readout** (about 00:00–00:30 on 10-18) against its pre-registered
-  bars and reading (TODO B18).
+**Next: architectural experiments** (Aden, 2026-10-20 DECISION). They are not yet planned or
+pre-registered. **Nothing is running or queued.** The actor-speed line is closed on its readouts, at
+one seed per arm, with no follow-up planned: `equi-arch-parts-1015`, `equi-actor-speed-1016` and
+`equi-speed-matched-1017`. What it leaves for the new work is in "What the actor-speed groups leave",
+below.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
 
 ## Where the project is
 
-**New on 2026-10-17** (EXPERIMENTS.md, that date's NOTEs, LAUNCHED and DEVIATION):
-- **`equi-arch-parts-1015` at 150k** (110k–150k pooled, of 250; init0 `oav5gk76` 83):
-  - `arch-wide` (`h216n857`) **160**: better than init0 and **back to the base**, one episode short of
-    ResFiT's level (161). Its 0.82 at 140k is the best equivariant eval after step 0.
-  - `actorln` **104**, one episode under "better than init0" (105).
-  - `criticln` 71 and `heads` 56: the critic parts add nothing.
-  - One seed each.
-- **`equi-actor-speed-1016` at 90k** (reported; main readout tonight). All three arms are recovering
-  far faster than init0. At 40k–90k (of 300): `actorln448` 164, `actorlr1e-5` 132, `actorlr3e-5` 150;
-  `arch-wide` 175, init0 59.
-  - So `arch-wide`'s actor with init0's critic tracks `arch-wide`.
-  - **A faster actor learning rate alone, with no network change, gets most of the gain.**
-  - The "matches `arch-wide`" bar is **139 of 250**.
-- **The enabling factor is how fast the actor can move its output early** (Claude's reading; one seed
-  each).
-  - The critic's action slope is the same in every arm (6.3–8.1e-5).
-  - The early residual (0–3k) orders the arms as their recovery does: 0.002–0.006 fail; 0.012–0.014
-    partly; 0.033–0.065 recover.
-  - The calibration (2026-10-16 MEASUREMENT): one AdamW step moves the output by the rate times the
-    summed size of the last layer's input. The norm raises that input's scale about 4 times, and the
-    width its channels 3.5 times. Together they give about 12 times init0's step, as a 10-times rate
-    does.
-- **Speed is not all of it.** Both rate arms sit at the limit (0.100) on yaw and z from 3k to 10k.
-  They lose the base at 10k and 20k as init0 does, and score 12 and 4 of 150 at 10k–30k, against
-  `actorln448`'s 22 and `arch-wide`'s 39.
-  - Every equivariant actor first pushes yaw one way. init0's stays there; the layout arms' correct
-    it within about 3k steps; the rate arms' hit the limit, then reverse by 10k–20k.
-  - `equi-speed-matched-1017` asks which part keeps the actor off the limit at matched speed.
-- **Against ResFiT** (2026-10-17 NOTE): `arch-wide` sits inside ResFiT's seed range on every window,
-  at its lower end late (0.640 against the anchors' 0.800 and 0.628). It does this with 6.8M
-  parameters against 28.2M (its critic 2.8M against 23.6M).
-  - Unlike ResFiT's, its actor's gradient falls over the run (0.038 to 0.012, against ResFiT's 0.06
-    to 0.33–0.37).
-  - Its value of the demos is lower (0.38 against 0.47).
-- **Aden's decisions (2026-10-17):**
-  - No seed 3 for any run for now: init0's and `actor448`'s set aside, `actorln`'s not run.
-  - **Every run to its full 150k with no automatic stop of any kind,** the divergence stop included.
-    Aden stops runs by hand. So `rfe-queue`, `parts-watch`, `speed-watch` and `long-watch` were
-    stopped at 12:57.
-  - Next is `equi-speed-matched-1017`: the 2×2 of norm and width at matched speed, plus everything
-    stacked and init0 at lr 1e-4.
+**New on 2026-10-19 and 10-20** (EXPERIMENTS.md, the 2026-10-20 LAUNCHED, NOTEs and DECISION):
+- **Every run of the three groups is finished.** Each reached 150k with no stop, its package
+  complete. At 110k–150k, of 250, at seed 2 (the base alone pools to 0.553; ResFiT's anchors scored
+  200 and 157):
+
+  | Run | Arm | 110k–150k |
+  |---|---|---|
+  | `h216n857` | `arch-wide` | **160 (0.640)** |
+  | `x3xopn1y` | `actorln448` (`arch-wide`'s actor, init0's critic) | 128 |
+  | `rqgb47jo` | `actorln` at lr 3e-6 | 124 |
+  | `762bhig5` | init0 at lr 3e-5 | 115 |
+  | `0jqo4jrx` | init0 at lr 1e-5 | 110 |
+  | `p7rodove` | init0 at lr 1e-4 | 106 |
+  | `8sgfkskv` | `actorln` | 104 |
+  | `7y6cp532` | `actor448` at lr 3e-6 | 97 |
+  | `vnpqtnva` | `actor448` | 93 |
+  | `oav5gk76` | init0, the anchor | 83 |
+  | `xsordrhh` | `actorln448` at lr 1e-5 | 78 |
+  | `5cj1rbpu` | `criticln` | 71 |
+  | `dhhq151o` | `heads` | 56 |
+
+  `arch-wide` is still the best equivariant residual. It is the only one above the base by more than
+  noise, and by about 2 standard errors at the eval's measured noise. No other arm matches it (139).
+- **`equi-actor-speed-1016`:** every arm is better than init0, and none matches `arch-wide`. For both
+  rate arms the registered reading is "speed is part of it". For `actorln448` it is "the critic parts
+  add something in combination"; its gap to `arch-wide` opens only after 100k.
+- **`equi-speed-matched-1017`:** all four cells of the 2×2 of norm and width reached matched early
+  speed.
+  - **The actor's norm keeps the residual off its limit early.** Both norm cells stay under it at
+    3k–10k. Both no-norm cells pin z and yaw at 0.100.
+  - It also scores more: +0.12 at 10k–30k, and +0.09 at 110k–150k.
+  - The width adds nothing late (−0.02) and costs early (−0.05).
+  - The cheap recipe, `actorln` at a 3× rate, does not match `arch-wide` (124).
+  - Past the matched speed, the norm does not protect: everything stacked (78) is below its parent
+    (128).
+  - init0's learning-rate curve is flat from 1e-5 to 1e-4 (110, 115, 106).
+- **Across the 13 runs** (the 2026-10-20 NOTE, Claude's reading):
+  - **A 50-episode eval is about 1.4 times as noisy as the binomial rules assume.** The base alone
+    scored 0.34–0.68 at step 0 across 15 runs. So `arch-wide`'s 0.82 at 140k is most likely a lucky
+    eval: its training-episode success did not move.
+  - Every fast arm settles by 50k–70k, at or below the base, and stays flat. ResFiT's seed 2 settles
+    the same way (0.628); its seed 1 keeps climbing (0.800).
+  - Late in training, the residual is near its limit in every arm: xy at 0.086–0.099 of 0.1, and tilt
+    at 0.063–0.096.
+  - What holds the plateau is open: the residual's range and seed variation both fit.
+- **Aden's decision (2026-10-20):** the next experiments are architectural, and no follow-up of the
+  speed line is planned. Every run still goes to its full 150k with no automatic stop (2026-10-17),
+  and no seed 3 is run for now.
 
 **The week before** (2026-10-13 to 10-16; EXPERIMENTS.md, those dates' NOTEs):
 - **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.**
@@ -222,54 +224,98 @@ Training was never affected.
 **BoxCleanup** has had a smoke run only: 59.8 GiB at the start, projecting to about 82 GiB for a
 full run, and 0.69 s/step, so 500k steps is about 4 days.
 
+## What the actor-speed groups leave
+
+For planning the architectural experiments. Every number is from EXPERIMENTS.md's 2026-10-15 to
+2026-10-20 entries, at one seed per arm.
+- **The best equivariant recipe so far: `arch-wide`** (`h216n857`, `submit.sh`'s
+  `equi-residual-square-arch-wide`). It has RegularLayerNorm after every hidden Linear of the actor
+  and the critic, 10 critic heads of 2 hidden layers, and the actor at 448 fields.
+  - It scored 160 of 250 at 110k–150k, ResFiT's seed-2 level.
+  - It has 6.8M parameters (actor 3.364M, critic 2.8M, encoder 0.627M), against ResFiT's 28.2M
+    (critic 23.6M).
+  - Its actor alone, with init0's critic (`actorln448`, 4.8M), scored 128. The 128-field normed actor
+    at a 3e-6 rate (`actorln-lr3e-6`, 1.8M) scored 124.
+- **The actor's norm is the part that matters.** At matched early speed it adds +0.12 at 10k–30k and
+  +0.09 at 110k–150k, and keeps the residual off its limit early. The width adds speed only. The
+  critic's parts add nothing alone (`criticln` 71, `heads` 56). With `arch-wide`'s actor they may add
+  something: 160 against 128, about 2 standard errors at the measured noise.
+- **Early speed sets the level.** One actor step moves the residual by the rate times the summed size
+  of the actor's last layer's input (2026-10-16 MEASUREMENT; extended in the 2026-10-17
+  PRE-REGISTERED entry). So any new actor or norm changes it.
+  - The calibration script is `outputs/diagnostics/actor-step-size-1017/calibrate.py` (CPU, about
+    5 min). It took the real runs' early speed to within 1.2–2.8 times.
+  - The best results came at a 0–3k residual of 0.03–0.04 (`train/residual_l1_magnitude`), which is
+    also ResFiT's own (0.029–0.030).
+  - Faster than about 0.045 settles lower. Slower than about 0.015 is still rising at 150k.
+- **Every equivariant arm still loses the base by 10k** (0.00–0.22, against ResFiT's anchors' 0.30 and
+  0.22). Every fast one then settles at or below the base by 50k–70k. Both are open.
+- **The residual's limit:** late in training, every arm's xy and tilt corrections are near their 0.1
+  limit. Read the per-component `debug/residual_field/*`: the pooled `train/residual_l1_magnitude`
+  hides a component at its limit.
+- **Reading an eval:**
+  - A 50-episode eval of a fixed policy swings by about ±0.15–0.20 (SD about 0.10, 1.4 times the
+    binomial one).
+  - The base alone pools to 0.553 over 1,250 episodes (B_sq's 500 and 15 step-0 evals).
+  - The binomial two-standard-error bars used so far are about 1.4 times too narrow. Read 250-episode
+    windows, never one eval.
+  - Training-episode success per 10k (`training/episode_return` > 0) is a cross-check.
+- **Saved policies:** each run package's `wandb_best/` holds its best eval's checkpoint (`best_model.pt`,
+  and `best.json` with its step). These groups saved no `models/step_*.pt`, and
+  `tools/residual_field_ablation.py` loads only those.
+- **The freeze note.** No file under `resfit/` changed since `0b14c17`. So every equivariant run from
+  `oav5gk76` (2026-10-13) to `xsordrhh` ran the same agent and trainer code, and
+  `tests/test_regression_agent.py`'s goldens pin the agent.
+  - An architectural change under `resfit/` ends that. Runs before it compare with runs after it only
+    through an anchor run again at the new commit.
+  - The live switches the groups used: `agent.actor_lr`, `equivariance.actor_norm`,
+    `equivariance.critic_norm`, `equivariance.actor_degree_channel`, `agent.critic.num_q` and
+    `equivariance.num_critic_layers`.
+  - Two config fields are not what they look like: `equivariance.num_actor_layers` is dead (the actor
+    has one policy layer whatever its value), and `equivariance.initialize` reaches the encoder only
+    (ARCHITECTURE.md's provenance table).
+- **Cost:** an equivariant run takes 29–32 h to 150k beside another, two per GPU.
+  - About 1 h 20 min of that is the gate and demo labelling. The gate's Tier 2 alone is about 60 min,
+    678 tests.
+  - Four runs at once fill the RAM: about 136 GB at 150k, against 125 GB plus swap.
+
 ## Running now
+
+**Nothing is running or queued** (2026-10-20), and both GPUs are idle. The last runs, the four of
+`equi-speed-matched-1017`, finished on 10-19 between 03:11 and 07:57, each complete.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
 needs it. New groups go in the watcher's watch-only set.
 
-**Four runs, two per GPU, none watched; `equi-speed-matched-1017`'s four jobs queued behind them:**
-
-| Run | Arm | Group | From | GPU | At 13:00 on 10-17 | 150k due |
-|---|---|---|---|---|---|---|
-| `vnpqtnva` | `actor448` 2 | `equi-arch-parts-1015` (wave 2) | `974e281` | 0 | 100k | 10-17 about 21:50 |
-| `762bhig5` | `actorlr3e-5` 2 | `equi-actor-speed-1016` | `dd6f753` | 0 | 90k | 10-18 about 00:00 |
-| `0jqo4jrx` | `actorlr1e-5` 2 | `equi-actor-speed-1016` | `dd6f753` | 1 | 90k | 10-18 about 00:05 |
-| `x3xopn1y` | `actorln448` 2 | `equi-actor-speed-1016` | `dd6f753` | 1 | 90k | 10-18 about 00:30 |
-
-- Each runs at 5,100–5,300 steps per hour and ends itself at 150k, completing its own run package.
-- With no watcher, nothing FLAGs critic values above 1.5 or finalizes a package left incomplete by a
-  crash (`finalize_run_package` in `resfit/lerobot/utils/load_policy.py`, by hand). The largest critic
-  value so far is 0.47.
-- Every run finished up to 2026-10-17, with its readouts, is in EXPERIMENTS.md. A ResFiT run took
-  11–13 h from launch to 150k. An equivariant one takes about 30.5 h (128 fields) to 32.5 h (448)
-  beside another equivariant run, about 1 h 20 min of that in the gate and demo labelling.
-
-- **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, in tmux `rfe-queue`. Restarted at 13:45
-  on 10-17 with `jobs-equi-speed-matched-1017.txt`: the four arms at seed 2 from
-  `~/projects/equi-resrl-8e8eceb`, in the order `actorln-lr3e-6`, `actor448-lr3e-6`,
-  `actorln448-lr1e-5`, `actorlr1e-4`. At 13:45 it held 2 slots on each GPU and waited.
-  - Start it with `bash slot_queue.sh <jobs file> 2>&1 | tee -a slot_queue.log` (the plan has the
-    full command). Job lines are `<worktree> <arm> <seed> <smoke_first> [if=<script>]`.
+How the last groups were launched and followed, for the next ones:
+- **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, in tmux `rfe-queue`. Not running: it
+  ended at 00:28 on 10-18, when every job had launched.
+  - Start it with `bash slot_queue.sh <jobs file> 2>&1 | tee -a slot_queue.log`. Job lines are
+    `<worktree> <arm> <seed> <smoke_first> [if=<script>]`.
   - Each job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own
     tmux session, `q-<arm>-<seed>`.
   - A launch its gate stops is tried again, up to 3 tries 600 s apart (2026-10-13 LAUNCHED).
+  - The render-guard test (`test_every_guard_passes_on_cans_first_demos`) still fails now and then in
+    a gate that starts within minutes of a run exiting. The retry passed it on 10-18, as on 10-12; its
+    failing assertion is still not recorded.
   - Its log is `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`,
     which is gitignored (TODO: move them into `tools/`).
   - **The queue reads its jobs file once, at start.** To change the jobs, stop `rfe-queue` while it is
     only waiting for a slot (its last log line is a launch, more than a minute old), rewrite the file
     and start it again.
   - A job with `if=<script>` runs that script (in `retry/`) once a slot is free, with `JOB_WORKTREE`,
-    `JOB_ARM` and `JOB_SEED` set, and launches only on exit 0. `parts_seed3_due.sh`, which ran
-    `tools/parts_seed3.py`, is unused now.
-  - The gate prints nothing until each tier ends, so its console is blank for its first 40 minutes.
+    `JOB_ARM` and `JOB_SEED` set, and launches only on exit 0.
+  - The gate prints nothing until each tier ends, so its console is blank for about its first hour.
+  - To check its slot count, source its functions:
+    `source <(sed -n '1,/^mapfile/p' slot_queue.sh | grep -v '^mapfile')`, then `held 0; held 1`.
 - **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group,
-  from the group's pinned worktree): `matched-watch` alone, from `~/projects/equi-resrl-8e8eceb`, started
-  at 13:45 on 10-17. It is watch-only: it logs evals, FLAGs and finalizes, and never signals. It tracks
-  `equi-speed-matched-1017`'s runs only, so the four running runs stay unwatched.
-  - The older groups' watchers enforced stops that no longer apply.
-- **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells; the old queue
-  runners `gpu0`, `gpu1` and `gpu1-bars` are idle too.
+  from the group's pinned worktree): none is running. `matched-watch` was stopped at 08:59 on 10-20,
+  after its four runs had exited.
+  - A watch-only group (`WATCH_ONLY_ARMS`) is logged, FLAGged and finalized, and never signalled.
+  - The older groups' entries in the watcher still enforce stops that no longer apply.
+- **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells. So are the old queue
+  runners `gpu0`, `gpu1` and `gpu1-bars`.
 
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field
@@ -284,7 +330,7 @@ needs it. New groups go in the watcher's watch-only set.
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 23 GB free at 13:00 on 2026-10-17,** the wandb cache at 5.8 GB. It was cleared on
+  - **The disk had 19 GB free on 2026-10-19** (23 GB on 10-17). The wandb cache was last cleared on
     2026-10-15 (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
@@ -368,8 +414,10 @@ needs it. New groups go in the watcher's watch-only set.
   the correct render.
 - **Why the executed residual grows.** It grew to the clip in the image-fix pair, unbounded, while
   the critic rated it above the base action (TODO B10). B15's equivariant residual arm bounds it.
-- **The base rate of Square is uncertain.** The base-rate script gave 0.508 ± 0.022. The
-  trainer-path step-0 evals pool to 0.549 (439/800). No systematic cause was found.
+- **The base rate of Square is uncertain.** The base-rate script gave 0.508 ± 0.022 in the mismatched
+  env, and B_sq 0.582 ± 0.022 in the matching one. The 15 step-0 evals of the last runs pool to 0.533
+  (400 of 750), and with B_sq's to 0.553. A single 50-episode eval of the base spreads 1.4 times
+  wider than binomial (0.34–0.68; 2026-10-20 NOTE). No systematic cause was found.
 - **Five high-scoring runs are still undocumented** (TODO B2): `lgc70vgd`, `q1ocx89o`, `3vl625tv`,
   `36pfxsww` and `zyed0lew`. The four equivariant ones acted on near-blank images.
 - **`action_scale` bounds the residual only with `residual_squash=True`.** Otherwise the bound is
@@ -392,31 +440,21 @@ needs it. New groups go in the watcher's watch-only set.
   taken by every eval and actor loss, draws a random number it scales by 0 (ARCHITECTURE.md,
   "Known rough edges"). Left as it is, for comparability.
 - **What the equivariant residual needs, settled.** Not its action space, demos or noise, which
-  ResFiT carries. Not its critic: the critic parts add nothing, and the action slope is the same in
-  every arm. **Its actor has to move fast enough early:** `arch-wide`'s layout, `arch-wide`'s actor
-  alone, or a 10–30 times actor rate (2026-10-17 NOTEs; one seed each).
-  - **Open:** whether speed alone is enough at 110k–150k (tonight's readout); what the norm adds
-    beyond speed (`equi-speed-matched-1017`); why every equivariant run still loses the base at 10k
-    (0.00–0.04, against ResFiT's 0.16–0.40); and the late gap to ResFiT's best seed.
-- **Whether training and execution should combine the residual alike** (TODO H11). The actor loss
-  and the TD target clip each pair of base plus residual to the unit disk; the env adds them and
-  robosuite clips each component. They differ only for pairs longer than 1.
+  ResFiT carries. Not its critic's parts alone. **Its actor has to move fast enough early, and stay
+  off its limit:** an early residual near 0.03–0.04 with the actor's norm (2026-10-20 NOTEs; one seed
+  each).
+  - **Open:**
+    - why every equivariant run still loses the base by 10k (0.00–0.22, against ResFiT's anchors'
+      0.22–0.30);
+    - what holds every fast arm at or below the base from 50k–70k: the residual's range (xy and tilt
+      at their limit late) or seed variation (ResFiT's seed 2 settles where `arch-wide` does);
+    - whether `arch-wide`'s critic parts help in combination (160 against `actorln448`'s 128, about 2
+      standard errors at the measured noise).
 
 ## The plan, and why
 
-**0. Now: the actor parts at matched speed** (`equi-speed-matched-1017`, pre-registered on
-2026-10-17; [the plan](plans/2026-10-17-speed-matched.md), TODO B19). Every arm is an existing seed-2
-run plus a learning rate:
-- `actorln` and `actor448` at 3e-6 fill the 2×2 of norm and width at about `arch-wide`'s early speed.
-  The other two cells are `actorlr1e-5` and `actorln448`.
-- `actorln448` at 1e-5 is everything stacked.
-- init0 at 1e-4 extends the plain actor's rate curve.
-
-Why: the speed explains most of the gain, but the rate arms pin at the limit early and lose the base,
-and the layout arms do not. The 2×2 asks whether the norm is what keeps the actor in range, and
-whether the small normed actor plus a faster rate (0.3M parameters, against 3.4M) matches
-`arch-wide`. That would be the cheap recipe. Running before it: `equi-actor-speed-1016`, whose
-110k–150k says whether speed alone is enough (TODO B18).
+**0. Next: architectural experiments** (Aden, 2026-10-20 DECISION). Not yet planned. The
+actor-speed line closed on its readouts; "What the actor-speed groups leave" has what it found.
 
 **1. Read the residual and equivariant history again** once the plan reports: which conclusions
 survive the render fix.
