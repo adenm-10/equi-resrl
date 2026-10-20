@@ -176,7 +176,7 @@ def test_raw_widths_match_the_environments(task, state_dim, action_dim):
 
     spec = ONE_ARM if task == "Can/Square" else TWO_ARM
     enc = ResObsEnc(
-        N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, equivariant=True, initialize=False,
+        N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, encoder="equivariant", initialize=False,
         wrist_keys=wrist_keys(spec["n_arms"]), **spec,
     )
     assert enc.state_dim == state_dim
@@ -191,7 +191,7 @@ def test_ih_out_channel_sets_the_wrist_width():
 
     widths = {}
     for ih_out in (8, IH_OUT):
-        enc = ResObsEnc(N=N, n_hidden=ENC_HIDDEN, ih_out_channel=ih_out, equivariant=True,
+        enc = ResObsEnc(N=N, n_hidden=ENC_HIDDEN, ih_out_channel=ih_out, encoder="equivariant",
                         initialize=False, wrist_keys=wrist_keys(2), **TWO_ARM)
         assert enc.ih_type.size == 2 * ih_out
         widths[ih_out] = enc.vis_type.size
@@ -217,7 +217,7 @@ def test_vanilla_encoder_gives_the_actor_the_critics_features(device, arm_spec):
     keys = ("observation.images.agentview", *wrist_keys(arm_spec["n_arms"]))
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT,
-        equivariant=True, initialize=True, wrist_keys=keys[1:], base_action_input=False, **arm_spec,
+        encoder="equivariant", initialize=True, wrist_keys=keys[1:], base_action_input=False, **arm_spec,
     )
     assert enc.enc_out_type_actor == enc.enc_out_type_critic
     assert enc.enc_out_dim_actor == enc.enc_out_dim_critic == ga.layout_width(_layouts(arm_spec)["critic"], N)
@@ -259,16 +259,27 @@ def test_vanilla_actor_reads_no_base_action(obs_enc, device):
         vanilla(enn.GeometricTensor(feat, obs_enc.enc_out_type_actor), std=None)
 
 
-def test_the_scalar_ablation_is_residual_only():
-    """Its actor reads a base action, so it refuses vanilla RL (residual_actor=False) before
-    building anything."""
+# Mixes with a network of another family than the equivariant one, each buildable for a residual
+# actor, so that vanilla RL is all they are refused for: one network changed, then whole stacks.
+NON_EQUIVARIANT_MIXES = [("equivariant", "ablated", "equivariant"), ("equivariant", "resfit", "equivariant"),
+                         ("equivariant", "equivariant", "ablated"), ("ablated", "ablated", "ablated"),
+                         ("resfit", "resfit", "resfit"), ("resfit", "resfit", "ablated")]
+
+
+@pytest.mark.parametrize("mix", NON_EQUIVARIANT_MIXES, ids=["-".join(m) for m in NON_EQUIVARIANT_MIXES])
+def test_the_ablated_and_resfit_families_are_residual_only(mix):
+    """Any network not of the equivariant family refuses vanilla RL (residual_actor=False) before
+    anything is built (q_agent.py, check_families): the ablated and ResFiT actors read a base
+    action, and vanilla RL keeps the equivariant networks."""
     from resfit.rl_finetuning.config.residual_td3 import ResidualEquiTD3SquareConfig
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
     from tools.agent_fingerprint import ACTION_DIM, CAMERAS, OBS_SHAPE, STATE_DIM
 
     cfg = ResidualEquiTD3SquareConfig()
     cfg.agent.device = "cpu"
+    for part, family in zip(("encoder", "actor", "critic"), mix):
+        setattr(cfg.equivariance, f"{part}_family", family)
     with pytest.raises(ValueError, match="residual-only"):
         QAgent(obs_shape=OBS_SHAPE, prop_shape=(STATE_DIM,), action_dim=ACTION_DIM,
                rl_cameras=list(CAMERAS), agent_cfg=cfg.agent, equi_cfg=cfg.equivariance,
-               residual_actor=False, equivariant=False)
+               residual_actor=False)

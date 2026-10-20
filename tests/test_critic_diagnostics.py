@@ -163,7 +163,7 @@ def test_equivariant_critic_diagnostics_report_q_by_buffer(residual, device):
             policy = equi_clip(agent.actor(obs["actor_feat"], std=None), layout, bound=1.0)
             # The action the actor loss scores, by its std=0 path: the same, bit for bit.
             assert torch.equal(policy, agent._act_default(obs=obs, eval_mode=True, stddev=0.0,
-                                                          clip=None, use_target=False))
+                                                          use_target=False))
             if residual:
                 policy = equi_clip(obs["observation.base_action"] + policy, layout, bound=1.0)
 

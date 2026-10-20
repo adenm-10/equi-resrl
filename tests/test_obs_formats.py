@@ -8,8 +8,11 @@ ones. No test fed it a float image, so none could see that (EXPERIMENTS.md,
 2026-10-02 CORRECTION).
 
 Here the same frames go in both formats, made as the env and the buffer make
-them. equivariance.float_images_as_uint8 must still reproduce the old scaling,
-and must leave the buffer format, which is all the update ever sees, alone.
+them, through each encoder family: the equivariant and ablated encoders' scaling
+to [-1, 1], and the ResFiT encoder's own (÷255 for uint8, then −0.5).
+equivariance.float_images_as_uint8 must still reproduce the old scaling in the
+two encoders that read it, and must leave the buffer format, which is all the
+update ever sees, alone.
 """
 
 from __future__ import annotations
@@ -41,7 +44,8 @@ def _observations(device) -> tuple[dict, dict]:
             {k: v.to(device) for k, v in buffer.items()})
 
 
-def _encoder(device, equivariant: bool, float_images_as_uint8: bool):
+def _encoder(device, encoder: str, float_images_as_uint8: bool):
+    from resfit.rl_finetuning.config.rlpd import VitEncoderConfig
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
         build_equivariant_normalizer,
     )
@@ -51,7 +55,8 @@ def _encoder(device, equivariant: bool, float_images_as_uint8: bool):
     np.random.seed(0)
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
-        ih_out_channel=IH_OUT, equivariant=equivariant, initialize=True,
+        ih_out_channel=IH_OUT, encoder=encoder, initialize=True,
+        vit_cfg=VitEncoderConfig() if encoder == "resfit" else None,
         wrist_keys=wrist_keys(1), float_images_as_uint8=float_images_as_uint8, **ONE_ARM,
     )
     enc.set_normalizer(
@@ -75,24 +80,25 @@ def _rel_diff(a: torch.Tensor, b: torch.Tensor) -> float:
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("equivariant", [True, False], ids=["equivariant", "scalar"])
-def test_encoder_reads_env_and_buffer_images_alike(device, equivariant, no_tf32):
+@pytest.mark.parametrize("encoder", ["equivariant", "ablated", "resfit"])
+def test_encoder_reads_env_and_buffer_images_alike(device, encoder, no_tf32):
     """Up to float rounding: on CUDA, dividing by 255 multiplies by its reciprocal,
     so the two formats can differ in the last bit. TF32 would round that up to
     about 1e-3."""
     env, buffer = _observations(device)
-    enc = _encoder(device, equivariant, float_images_as_uint8=False)
+    enc = _encoder(device, encoder, float_images_as_uint8=False)
     for got, expected in zip(_features(enc, env), _features(enc, buffer)):
         torch.testing.assert_close(got, expected)
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("equivariant", [True, False], ids=["equivariant", "scalar"])
-def test_float_images_as_uint8_reproduces_the_old_scaling(device, equivariant, no_tf32):
-    """The flag changes what act() sees and nothing the update sees."""
+@pytest.mark.parametrize("encoder", ["equivariant", "ablated"])
+def test_float_images_as_uint8_reproduces_the_old_scaling(device, encoder, no_tf32):
+    """The flag changes what act() sees and nothing the update sees. The ResFiT encoder does not
+    read it (q_agent.py refuses it there)."""
     env, buffer = _observations(device)
-    fixed = _encoder(device, equivariant, float_images_as_uint8=False)
-    old = _encoder(device, equivariant, float_images_as_uint8=True)
+    fixed = _encoder(device, encoder, float_images_as_uint8=False)
+    old = _encoder(device, encoder, float_images_as_uint8=True)
     for got, expected in zip(_features(old, buffer), _features(fixed, buffer)):
         torch.testing.assert_close(got, expected, rtol=0, atol=0)
     # The image features lead the critic's feature vector; proprioception and the

@@ -275,7 +275,8 @@ TRAINING = {
 }
 EQUI_TRAINING = {
     **TRAINING, "offline_data.name": RERENDERED_DEMOS, "agent.critic.num_q": 5, "equivariance.N": 8,
-    "equivariance.use_equivariant_model": True, "equivariance.residual_squash": True,
+    "equivariance.encoder_family": "equivariant", "equivariance.actor_family": "equivariant",
+    "equivariance.critic_family": "equivariant", "equivariance.residual_squash": True,
     "equivariance.encoder_norm": "none", "equivariance.actor_norm": "none",
     "equivariance.critic_norm": "none", "equivariance.critic_pooled_norm": "none",
     "equivariance.num_critic_layers": 1, "equivariance.critic_last_layer_init_scale": None,
@@ -283,10 +284,15 @@ EQUI_TRAINING = {
     "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
     "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True,
 }
+# The three network families (2026-10-20 CODE) at the default that builds every earlier run's networks.
+EQUI_FAMILIES = {f"equivariance.{part}_family": "equivariant" for part in ("encoder", "actor", "critic")}
+# The two fields the families replaced, as every equivariant run before them recorded them: the
+# switch to the scalar ablation off, and use_norms, which only the scalar ablation read.
+EQUI_REMOVED = {"equivariance.use_equivariant_model": True, "equivariance.use_norms": True}
 # Each anchor: its launch (at 150k), its run package, the run length it launched with, the composed
-# config its arms share, and the fields added since its commit, at the defaults that leave its run
-# as it was ("box", "scaled": ResFiT's own, as tests/test_action_bound.py's goldens pin them; the
-# equivariant agent reads no ResFiT field).
+# config its arms share, the fields added since its commit, at the defaults that leave its run as it
+# was ("box", "scaled": ResFiT's own, as tests/test_action_bound.py's goldens pin them; the
+# equivariant agent reads no ResFiT field), and the fields removed since, at the values it ran with.
 ANCHORS = {
     "oj5k0jqb": {
         "launch": RESFIT_ANCHOR, "steps": 150_000,
@@ -296,18 +302,22 @@ ANCHORS = {
                    "agent.actor.use_layer_norm": True, "agent.critic.use_layer_norm": True},
         "added": {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box",
                   "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True},
+        "removed": {},
     },
     "eaqorqki": {
         "launch": EQUI_ANCHOR, "steps": 300_000,
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 0.0},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
-                  "agent.vit.use_layer_norm": True},
+                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES},
+        "removed": EQUI_REMOVED,
     },
     "6ng62tpm": {
         "launch": BASELINE_ANCHOR, "steps": 300_000,
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 1e-4},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
-                  "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none"},
+                  "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none",
+                  **EQUI_FAMILIES},
+        "removed": EQUI_REMOVED,
     },
 }
 # Keys a run writes into its own recorded config, which no composition holds.
@@ -477,7 +487,8 @@ def _flat_recorded(path: pathlib.Path) -> dict[str, object]:
 @pytest.mark.parametrize("name", list(ANCHORS))
 def test_each_anchor_composes_to_its_runs_recorded_config(name):
     """So each anchor at this commit is the config its run ran with. A field added since is allowed
-    only at the default that leaves every earlier run as it was."""
+    only at the default that leaves every earlier run as it was, and a field removed since only at
+    the value its run had, which what replaced it reproduces."""
     if not _package(name).exists():
         pytest.skip(f"{name}'s run package is not on this machine")
     recorded = _flat_recorded(_package(name) / "wandb_logs/config.yaml")
@@ -487,7 +498,8 @@ def test_each_anchor_composes_to_its_runs_recorded_config(name):
     assert added == ANCHORS[name]["added"]
     changed = {k for k in ours.keys() & recorded.keys() if ours[k] != recorded[k]}
     assert changed <= RUNTIME_STAMPED, {k: (recorded[k], ours[k]) for k in changed}
-    assert recorded.keys() - ours.keys() <= RUNTIME_STAMPED
+    removed = {k: recorded[k] for k in recorded.keys() - ours.keys() - RUNTIME_STAMPED}
+    assert removed == ANCHORS[name]["removed"]
 
 
 def _unnamed(overrides, drop=()) -> set[str]:
@@ -609,7 +621,7 @@ def _agent(cfg, device):
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import build_equivariant_normalizer
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
 
-    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, equivariant=True, **shapes)
+    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, **shapes)
     normalizer = build_equivariant_normalizer(
         stats={"observation.state": _stats(STATE_DIM), "action": _stats(ACTION_DIM)},
         robot_base_xy=torch.tensor(ROTATION_CENTRE),

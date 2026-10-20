@@ -1056,3 +1056,57 @@ def equi_tanh(x: torch.Tensor, layout) -> torch.Tensor:
         else:
             raise ValueError(f"Unknown rep kind in layout: {kind!r}")
     return out
+
+
+def field_bounds(size: int, action_scale: float, field_bound: dict[str, float] | None, action_layout,
+                 action_fields: list[str] | None, residual_actor: bool) -> torch.Tensor:
+    """The bound on each output component of an actor: action_scale, or its field's own bound from
+    equivariance.residual_field_bound (field_bound), which names fields as ACTION_FIELDS does and
+    applies to every arm. One number per field, so an irrep(1) pair is scaled as a whole and the map
+    still commutes with the group.
+
+    Moved verbatim from the equivariant actor's __init__ (2026-10-20), so that every actor family
+    takes its bound from here."""
+    bound = torch.full((size,), float(action_scale))
+    if field_bound:
+        if not residual_actor:
+            raise ValueError("equivariance.residual_field_bound bounds a residual; "
+                             "this actor outputs the whole action")
+        fields = {name.rsplit("_", 1)[0] for name in action_fields}  # action_rx_ry_0 -> action_rx_ry
+        unknown = set(field_bound) - fields
+        if unknown:
+            raise ValueError(f"equivariance.residual_field_bound: unknown fields {sorted(unknown)}; "
+                             f"the fields are {sorted(fields)}")
+        for (sl, _kind), name in zip(action_layout, action_fields):
+            if name.rsplit("_", 1)[0] in field_bound:
+                bound[sl] = float(field_bound[name.rsplit("_", 1)[0]])
+    return bound
+
+
+def bounded_residual(mu: torch.Tensor, layout, bound: torch.Tensor, squash: bool, std) -> torch.Tensor:
+    """An actor's action from its last layer's output: equi_tanh if `squash`
+    (equivariance.residual_squash), times the per-field `bound` (field_bounds). With a `std`, then
+    Gaussian noise of that size and equi_clip to the unit bound; std=None returns the mean, unclipped.
+    In vanilla RL the residual is the whole action.
+
+    Moved verbatim from the end of the equivariant actor's forward (2026-10-20), so that every actor
+    family bounds and explores as it does. std=0 still draws its noise, scaled by 0
+    (ARCHITECTURE.md, "Known rough edges")."""
+    if squash:
+        mu = equi_tanh(mu, layout)
+    scaled_mu = mu * bound
+
+    if std is None:
+        return scaled_mu
+
+    noise   = torch.randn_like(scaled_mu) * std
+    noisy   = scaled_mu + noise
+    clipped = equi_clip(noisy, layout, bound=1.0)
+    return clipped
+
+
+def feature_tensor(feat) -> torch.Tensor:
+    """The encoder's features as a tensor. The equivariant encoder gives a GeometricTensor, the
+    ablated and ResFiT encoders a tensor of the same layout; the ablated and ResFiT actors and
+    critics read either, since they may sit behind any encoder (q_agent.py, check_families)."""
+    return feat.tensor if isinstance(feat, enn.GeometricTensor) else feat

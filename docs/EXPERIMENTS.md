@@ -8682,3 +8682,137 @@ Aden's decision, 2026-10-20, after the NOTEs above:
 - **Nothing is running or queued.** `rfe-queue` launched its last job at 00:28 on 10-18 and ended.
   `matched-watch` was stopped at 08:59 on 10-20, after its four runs had exited.
 - What these groups leave for the new work is in STATUS.md, "What the actor-speed groups leave".
+
+---
+
+## 2026-10-20 — CODE — the network families: each of the equivariant agent's three networks equivariant, ablated (exported to plain torch layers) or ResFiT's own, for `arch-swap-1021`; the scalar ablation removed
+
+The code for the architecture swap (`docs/plans/2026-10-20-arch-swap.md`, local), which Aden approved
+on 2026-10-20 with Claude's recommendations on its four questions. Nothing is pre-registered or
+launched yet. **This commit ends the freeze** (STATUS.md): it changes files under `resfit/`, so a run
+from it compares with the runs before it only through an anchor run at it. `arch-swap-eee`,
+`arch-wide` again, is that anchor.
+
+- **Three fields replace two.** `equivariance.encoder_family`, `actor_family` and `critic_family`,
+  each `equivariant` (the default), `ablated` or `resfit`. `use_equivariant_model` and `use_norms` are
+  removed: no run ever set the first to false, and the second reached only the scalar ablation. Every
+  earlier equivariant run recorded both as `true`, and the three families at `equivariant` reproduce
+  that (`tests/test_sweep_arms.py` checks it against the anchors' recorded configs).
+- **One agent hosts every mix** (`equi_off_policy/rl/q_agent.py`). The trainer, the normalizer inside
+  the encoder, the action's units, bound and noise, the optimizers and the critic's targets are the
+  same in every mix. Only the three networks change:
+  - **`equivariant`:** the escnn networks, line for line.
+  - **`ablated`** (`rl/ablated.py`, new): the equivariant network, built exactly as the equivariant
+    family builds it, then exported by `plain()`.
+    - The export: each escnn `Linear` and `R2Conv` to its dense layer (escnn's own `export()`),
+      `RegularLayerNorm` to a LayerNorm with each field's scale and shift on each of its channels,
+      `TrivialLayerNorm` to its own LayerNorm, `GroupPooling` to `BlockMax` (the max over each field's
+      8 channels), the encoder's blocks to `PlainResBlock`. A layer with no plain form (the batch
+      norms, FieldNorm) raises.
+    - `AblatedActor` and `AblatedCritic` mirror the equivariant forward: the same slicing,
+      concatenation, bound and noise. The critic reuses the equivariant critic's `q_value` and
+      `q_value_for_policy`.
+    - **Exporting draws no random number.** torch's `Linear` and `Conv2d` draw their initial weights
+      when built, before escnn's export overwrites them, so each export runs under `fork_rng`.
+      Everything built after an ablated network, and every update, then draws what it would after its
+      equivariant twin.
+    - **escnn shares each sampled basis between the layers that use it** (its `_stored_filters`
+      cache). So where an escnn network is already on the GPU in the process, a new layer's basis is
+      there too, and expanding it on the CPU fails. `plain()` expands a layer where its basis is: the
+      CPU in a fresh trainer, the GPU in a test session.
+  - **`resfit`** (`rl/resfit_heads.py`, new, and `ResObsEnc(encoder="resfit")`): ResFiT's own classes
+    from `off_policy/`, so their layers and initialization are ResFiT's.
+    - **The encoder:** a `VitEncoder` per camera, in camera order, and ResFiT's `RandomShiftsAug(pad=4)`
+      in train mode. Its forward is ResFiT's `_encode` (÷255 for uint8), then `vit.vit(img − 0.5)`.
+      That is `VitEncoder.forward` less its two `torch.cuda.synchronize()` and its `obs.max() > 5`
+      rescale, each a host sync; the images reach the rescale in [0, 1], so it never applied. Its
+      features: the two cameras' 162 tokens of 128 (20,736 numbers), then the state (11) and the base
+      action (7). Behind it the image features are declared trivial fields, which is how an ablated
+      critic sits behind it.
+    - **The actor:** `off_policy`'s `Actor`, its compression and policy kept less the final Tanh. Its
+      mean goes through this agent's bound and noise. It refuses `agent.actor.spatial_emb`.
+    - **The critic:** `off_policy`'s `Critic`, its tokens unflattened to [B, 162, 128].
+  - **Every actor ends in the same two helpers,** moved verbatim from the equivariant actor into
+    `equi_rl_utils.py`: `field_bounds` (the per-field bound, from its `__init__`) and
+    `bounded_residual` (the squash, bound, noise and clip, from its forward).
+- **The construction order is unchanged:** encoder, then critic, then actor. Measured at seed 2 (the
+  measurements below): `ere`'s encoder and critic are `eee`'s; `ara`'s are `aaa`'s, and `ara`'s actor
+  is `ere`'s; `rra`'s ViTs are `rrr`'s; and `rrr`'s ViTs are ResFiT's own agent's, bit for bit.
+- **Refused at construction** (`check_families`, in place of `EQUIVARIANT_ONLY_FIELDS`):
+  1. an equivariant actor or critic behind another encoder;
+  2. ResFiT's critic behind any but ResFiT's encoder;
+  3. any family but the equivariant one in vanilla RL;
+  4. ResFiT's critic with a distributional loss;
+  5. any field off its default that no network of the mix reads. Behind ResFiT's encoder:
+     `encoder_norm`, `encoder_orth_init`, `initialize`, `enc_degree_channel`, `ih_out_channel`,
+     `float_images_as_uint8`. With ResFiT's actor: `actor_norm`, `actor_degree_channel`,
+     `use_orth_init`. With ResFiT's critic: `critic_norm`, `critic_pooled_norm`, `num_critic_layers`,
+     `critic_degree_channel`, `critic_orth_init`, `critic_last_layer_init_scale`. With both of
+     ResFiT's heads: `use_visual_proj`. With any critic but the equivariant one:
+     `frozen_target_critic`.
+- **Elsewhere in the agent:**
+  - `combine_actions` is `equi_clip` always.
+  - `_detach_feat` branches on the features' type.
+  - `_act_default` and `critic_diagnostics` keep only their equivariant branch, which is now every
+    family's interface. The scalar ablation's `TruncatedNormal` path goes, and with it
+    `_act_default`'s `clip`, which no family read: `agent.stddev_clip` is read by none.
+  - The target critic is in train mode iff the critic is equivariant (and not frozen). The ablated and
+    ResFiT critics compute the same in either mode, and their targets stay in eval mode, as ResFiT's
+    agent keeps its own.
+- **Deleted:** `rl/ablate_equi_actor.py`, `rl/ablate_equi_critic.py`, `networks/ablate_equi_obs_encoder.py`
+  (unreachable, TODO P3.5), and from `networks/ablate_equi_encoder.py` the scalar `ResEncoder76`,
+  `ResBlock` and their three helpers. That file keeps the wrist camera's CNN. `resfit/` is 464 lines
+  shorter.
+- **Also changed:** the trainer, `tools/agent_fingerprint.py` and `tools/critic_start.py` lose their
+  `equivariant=` argument (the old trees' default, so `agent_fingerprint.py` still measures them). The
+  gate's Tier 2 runs the two new test files.
+- **Sizes** (parameters, seed 2, at each arm's design):
+
+  | Mix | Encoder | Actor | Critic |
+  |---|---|---|---|
+  | `eee` (`arch-wide`) | 0.627M | 3.364M | 2.824M |
+  | `aaa` | 3.725M | 26.909M | 22.587M |
+  | `ere` | 0.627M | 1.249M | 2.824M |
+  | `ara` | 3.725M | 1.249M | 22.587M |
+  | `rrr` | 0.762M | 3.866M | 23.669M |
+  | `rra` | 0.762M | 3.866M | 43.525M |
+
+  **A correction to the plan:** `rra`'s ablated critic behind the ViT is 43.5M, not the plan's 21.2M.
+  21.2M is its visual projection alone (20,736 → 1,024 numbers); its trunk and ten heads add 22.3M,
+  as in `aaa`'s critic. ResFiT's own critic is 23.7M.
+- **The equivariant path is bit for bit as before:**
+  - `tests/test_regression_agent.py`'s goldens (parameters, outputs and one update, at the reference
+    config and at `actor_norm=none`) and `tests/test_regression_single_arm.py`'s pass unchanged.
+  - `tools/agent_fingerprint.py --deep`, for all 19 `CANDIDATES`, on the CPU, is identical to
+    `6517d0c`'s tree, tensor for tensor: 603–942 values each, the state dicts, the optimizers' states, the sampled action and the last update's metrics after 8 updates.
+  - ResFiT's own agent is untouched: `off_policy/` does not change, and `tests/test_action_bound.py`'s
+    goldens pass.
+- **Measured on the GPU in full precision, at seed 2** (the numbers the new tests pin):
+  - At `arch-wide`'s and init0's configs, the ablated stack's torch and numpy random states after
+    construction are the equivariant stack's. Its encoder features, actor means (at escnn's init) and
+    Q values are exactly the equivariant ones, and so is the first critic loss (1.1493504 at
+    `arch-wide`).
+  - Its parameters are exactly the equivariant layers' expanded weights.
+  - **The negative control:** after four updates at `arch-wide`'s rates, the ablated actor's
+    equivariance error is 2.3 relative (its last layer starts at zero, so its whole output is
+    unconstrained) and its critic's invariance error 0.41. The equivariant ones stay at 2.6e-7 and
+    5.0e-7.
+  - ResFiT's encoder gives ResFiT's own `_encode`'s tokens exactly, from uint8 and float images,
+    unshifted in eval mode and shifted alike at the same seed in train mode.
+- **Tests** (all on this commit's tree):
+  - New: `tests/test_ablated.py` (the ablated family: its start, its weights, the negative control,
+    the layers with no plain form) and `tests/test_resfit_heads.py` (ResFiT's encoder, actor and
+    critic against ResFiT's own modules; every refusal).
+  - Extended: `test_obs_formats.py` (the three encoders), `test_sync_free.py` (the five new mixes:
+    no host sync), `test_layouts.py` (the other families refuse vanilla RL), `test_run_package.py`
+    (a saved model reloads to the same actions in each family).
+  - Mechanical: `conftest.py`, `test_config.py`, `test_no_ops.py`, `test_regression_single_arm.py`,
+    `test_critic_diagnostics.py`, and `test_sweep_arms.py`, whose anchors now record the two removed
+    fields at the values their runs had.
+  - **The full suite** (the gate's Tier 1 and Tier 2, plus `test_action_bound.py` and
+    `test_square_rerendered_watch.py`, which the gate does not run), split over both GPUs: **984
+    passed, 2 skipped, none failed.** Tier 1 with the watcher's test 241 (2 skipped, as before),
+    `test_sweep_arms.py` 287, the rest of Tier 2 with `test_action_bound.py` 456.
+- **Not tested here:** the trainer end to end with the new families. The integration smokes are next
+  (the plan's section 6), and the six arms join `submit.sh` and `tests/test_sweep_arms.py` with their
+  calibrated rates before the pre-registration.

@@ -95,7 +95,7 @@ def build_agent(cfg, device: str, stats: dict, rotation_centre):
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import build_equivariant_normalizer
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
 
-    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, equivariant=True, **shapes)
+    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, **shapes)
     normalizer = build_equivariant_normalizer(stats=stats, robot_base_xy=torch.tensor(rotation_centre))
     agent.enc.set_normalizer(normalizer, robot_base_xy=list(rotation_centre))
     return agent.to(device)

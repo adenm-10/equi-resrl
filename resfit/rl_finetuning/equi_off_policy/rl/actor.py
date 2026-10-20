@@ -54,24 +54,11 @@ class Actor(torch.nn.Module):
         self.action_scale     = action_scale
         self.residual_squash  = residual_squash
 
-        # The bound on each output component: action_scale, or its field's own bound from
-        # equivariance.residual_field_bound (field_bound), which names fields as ACTION_FIELDS does
-        # and applies to every arm. One number per field, so an irrep(1) pair is scaled as a whole
-        # and the map still commutes with the group. Not persistent: a checkpoint from before it
+        # The bound on each output component (field_bounds): action_scale, or its field's own bound
+        # from equivariance.residual_field_bound. Not persistent: a checkpoint from before it
         # existed still loads, and the config rebuilds it.
-        bound = torch.full((action_type.size,), float(action_scale))
-        if field_bound:
-            if not residual_actor:
-                raise ValueError("equivariance.residual_field_bound bounds a residual; "
-                                 "this actor outputs the whole action")
-            fields = {name.rsplit("_", 1)[0] for name in action_fields}  # action_rx_ry_0 -> action_rx_ry
-            unknown = set(field_bound) - fields
-            if unknown:
-                raise ValueError(f"equivariance.residual_field_bound: unknown fields {sorted(unknown)}; "
-                                 f"the fields are {sorted(fields)}")
-            for (sl, _kind), name in zip(action_layout, action_fields):
-                if name.rsplit("_", 1)[0] in field_bound:
-                    bound[sl] = float(field_bound[name.rsplit("_", 1)[0]])
+        bound = field_bounds(action_type.size, action_scale, field_bound, action_layout, action_fields,
+                             residual_actor)
         self.register_buffer("bound", bound, persistent=False)
 
         # ---- Visual projection; Identity feeds the encoder features straight to the trunk ----
@@ -144,14 +131,4 @@ class Actor(torch.nn.Module):
         policy_in = cat_gts([z, *skip])
 
         mu: torch.Tensor = self.policy(policy_in).tensor
-        if self.residual_squash:
-            mu = equi_tanh(mu, self.action_layout)
-        scaled_mu = mu * self.bound
-
-        if std is None:
-            return scaled_mu
-
-        noise   = torch.randn_like(scaled_mu) * std
-        noisy   = scaled_mu + noise
-        clipped = equi_clip(noisy, self.action_layout, bound=1.0)
-        return clipped
+        return bounded_residual(mu, self.action_layout, self.bound, self.residual_squash, std)

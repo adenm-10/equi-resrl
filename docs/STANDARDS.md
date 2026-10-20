@@ -59,13 +59,16 @@ Anti-pattern, live: layer count and normalization are each defined twice.
 
 | Knob | In `QAgentConfig` | In `EquivarianceConfig` | Which path reads which |
 |---|---|---|---|
-| Actor layers | `agent.actor.num_layers` | `equivariance.num_actor_layers` | Baseline reads the first; equivariant reads the second |
-| Critic layers | `agent.critic.num_layers` | `equivariance.num_critic_layers` | Same split |
-| Normalization | `agent.{actor,critic}.use_layer_norm` | `equivariance.use_norms` | Same split |
+| Actor layers | `agent.actor.num_layers` | `equivariance.num_actor_layers` | ResFiT's actor reads the first; the equivariant one reads neither (`num_actor_layers` is dead) |
+| Critic layers | `agent.critic.num_layers` | `equivariance.num_critic_layers` | ResFiT's critic reads the first; the equivariant and ablated ones the second |
+| Normalization | `agent.{actor,critic}.use_layer_norm` | `equivariance.{actor,critic}_norm` | Same split |
 
-So `agent.actor.num_layers` is silently ignored on the equivariant path, and
+So `agent.actor.num_layers` is silently ignored by the equivariant actor, and
 `equivariance.num_actor_layers` is silently ignored inside the actor. Setting either looks
-reasonable and does nothing.
+reasonable and does nothing. From 2026-10-20 the equivariant agent can host ResFiT's networks
+(`equivariance.*_family=resfit`), and refuses an `equivariance` field off its default where only
+ResFiT's network sits (`check_families`); the `agent.*` fields an equivariant network ignores are
+not refused.
 
 ### 1.5 Booleans are booleans `[CS]`
 
@@ -147,33 +150,36 @@ modes — its frame rotates with the gripper, so world-frame symmetry does not a
 ### 3.2 File prefixes mean something `[HI]`
 
 - `equi_*` — the equivariant implementation.
-- `ablate_*` — the scalar (non-equivariant) counterpart used as the controlled ablation.
+- `ablate_*` — the scalar counterpart, historically. Only `ablate_equi_encoder.py` is left, holding
+  the wrist camera's CNN that the equivariant and ablated encoders share. The ablated family, the
+  controlled ablation, is `rl/ablated.py`.
 - No prefix inside `equi_off_policy/` — shared by both paths, or the unified entry point
   (`obs_encoder.py`, `actor.py`, `critic.py`, `q_agent.py`).
 
 ### 3.3 An ablation must differ in exactly one thing `[SC]`
 
-**Currently violated, and it matters.** `use_equivariant_model=False` is meant to be the control
-that isolates equivariance from everything else. It is not, because the scalar and equivariant
-modules differ in several ways at once:
+The control that isolates equivariance from everything else is the **ablated family**
+(`equivariance.*_family=ablated`, from 2026-10-20). It is defined by export, so it differs in the
+weight constraint alone: the equivariant network is built exactly as the equivariant family builds
+it, then each layer is exported to its plain torch form (`rl/ablated.py`), and the forward mirrors
+the equivariant one's. So it has the same depth, nonlinearities, norms, squashing, clipping, noise
+and features, and it starts as the same function at the same seed. Only its updates differ: every
+dense weight moves on its own, where escnn ties them to the group.
 
-| | equivariant | scalar ablation |
-|---|---|---|
-| Actor hidden layers | 1, hardcoded ([actor.py:68-72](../resfit/rl_finetuning/equi_off_policy/rl/actor.py#L68)) | `num_layers`, honored in a loop ([ablate_equi_actor.py:60](../resfit/rl_finetuning/equi_off_policy/rl/ablate_equi_actor.py#L60)) |
-| Actor dropout | ignored | applied when `> 0` |
-| Actor output squashing | **none** (`NormNonLinearity` commented out) | **`Tanh()`** |
-| Actor return type | tensor, clipped by `equi_clip` | `TruncatedNormal` distribution, clipped on `.sample()` |
-| Critic head | `Linear → GroupPooling → Linear`, **no ReLU** | `Linear → ReLU → Linear → ReLU → Linear` |
-| Critic ensemble | `ModuleList` loop plus `torch.stack` | `vmap` over `stack_module_state` |
+The tests prove both halves (`tests/test_ablated.py`): at the same seed the ablated stack has the
+equivariant stack's random state, outputs and first critic step; after a few updates it is no longer
+equivariant, while the equivariant stack still is.
 
-So running the ablation today would compare a 1-layer unsquashed equivariant actor against a
-2-layer `Tanh`-squashed scalar one, and a 0-ReLU critic head against a 2-ReLU one. Any difference
-in outcome could not be attributed to equivariance.
+What an ablation like this does not hold fixed must still be listed in its EXPERIMENTS.md entry. For
+the ablated family, the dense weights are 8 times as many, so at one learning rate each network
+changes faster per step (the arch-swap plan's probe: about 3 times as much change in Q, and 6.6
+times as fast an actor at the same rate).
 
-**Before the ablation is run as a control, the two stacks must be matched on depth, nonlinearity
-count, output squashing, and clipping semantics** — with every remaining difference listed in the
-EXPERIMENTS.md entry. Tracked as TODO P4. Until then the ablation produces an uninterpretable
-result, and the "run the scalar ablation" task is blocked on this, not merely on compute.
+**The violation this replaced.** `use_equivariant_model=False` was meant to be that control and was
+not: its scalar modules differed in six ways at once (actor depth, dropout, output squashing, return
+type, the critic head's nonlinearities, and the ensemble's implementation), so any difference in
+outcome could not have been attributed to equivariance. It never ran, and was removed with its two
+fields on 2026-10-20.
 
 ### 3.4 Know where normalization happens on your path `[HI]`
 

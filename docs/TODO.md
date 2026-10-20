@@ -9,9 +9,28 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Next: architectural experiments** (Aden, 2026-10-20; EXPERIMENTS.md, that date's DECISION). They
-are not yet planned. STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that
+**Next: the architecture swap, `arch-swap-1021` (B20).** Aden's architectural experiments
+(2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that
 bears on them.
+
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — CODE DONE 2026-10-20; pre-registration next (Aden, 2026-10-20) `[SC]`
+
+[The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
+its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated
+(A) or ResFiT's (R): `eee` (`arch-wide` again), `aaa`, `ere`, `ara`, `rrr`, `rra`, at seeds 2 and 3.
+- **Done:** the code (EXPERIMENTS.md, 2026-10-20 CODE): `equivariance.encoder_family`,
+  `actor_family` and `critic_family`, the ablated family by export (`rl/ablated.py`), ResFiT's
+  networks wrapped (`rl/resfit_heads.py`), and `check_families`'s refusals.
+- **Next, in order** (the plan's section 7):
+  1. the speed calibration (section 5): each new actor's rate for a 0–3k residual of 0.035;
+  2. the integration smokes (section 6): each new mix through the real trainer, with evals, the best
+     model's save and the package;
+  3. the six arms in `submit.sh`, `tests/test_sweep_arms.py` and the watcher, with a log-only FLAG for
+     an arm outside the speed band;
+  4. the PRE-REGISTERED and DECISION entries, **for Aden's review before launch**;
+  5. then the commit, the worktree, the disk cleanup and the queue.
+- **After the runs:** the ablated runs' drift from equivariance, measured on their saved best models
+  by a local script (reported, deciding nothing).
 
 ### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — DONE 2026-10-19 (Aden, 2026-10-17) `[SC]`
 
@@ -640,8 +659,8 @@ critic invariant to `< 1e-4`. So the collapses were not a broken symmetry.
 
 - Full `QAgent.act` plus `_combine_actions`: assert the weaker property that holds when a
   non-equivariant base policy is summed with an equivariant residual.
-- Negative control: `use_equivariant_model=False` must **break** equivariance — a test proving the
-  tests can fail.
+- ~~Negative control: `use_equivariant_model=False` must **break** equivariance — a test proving the
+  tests can fail.~~ **Done 2026-10-20**, with the ablated family: `tests/test_ablated.py`.
 - Normalizer: assert isotropic scale and zero offset on every `irrep(1)` field in
   `build_equivariant_normalizer`. Currently guaranteed only by reading the code.
 - **New:** the suite runs against HEAD only. The runs that matter are at `7dae4925`, and that tree
@@ -748,15 +767,14 @@ Belongs in `equi_rl_utils.py` alongside `FieldNorm`. Gated on R10 — it changes
 cannot land before the reproduction. R10 is moot since 2026-10-02 (P3's note). Any version of this must be covered by the P2.3 critic
 invariance test, since normalization is exactly where equivariance tends to break.
 
-### P3.5 Sweep the four remaining unreachable modules `[CS]`
+### P3.5 Sweep the three remaining unreachable modules `[CS]`
 
-`ablate_equi_obs_encoder.py`, `field_norm.py`, `rotation_transformer.py`, `rotation_utils.py`. All
-tracked, so deletion is reversible. Check `field_norm.py` against `equi_rl_utils.py`'s `FieldNorm`
-before removing — if the standalone copy is the better one, keep that instead. See H1.
-
-`ablate_equi_obs_encoder.py` is now the most urgent of the four: since the bimanual change it looks
-up the normalizer key `action_gripper`, which no longer exists, so wiring it up would raise. The
-scalar ablation goes through `ResObsEnc(equivariant=False)` instead.
+`field_norm.py`, `rotation_transformer.py`, `rotation_utils.py`. All tracked, so deletion is
+reversible. Check `field_norm.py` against `equi_rl_utils.py`'s `FieldNorm` before removing — if the
+standalone copy is the better one, keep that instead. See H1. The fourth,
+`ablate_equi_obs_encoder.py`, was deleted on 2026-10-20 with the scalar ablation it duplicated.
+`equi_rl_utils.py`'s `TruncatedNormal` and `clip_action_norm` are unreachable too: only the deleted
+scalar actor's distribution path was near them, and it used `off_policy`'s.
 
 ---
 
@@ -768,14 +786,9 @@ Not yet planned in detail. Recorded so it is not forgotten.
   approximation. The cheap diagnostic (render before/after a 45° rotation, compare against a 45°
   image rotation) stays documented in EQUIVARIANCE.md assumption 1 should it ever be needed, but is
   not scheduled.
-- **Match the two stacks, then run the scalar ablation.** `use_equivariant_model=False` is meant to
-  be the control separating "equivariance is wrong" from "residual RL is misconfigured on this
-  path". It cannot serve that role yet: the scalar and equivariant modules differ in six ways at
-  once — actor depth, actor dropout, output squashing (`Tanh` vs none), actor return type
-  (distribution vs tensor), critic head nonlinearity count (2 ReLUs vs 0), and ensemble
-  implementation (`vmap` vs loop). Full table in [STANDARDS.md](STANDARDS.md) rule 3.3.
-  **Blocked on matching depth, nonlinearity count, squashing, and clipping semantics**, not on
-  compute. Until then the ablation yields an uninterpretable result.
+- ~~**Match the two stacks, then run the scalar ablation.**~~ **Replaced 2026-10-20** by the ablated
+  family, which differs from the equivariant stack in its weight constraint alone (STANDARDS 3.3).
+  It runs in B20, `arch-swap-1021`.
 - **Diagnose the residual saturation.** `residual_l2 ≈ action_scale` with `dQ_da ≈ 2e-4` across
   multiple runs. Is the critic providing any usable action gradient? Those are update-batch values,
   from runs that acted on near-blank images, and the bound is 1.0 without `residual_squash`. Re-pose

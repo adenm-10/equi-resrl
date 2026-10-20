@@ -327,8 +327,9 @@ def test_finalize_survives_an_unreadable_record(fake):
 # save_residual_model / load_residual_model
 # ---------------------------------------------------------------------------
 
-def _agent(device, *, seed: int, stats_scale: float):
-    """Single-arm equivariant QAgent, small but built exactly as training builds it."""
+def _agent(device, *, seed: int, stats_scale: float, family: str = "equivariant"):
+    """Single-arm QAgent, small but built exactly as training builds it, every network of `family`
+    (equivariance.*_family). ResFiT's networks have their own sizes, so the small ones are not set."""
     from resfit.rl_finetuning.config.residual_td3 import EquivarianceConfig
     from resfit.rl_finetuning.config.rlpd import QAgentConfig
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
@@ -336,13 +337,15 @@ def _agent(device, *, seed: int, stats_scale: float):
     )
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
 
+    sizes = {} if family == "resfit" else dict(enc_degree_channel=ENC_HIDDEN, actor_degree_channel=8,
+                                               critic_degree_channel=8)
     torch.manual_seed(seed)
     agent = QAgent(
         obs_shape=OBS_SHAPE, prop_shape=(9,), action_dim=7,
         rl_cameras=["observation.images.agentview", "observation.images.robot0_eye_in_hand"],
         agent_cfg=QAgentConfig(device=str(device)),
         equi_cfg=EquivarianceConfig(
-            N=N, enc_degree_channel=ENC_HIDDEN, actor_degree_channel=8, critic_degree_channel=8,
+            N=N, encoder_family=family, actor_family=family, critic_family=family, **sizes,
         ),
         residual_actor=True,
     )
@@ -363,14 +366,16 @@ def _act(agent, obs):
         return agent.act(obs, eval_mode=True, cpu=False)
 
 
-def test_residual_model_round_trip(tmp_path, device):
+@pytest.mark.parametrize("family", ["equivariant", "ablated", "resfit"])
+def test_residual_model_round_trip(tmp_path, device, family):
     """Weights and normalizer come back from the file: the loading agent starts with
-    different ones, and its actions then match the saving agent's exactly."""
+    different ones, and its actions then match the saving agent's exactly. In every family, so a
+    saved best model of any arm can be measured again."""
     from resfit.rl_finetuning.utils.checkpoint import load_residual_model, save_residual_model
 
     obs = {k: v.to(device) for k, v in _inputs().items()}
-    src = _agent(device, seed=0, stats_scale=1.0)
-    dst = _agent(device, seed=1, stats_scale=2.0)
+    src = _agent(device, seed=0, stats_scale=1.0, family=family)
+    dst = _agent(device, seed=1, stats_scale=2.0, family=family)
     path = tmp_path / "models" / "best_model.pt"
 
     save_residual_model(src, path, config={"task": "Can"}, global_step=7, success_rate=0.5)

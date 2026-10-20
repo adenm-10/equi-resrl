@@ -285,7 +285,6 @@ def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
             residual_actor=residual_run,
-            equivariant=cfg.equivariance.use_equivariant_model,
         )
 
         # Both arms are centred on the same point, so the group acts linearly

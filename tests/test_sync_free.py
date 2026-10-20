@@ -10,8 +10,9 @@ docs/ARCHITECTURE.md, "Why the update used to stall", has the breakdown; docs/ST
           by identity; the project's GroupPooling gives exactly escnn's output; the random
           crops are the windows at the offsets the CPU generator draws; get6DRotation keeps
           its layout.
-  Tier 2  For every config in tools/agent_fingerprint.py's CANDIDATES, and for the two-arm
-          layout, an update without the actor, one with it, and an act() make no host sync.
+  Tier 2  For every config in tools/agent_fingerprint.py's CANDIDATES, for the two-arm
+          layout, and for each mix of network families arch-swap-1021 runs, an update without
+          the actor, one with it, and an act() make no host sync.
 
 That the agent still trains bit for bit as before is checked elsewhere: within this tree by
 tests/test_regression_agent.py, and across trees by `tools/agent_fingerprint.py --deep`.
@@ -40,6 +41,27 @@ from tools.agent_fingerprint import (
 # (TODO H8), so those candidates are left out of the census.
 SYNC_FREE = [name for name, overrides in CANDIDATES.items()
              if overrides.get("equivariance.actor_norm", "iid_bn") != "iid_bn"]
+
+# The mixes of network families (equivariance.*_family; 2026-10-20 CODE) other than the equivariant
+# stack, at their arms' designs: arch-wide's for the ablated stack, and ResFiT's 10 critic heads of 2
+# layers with RegularLayerNorm for an equivariant or ablated critic beside ResFiT's actor. ResFiT's
+# actor reads none of the equivariant actor's fields, so they stay at their defaults.
+_HEADS = {"agent.critic.num_q": 10, "equivariance.num_critic_layers": 2, "equivariance.critic_norm": "layer_norm"}
+
+
+def _families(encoder, actor, critic):
+    return {"equivariance.encoder_family": encoder, "equivariance.actor_family": actor,
+            "equivariance.critic_family": critic}
+
+
+FAMILY_MIXES = {
+    "aaa": {**_HEADS, "equivariance.actor_norm": "layer_norm", "equivariance.actor_degree_channel": 448,
+            **_families("ablated", "ablated", "ablated")},
+    "ere": {**_HEADS, "equivariance.actor_norm": "none", **_families("equivariant", "resfit", "equivariant")},
+    "ara": {**_HEADS, "equivariance.actor_norm": "none", **_families("ablated", "resfit", "ablated")},
+    "rrr": {"agent.critic.num_q": 10, "equivariance.actor_norm": "none", **_families("resfit", "resfit", "resfit")},
+    "rra": {**_HEADS, "equivariance.actor_norm": "none", **_families("resfit", "resfit", "ablated")},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +197,7 @@ def _two_arm_agent(device):
     agent = QAgent(
         obs_shape=OBS_SHAPE, prop_shape=(layout["state_dim"],), action_dim=layout["action_dim"],
         rl_cameras=list(layout["cameras"]), agent_cfg=cfg.agent, equi_cfg=eq,
-        residual_actor=True, equivariant=True,
+        residual_actor=True,
     )
     normalizer = build_equivariant_normalizer(
         stats={"observation.state": _stats(layout["state_dim"]),
@@ -218,6 +240,16 @@ def _assert_no_host_sync(agent, make_batch):
 @pytest.mark.parametrize("candidate", SYNC_FREE)
 def test_candidate_update_makes_no_host_sync(candidate, device):
     agent = build_reference_agent(str(device), overrides=CANDIDATES[candidate])
+    _assert_no_host_sync(agent, lambda: fixed_batch(weights=True).to(device))
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+@pytest.mark.parametrize("mix", list(FAMILY_MIXES))
+def test_family_mix_update_makes_no_host_sync(mix, device):
+    """The ablated layers, ResFiT's actor, critic and ViTs, the random shifts, and the ViTs' forward
+    without VitEncoder.forward's own syncs (networks/obs_encoder.py, _vit_tokens)."""
+    agent = build_reference_agent(str(device), overrides=FAMILY_MIXES[mix])
     _assert_no_host_sync(agent, lambda: fixed_batch(weights=True).to(device))
 
 

@@ -48,7 +48,19 @@ class BasePolicyConfig:
 
 @dataclass
 class EquivarianceConfig:
-    use_equivariant_model: bool = True
+    # The family of each of the agent's three networks (equi_off_policy/rl/q_agent.py), one of:
+    #   "equivariant": the escnn network, as in every run before these fields existed;
+    #   "ablated": that network built exactly as the equivariant one, then exported to plain torch
+    #     layers (rl/ablated.py), so it starts as the same function at the same seed and only its
+    #     updates are unconstrained;
+    #   "resfit": ResFiT's own ViT, actor or critic (off_policy/), wrapped to read this agent's
+    #     features and to bound its actions as this agent does (rl/resfit_heads.py).
+    # The agent refuses a mix it cannot build, and any field below that no network of the mix
+    # reads (q_agent.py, check_families). They replace use_equivariant_model, which picked the
+    # scalar ablation, and use_norms, which only that read. EXPERIMENTS.md, 2026-10-20 CODE.
+    encoder_family: str = "equivariant"
+    actor_family: str = "equivariant"
+    critic_family: str = "equivariant"
 
     N: int = 8
     enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
@@ -62,9 +74,6 @@ class EquivarianceConfig:
     n_arms: int = 1
     gripper_dim: int = 2
     hand_dof: int = 1
-    # Read only by the scalar ablation; the equivariant networks use the three
-    # fields below.
-    use_norms: bool = True
     # Delta-orthonormal init in the actor; escnn's default, which the critic and
     # encoder keep unless their fields below say otherwise, is He.
     use_orth_init: bool = True

@@ -42,7 +42,7 @@ def _count(module, cls) -> int:
 def _build_obs_enc(device, **kw):
     from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
     opts = dict(obs_shape=(3, 84, 84), crop_shape=(76, 76), N=N,
-                n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, equivariant=True, initialize=True)
+                n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, encoder="equivariant", initialize=True)
     opts.update(kw)
     return ResObsEnc(**opts).to(device)
 
@@ -233,15 +233,14 @@ def test_encoder_is_bias_free_with_or_without_norm(device):
 
     Before 2026-09-29 the last conv's bias was `not use_norms`, so use_norms=True
     gave a bias-free layer with no normalization after it (STANDARDS 1.3). The
-    bias is now always off, and use_norms no longer reaches this encoder.
+    bias is now always off; use_norms stopped reaching this encoder then, and was
+    removed with the scalar ablation on 2026-10-20.
     """
     from escnn import nn as enn
-    for kw in (dict(), dict(encoder_norm="inner_bn"), dict(use_norms=False)):
+    for kw in (dict(), dict(encoder_norm="inner_bn")):
         enc = _build_obs_enc(device, **kw).enc_obs
         convs = [m for m in enc.modules() if isinstance(m, enn.R2Conv)]
         assert convs and all(m.bias is None for m in convs), kw
-    assert _shapes_only(_build_obs_enc(device, use_norms=False)) == \
-           _shapes_only(_build_obs_enc(device, use_norms=True))
 
 
 @pytest.mark.gpu

@@ -86,7 +86,7 @@ def obs_enc(device, arm_spec):
 
     enc = ResObsEnc(
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
-        ih_out_channel=IH_OUT, equivariant=True, initialize=True,
+        ih_out_channel=IH_OUT, encoder="equivariant", initialize=True,
         wrist_keys=wrist_keys(arm_spec["n_arms"]), **arm_spec,
     ).to(device)
     enc.eval()

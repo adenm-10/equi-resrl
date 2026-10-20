@@ -184,7 +184,6 @@ def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
             residual_actor=residual_actor,
-            equivariant=True,
         )
     normalizer = build_equivariant_normalizer(
         stats={"observation.state": _stats(STATE_DIM), "action": _stats(ACTION_DIM)},

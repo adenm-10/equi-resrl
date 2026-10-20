@@ -68,7 +68,8 @@ def test_repro_config_is_equivariant_can():
         "equivariance block is None, so train_residual_td3.py would build the "
         "BASELINE agent, not the equivariant one"
     )
-    assert cfg.equivariance.use_equivariant_model is True
+    eq = cfg.equivariance
+    assert (eq.encoder_family, eq.actor_family, eq.critic_family) == ("equivariant",) * 3
     assert cfg.equivariance.N == 8
 
 
@@ -198,7 +199,7 @@ def test_dead_config_fields_are_documented():
 
     doc = (pathlib.Path(__file__).resolve().parent.parent
            / "docs" / "ARCHITECTURE.md").read_text()
-    for field in ("num_actor_layers", "num_critic_layers", "use_norms", "use_orth_init"):
+    for field in ("num_actor_layers", "num_critic_layers", "use_orth_init"):
         assert field in doc, f"{field} missing from the provenance table"
     assert "DEAD" in doc, "provenance table no longer marks any field DEAD"
 
@@ -241,6 +242,8 @@ def test_equivariant_defaults_build_the_reference_network(name):
     assert eq.use_visual_proj is True and eq.residual_squash is False
     assert eq.num_critic_layers == 1
     assert eq.ih_out_channel == eq.enc_degree_channel == 32
+    # Added 2026-10-20: every run before had the equivariant networks.
+    assert (eq.encoder_family, eq.actor_family, eq.critic_family) == ("equivariant",) * 3
 
 
 # ---------------------------------------------------------------------------

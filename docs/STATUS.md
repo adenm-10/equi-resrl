@@ -1,15 +1,16 @@
 # Status
 
-**Last updated:** 2026-10-20 · **Last verified commit:** this file's own commit (the readouts of
-`equi-arch-parts-1015`, `equi-actor-speed-1016` and `equi-speed-matched-1017`, and Aden's decision).
-The last code commit is `8e8eceb` (`equi-speed-matched-1017`, config only). No agent code changed
-since `0b14c17` (the freeze note, below). Main is ahead of origin and not pushed: pushing waits for
-Aden.
+**Last updated:** 2026-10-20 · **Last verified commit:** this file's own commit, the code of the
+network families (EXPERIMENTS.md, 2026-10-20 CODE). **It ends the freeze** (below): the first change
+under `resfit/` since `0b14c17`. Main is ahead of origin and not pushed: pushing waits for Aden.
 
-**Next: architectural experiments** (Aden, 2026-10-20 DECISION). They are not yet planned or
-pre-registered. **Nothing is running or queued.** The actor-speed line is closed on its readouts, at
-one seed per arm, with no follow-up planned: `equi-arch-parts-1015`, `equi-actor-speed-1016` and
-`equi-speed-matched-1017`. What it leaves for the new work is in "What the actor-speed groups leave",
+**Next: the architecture swap, `arch-swap-1021`** (Aden's architectural experiments, 2026-10-20
+DECISION; [the plan](plans/2026-10-20-arch-swap.md), local, approved with Claude's recommendations on
+its four questions). Six arms in the equivariant agent, each network equivariant, ablated (the
+equivariant one unconstrained) or ResFiT's own, at seeds 2 and 3. Its code is committed. The speed
+calibration, the integration smokes and the pre-registration are next, and **Aden reviews the
+pre-registration before anything launches** (TODO B20). **Nothing is running or queued.** The
+actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups leave",
 below.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
@@ -263,11 +264,13 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 - **Saved policies:** each run package's `wandb_best/` holds its best eval's checkpoint (`best_model.pt`,
   and `best.json` with its step). These groups saved no `models/step_*.pt`, and
   `tools/residual_field_ablation.py` loads only those.
-- **The freeze note.** No file under `resfit/` changed since `0b14c17`. So every equivariant run from
-  `oav5gk76` (2026-10-13) to `xsordrhh` ran the same agent and trainer code, and
-  `tests/test_regression_agent.py`'s goldens pin the agent.
-  - An architectural change under `resfit/` ends that. Runs before it compare with runs after it only
-    through an anchor run again at the new commit.
+- **The freeze note.** From `0b14c17` to the families' code commit no file under `resfit/` changed,
+  so every equivariant run from `oav5gk76` (2026-10-13) to `xsordrhh` ran the same agent and trainer
+  code. **The freeze ends at the families' commit** (2026-10-20 CODE).
+  - The equivariant agent is still bit for bit as before: `tests/test_regression_agent.py`'s goldens
+    and the deep check of all 19 `CANDIDATES` against `6517d0c` are unchanged.
+  - Even so, runs before it compare with runs after it only through an anchor run again at the new
+    commit. In `arch-swap-1021` that is `arch-swap-eee`, `arch-wide`'s launch.
   - The live switches the groups used: `agent.actor_lr`, `equivariance.actor_norm`,
     `equivariance.critic_norm`, `equivariance.actor_degree_channel`, `agent.critic.num_q` and
     `equivariance.num_critic_layers`.
@@ -402,7 +405,8 @@ How the last groups were launched and followed, for the next ones:
   - The deep check of all 17 `CANDIDATES` is identical to `b05736d`, tensor for tensor, after the
     no-base-policy mode (2026-10-04 CODE).
 - **The update makes no host sync** for any config in `CANDIDATES` (`tests/test_sync_free.py`), nor
-  for the vanilla agent at `actor_norm=none`. `iid_bn` still syncs (TODO H8).
+  for the vanilla agent at `actor_norm=none`, nor for the five mixes of network families
+  `arch-swap-1021` runs. `iid_bn` still syncs (TODO H8).
 - **The BoxCleanup base policy is at about the paper's bar, not above it:** ACT, final 0.53; its
   `best` checkpoint `run_xg0w2r0z_best:v7` comes from a stretch averaging 0.61. Backed up.
 
@@ -432,9 +436,10 @@ How the last groups were launched and followed, for the next ones:
   cache; B15's baselines all set it.
 - **The gate's RAM estimate is 21 GB per run against a measured 40.3 GiB** (TODO B7, S10). It does
   not count running trainers either.
-- **The scalar ablation is still not usable as a control** (STANDARDS 3.3, TODO P4), and it is
-  residual-only. B15's equivariant arms match ResFiT's choices where equivariance allows, but the
-  stacks still differ in encoder, augmentation and normalization. **The gate cannot validate the
+- **Whether the weight constraint itself costs anything.** The control is now built: the ablated
+  family (from 2026-10-20) is the equivariant network unconstrained, starting as the same function
+  (STANDARDS 3.3). `arch-swap-1021` runs it; nothing has run yet. The scalar ablation it replaces
+  never ran and is gone. **The gate cannot validate the
   commit it launches** (TODO R14).
 - **An equivariant run's random stream depends on its eval schedule:** the actor's `std=0` path,
   taken by every eval and actor loss, draws a random number it scales by 0 (ARCHITECTURE.md,
@@ -453,8 +458,11 @@ How the last groups were launched and followed, for the next ones:
 
 ## The plan, and why
 
-**0. Next: architectural experiments** (Aden, 2026-10-20 DECISION). Not yet planned. The
-actor-speed line closed on its readouts; "What the actor-speed groups leave" has what it found.
+**0. Next: `arch-swap-1021`** (TODO B20): which of the equivariant agent's three networks, and
+which property of each (its weight constraint, or ResFiT's design), holds the equivariant residual
+below ResFiT's. The code is in; the calibration, the smokes and the pre-registration for Aden's
+review come before launch. The actor-speed line closed on its readouts; "What the actor-speed groups
+leave" has what it found.
 
 **1. Read the residual and equivariant history again** once the plan reports: which conclusions
 survive the render fix.

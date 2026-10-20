@@ -17,6 +17,40 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-20 (afternoon) — the architecture swap: the network families' code, tests and calibration
+
+**Decided (Aden, 2026-10-20)**
+- The architecture-swap plan (`docs/plans/2026-10-20-arch-swap.md`, local) is approved as written,
+  with Claude's recommendations on its four questions: clear the wandb artifact cache to 2 GB before
+  the queue and about every 12 h during it; add the watcher's log-only speed FLAG; measure the
+  ablated runs' drift from equivariance afterwards, on their saved best models, by a local script.
+  The plan already had Aden's two seeds (2 and 3) and phase 0 skipped.
+
+**Done**
+- **The code** (EXPERIMENTS.md, 2026-10-20 CODE): `equivariance.encoder_family`, `actor_family` and
+  `critic_family`. The ablated family is the equivariant network exported to plain torch layers
+  (`rl/ablated.py`), and the ResFiT family ResFiT's own networks wrapped (`rl/resfit_heads.py`). Mixes
+  the agent cannot build, and fields no network of a mix reads, are refused at construction. The
+  scalar ablation and its two fields are gone; `resfit/` is 464 lines shorter. **The freeze ends.**
+- **Two things the plan had not foreseen:** exporting must draw no random number (torch's layers
+  initialize before escnn overwrites them), so each export runs under `fork_rng`; and escnn shares
+  each sampled basis between layers, so a layer is expanded where its basis is. And a correction:
+  `rra`'s ablated critic is 43.5M, not 21.2M (that is its first layer).
+- **Measured, then pinned in tests:** at one seed the ablated stack is exactly the equivariant one's
+  function on the GPU, and after four updates it is not equivariant (the negative control the suite
+  lacked). ResFiT's encoder gives ResFiT's own tokens exactly, and its ViTs are ResFiT's own agent's.
+  Every new mix is sync-free.
+- **The speed calibration** (`outputs/diagnostics/arch-swap-1021/`, local): at 1e-6, against `eee`'s
+  speed, `aaa` 6.55×, `ere` and `ara` 1.74× (the same actor and the same function behind it), `rrr`
+  1.56×, `rra` 1.25×. So the rates for a 0–3k residual of 0.035: `aaa` 1.5e-7, `ere` and `ara`
+  5.5e-7, `rrr` and `rra` 6e-7. **`rrr` does not keep ResFiT's 1e-6:** in our agent that predicts
+  0.057, outside the band.
+
+**Next:** the integration smokes; the six arms in `submit.sh`, the sweep tests and the watcher (with
+the speed FLAG); the PRE-REGISTERED and DECISION entries for Aden's review.
+
+---
+
 ## 2026-10-19 and 10-20 — the actor-speed groups at 150k, analyzed together; the work turns to architecture
 
 **Found** (EXPERIMENTS.md, the 2026-10-20 NOTEs)

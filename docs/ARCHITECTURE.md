@@ -40,17 +40,34 @@ If the config has an `equivariance` block, the script builds the equivariant age
 boolean is the whole switch between the baseline and the new work. Everything downstream branches
 off it.
 
-There is a second, independent switch *inside* the equivariant path:
-`cfg.equivariance.use_equivariant_model`. When false, `QAgent` builds the "scalar ablation" stack
-(`ablate_equi_actor.py`, `ablate_equi_critic.py`) — same data pipeline, same feature layout, same
-training loop, but plain tensors instead of group representations. The intent is a controlled
-ablation isolating *equivariance* from everything else.
+### The network families
 
-**It does not currently isolate it.** The two stacks differ in depth, nonlinearity count, output
-squashing, and clipping semantics as well as in equivariance — six differences, listed in
-[STANDARDS.md](STANDARDS.md) rule 3.3. Running it as a control today would give an
-uninterpretable result. Matching the stacks is tracked in TODO P4 and blocks the ablation
-experiment.
+Inside the equivariant path, from 2026-10-20 (EXPERIMENTS.md, CODE), each of the agent's three
+networks has its own family: `equivariance.encoder_family`, `actor_family` and `critic_family`,
+each `equivariant` (the default, every earlier run), `ablated` or `resfit`. Everything else is the
+equivariant agent's in every mix: the trainer and its replay, the normalizer, the action's units,
+bound and noise, the optimizers and the critic's targets.
+
+| Family | What it builds | Where it starts |
+|---|---|---|
+| `equivariant` | the escnn network: `networks/equi_encoder.py`, `rl/actor.py`, `rl/critic.py` | escnn's init |
+| `ablated` | that network, built exactly as the equivariant family builds it, then exported to plain torch layers (`rl/ablated.py`): each escnn Linear and R2Conv to its dense layer, RegularLayerNorm to a LayerNorm with each field's scale and shift on its channels, GroupPooling to the same max per field. Its forward mirrors the equivariant one's. A layer with no plain form (the batch norms, FieldNorm) refuses to export | as the equivariant network's function at the same seed, with the same random state after construction (`tests/test_ablated.py`). Only its updates differ: every dense weight moves on its own |
+| `resfit` | ResFiT's own networks from `off_policy/`, wrapped to read this agent's features (`rl/resfit_heads.py`, and `ResObsEnc(encoder="resfit")`): a ViT per camera with ResFiT's random shifts and preprocessing; ResFiT's actor, its final Tanh replaced by this agent's bound; ResFiT's critic | ResFiT's own init; at one seed the ViTs are ResFiT's own agent's, bit for bit (`tests/test_resfit_heads.py`) |
+
+The networks are built encoder, then critic, then actor, and an export draws no random number, so
+two mixes that differ in one network start with the same weights in the other two. At construction
+`check_families` (`rl/q_agent.py`) refuses:
+- an equivariant actor or critic behind another encoder, since its image features would have to be
+  declared invariant; and ResFiT's critic behind any but ResFiT's encoder, since it reads the ViTs'
+  spatial tokens;
+- any other family in vanilla RL, and ResFiT's critic with a distributional loss;
+- any `EquivarianceConfig` field off its default that no network of the mix reads ("Config field
+  provenance", below).
+
+The ablated family is the control the scalar ablation was meant to be: it differs from the
+equivariant stack in its weight constraint alone. The scalar ablation (`use_equivariant_model=False`,
+with `ablate_equi_actor.py` and `ablate_equi_critic.py`) differed in six ways at once (STANDARDS
+3.3) and never ran. It was removed with its two fields on 2026-10-20.
 
 ### Residual or vanilla
 
@@ -82,7 +99,7 @@ vanilla run differs from a residual one at exactly these places, each a branch o
 - **The equivariant agent's is new.** `ResObsEnc(base_action_input=False)` gives the actor the
   critic's features, and `Actor(residual_actor=False)` drops the base action from its trunk and
   policy inputs. Its output bound is `residual_squash`, which then bounds the whole action. The
-  scalar ablation stays residual-only and refuses at construction.
+  ablated and ResFiT families are residual-only and refuse vanilla RL at construction.
 - **Against upstream's `train_rlpd_dexmg.py`,** the training steps are the same: 4 updates per env
   step with the actor on the last, the same warm-up, buffers and exploration. Three things differ:
   - replay sampling is uniform through torchrl's prioritized buffer at α = 0, not a
@@ -144,14 +161,15 @@ makes each row executable.
 
 | Field | Default | Encoder | Critic | Actor | Verdict |
 |---|---|---|---|---|---|
-| `use_equivariant_model` | `True` | — | — | — | **Live** — picks equi vs. scalar-ablation stack |
+| `encoder_family` | `"equivariant"` | which encoder | — | — | **Live** from 2026-10-20: `equivariant`, `ablated` or `resfit` ("The network families", above) |
+| `actor_family` | `"equivariant"` | — | — | which actor | **Live** from 2026-10-20 |
+| `critic_family` | `"equivariant"` | — | which critic | — | **Live** from 2026-10-20 |
 | `N` | `8` | used | used (via group) | used (via group) | **Live** |
 | `enc_degree_channel` | `32` | `n_out` | — | — | **Live** (last run overrode to 16) |
 | `ih_out_channel` | `32` | wrist width | — | — | **Live** from 2026-09-29. Before, the wrist width was `enc_degree_channel` |
 | `actor_degree_channel` | `128` | — | — | `hidden_dim` | **Live** |
 | `critic_degree_channel` | `128` | — | `hidden_dim` | — | **Live** |
 | `initialize` | `True` | passed through | hardcoded `True` | hardcoded `True` | **Partial** — only reaches the encoder |
-| `use_norms` | `True` | — | — | — | **Scalar ablation only** from 2026-09-29. Before, it reached two of the actor's three norm sites and set the encoder's last conv to `bias=not use_norms` |
 | `actor_norm` | `none` | — | — | all 3 sites | **Live** from 2026-09-29. Every run before 2026-09-30 had `iid_bn`, the default until then |
 | `critic_norm` | `none` | — | every hidden layer | — | **Live** from 2026-09-29 |
 | `critic_pooled_norm` | `none` | — | each head, between `GroupPooling` and its output Linear | — | **Live** from 2026-10-10 |
@@ -162,16 +180,36 @@ makes each row executable.
 | `critic_last_layer_init_scale` | `None` | — | each head's output Linear | — | **Live** from 2026-09-29 |
 | `use_visual_proj` | `True` | — | live | live | **Live** from 2026-09-29 |
 | `residual_squash` | `False` | — | — | live | **Live** from 2026-09-29 |
-| `residual_field_bound` | `{}` | — | — | the mean's bound per field (`Actor.bound`) | **Live** from 2026-10-12. A field named gets its own bound in env units in place of `agent.actor.action_scale`; the empty default is every earlier run, bit for bit. Residual actor only; the scalar ablation refuses it |
+| `residual_field_bound` | `{}` | — | — | the mean's bound per field (`Actor.bound`) | **Live** from 2026-10-12. A field named gets its own bound in env units in place of `agent.actor.action_scale`; the empty default is every earlier run, bit for bit. Residual actor only; every actor family reads it (`field_bounds`) |
 | `frozen_target_critic` | `False` | — | target critic's mode | — | **Live** from 2026-09-29. `True` reproduces every earlier equivariant run, whose target critic never changed (EXPERIMENTS.md, 2026-09-29 CORRECTION) |
-| `float_images_as_uint8` | `False` | act()'s image scaling, both branches | — | — | **Live** from 2026-10-02. `True` reproduces every earlier equivariant and scalar-ablation run, whose act() saw near-blank images (EXPERIMENTS.md, 2026-10-02 CORRECTION) |
+| `float_images_as_uint8` | `False` | act()'s image scaling, equivariant and ablated encoders | — | — | **Live** from 2026-10-02. `True` reproduces every earlier equivariant and scalar-ablation run, whose act() saw near-blank images (EXPERIMENTS.md, 2026-10-02 CORRECTION) |
 | `num_actor_layers` | `2` | — | — | ignored | **DEAD** — actor is hardcoded to 1 hidden layer |
 | `num_critic_layers` | `1` | — | hidden layers per head | — | **Live** from 2026-09-29. Before, it was dead with default `2`, and every head had 1 hidden layer |
 
 A field added on 2026-09-29 is absent from earlier runs' configs; read it at its default, except
 `frozen_target_critic`, which those runs had in effect as `True`, and `actor_norm`, which every run
 before 2026-09-30 had as `iid_bn` (EXPERIMENTS.md, 2026-09-30 CODE). `float_images_as_uint8`, added on
-2026-10-02, was in effect `True` in every run before then.
+2026-10-02, was in effect `True` in every run before then. The three families, added on 2026-10-20,
+were in effect `equivariant` in every run before; those runs' configs also record the two fields
+removed then, `use_equivariant_model` and `use_norms`, both `True`, which built the equivariant
+networks and reached none of them.
+
+**Which family reads which field.** The table is the equivariant networks'. The ablated ones read the
+same fields, since the equivariant constructors build them. ResFiT's read `agent.vit`, `agent.actor`
+and `agent.critic` instead, as ResFiT's agent does, so behind them these do nothing and
+`check_families` refuses each off its default:
+- behind ResFiT's encoder: `encoder_norm`, `encoder_orth_init`, `initialize`, `enc_degree_channel`,
+  `ih_out_channel`, `float_images_as_uint8`;
+- with ResFiT's actor: `actor_norm`, `actor_degree_channel`, `use_orth_init`;
+- with ResFiT's critic: `critic_norm`, `critic_pooled_norm`, `num_critic_layers`,
+  `critic_degree_channel`, `critic_orth_init`, `critic_last_layer_init_scale`;
+- with ResFiT's actor and critic both: `use_visual_proj`;
+- with any critic but the equivariant one: `frozen_target_critic`, since a plain critic computes the
+  same in either mode.
+
+`residual_squash` and `residual_field_bound` are read by every actor family, and `N`, `n_arms`,
+`gripper_dim` and `hand_dof` by every encoder: the action layout that bounds every actor is the
+group's.
 
 Also dead: `agent.actor.dropout` and `agent.critic.dropout` are threaded into both modules and
 never used. `agent.critic.loss` reaches the equivariant critic as `loss_cfg`, is stored, and is
@@ -207,8 +245,10 @@ and the offline cache key records the name; the env and the codec switch are unt
 (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered demos"). Provenance: each dataset's
 `meta/rerender.json`.
 
-The scalar ablation (`use_equivariant_model=False`) raises at construction if any field that only
-the equivariant networks read is off its default.
+The equivariant agent reads `agent.actor.action_scale` and `actor_last_layer_init_scale` in every
+family; ResFiT's actor reads the rest of `agent.actor`, and ResFiT's critic `agent.critic`. The
+equivariant and ablated critics read `agent.critic.num_q`, `min_q_heads` and `policy_gradient_type`
+alone. `agent.stddev_clip` is read by no family: the noise is clipped with the action, by `equi_clip`.
 
 ### What the networks actually are at HEAD, at the defaults
 
@@ -244,6 +284,23 @@ One hidden layer. `actor_norm` also follows the visual and trunk projections. It
 since 2026-09-30, normalizes at none of the three sites, as in the SO(2) equivariant RL code this
 project follows. Every run before then had `IIDBatchNorm1d` at all three. `equi_tanh` is there only with
 `residual_squash=True`; without it the mean is not bounded by `action_scale`.
+
+**The ablated networks** (`*_family=ablated`) are these, each exported: the same graph, every
+escnn layer's expanded weights a plain parameter. At `arch-wide`'s sizes the agentview encoder has
+3.38M weights against escnn's 0.28M coefficients, the actor 26.9M against 3.36M, and the critic
+22.6M against 2.82M. Behind ResFiT's encoder the critic reads the ViTs' 20,736 numbers, declared
+invariant, and its visual projection alone is 21.2M; the whole critic is 43.5M.
+
+**ResFiT's networks** (`*_family=resfit`) are ResFiT's own classes (`off_policy/`):
+- the encoder: a ViT per camera (patch embedding to 81 tokens of 128, one transformer layer, with
+  LayerNorm), ResFiT's random shifts (pad 4) in train mode, and its preprocessing (÷255 for uint8,
+  −0.5). Its features are the tokens flattened, then the state and base action;
+- the actor: compress the tokens to 128 (LayerNorm, ReLU), then 2 hidden layers of 1024 (LayerNorm,
+  ReLU) over [compressed | state | base action], then a Linear to the action. In place of its Tanh,
+  this agent's bound: `equi_tanh` × the per-field bound, as every actor family has it;
+- the critic: a spatial-embedding trunk over the tokens, the state and the action, then
+  `agent.critic.num_q` heads of 2 hidden layers of 1024 (LayerNorm). It reads the state this agent
+  normalizes per field (11 numbers per arm), where ResFiT's agent has a z-score of the raw 9.
 
 Normalization options (`equi_rl_utils.hidden_norm`): `iid_bn` is escnn's `IIDBatchNorm1d`;
 `layer_norm` is `RegularLayerNorm`, one mean and variance over all of a sample's channels, as
@@ -289,7 +346,8 @@ action space is the box [-1, 1]^7, and ResFiT's Tanh and clamp bound each axis t
   leaves the disk (TODO B13).
 
 Kept as a stack difference: a box bound would break equivariance, and changing the bound would
-change every equivariant run's updates.
+change every equivariant run's updates. ResFiT's networks in the equivariant agent
+(`*_family=resfit`) take the disk bound too, so a mix of families never differs in it.
 
 **The actor's depth.** `equivariance.num_actor_layers` is dead (provenance table above): whatever
 its value, the actor is visual projection → trunk → 1 hidden layer, each 128 regular fields. That
@@ -300,6 +358,12 @@ fewer per head than this critic at `num_critic_layers=2`. Kept as built (Aden, 2
 4 updates per env step, a 200k buffer), the cameras, the env, the base policy, the reward, and the
 eval.
 
+**In between, from 2026-10-20:** any of the equivariant agent's three networks can be ResFiT's, or the
+equivariant one unconstrained ("The network families", above). Such a mix differs from ResFiT's
+stack as run in what the equivariant agent hosts alike for every family: the state's and the base
+action's normalization, and the action's units, bound, clip and noise. `arch-swap-1021` runs six
+mixes.
+
 ## Module map
 
 ### `resfit/rl_finetuning/equi_off_policy/` — the new work
@@ -309,14 +373,13 @@ eval.
 | `rl/q_agent.py` | `QAgent`. Owns encoder + actor + critic + targets, all TD3 update logic. The hub. | yes |
 | `rl/actor.py` | Equivariant residual actor. Outputs `action_scale * mu` in the action representation. | yes |
 | `rl/critic.py` | Equivariant Q-ensemble. Group-pools to an invariant scalar. | yes |
-| `rl/equi_rl_utils.py` | Shared helpers: `slice_gt`, `cat_gts`, `equi_clip`, `apply_deltaortho_init`, `scale_final_equi_layer`, `FieldNorm`, `HLGaussLoss`, `C51Loss`, `schedule`, `TruncatedNormal`. Imported with `*` by actor and critic. | yes |
-| `rl/ablate_equi_actor.py` | Scalar (non-equivariant) actor for the controlled ablation. | yes |
-| `rl/ablate_equi_critic.py` | Scalar critic for the ablation. | yes |
-| `networks/obs_encoder.py` | `ResObsEnc`. Builds field types, encodes images, normalizes and lays out proprioception and base action. Handles both equivariant and scalar paths. | yes |
+| `rl/equi_rl_utils.py` | Shared helpers: `slice_gt`, `cat_gts`, `equi_clip`, `equi_tanh`, `field_bounds` and `bounded_residual` (every actor family's bound and noise), `feature_tensor`, `apply_deltaortho_init`, `scale_final_equi_layer`, `FieldNorm`, `HLGaussLoss`, `C51Loss`, `schedule`, `TruncatedNormal`. Imported with `*` by actor and critic. | yes |
+| `rl/ablated.py` | The ablated family: `plain`, which exports an equivariant module to plain torch layers, and `AblatedActor`, `AblatedCritic`. | yes |
+| `rl/resfit_heads.py` | The ResFiT family's actor and critic: ResFiT's own, wrapped to read this agent's features and to bound as it does. | yes |
+| `networks/obs_encoder.py` | `ResObsEnc`. Builds field types, encodes images, normalizes and lays out proprioception and base action, in each encoder family. | yes |
 | `networks/equi_encoder.py` | `EquivariantResEncoder76Cyclic` — the C_N-equivariant vision backbone for the agentview camera. | yes |
-| `networks/ablate_equi_encoder.py` | `ResEncoder76` (scalar agentview) and `ResEncoder76InHand` (in-hand, used in **both** paths). | yes |
+| `networks/ablate_equi_encoder.py` | `ResEncoder76InHand`, the wrist camera's CNN, in the equivariant and ablated encoders. Its scalar agentview twin, `ResEncoder76`, went with the scalar ablation on 2026-10-20. | yes |
 | `networks/equi_normalizer.py` | `LinearNormalizer`, `build_equivariant_normalizer`, `detect_robot_bases`, and the per-arm field names. | yes |
-| `networks/ablate_equi_obs_encoder.py` | **Unreachable.** Superseded by `obs_encoder.py`. | **no** |
 | `common_utils/crop_randomizer.py` | Random crop 84×84 → 76×76. | yes |
 | `common_utils/escnn_fixes.py` | Two fixes to escnn 1.0.11 that remove its host syncs, exact to its outputs: basis expansions hash by identity, and a `GroupPooling` that slices with Python ints. See "Why the update used to stall". | yes |
 | `common_utils/module_attr_mixin.py` | Device/dtype helper base class. | yes |
@@ -325,9 +388,10 @@ eval.
 | `common_utils/rotation_transformer.py` | **Unreachable.** | **no** |
 | `common_utils/rotation_utils.py` | **Unreachable** (only imported by `rotation_transformer.py`). | **no** |
 
-Four unreachable files, all tracked, deferred to TODO P3.5. Check `field_norm.py` against
+Three unreachable files, all tracked, deferred to TODO P3.5. Check `field_norm.py` against
 `equi_rl_utils.py`'s `FieldNorm` before removing it — if the standalone copy is the better one, keep
-that instead.
+that instead. The fourth, `networks/ablate_equi_obs_encoder.py`, was deleted on 2026-10-20 with the
+scalar ablation.
 
 A fifth, `rl/rl_utils.py`, was deleted on 2026-09-16: untracked, imported by nothing, and
 unimportable (`from __future__ import annotations` on line 15, a hard `SyntaxError`), so it had
@@ -339,10 +403,10 @@ TODO P3.4.
 | File | Equivariant counterpart | Relationship |
 |---|---|---|
 | `rl/q_agent.py` | `equi_off_policy/rl/q_agent.py` | Diverged. Same update structure, different feature types and clipping. |
-| `rl/actor.py` | `equi_off_policy/rl/actor.py` | Diverged. Original returns a distribution object; equivariant returns a tensor. |
-| `rl/critic.py` | `equi_off_policy/rl/critic.py` | Diverged. Original supports C51/HL-Gauss; equivariant does not (dead `loss_cfg`). |
-| `networks/encoder.py` | `networks/obs_encoder.py` + `networks/equi_encoder.py` | Restructured. |
-| `networks/min_vit.py` | *(none)* | Original only. |
+| `rl/actor.py` | `equi_off_policy/rl/actor.py` | Diverged. Original returns a distribution object; equivariant returns a tensor. The ResFiT family builds the original and wraps it (`rl/resfit_heads.py`). |
+| `rl/critic.py` | `equi_off_policy/rl/critic.py` | Diverged. Original supports C51/HL-Gauss; equivariant does not (dead `loss_cfg`). The ResFiT family wraps the original, MSE only. |
+| `networks/encoder.py` | `networks/obs_encoder.py` + `networks/equi_encoder.py` | Restructured. `ResObsEnc(encoder="resfit")` builds its `VitEncoder` and runs its `MinVit`. |
+| `networks/min_vit.py` | *(none)* | Original only, also the ResFiT encoder family's. |
 | `common_utils/*` | `equi_off_policy/common_utils/*` | Partly copied, partly extended. `off_policy/common_utils` is still imported by the equivariant `q_agent.py`. |
 
 ### Shared, path-independent
@@ -367,6 +431,8 @@ BasePolicyVecEnvWrapper.step(residual_naction)
   └─ obs["observation.base_action"] = base_naction
 
 ResObsEnc.forward(obs)                             # equi_off_policy/networks/obs_encoder.py
+  │  (the equivariant encoder; the ablated one computes the same on plain tensors, and ResFiT's
+  │   replaces the images' path by a ViT per camera after its random shifts)
   ├─ images     uint8 (buffer) ÷ 255, float (env) as is → ×2 − 1 → [−1, 1]
   ├─ agentview  84×84 → random crop 76×76 → EquivariantResEncoder76Cyclic → regular repr
   ├─ in-hand    84×84 → random crop 76×76 → ResEncoder76InHand            → trivial repr
@@ -497,7 +563,8 @@ units.
 
 **ResFiT's LayerNorms** are three switches, all on by default: `agent.actor.use_layer_norm` and
 `agent.critic.use_layer_norm`, and `agent.vit.use_layer_norm` (from 2026-10-12) for each ViT
-encoder's: two per transformer layer and a final one. The equivariant agent reads none of them.
+encoder's: two per transformer layer and a final one. The equivariant agent reads them only through
+ResFiT's networks, its `*_family=resfit`.
 
 **Equivariant path.** Those two become `IdentityStandardizer` and `IdentityScaler`
 ([train_residual_td3.py:305-307](../resfit/rl_finetuning/scripts/train_residual_td3.py#L305)), and
@@ -688,17 +755,13 @@ Recorded so they are not rediscovered. None are blocking.
 - `load_policy.py` infers the policy type by checking for the substring `diffusion` in the config's
   `type` field, and otherwise by the *presence of a `use_vae` key* to detect ACT. The second test is
   incidental rather than meaningful. Carries its own `TODO` upstream.
-- `QAgent._act_default_equi` calls `actor.forward(feat, std=0)` for evaluation. In
+- `QAgent._act_default` calls `actor.forward(feat, std=0)` for evaluation. In
   `Actor.forward`, `std=None` returns the unclipped mean while `std=0` returns a clipped mean.
   Two different code paths for what reads as the same intent. **And `std=0` draws a random
   number** (`torch.randn_like(mean) * 0`; found 2026-10-07): the action is exact, but torch's RNG
   moves. Every eval's `act()` and every actor loss take that path, so an equivariant run's random
   stream depends on its eval schedule. Left as it is: changing it changes every equivariant run's
   updates. `critic_diagnostics` avoids it (`std=None`, then the same clip).
-- `networks/ablate_equi_obs_encoder.py` is imported by nothing — the scalar ablation goes through
-  `ResObsEnc(equivariant=False)`. It still looks up the pre-bimanual normalizer key
-  `action_gripper`, which no longer exists, so wiring it up would raise. It also has the image bug
-  (EXPERIMENTS.md, 2026-10-02 CORRECTION). Left in place; delete it in the Phase 3 cleanup.
 - `Critic.forward` accepts a `return_logits` keyword and ignores it.
 - **`action_scale` does not bound the residual** unless `equivariance.residual_squash=True`
   (added 2026-09-29, off by default, as every earlier run had it). `Actor.forward` computes
