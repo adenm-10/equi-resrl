@@ -6,11 +6,12 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: the actor's norm and width at matched speed, and the speed's two edges
-# (seed-group equi-speed-matched-1017), pre-registered in docs/EXPERIMENTS.md, "2026-10-17 —
-# PRE-REGISTERED — the equivariant residual on Square with the actor's parts at matched speed, and
-# the speed's two edges (equi-speed-matched-1017)". The groups before it stay in this table, each as
-# it launched: equi-actor-speed-1016 ("2026-10-16 — PRE-REGISTERED — the equivariant residual on
+# Currently configured for: the architecture swap (seed-group arch-swap-1021), each network of the
+# equivariant agent equivariant, ablated or ResFiT's own, pre-registered in docs/EXPERIMENTS.md,
+# "2026-10-20 — PRE-REGISTERED — the architecture swap (arch-swap-1021)". The groups before it stay
+# in this table, each as it launched: equi-speed-matched-1017 ("2026-10-17 — PRE-REGISTERED — the
+# equivariant residual on Square with the actor's parts at matched speed, and the speed's two
+# edges"; from 8e8eceb), equi-actor-speed-1016 ("2026-10-16 — PRE-REGISTERED — the equivariant residual on
 # Square with arch-wide's actor alone, and with a faster actor"; from dd6f753),
 # equi-arch-parts-1015 ("2026-10-15 — PRE-REGISTERED — the equivariant residual on
 # Square with each part of ResFiT's layout alone, and all four again"; its seed 3s launch from
@@ -125,6 +126,21 @@
 #   equi-residual-square-actorlr1e-4       init0-long (oav5gk76) at 1e-4: the plain actor's rate
 #                                          curve's fourth point.
 #
+# arch-swap-1021: the equivariant residual's agent, residual_equi_td3_square_config, on Square for
+# 150k steps, on the re-rendered demos, at seeds 2 and 3. Each arm is eaqorqki's launch with each of its
+# three networks, [encoder, actor, critic], of a family (equivariance.encoder_family, actor_family,
+# critic_family): equivariant (E, the escnn network), ablated (A, the same network exported to plain
+# torch layers, its weights unconstrained) or resfit (R, ResFiT's own, wrapped). An E or A critic has
+# arch-wide's heads (10 of 2 hidden layers, RegularLayerNorm). Every actor steps at ResFiT's 1e-6, the
+# config's, but aaa's, at a quarter of it: its residual grew 4 to 6.5 times as fast as eee's at one rate.
+# The critic and encoder keep 1e-4. wandb robomimic-square-final / equi-residual-rl.
+#   arch-swap-eee   [E, E, E] arch-wide's launch again, at the families' commit: the anchor.
+#   arch-swap-aaa   [A, A, A] arch-wide's networks, unconstrained (agent.actor_lr=2.5e-7).
+#   arch-swap-ere   [E, R, E] ResFiT's actor on the equivariant encoder and critic.
+#   arch-swap-ara   [A, R, A] ResFiT's actor on the ablated encoder and critic.
+#   arch-swap-rrr   [R, R, R] ResFiT's networks in this agent, at ResFiT's rates.
+#   arch-swap-rra   [R, R, A] ResFiT's ViTs and actor, the ablated critic behind them.
+#
 # Every arm here runs to its full 150k. From 2026-10-17 (DEVIATION) no automatic stop of any kind
 # applies, the divergence stop included: Aden stops a run by hand.
 
@@ -168,8 +184,27 @@ EQUI_BASE=(--config-name=residual_equi_td3_square_config equivariance.residual_s
 EQUI_ANCHOR=("${EQUI_BASE[@]}" agent.actor.actor_last_layer_init_scale=0.0)
 RESFIT_LAYOUT=(equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm
                agent.critic.num_q=10 equivariance.num_critic_layers=2)
+# arch-wide's critic heads, for an equivariant or ablated critic beside another actor (arch-swap-1021).
+SWAP_HEADS=(equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2)
 
 case "$ARM" in
+    arch-swap-eee)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448) ;;
+    arch-swap-aaa)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448
+                       equivariance.encoder_family=ablated equivariance.actor_family=ablated
+                       equivariance.critic_family=ablated agent.actor_lr=2.5e-7) ;;
+    arch-swap-ere)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${SWAP_HEADS[@]}" equivariance.actor_family=resfit) ;;
+    arch-swap-ara)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${SWAP_HEADS[@]}" equivariance.encoder_family=ablated
+                       equivariance.actor_family=resfit equivariance.critic_family=ablated) ;;
+    arch-swap-rrr)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=10 equivariance.encoder_family=resfit
+                       equivariance.actor_family=resfit equivariance.critic_family=resfit) ;;
+    arch-swap-rra)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${SWAP_HEADS[@]}" equivariance.encoder_family=resfit
+                       equivariance.actor_family=resfit equivariance.critic_family=ablated) ;;
     resfit-residual-square-rerendered)
         ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" "$RERENDERED") ;;
     resfit-residual-square-noln)
@@ -230,6 +265,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    arch-swap-*)
+        SEED_GROUP=arch-swap-1021 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     resfit-residual-square-noln-actor|resfit-residual-square-noln-critic|resfit-residual-square-noln-vit)
         SEED_GROUP=resfit-ln-place-1013 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;

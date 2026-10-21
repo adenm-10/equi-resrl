@@ -1,17 +1,18 @@
 # Status
 
-**Last updated:** 2026-10-20 · **Last verified commit:** this file's own commit, the code of the
-network families (EXPERIMENTS.md, 2026-10-20 CODE). **It ends the freeze** (below): the first change
-under `resfit/` since `0b14c17`. Main is ahead of origin and not pushed: pushing waits for Aden.
+**Last updated:** 2026-10-21 · **Last verified commit:** this file's own commit, the pre-registration
+of `arch-swap-1021` (config, tests and the watcher only; the network families' code is `8ca41cc`,
+EXPERIMENTS.md, 2026-10-20 CODE, which ended the freeze below). Main is ahead of origin and not pushed:
+pushing waits for Aden.
 
-**Next: the architecture swap, `arch-swap-1021`** (Aden's architectural experiments, 2026-10-20
-DECISION; [the plan](plans/2026-10-20-arch-swap.md), local, approved with Claude's recommendations on
-its four questions). Six arms in the equivariant agent, each network equivariant, ablated (the
-equivariant one unconstrained) or ResFiT's own, at seeds 2 and 3. Its code is committed. The speed
-calibration, the integration smokes and the pre-registration are next, and **Aden reviews the
-pre-registration before anything launches** (TODO B20). **Nothing is running or queued.** The
-actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups leave",
-below.
+**Now: the architecture swap, `arch-swap-1021`, is pre-registered and launches from this commit**
+(Aden's architectural experiments, 2026-10-20 DECISION; EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED, as
+Aden set its rates at review on 10-21; [the plan](plans/2026-10-20-arch-swap.md), local). Six arms in
+the equivariant agent, each network equivariant, ablated (the equivariant one unconstrained) or
+ResFiT's own, at seeds 2 and 3: twelve runs, four at a time, about 76 h from the queue's start. Every
+actor steps at ResFiT's 1e-6 but `aaa`'s, at 2.5e-7; every critic and encoder at 1e-4. No automatic
+stop. The calibration and the six integration smokes passed (TODO B20). The actor-speed line is
+closed on its readouts; what it leaves is in "What the actor-speed groups leave", below.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -458,11 +459,11 @@ How the last groups were launched and followed, for the next ones:
 
 ## The plan, and why
 
-**0. Next: `arch-swap-1021`** (TODO B20): which of the equivariant agent's three networks, and
+**0. Now: `arch-swap-1021`** (TODO B20): which of the equivariant agent's three networks, and
 which property of each (its weight constraint, or ResFiT's design), holds the equivariant residual
-below ResFiT's. The code is in; the calibration, the smokes and the pre-registration for Aden's
-review come before launch. The actor-speed line closed on its readouts; "What the actor-speed groups
-leave" has what it found.
+below ResFiT's. Pre-registered and launching; its decision points are in the PRE-REGISTERED entry
+(the early speeds at about T+2.5 h, `rrr 2` against `bue9dupf` to 50k at about T+6 h). The
+actor-speed line closed on its readouts; "What the actor-speed groups leave" has what it found.
 
 **1. Read the residual and equivariant history again** once the plan reports: which conclusions
 survive the render fix.

@@ -8816,3 +8816,315 @@ from it compares with the runs before it only through an anchor run at it. `arch
 - **Not tested here:** the trainer end to end with the new families. The integration smokes are next
   (the plan's section 6), and the six arms join `submit.sh` and `tests/test_sweep_arms.py` with their
   calibrated rates before the pre-registration.
+
+---
+
+## 2026-10-20 — DECISION — the architecture swap: two seeds per arm; phase 0 skipped, so every critic and encoder at 1e-4; Claude's recommendations on the plan's four questions
+
+Aden's decisions on the architecture-swap plan (`docs/plans/2026-10-20-arch-swap.md`, local), 2026-10-20:
+- **Phase 1 only.** Phase 0, a test of the critic's rate, is skipped: every critic and encoder keeps
+  ResFiT's 1e-4, every earlier run's. Phase 2 is decided after the readouts.
+- **Two seeds per arm, seeds 2 and 3.** This supersedes "no seed 3 for any run for now" (2026-10-17
+  DEVIATION) for this group.
+- **The plan approved as written, with Claude's recommendation on each of its four questions:**
+  1. The six arms, the speed band 0.025–0.045 and the jobs order: as planned.
+  2. **The disk:** clear the wandb artifact cache to 2 GB before the queue, and about every 12 h while
+     the group runs (scheduled; below). Each run's best stays in its package's `wandb_best/`, and wandb
+     stages an upload outside the cache it trims (`~/.local/share/wandb/artifacts/staging`, wandb
+     0.26.0), so a cleanup cannot break an upload in progress.
+  3. **The speed check stays manual, and the watcher logs it:** a log-only line per run, `SPEED`
+     inside the band and a `FLAG` outside it, once the run has logged past 3k (below). It stops
+     nothing.
+  4. **The ablated runs' drift from equivariance is measured** after the runs, on each A run's saved
+     best model, by a local script: reported, deciding nothing.
+- No automatic stop of any kind, as for every group since 2026-10-17.
+
+---
+
+## 2026-10-20 — PRE-REGISTERED — the architecture swap: each of the equivariant agent's three networks equivariant, unconstrained or ResFiT's own (`arch-swap-1021`)
+
+**Question** (Aden, 2026-10-20 DECISION; the plan is `docs/plans/2026-10-20-arch-swap.md`, local). The
+best equivariant residual, `arch-wide`, settles at about the base (160 of 250 at 110k–150k), where
+ResFiT's residual reaches 0.714 pooled. The two share a trainer, and what the equivariant stack
+carries beside its networks does not hurt ResFiT's residual: its action limits, its noise, its
+rotation range and its re-rendered demos each left ResFiT at 0.72–0.83 (2026-10-13 to 10-15 NOTEs).
+What is left is the networks, and the agent that hosts them. This group swaps the networks one at a
+time, inside one agent, ours, so that nothing else varies:
+1. **Does the weight constraint cost anything?** The ablated family is the equivariant network with
+   its weights unconstrained: the same function at the start, only the updates differ (2026-10-20
+   CODE).
+2. **Does ResFiT's actor help, with the constraint on the rest and without it?**
+3. **Do ResFiT's encoder (a ViT per camera) and its critic help, behind ResFiT's actor?**
+4. **Does our agent itself cost ResFiT's networks anything,** against ResFiT as it ran?
+
+**The six arms**, [encoder · actor · critic], each E (equivariant, escnn: `arch-wide`'s networks),
+A (ablated: E's network exported to plain torch layers, its weights free) or R (ResFiT's own, wrapped):
+
+| # | Arm | Families | Overrides beyond `EQUI_ANCHOR` (`submit.sh`) | Actor rate |
+|---|---|---|---|---|
+| 1 | `arch-swap-eee` | E · E · E | `arch-wide`'s: `equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2 equivariance.actor_degree_channel=448` | 1e-6 (the config's) |
+| 2 | `arch-swap-aaa` | A · A · A | `eee`'s, and `equivariance.encoder_family=ablated equivariance.actor_family=ablated equivariance.critic_family=ablated agent.actor_lr=2.5e-7` | 2.5e-7 |
+| 3 | `arch-swap-ere` | E · R · E | `equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2 equivariance.actor_family=resfit` | 1e-6 |
+| 4 | `arch-swap-ara` | A · R · A | `ere`'s, and `equivariance.encoder_family=ablated equivariance.critic_family=ablated` | 1e-6 |
+| 5 | `arch-swap-rrr` | R · R · R | `agent.critic.num_q=10 equivariance.encoder_family=resfit equivariance.actor_family=resfit equivariance.critic_family=resfit` | 1e-6 |
+| 6 | `arch-swap-rra` | R · R · A | `equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2 equivariance.encoder_family=resfit equivariance.actor_family=resfit equivariance.critic_family=ablated` | 1e-6 |
+
+- `EQUI_ANCHOR` is eaqorqki's launch less its head count: `--config-name=residual_equi_td3_square_config
+  equivariance.residual_squash=true base_policy.wt_version=v9
+  offline_data.name=local/robomimic-mh-square-rerendered agent.actor.actor_last_layer_init_scale=0.0`.
+  Each launch then has `algo.total_timesteps=150000 read_buffer_caches=false write_buffer_caches=false`,
+  its naming, `seed=<2|3> debug=false` and Hydra's run directory.
+- **Each arm sets only the fields its networks read:** the agent refuses any other off its default
+  (2026-10-20 CODE). So ResFiT's actor takes no `actor_norm` or `actor_degree_channel`, and `rrr` takes
+  none of the E critic's fields. ResFiT's networks read `agent.vit`, `agent.actor` and `agent.critic`,
+  which our Square config inherits at ResFiT's own values (`ResidualTD3DexmgConfig`'s), with
+  `agent.critic.num_q=10` as ResFiT ran it.
+- **`eee` is `arch-wide`'s launch** at the families' commit (`tests/test_sweep_arms.py`: the same
+  overrides and composed config), so it is the anchor every contrast and every comparison with an
+  earlier run goes through.
+
+**Seed group `arch-swap-1021`, seeds 2 and 3 of each arm** (the DECISION above). Names
+`<arm>-<seed>`, notes `arch-swap-1021/<arm>/seed<seed>`, wandb `robomimic-square-final` /
+`equi-residual-rl`.
+
+**What every arm shares** (the plan's section 2.1). All six run in our agent (`equi_off_policy/rl/q_agent.py`):
+- the trainer and its replay: n-step 3, γ 0.99, batch 256 with half demos, 4 critic updates and 1 actor
+  update per env step, a 10k critic warm-up, a 200k buffer, 10k learning starts;
+- the data: the re-rendered demos, base policy v9, mujoco 3.3.2, an eval of 50 episodes every 10k;
+- the normalizer, inside the encoder, per field: xy about the robot base, the 6-D rotation;
+- the actions, in env units: the residual's bound, 0.1, a disk on xy and tilt (`equi_tanh` × the
+  per-field bound); the noise, σ 0.05, Gaussian, then `equi_clip`; the sum the critic scores, `equi_clip`;
+- the optimizers: AdamW (weight decay 0.01), gradient clip 1.0, τ 0.005, the critic and encoder at 1e-4;
+- the critic's targets: 10 heads, the target the min of 2 random heads, the policy gradient on the
+  heads' mean; the actor's last layer at zero at the start.
+
+**The starting weights, at one seed** (`tests/test_sweep_arms.py`, `tests/test_ablated.py`; seed 2
+measured): the agent builds its encoder, then its critic, then its actor, and an export draws no
+random number. So:
+- `aaa` starts as `eee`'s function exactly (its encoder, actor and critic outputs, and the first
+  critic loss, on the GPU in full precision);
+- `ere`'s encoder and critic are `eee`'s, bit for bit; `ara`'s are `aaa`'s; and `ara`'s actor is
+  `ere`'s;
+- `rra`'s ViTs are `rrr`'s, and `rrr`'s are ResFiT's own agent's at the same seed.
+
+So each contrast's two arms start from the same weights in the networks it holds, and C1 and C2 start
+from the same functions. The episodes still differ, since `seed` does not reach the envs.
+
+**The contrasts,** each on the two seeds pooled at 110k–150k (500 episodes per arm):
+
+| | Contrast | What it isolates | What else differs between its two ends |
+|---|---|---|---|
+| C1 | `aaa` − `eee` | the weight constraint, in all three networks | each dense network's larger step at the same rate (below); the actor's rate (2.5e-7 against 1e-6) |
+| C2 | `ara` − `ere` | the constraint in the encoder and critic alone, beside ResFiT's actor | as C1, for the encoder and critic; the actors are the same, at the same rate and start |
+| C3 | `ara` − `aaa` | ResFiT's actor design against ours, neither constrained | the actor's rate (1e-6 against 2.5e-7) |
+| C4 | `ere` − `eee` | ResFiT's actor against ours, its design and constraint together | each actor's early speed at the one rate (below) |
+| C5 | `rra` − `ara` | ResFiT's ViTs against our CNNs, on both cameras, with ResFiT's actor and the ablated critic | the augmentation (ResFiT's random shifts, pad 4, against our random 76×76 crop); the critic's first layer reads 20,736 numbers, not 288 (43.5M against 22.6M) |
+| C6 | `rrr` − `rra` | ResFiT's critic against ours unconstrained, behind the ViTs | the critic's size (23.7M against 43.5M); the actors start apart (each critic draws its own numbers first) |
+| H | `rrr` against ResFiT as run (`oj5k0jqb`, `s8opblsd`) | our agent itself, as host of ResFiT's networks | the state's normalization (11 numbers per field type, against a z-score of the raw 9) and the base action's; the action's units, bound, clip and noise, and so the actor's early speed at ResFiT's rate; the seeds (2, 3 against 1, 2); the commits |
+| — | (`aaa` − `eee`) − (`ara` − `ere`) | the actor's constraint, if the effects add | reported only; nothing is decided on it |
+
+**The critic's and the encoder's rate** (the plan's section 2.4). Every critic and encoder steps at
+1e-4. At that rate the dense critics, A's and ResFiT's, change Q about 3 times as much per step as the
+equivariant one, and the dense encoder's features move about 2.7 times as much (the plan's probe,
+`outputs/diagnostics/arch-swap-probe-1020/`). So **C1 and C2 measure the constraint as it trains at
+ResFiT's rate, its slower critic and encoder included.** C3–C6 compare critics of one kind on both
+ends, or dense with dense, and are not affected. If C1 or C2 counts, the first follow-up is `eee` at
+`agent.critic_lr=3e-4` (config only).
+
+**The actors' rates: ResFiT's, and one exception** (Aden, 2026-10-21, at review; the plan had each
+actor's rate set for one early speed). **`rrr` runs at ResFiT's own 1e-6** (upstream's
+`ResidualTD3DexmgConfig`, every ResFiT run's), so H compares ResFiT's networks at ResFiT's rate. **The
+rest are not tuned:** each actor keeps that 1e-6, `eee`'s and `arch-wide`'s too, and a rate moves off
+it only where every measurement puts an arm's early speed several times outside the band at 1e-6. One
+arm does: **`aaa` runs at 2.5e-7, a quarter,** since its actor's residual grew 6.55 times as fast as
+`eee`'s at one rate in the calibration below and about 3.8 times in the smokes (further below). Every
+other arm sits at 0.9–1.7 times `eee`'s.
+
+The calibration (no run; on the CPU, on the families' code, `8ca41cc`'s tree; `outputs/diagnostics/arch-swap-1021/`:
+`calibrate.py`, `log.txt`, `results.json`, gitignored) is `actor-step-size-1017/calibrate.py`'s method
+on each arm's composed config at seed 2, built by the real code: its features taken once on the
+reference batch, then 50 actor-only AdamW steps against its own critic, frozen, at 1e-6. An arm's 0–3k
+`train/residual_l1_magnitude` at 1e-6 is predicted as `h216n857`'s measured 0.0367 (`arch-wide` at seed
+2, which `eee` is) times its 50-step residual over `eee`'s. The smokes predict it the same way, from
+each smoke's growth against `eee`'s smoke, scaled to the rate.
+
+| Arm | Actor | Last layer's input: channels, Σ\|x\| | Residual after 1 step | after 10 | after 50 | Against `eee` at 1e-6: calibration | smokes | Rate | Predicted 0–3k at it: calibration | smokes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `eee` | 3.364M | 3,584, 1456.1 | 2.32e-5 | 2.31e-4 | 1.17e-3 | 1 | 1 | 1e-6 | 0.037 | 0.037 |
+| `aaa` | 26.909M | 3,584, 1456.1 | 1.41e-4 | 1.41e-3 | 7.66e-3 | 6.55× | 3.8× | 2.5e-7 | 0.060 | 0.035 |
+| `ere` | 1.249M | 1,024, 410.7 | 3.99e-5 | 4.00e-4 | 2.03e-3 | 1.74× | 1.18× | 1e-6 | 0.064 | 0.043 |
+| `ara` | 1.249M | 1,024, 410.7 | 3.99e-5 | 4.00e-4 | 2.03e-3 | 1.74× | 0.91× | 1e-6 | 0.064 | 0.034 |
+| `rrr` | 3.866M | 1,024, 408.2 | 3.59e-5 | 3.60e-4 | 1.83e-3 | 1.56× | 1.20× | 1e-6 | 0.057 | 0.044 |
+| `rra` | 3.866M | 1,024, 410.7 | 2.99e-5 | 2.99e-4 | 1.46e-3 | 1.25× | 1.27× | 1e-6 | 0.046 | 0.047 |
+
+- `eee` reproduces the plan's probe exactly. `ara` is `ere` to every printed digit in the calibration:
+  the same actor at the same start, behind the same functions.
+- **The two predictions disagree, and neither is a measurement of a run.** The calibration has been off
+  by 1.2–2.8 times before, the real runs faster (2026-10-17 NOTE); the smokes ran 1,000 steps, and
+  `eee`'s grew 1.25 times as fast as its real run. So the real 0–3k may fall anywhere from about 0.034
+  to 0.064, inside the band or up to 1.7 times `eee`'s, where every arm at 0.046–0.072 settled lower
+  (78–115 of 250 at 110k–150k; 2026-10-20 NOTE). Each run's own is logged (the speed readout,
+  below) and the arms are read at their measured speeds.
+- **At 1e-6 `aaa` would be predicted at 0.14–0.24**, 4–6.5 times `arch-wide`'s, twice the fastest arm
+  run so far; the rate arms at 10 and 30 times sat at the residual's limit on yaw and z from 3k to 10k
+  (2026-10-17 NOTE). A quarter puts it at 0.035–0.060, with the rest.
+- The plan's matched rates, rejected at review, were 1.5e-7, 5.5e-7, 5.5e-7, 6e-7 and 6e-7
+  (calibration only; at them the smokes predict 0.019–0.028).
+
+**Rules.**
+- **To a fixed 150k, with no automatic stop of any kind.** The watcher (tmux `swap-watch`,
+  `tools/square_rerendered_watch.py --group arch-swap-1021`, from the group's worktree) tracks each
+  run, logs every eval, FLAGs critic values above 1.5, logs each run's early speed once (`SPEED`, or a
+  `FLAG` outside 0.025–0.045), and finalizes a package a crash leaves incomplete. It never signals a run
+  (`WATCH_ONLY_ARMS`; `tests/test_square_rerendered_watch.py`). Aden stops a run early by hand if one
+  needs it.
+- **The main readout:** each arm's 110k–150k evals, two seeds pooled (500 episodes). **Every contrast in
+  the table counts at a difference of 0.13 or more.** The bar is about two standard deviations of a
+  difference of two-seed means at the measured noise: the six seed pairs run so far differ by 0–0.17.
+- **H:** our agent costs ResFiT's networks something iff `rrr` pools 0.13 or more below the ResFiT
+  anchors' pooled 0.714 (`oj5k0jqb` 0.800, `s8opblsd` 0.628), i.e. below 0.584.
+- **The speed readout:** each run's 0–3k residual (`train/residual_l1_magnitude` over steps 1–3,000),
+  logged by the watcher against 0.025–0.045, the band around `arch-wide`'s 0.037. It is reported; no
+  run is relaunched for its speed alone.
+  - Each contrast is reported with its two ends' early speeds (each end's two seeds averaged). **A
+    contrast whose ends differ by more than 1.5 times is still read, with the difference stated
+    beside it:** at one rate, an actor's early speed is part of its design.
+- **Reported, deciding nothing:**
+  - the 10k eval and 10k–30k pooled; where each arm's evals level off;
+  - pinning at 3k–10k (any of xy, z, yaw or tilt at 0.098 or more, as on 2026-10-17), yaw's signed mean,
+    and each field's size late;
+  - `debug/dQ_da_mean_abs`, `debug/q_data_demo`, `debug/q_data_online` and `train/actor_grad_norm`,
+    early and late;
+  - (`aaa` − `eee`) − (`ara` − `ere`);
+  - **each A run's drift from equivariance,** measured afterwards on its saved best model
+    (`wandb_best/best_model.pt`) by a local script: the actor's and the critic's equivariance errors
+    on random features, as `tests/test_ablated.py` measures them.
+- **A gross failure:** `rrr 2`'s evals to 50k, against ResFiT's on the re-rendered demos (`bue9dupf`:
+  0.60, 0.16, 0.48, 0.60, 0.70, 0.58 to 50k). If they are near 0 throughout, the queue is paused before
+  `ara 2` launches and Claude looks for a bug.
+- **No checkpoints,** as in the last three groups.
+
+**Predictions** (Claude's, before launch):
+1. **C1 does not count** (low confidence). The ablated stack starts as `eee`'s function, and four
+   updates already break its symmetry (`tests/test_ablated.py`); with 8 times the weights at the same
+   critic rate it fits faster, which could cut either way.
+2. **H does not count:** `rrr` pools at 0.584 or more (moderate). Each of the equivariant stack's
+   differences alone left ResFiT's residual at 0.72–0.83 (2026-10-13 to 10-15 NOTEs); the state's
+   normalization is the one not yet tested alone.
+3. **C4 counts the R way:** `ere` beats `eee` by 0.13 or more (low). ResFiT's actor has its LayerNorm
+   on every hidden layer at 1,024 units; ours is the best equivariant one, at 448 fields.
+4. **C6 counts the R way:** `rrr` beats `rra` (low). ResFiT's critic reads the tokens through its
+   spatial embedding; the ablated critic's first layer is a 21M dense map from all of them.
+5. C2, C3 and C5: no prediction.
+
+**Launch.** Through `outputs/queue/launchers/retry/slot_queue.sh` (tmux `rfe-queue`), from this
+entry's commit in its own pinned worktree (`~/projects/equi-resrl-<commit>`). Each job goes into
+the first slot free for 300 s, two per GPU, and a launch its gate stops is tried again up to 3 times,
+600 s apart. The jobs file, `outputs/queue/launchers/jobs-arch-swap-1021.txt`, in this order:
+
+`rrr 2`, `ere 2`, `aaa 2`, `eee 2`, `ara 2`, `rrr 3`, `aaa 3`, `eee 3`, `ere 3`, `ara 3`, `rra 2`, `rra 3`.
+
+- ResFiT's actor in both hosts (`rrr`, `ere`) and the one moved rate (`aaa`) are in the first wave, so
+  their early speeds are read within about 2.5 h.
+- Each GPU holds at most one A-family CNN run at a time if the slots free in the expected order (the
+  schedule below).
+
+**Resources and timeline.**
+- **Speed:** a CNN-encoder arm (`eee`, `aaa`, `ere`, `ara`) about 31 h from launch to 150k, its gate
+  included (`arch-wide` 30 h; the 1017 arms 29.3–31.7 h); a ViT arm (`rrr`, `rra`) about 14 h (ResFiT
+  11–13 h, 16 h beside a CNN run). Each launch adds about 5 min to settle, about 70 min of gate and about
+  20 min of demo labelling before it is in wandb. The smokes (below) ran 269 ms per env step for a ViT
+  arm and 378–407 ms for a CNN arm, alone or nearly alone on a GPU.
+- **GPU memory:** about 7 GB for a ViT arm and 10–11 GB for a CNN arm, scaled from the smokes by
+  `eee`'s (below). The earlier equivariant runs took about 9.9 GB each, a pair 21–23 GB of a 24.5 GB GPU;
+  every pair the schedule makes fits under 23.5 GB, the largest `aaa` with `eee` at about 21 GB.
+- **RAM:** four runs fill the machine at 150k (about 136 GB against 125 GB plus swap), as in every
+  group since 10-13; the ViT runs keep the same buffers. The smokes peaked at 13.7–14.7 GB each, as
+  `eee`'s did.
+- **Disk:** 16 GB free at 17:07 on 10-20.
+  - Each CNN run package is about 1.1 GB (its best model twice, in `models/` and `wandb_best/`, about
+    0.43 GB each, and videos); a ViT package about 0.6 GB; twelve packages and their wandb records
+    about 12 GB.
+  - wandb caches every best upload, about 0.43 GB each; the cache grew 18 GB in two days on 10-17 to
+    10-19. So the cache is cleared to 2 GB before the queue, and again every 12 h while it runs (tmux
+    `wandb-cache`; the DECISION above).
+  - If the disk still falls below 10 GB, the duplicate `models/best_model.pt` in old run packages is
+    a reclaim of several GB. That is Aden's call, not planned.
+- **The schedule** (from the queue's start, T; if no arm is relaunched):
+
+  | From | GPU 0, slot 1 | GPU 0, slot 2 | GPU 1, slot 1 | GPU 1, slot 2 |
+  |---|---|---|---|---|
+  | T+0 | `rrr 2` (to about T+14) | `ere 2` (about T+31) | `aaa 2` (about T+31) | `eee 2` (about T+31) |
+  | about T+14 | `ara 2` (about T+45) | ↓ | ↓ | ↓ |
+  | about T+31 | ↓ | `rrr 3` (about T+45) | `aaa 3` (about T+62) | `eee 3` (about T+62) |
+  | about T+45 | `ere 3` (about T+76) | `ara 3` (about T+76) | ↓ | ↓ |
+  | about T+62 | ↓ | ↓ | `rra 2` (about T+76) | `rra 3` (about T+76) |
+
+  About 76 h, 3.2 days, from the queue's start.
+- **Decision points:**
+
+  | When | What | Decision |
+  |---|---|---|
+  | T+2.5 h | the 0–3k speed of `rrr 2`, `ere 2`, `aaa 2` (`eee`'s is 0.037), and each GPU's pair's memory | the speed: reported, Aden's call; a GPU's pair above 23.5 GB: stop one and reorder |
+  | T+6 h | `rrr 2` to 50k, against `bue9dupf` | evals near 0 throughout: pause the queue before `ara 2`, look for a bug |
+  | about T+14 h | `rrr 2` at 150k: H at one seed | — |
+  | about T+16.5 h | `ara 2`'s speed | reported |
+  | about T+31 h | `eee 2`, `aaa 2`, `ere 2` at 150k | — |
+  | about T+45 h | `ara 2` (the 2×2's seed 2 complete); `rrr 3` (H at two seeds) | — |
+  | about T+62 h | `aaa 3`, `eee 3`: **C1 at two seeds** | — |
+  | about T+76 h | `ere 3`, `ara 3`, `rra 2`, `rra 3`: every contrast | `/analyze-experiment`, the NOTE, then phase 2 |
+
+**The integration smokes** (before this entry; the plan's section 6). `SMOKE=1` runs no eval, so it
+never reaches the evaluator (its Q on each family's critic, the tilt readout) or the best model's save.
+So each new mix ran the trainer directly, from the families' commit (`8ca41cc`), recorded offline in
+wandb `equi-resrl-smoke`, with its arm's overrides from `submit.sh`'s dry run but for
+`algo.total_timesteps=1000 algo.learning_starts=300 eval_first=true eval_num_episodes=2
+eval_interval_every_steps=500 seed=2` and the smoke's naming (evals at 0, 500 and 1,000: the eval after
+training steps, and enough episodes that one succeeds and a best model is saved). The scripts, consoles
+and resource samples are in `outputs/diagnostics/arch-swap-1021/smokes/` (gitignored); the packages
+are in `outputs/runs/equi-resrl-smoke/`.
+- **Two departures from the plan's section 6.** The five ran as one wave (from 15:19 and 15:57), not
+  two batches: the plan's batches were for RAM, and a smoke, whose online buffer never fills, peaked at
+  about 14 GB. And `eee` ran too (from 16:14), the plan's anchor under the smokes' own conditions, as
+  the reference for the residual's growth below.
+- **Each reached 1,000 steps, logged its three evals, `debug/q_data_online` and `_demo` and the 28
+  `debug/residual_field/*` keys, and finalized its package** (`manifest.json` completed;
+  `check_smoke.py`). Five wrote `best_model.pt`, each of which loads into the agent its own config
+  builds, through the trainer's `build_agent`. `rra`'s six eval episodes all failed (0 of 2 at steps 0,
+  500 and 1,000; at step 0 the base policy alone fails both about a fifth of the time), so it saved
+  none. Its save and reload were checked directly instead (`save_load_rra.py`): the trainer's
+  `save_residual_model` after three updates, then `load_residual_model` into a build at another seed,
+  whose actions then match the saved agent's exactly (365 MiB).
+- **Measured** (each smoke's main loop between logged steps with no eval between them; peak GPU memory
+  from `nvidia-smi`, peak RAM as the PSS of the trainer and its workers, every 30 s):
+
+  | Smoke | Package | ms per env step | GPU (MiB) | RAM (GiB) | Residual at 1,000 | Its growth against `eee`'s smoke (mean over steps 1–1,000) | Calibration's prediction of that, at its rate |
+  |---|---|---|---|---|---|---|---|
+  | `eee` | `4i94cdvu` | 407 | 4,776 | 13.9 | 0.038 | 1.00 | 1.00 |
+  | `aaa` | `ukcko179` | 405 | 5,328 | 14.1 | 0.020 | 0.57 | 0.98 |
+  | `ere` | `wihu9g7d` | 378 | 4,688 | 14.7 | 0.022 | 0.65 | 0.96 |
+  | `ara` | `ai2o36tq` | 747 (GPU 1 shared with two smokes' labelling) | 5,180 | 13.9 | 0.017 | 0.50 | 0.96 |
+  | `rrr` | `1fz3m3o0` | 269 | 3,156 | 13.7 | 0.024 | 0.72 | 0.94 |
+  | `rra` | `1qkfdu09` | 269 | 3,260 | 14.1 | 0.028 | 0.76 | 0.75 |
+
+  - **Speed:** about 11 h for 150k steps before evals for a ViT arm, and 16–17 h for a CNN arm, alone or
+    nearly alone on a GPU. The real runs share theirs two to a GPU and four to the machine (`arch-wide`:
+    30 h end to end), so the schedule keeps the plan's 31 h and 14 h.
+  - **GPU memory:** 3.2–5.3 GB, against `eee`'s 4.8 GB, whose real runs took about 9.9 GB (2.1 times).
+    Scaled so, `aaa` and `ara` about 11 GB, `ere` 10, `rrr` and `rra` 7: every pair the schedule makes
+    fits under 23.5 GB, the largest `aaa` with `eee` at about 21 GB.
+  - **RAM:** 13.7–14.7 GB each, as `eee`'s. The real runs grow with their online buffers, as every
+    group's do.
+  - **The residual's growth:** `eee`'s smoke grew 1.25 times as fast as its real run (`h216n857`) over
+    the first 1,000 steps, and every new arm grew more slowly against it than the calibration
+    predicted. The smokes ran at the plan's matched rates (1.5e-7 for `aaa`, 5.5e-7 for `ere` and
+    `ara`, 6e-7 for `rrr` and `rra`); their growth at 1e-6, scaled from these, is in the rates' table
+    above.
+
+**Checks before the commit:** `tests/test_sweep_arms.py` and `tests/test_square_rerendered_watch.py` in
+full on GPU 0, 369 passed (58 min); the CPU tier, 203 passed and 151 skipped; Tier 1 again, passed at the
+default thread count (the agent's regression goldens move at `OMP_NUM_THREADS=6`, 7 of 22 values: the
+thread count, not the code); the six smokes above, each PASS by `check_smoke.py` (`rra` saved no best at
+0 of 6 episodes, so its save and reload was checked directly). After Aden's rates, on 10-21:
+`tests/test_sweep_arms.py` in full again, split over the two GPUs, 354 passed (the arch-swap tests 66,
+the rest 288); `tests/test_square_rerendered_watch.py` and `tests/test_config.py`, 68 passed.

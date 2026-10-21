@@ -9,11 +9,11 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Next: the architecture swap, `arch-swap-1021` (B20).** Aden's architectural experiments
+**Now: the architecture swap, `arch-swap-1021` (B20).** Aden's architectural experiments
 (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that
 bears on them.
 
-### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — CODE DONE 2026-10-20; pre-registration next (Aden, 2026-10-20) `[SC]`
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — PRE-REGISTERED 2026-10-21; launching (Aden, 2026-10-20) `[SC]`
 
 [The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
 its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated
@@ -21,14 +21,15 @@ its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equ
 - **Done:** the code (EXPERIMENTS.md, 2026-10-20 CODE): `equivariance.encoder_family`,
   `actor_family` and `critic_family`, the ablated family by export (`rl/ablated.py`), ResFiT's
   networks wrapped (`rl/resfit_heads.py`), and `check_families`'s refusals.
-- **Next, in order** (the plan's section 7):
-  1. the speed calibration (section 5): each new actor's rate for a 0–3k residual of 0.035;
-  2. the integration smokes (section 6): each new mix through the real trainer, with evals, the best
-     model's save and the package;
-  3. the six arms in `submit.sh`, `tests/test_sweep_arms.py` and the watcher, with a log-only FLAG for
-     an arm outside the speed band;
-  4. the PRE-REGISTERED and DECISION entries, **for Aden's review before launch**;
-  5. then the commit, the worktree, the disk cleanup and the queue.
+- **Done:** the speed calibration and the six integration smokes (each through the real trainer,
+  with evals, the best model's save and reload, and the package); the six arms in `submit.sh`,
+  `tests/test_sweep_arms.py` and the watcher, with its log-only speed line; the DECISION and
+  PRE-REGISTERED entries (EXPERIMENTS.md, 2026-10-20), reviewed by Aden on 10-21, who set the rates:
+  ResFiT's 1e-6 for every actor, `rrr`'s included, but `aaa`'s, at 2.5e-7 (the plan's matched rates
+  rejected).
+- **Next:** the pinned worktree, the wandb cache cleared and its 12-hour cleanup (tmux `wandb-cache`),
+  the queue (`rfe-queue`) and the watcher (`swap-watch`); the LAUNCHED entry once the first four are in
+  wandb. Then the decision points in the PRE-REGISTERED entry.
 - **After the runs:** the ablated runs' drift from equivariance, measured on their saved best models
   by a local script (reported, deciding nothing).
 

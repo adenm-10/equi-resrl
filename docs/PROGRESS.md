@@ -17,6 +17,30 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-21 — the architecture swap: the smokes, the arms and the pre-registration; Aden sets the rates
+
+**Decided (Aden, 2026-10-21, at review)**
+- **The actors' rates are not matched:** `rrr` runs at ResFiT's own 1e-6, and the rest are not tuned
+  around it. Every actor keeps 1e-6 but `aaa`'s, at 2.5e-7, a quarter, since its residual grew 4–6.5
+  times as fast as `eee`'s at one rate. The plan's matched rates (1.5e-7, 5.5e-7, 6e-7) are rejected.
+  So the speed band is a readout, and a contrast whose ends differ in early speed is read with that
+  stated (EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED).
+
+**Done**
+- **The six integration smokes** passed, from `8ca41cc`, through the real trainer with evals and the
+  best model's save and reload (`rra`'s checked directly: no episode succeeded). A ViT arm runs about
+  270 ms per env step, a CNN arm about 400; every pair the schedule makes fits a GPU.
+- **The smokes disagree with the calibration:** every new actor grew more slowly against `eee`'s
+  smoke than the calibration predicted. That is what put the matched rates to Aden.
+- **The six arms** in `submit.sh`, the sweep tests (each arm's families, starting weights shared
+  within each pair, its rate) and the watcher (a log-only `SPEED` or `FLAG` line per run at 3k).
+- **The agent's regression goldens hold only at the default CPU thread count** (7 of 22 values move
+  at `OMP_NUM_THREADS=6`); noted in `tests/README.md`.
+
+**Next:** the worktree, the cache cleanup, the queue and the watcher; the LAUNCHED entry.
+
+---
+
 ## 2026-10-20 (afternoon) — the architecture swap: the network families' code, tests and calibration
 
 **Decided (Aden, 2026-10-20)**

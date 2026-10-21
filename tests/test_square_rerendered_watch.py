@@ -2,7 +2,9 @@
 square-trlpd-stab-1010's, which are its tuned-RLPD rules, square-residual-start-1011's, which are
 its residual rules, resfit-rx-1012's, which are the residual's collapse stop alone, and
 residual-tilt-1012's: notilt to a fixed 150k (2026-10-12 AMENDMENT), and none for the diagnostic run.
-From 2026-10-17 (DEVIATION), no automatic stop of any kind: equi-speed-matched-1017's arms are watch-only.
+From 2026-10-17 (DEVIATION), no automatic stop of any kind: equi-speed-matched-1017's arms are watch-only,
+and so are arch-swap-1021's, whose early speed is logged once, a FLAG outside the band its rates were
+set for.
 
 Checked on real eval sequences where one exists: oj5k0jqb (ResFiT's residual on Square, 0.800 over
 110k-150k), kyv7clfc (the fixed-env baselines' equivariant residual, 0.00 from 10k), and vc5o977f
@@ -44,6 +46,7 @@ from square_rerendered_watch import (  # noqa: E402
 from resfit.lerobot.utils.load_policy import RUNS_ROOT  # noqa: E402
 
 VC5O977F = RUNS_ROOT / "robomimic-square-final/vc5o977f"  # under CACHE_DIR: a launch worktree has no outputs/
+H216N857 = RUNS_ROOT / "robomimic-square-final/h216n857"  # arch-wide at seed 2, the launch arch-swap-eee repeats
 
 OJ5K0JQB = [0.50, 0.30, 0.58, 0.54, 0.40, 0.54, 0.56, 0.64, 0.70, 0.64, 0.76, 0.72, 0.84, 0.90, 0.66, 0.88]
 KYV7CLFC = [0.60, 0.00, 0.00, 0.02, 0.02, 0.00, 0.00]
@@ -243,3 +246,35 @@ def test_equi_speed_matched_is_never_stopped():
                     assert decide(arm, evals(rates[:i]), 0, passed)[0] is None, (arm, i)
                     assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
         assert decide(arm, evals(KYV7CLFC[:4]), 0, False, _qs(25_000, 30_000, 50.0))[0] is None
+
+
+def test_arch_swap_is_never_stopped_and_logs_its_early_speed():
+    """arch-swap-1021 (2026-10-20 PRE-REGISTERED): every arm to its own 150k with no automatic stop of
+    any kind (watch-only), and its early speed logged once it has logged past 3k steps:
+    train/residual_l1_magnitude's mean over steps 1-3,000, SPEED inside 0.025-0.045, the band its
+    actor's rate was set for, and a FLAG outside it. Read on h216n857's record, it is 0.0367."""
+    from square_rerendered_watch import (ARCH_SWAP, RESIDUAL_ARMS, SPEED_ARMS, SPEED_BAND, SPEED_KEY,
+                                         SPEED_WINDOW, WATCH_ONLY_ARMS, early_speed, speed_line)
+
+    assert GROUPS["arch-swap-1021"] == ARCH_SWAP and len(ARCH_SWAP) == 6
+    assert set(ARCH_SWAP) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    assert (SPEED_KEY, SPEED_WINDOW, SPEED_BAND) == ("train/residual_l1_magnitude", 3_000, (0.025, 0.045))
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in ARCH_SWAP:
+        for rates in (KYV7CLFC + [0.0] * 9, OJ5K0JQB, S8OPBLSD, [0.58] * 16, [0.0] * 20):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+    logged = [(step, step / 100_000) for step in range(100, 3_001, 100)]  # 0.001 to 0.030, every 100 steps
+    assert early_speed([]) is None and early_speed(logged[:-1]) is None  # not yet at 3k
+    assert early_speed(logged) == pytest.approx(0.0155)
+    assert early_speed(logged + [(3_100, 1.0)]) == pytest.approx(0.0155)  # later rows do not count
+    for speed, kind in ((0.0155, "FLAG"), (0.025, "SPEED"), (0.035, "SPEED"), (0.045, "SPEED"), (0.046, "FLAG")):
+        assert speed_line("arch-swap-eee-2", speed).startswith(f"{kind} arch-swap-eee-2"), speed
+
+    if not (H216N857 / "wandb_logs/metrics.jsonl").exists():
+        pytest.skip("h216n857's run package is not on this machine")
+    rows = [json.loads(line) for line in open(H216N857 / "wandb_logs/metrics.jsonl")]
+    residuals = [(int(r["_step"]), float(r[SPEED_KEY])) for r in rows if r.get(SPEED_KEY) is not None]
+    assert early_speed(residuals) == pytest.approx(0.03673, abs=1e-5)

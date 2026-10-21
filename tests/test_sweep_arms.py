@@ -1,12 +1,13 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Seven seed groups, and each arm
+submit.sh's case table is checked here first. Eight seed groups, and each arm
 against its anchor's launch, less the anchor's run length:
   - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
     (resfit-residual-square 1, 9cf207d);
-  - equi-resfit-arch-1013, equi-arch-parts-1015, equi-actor-speed-1016 and
-    equi-speed-matched-1017: eaqorqki's (square-residual-start-1011, 0af7655);
+  - equi-resfit-arch-1013, equi-arch-parts-1015, equi-actor-speed-1016,
+    equi-speed-matched-1017 and arch-swap-1021: eaqorqki's (square-residual-start-1011,
+    0af7655);
     arch-wide launches into equi-arch-parts-1015 now. Each arm of
     equi-speed-matched-1017 is also checked against its parent arm and its
     parent's seed-2 run: the same but for agent.actor_lr;
@@ -42,7 +43,10 @@ against its anchor's launch, less the anchor's run length:
           for bit, and their actor's AdamW steps at their rate, the critic's and
           the encoder's at the anchor's. Each arm of equi-speed-matched-1017 has
           its parent's design, starts from its parent's weights bit for bit at
-          seed 2, and steps its actor at its own rate. A test here keeps on
+          seed 2, and steps its actor at its own rate. Each arm of arch-swap-1021
+          has the network families it names, eee is arch-wide again, the pairs that
+          differ in one network start from the same weights in the other two at
+          seed 2, and each actor steps at its rate (ResFiT's 1e-6, aaa's 2.5e-7). A test here keeps on
           record that the fixed-env baselines' FieldNorm critic is blind to
           every trivial input (2026-10-08 FINDING).
 
@@ -56,7 +60,7 @@ residual on Square with each part of ResFiT's layout alone, and all four again",
 2026-10-16 PRE-REGISTERED, "the equivariant residual on Square with arch-wide's
 actor alone, and with a faster actor", and 2026-10-17 PRE-REGISTERED, "the
 equivariant residual on Square with the actor's parts at matched speed, and the
-speed's two edges".
+speed's two edges", and 2026-10-20 PRE-REGISTERED, "the architecture swap".
 """
 
 from __future__ import annotations
@@ -83,6 +87,7 @@ LN_GROUP = "resfit-ln-place-1013"
 PARTS_GROUP = "equi-arch-parts-1015"
 SPEED_GROUP = "equi-actor-speed-1016"
 MATCHED_GROUP = "equi-speed-matched-1017"
+SWAP_GROUP = "arch-swap-1021"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -118,8 +123,19 @@ MATCHED_ARMS = {ACTORLN_LR3E6: (ACTORLN, "3e-6"), ACTOR448_LR3E6: (ACTOR448, "3e
                 ACTORLN448_LR1E5: (ACTORLN448, "1e-5"), ACTORLR1E4: (INIT0_LONG, "1e-4")}
 # Each parent arm's seed-2 run, which its matched arm pairs with.
 PARENT_RUNS = {ACTORLN: "8sgfkskv", ACTOR448: "vnpqtnva", ACTORLN448: "x3xopn1y", INIT0_LONG: "oav5gk76"}
+# arch-swap-1021: each network of the equivariant agent equivariant (E), ablated (A) or ResFiT's (R), as
+# [encoder, actor, critic]. Every actor steps at ResFiT's 1e-6 but aaa's, at a quarter of it (2026-10-20
+# PRE-REGISTERED): its residual grew 4 to 6.5 times as fast as eee's at one rate.
+SWAP_FAMILIES = {"eee": ("equivariant",) * 3, "aaa": ("ablated",) * 3,
+                 "ere": ("equivariant", "resfit", "equivariant"), "ara": ("ablated", "resfit", "ablated"),
+                 "rrr": ("resfit",) * 3, "rra": ("resfit", "resfit", "ablated")}
+SWAP_ARMS = {f"arch-swap-{mix}": families for mix, families in SWAP_FAMILIES.items()}
+SWAP_EEE, SWAP_AAA, SWAP_ERE, SWAP_ARA, SWAP_RRR, SWAP_RRA = SWAP_ARMS
+SWAP_LRS = {SWAP_AAA: "2.5e-7"}
+FAMILY_PATHS = {f"equivariance.{part}_family" for part in ("encoder", "actor", "critic")}
 # Every arm's actor learning rate that is not the anchor's 1e-6.
-ACTOR_LRS = {**LR_ARMS, **{arm: float(rate) for arm, (_, rate) in MATCHED_ARMS.items()}}
+ACTOR_LRS = {**LR_ARMS, **{arm: float(rate) for arm, (_, rate) in MATCHED_ARMS.items()},
+             **{arm: float(rate) for arm, rate in SWAP_LRS.items()}}
 DEMOS = "ankile/robomimic-mh-square-image"  # ResFiT's config's own, the original coded demos
 RERENDERED_DEMOS = "local/robomimic-mh-square-rerendered"  # every equivariant run's
 
@@ -139,6 +155,15 @@ NOLN_OVERRIDES = {"agent.actor.use_layer_norm=false", "agent.critic.use_layer_no
 # ResFiT's layout in the equivariant residual, as amended (Aden, 2026-10-12): the actor keeps its depth.
 RESFIT_LAYOUT = {"equivariance.actor_norm=layer_norm", "equivariance.critic_norm=layer_norm",
                  "agent.critic.num_q=10", "equivariance.num_critic_layers=2"}
+# arch-wide's critic heads, behind an actor other than the equivariant one.
+SWAP_HEADS = {"equivariance.critic_norm=layer_norm", "agent.critic.num_q=10", "equivariance.num_critic_layers=2"}
+
+
+def _swap_launch(arm: str, base: set[str]) -> set[str]:
+    """`base` plus the arm's families off their default, and its rate."""
+    families = {f"equivariance.{part}_family={family}"
+                for part, family in zip(("encoder", "actor", "critic"), SWAP_ARMS[arm]) if family != "equivariant"}
+    return base | families | ({f"agent.actor_lr={SWAP_LRS[arm]}"} if arm in SWAP_LRS else set())
 LAUNCHED = {
     RERENDERED: RESFIT_ANCHOR | {f"offline_data.name={RERENDERED_DEMOS}"},
     NOLN: RESFIT_ANCHOR | NOLN_OVERRIDES,
@@ -168,6 +193,15 @@ LAUNCHED = {
                                      "agent.actor_lr=1e-5"},
     ACTORLR1E4: EQUI_ANCHOR | {"agent.actor_lr=1e-4"},
 }
+_SWAP_BASES = {
+    SWAP_EEE: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | RESFIT_LAYOUT | {"equivariance.actor_degree_channel=448"},
+    SWAP_AAA: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | RESFIT_LAYOUT | {"equivariance.actor_degree_channel=448"},
+    SWAP_ERE: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | SWAP_HEADS,
+    SWAP_ARA: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | SWAP_HEADS,
+    SWAP_RRR: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | {"agent.critic.num_q=10"},
+    SWAP_RRA: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | SWAP_HEADS,
+}
+LAUNCHED.update({arm: _swap_launch(arm, base) for arm, base in _SWAP_BASES.items()})
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -199,6 +233,15 @@ FROM_ANCHOR = {
     ACTORLN448_LR1E5: {"equivariance.actor_norm", "equivariance.actor_degree_channel", "agent.actor_lr"},
     ACTORLR1E4: {"agent.actor_lr"},
 }
+_SWAP_HEAD_PATHS = {"equivariance.critic_norm", "agent.critic.num_q", "equivariance.num_critic_layers"}
+FROM_ANCHOR.update({
+    SWAP_EEE: LAYOUT_PATHS | {"equivariance.actor_degree_channel"},
+    SWAP_AAA: LAYOUT_PATHS | {"equivariance.actor_degree_channel", "agent.actor_lr"} | FAMILY_PATHS,
+    SWAP_ERE: _SWAP_HEAD_PATHS | {"equivariance.actor_family"},
+    SWAP_ARA: _SWAP_HEAD_PATHS | FAMILY_PATHS,
+    SWAP_RRR: {"agent.critic.num_q"} | FAMILY_PATHS,
+    SWAP_RRA: _SWAP_HEAD_PATHS | FAMILY_PATHS,
+})
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -230,6 +273,15 @@ ARM_VALUES = {
                        "agent.actor_lr": 1e-5},
     ACTORLR1E4: {"agent.actor_lr": 1e-4},
 }
+_SWAP_HEAD_VALUES = {"equivariance.critic_norm": "layer_norm", "agent.critic.num_q": 10,
+                     "equivariance.num_critic_layers": 2}
+ARM_VALUES.update({
+    arm: {**({**LAYOUT_VALUES, "equivariance.actor_degree_channel": 448} if arm in (SWAP_EEE, SWAP_AAA)
+             else {"agent.critic.num_q": 10} if arm == SWAP_RRR else _SWAP_HEAD_VALUES),
+          **{f"equivariance.{part}_family": family for part, family in zip(("encoder", "actor", "critic"), families)},
+          "agent.actor_lr": float(SWAP_LRS.get(arm, 1e-6))}
+    for arm, families in SWAP_ARMS.items()
+})
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -237,7 +289,7 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS, ACTORLN: RERENDERED_DEMOS,
              CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS,
              ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
-             **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS)}
+             **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -253,7 +305,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          LN_GROUP: ("robomimic-square-final", "residual-rl"),
          PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          SPEED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         MATCHED_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         MATCHED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         SWAP_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -331,12 +384,15 @@ def case_table_arms(script: str) -> list[str]:
 
 
 ARMS = case_table_arms(SUBMIT.read_text())
-EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-")]
+# The arms whose networks are all equivariant: arch-swap-1021's eee among them.
+EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-") or arm == SWAP_EEE]
 ARCH_ARMS = [arm for arm in EQUI_ARMS if arm in (ARCH, ARCH_WIDE)]
 RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in SWAP_ARMS:
+        return SWAP_GROUP
     if arm in LN_ARMS:
         return LN_GROUP
     if arm in PARTS_ARMS:
@@ -790,7 +846,7 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
 
 @pytest.mark.gpu
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", EQUI_ARMS)
+@pytest.mark.parametrize("arm", [*EQUI_ARMS, *(arm for arm in SWAP_ARMS if arm not in EQUI_ARMS)])
 def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
     """Invariance tests pass on a network that ignores an input, so this checks what they cannot."""
     changes = _output_changes(_compose(_overrides(arm, tmp_path)), device)
@@ -1026,9 +1082,10 @@ def test_each_matched_arm_starts_from_its_parents_weights(arm, tmp_path, device)
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS, *MATCHED_ARMS])
+@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS, *MATCHED_ARMS, *SWAP_ARMS])
 def test_each_speed_arm_steps_its_actor_at_its_rate_and_the_rest_at_the_anchors(arm, tmp_path, device):
-    """equi-actor-speed-1016 and equi-speed-matched-1017. The actor's AdamW steps at agent.actor_lr
+    """equi-actor-speed-1016, equi-speed-matched-1017 and arch-swap-1021 (whatever the families: the
+    critic and encoder at ResFiT's 1e-4, phase 0 skipped). The actor's AdamW steps at agent.actor_lr
     (the anchor's 1e-6, or the arm's), and the critic's and the encoder's at agent.critic_lr, 1e-4,
     in every arm. No scheduler rescales either (agent.lr_warmup_steps and
     algo.actor_lr_warmup_steps are 0), and the actor's gradient clip and AdamW's weight decay are
@@ -1122,3 +1179,65 @@ def test_the_field_norm_critic_these_arms_replace_is_blind_to_every_trivial_inpu
             assert dq < SEES, f"field norm's Q moved by {dq:.1e} with {name}"
         else:
             assert dq > SEES, f"field norm's Q did not move with {name}: {dq:.1e}"
+
+
+# ---------------------------------------------------------------------------
+# arch-swap-1021: the network families
+# ---------------------------------------------------------------------------
+
+
+def test_eee_is_arch_wide_again(tmp_path):
+    """arch-swap-1021's anchor is arch-wide's launch at the families' commit: the same overrides, and the
+    same composed config but for its naming. So at one seed it builds arch-wide's agent."""
+    assert _unnamed(_overrides(SWAP_EEE, tmp_path)) == _unnamed(_overrides(ARCH_WIDE, tmp_path))
+    assert _differing(_flat(_compose(_overrides(SWAP_EEE, tmp_path))),
+                      _flat(_compose(_overrides(ARCH_WIDE, tmp_path)))) == set()
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("arm", list(SWAP_ARMS))
+def test_each_swap_arm_has_the_families_it_names(arm, tmp_path, device):
+    """[encoder, actor, critic]: the equivariant networks (escnn), their exports (rl/ablated.py), or
+    ResFiT's own, wrapped (rl/resfit_heads.py, and the ResFiT encoder's ViTs)."""
+    import torch
+
+    from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
+    from resfit.rl_finetuning.equi_off_policy.rl.ablated import AblatedActor, AblatedCritic
+    from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor
+    from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic
+    from resfit.rl_finetuning.equi_off_policy.rl.resfit_heads import ResFiTActor, ResFiTCritic
+
+    encoder, actor, critic = SWAP_ARMS[arm]
+    agent = _agent(_compose(_overrides(arm, tmp_path)), device)
+    assert agent.enc.encoder == encoder
+    if encoder == "resfit":
+        assert len(agent.enc.vits) == 2 and not hasattr(agent.enc, "enc_obs")
+    else:
+        assert isinstance(agent.enc.enc_obs, EquivariantResEncoder76Cyclic) == (encoder == "equivariant")
+    assert type(agent.actor) is {"equivariant": Actor, "ablated": AblatedActor, "resfit": ResFiTActor}[actor]
+    assert type(agent.critic) is {"equivariant": Critic, "ablated": AblatedCritic, "resfit": ResFiTCritic}[critic]
+    # Every family's actor bounds as the equivariant one does: equi_tanh, then 0.1 on every field.
+    assert agent.actor.residual_squash and torch.equal(agent.actor.bound.cpu(), torch.full((7,), 0.1))
+
+
+# The pairs that differ in one network, and the networks they share at one seed.
+SWAP_PAIRS = [(SWAP_ERE, SWAP_EEE, ("enc", "critic")), (SWAP_ARA, SWAP_AAA, ("enc", "critic")),
+              (SWAP_ARA, SWAP_ERE, ("actor",)), (SWAP_RRA, SWAP_RRR, ("enc",))]
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+@pytest.mark.parametrize("arm, other, shared", SWAP_PAIRS, ids=[f"{a[10:]}-{b[10:]}" for a, b, _ in SWAP_PAIRS])
+def test_each_swap_pair_starts_from_the_same_weights(arm, other, shared, tmp_path, device):
+    """At seed 2 (each arm's first seed): the agent builds its encoder, then its critic, then its actor,
+    and an export draws no random number, so two arms that differ in one network start with the same
+    weights in the others. ara's actor is ere's too: what is built before it draws alike."""
+    import torch
+
+    ours = _seeded_agent(_compose(_overrides(arm, tmp_path)), device, seed=2)
+    theirs = _seeded_agent(_compose(_overrides(other, tmp_path)), device, seed=2)
+    for part in shared:
+        mine, its = getattr(ours, part).state_dict(), getattr(theirs, part).state_dict()
+        assert mine.keys() == its.keys(), part
+        for key, value in mine.items():
+            assert torch.equal(value, its[key]), f"{arm}: {part}.{key} differs from {other}'s"

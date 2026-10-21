@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Twelve seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
+Thirteen seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -37,12 +37,17 @@ Twelve seed groups (GROUPS), on the re-rendered Square demos unless said otherwi
     fixed 150k;
   - equi-speed-matched-1017: the 2026-10-17 PRE-REGISTERED entry ("the equivariant residual on
     Square with the actor's parts at matched speed, and the speed's two edges"): four equivariant
-    residual arms, each to its own 150k, never stopped (watch-only).
+    residual arms, each to its own 150k, never stopped (watch-only);
+  - arch-swap-1021: the 2026-10-20 PRE-REGISTERED entry ("the architecture swap"): six residual arms
+    of the equivariant agent, each network equivariant, ablated or ResFiT's, each to its own 150k,
+    never stopped (watch-only), each with its early speed logged (SPEED_ARMS).
 An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
 STOP_AT step when its trainer would run on past it. A watch-only arm (WATCH_ONLY_ARMS) is never
 signalled: from 2026-10-17 (DEVIATION) no automatic stop of any kind applies to a new group, and Aden
 stops a run by hand. Its evals are still logged, its critic values FLAGged and its package
-finalized.
+finalized. An arm in SPEED_ARMS has its early speed logged once, when it has logged past
+SPEED_WINDOW steps: train/residual_l1_magnitude's mean over its first SPEED_WINDOW, as SPEED inside
+SPEED_BAND, the band around arch-wide's own (h216n857, 0.037), and as a FLAG outside it, for Aden.
 Every minute it reads each of the group's trainers' history from its live wandb record and sends it
 SIGINT when:
   - a residual has collapsed: three consecutive evals at or below 0.05 (tuned RLPD starts at 0,
@@ -100,16 +105,19 @@ EQUI_ACTOR_SPEED = ("equi-residual-square-actorln448", "equi-residual-square-act
                     "equi-residual-square-actorlr3e-5")
 EQUI_SPEED_MATCHED = ("equi-residual-square-actorln-lr3e-6", "equi-residual-square-actor448-lr3e-6",
                       "equi-residual-square-actorln448-lr1e-5", "equi-residual-square-actorlr1e-4")
+ARCH_SWAP = ("arch-swap-eee", "arch-swap-aaa", "arch-swap-ere", "arch-swap-ara", "arch-swap-rrr",
+             "arch-swap-rra")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
           "equi-resfit-arch-1013": EQUI_RESFIT_ARCH, "equi-residual-long-1012": EQUI_LONG,
           "resfit-ln-place-1013": RESFIT_LN_PLACE, "equi-arch-parts-1015": EQUI_ARCH_PARTS,
-          "equi-actor-speed-1016": EQUI_ACTOR_SPEED, "equi-speed-matched-1017": EQUI_SPEED_MATCHED}
+          "equi-actor-speed-1016": EQUI_ACTOR_SPEED, "equi-speed-matched-1017": EQUI_SPEED_MATCHED,
+          "arch-swap-1021": ARCH_SWAP}
 RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
                  *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG,
                  *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED,
-                 *EQUI_SPEED_MATCHED}  # every other arm is tuned RLPD
+                 *EQUI_SPEED_MATCHED, *ARCH_SWAP}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
 COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
 # To a fixed length (2026-10-12 AMENDMENT, Aden): a residual that loses the base policy can win it
@@ -120,7 +128,11 @@ FIXED_LENGTH_ARMS = {NOTILT, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *
 STOP_AT = {NOTILT: 150_000}  # launched for 300k
 # Tracked and logged, never stopped: a run that must go through its collapse to its own end, and
 # every arm of a group pre-registered from 2026-10-17, when Aden ruled out any automatic stop.
-WATCH_ONLY_ARMS = {DIAG, *EQUI_SPEED_MATCHED}
+WATCH_ONLY_ARMS = {DIAG, *EQUI_SPEED_MATCHED, *ARCH_SWAP}
+# The early speed, arch-swap-1021's speed readout (2026-10-20 PRE-REGISTERED): the 0-3k residual against
+# a band around arch-wide's, 0.037. Logged once per run, never a stop.
+SPEED_ARMS = {*ARCH_SWAP}
+SPEED_KEY, SPEED_WINDOW, SPEED_BAND = "train/residual_l1_magnitude", 3_000, (0.025, 0.045)
 EPISODES = 50                       # per eval
 COLLAPSE_RATE, COLLAPSE_RUN = 0.05, 3
 CHECK_STEP = 100_000
@@ -131,6 +143,22 @@ CONVERGE_FROM, CONVERGE_EVALS = 150_000, 5
 Q_DIVERGED = 1.5
 Q_KEYS = ("debug/q_data_demo", "debug/q_data_online", "debug/q_policy_demo", "debug/q_policy_online")
 RUNAWAY_Q, RUNAWAY_STEPS = 10.0, 5_000
+
+
+def early_speed(residuals: list[tuple[int, float]]) -> float | None:
+    """The residual's mean over steps 1 to SPEED_WINDOW, once the run has logged that far; else None."""
+    if not residuals or max(step for step, _ in residuals) < SPEED_WINDOW:
+        return None
+    window = [value for step, value in residuals if 0 < step <= SPEED_WINDOW]
+    return sum(window) / len(window) if window else None
+
+
+def speed_line(name: str, speed: float) -> str:
+    lo, hi = SPEED_BAND
+    if lo <= speed <= hi:
+        return f"SPEED {name}: 0-{SPEED_WINDOW} residual {speed:.4f}, inside {lo}-{hi}"
+    return (f"FLAG {name}: 0-{SPEED_WINDOW} residual {speed:.4f}, outside {lo}-{hi} (the speed readout): "
+            f"report to Aden")
 
 
 def collapsed(evals: list[tuple[int, float]]) -> str | None:
@@ -219,8 +247,10 @@ def decide(arm: str, evals: list[tuple[int, float]], successes: int, passed_chec
     return None, ""
 
 
-def history(package: Path) -> tuple[list[tuple[int, float]], list[tuple[int, float]], list[tuple[int, str, float]]]:
-    """Evals, training episode returns, and critic values, by step, from the live record."""
+def history(package: Path) -> tuple[list[tuple[int, float]], list[tuple[int, float]],
+                                    list[tuple[int, str, float]], list[tuple[int, float]]]:
+    """Evals, training episode returns, critic values and the residual's size, by step, from the live
+    record."""
     manifest = json.loads((package / "manifest.json").read_text())
     rows = _history_from_record(Path(manifest["wandb"]["dir"]).parent / f"run-{package.name}.wandb")
     evals = sorted((int(r["_step"]), float(r["eval/success_rate"])) for r in rows
@@ -228,7 +258,8 @@ def history(package: Path) -> tuple[list[tuple[int, float]], list[tuple[int, flo
     returns = [(int(r["_step"]), float(r["training/episode_return"])) for r in rows
                if r.get("training/episode_return") is not None]
     qs = [(int(r["_step"]), key, float(r[key])) for r in rows for key in Q_KEYS if r.get(key) is not None]
-    return evals, returns, qs
+    residuals = [(int(r["_step"]), float(r[SPEED_KEY])) for r in rows if r.get(SPEED_KEY) is not None]
+    return evals, returns, qs, residuals
 
 
 def main() -> int:
@@ -259,7 +290,8 @@ def main() -> int:
                     ignored.add(pid)
                     continue
                 tracked[pid] = {"package": package, "arm": arm, "signalled": None, "passed": False,
-                                "q_flagged": False, "human": False, "last_eval": None}
+                                "q_flagged": False, "human": False, "last_eval": None,
+                                "speed_logged": False}
                 say(f"TRACK {package.name} (pid {pid}, {_arg(trainer['argv'], 'wandb.name')})")
             entry = tracked[pid]
             if entry["signalled"] is not None:
@@ -269,7 +301,7 @@ def main() -> int:
                     entry["signalled"] = time.time()
                 continue
             try:
-                evals, returns, qs = history(entry["package"])
+                evals, returns, qs, residuals = history(entry["package"])
             except Exception as exc:  # the live record can be mid-write; try next minute
                 say(f"READ FAILED {entry['package'].name}: {type(exc).__name__}: {exc}")
                 continue
@@ -278,6 +310,10 @@ def main() -> int:
                 step, key, value = high[0]
                 say(f"FLAG {name}: {key} {value:.2f} at {step}, above {Q_DIVERGED}: report to Aden")
                 entry["q_flagged"] = True
+            if (entry["arm"] in SPEED_ARMS and not entry["speed_logged"]
+                    and (speed := early_speed(residuals)) is not None):
+                say(speed_line(name, speed))
+                entry["speed_logged"] = True
             if not evals or evals[-1][0] == entry["last_eval"]:
                 continue
             entry["last_eval"] = evals[-1][0]
