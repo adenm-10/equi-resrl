@@ -13,7 +13,7 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that
 bears on them.
 
-### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — PRE-REGISTERED 2026-10-21; launching (Aden, 2026-10-20) `[SC]`
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — RUNNING from 2026-10-21, to about 10-25 03:00 (Aden, 2026-10-20) `[SC]`
 
 [The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
 its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated
@@ -27,11 +27,22 @@ its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equ
   PRE-REGISTERED entries (EXPERIMENTS.md, 2026-10-20), reviewed by Aden on 10-21, who set the rates:
   ResFiT's 1e-6 for every actor, `rrr`'s included, but `aaa`'s, at 2.5e-7 (the plan's matched rates
   rejected).
-- **Next:** the pinned worktree, the wandb cache cleared and its 12-hour cleanup (tmux `wandb-cache`),
-  the queue (`rfe-queue`) and the watcher (`swap-watch`); the LAUNCHED entry once the first four are in
-  wandb. Then the decision points in the PRE-REGISTERED entry.
-- **After the runs:** the ablated runs' drift from equivariance, measured on their saved best models
-  by a local script (reported, deciding nothing).
+- **Done:** launched from `aec1bdc` (EXPERIMENTS.md, 2026-10-23 LAUNCHED); every early speed inside
+  the band; `rrr 2` passed the gross-failure check. Seed 2 at 150k is in the 2026-10-23 NOTE,
+  provisional: `ere 2` 172, `rrr 2` 171, `eee 2` 129, `aaa 2` 85 of 250, `ara 2` below the base.
+- **Next, when all twelve are at 150k** (about 10-25 03:00; the queue's order unchanged):
+  1. `/analyze-experiment` on the group against the 2026-10-20 PRE-REGISTERED rules (two seeds pooled,
+     the 0.13 bar, H's 0.584, the speeds beside each contrast), and its NOTE. The local scripts in
+     `outputs/diagnostics/arch-swap-1021/analysis/` read every run's evals and diagnostics.
+  2. **The drift readout** (`outputs/diagnostics/arch-swap-1021/drift.py`, on each A run's
+     `wandb_best/best_model.pt`). **Aden's call first:** `aaa 2`'s and `ara 2`'s best are their step-0
+     models, so the readout measures nothing of their training (the 2026-10-23 NOTE).
+  3. Phase 2, decided on the readouts. A candidate the NOTE raises: `aaa` with its critic slowed to
+     match the equivariant critic's change per step (about 3.3e-5), which would separate "the constraint
+     helps" from "the dense critic is too fast at 1e-4"; the PRE-REGISTERED entry's own follow-up
+     (`eee` at `agent.critic_lr=3e-4`) was for C1 the other way.
+- **Meanwhile:** the tmux sessions `rfe-queue`, `swap-watch` and `wandb-cache` stay up; stop the
+  watcher and the cleanup once the last run has exited and its package is complete.
 
 ### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — DONE 2026-10-19 (Aden, 2026-10-17) `[SC]`
 

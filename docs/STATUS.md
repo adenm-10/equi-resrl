@@ -1,18 +1,30 @@
 # Status
 
-**Last updated:** 2026-10-21 · **Last verified commit:** this file's own commit, the pre-registration
-of `arch-swap-1021` (config, tests and the watcher only; the network families' code is `8ca41cc`,
-EXPERIMENTS.md, 2026-10-20 CODE, which ended the freeze below). Main is ahead of origin and not pushed:
-pushing waits for Aden.
+**Last updated:** 2026-10-23 · **Last verified commit:** this file's own commit, docs only (the
+`arch-swap-1021` LAUNCHED entry and its seed-2 NOTE). The runs are from `aec1bdc`, the group's
+pre-registration; the network families' code is `8ca41cc` (EXPERIMENTS.md, 2026-10-20 CODE, which
+ended the freeze below). Main is ahead of origin and not pushed: pushing waits for Aden.
 
-**Now: the architecture swap, `arch-swap-1021`, is pre-registered and launches from this commit**
-(Aden's architectural experiments, 2026-10-20 DECISION; EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED, as
-Aden set its rates at review on 10-21; [the plan](plans/2026-10-20-arch-swap.md), local). Six arms in
-the equivariant agent, each network equivariant, ablated (the equivariant one unconstrained) or
-ResFiT's own, at seeds 2 and 3: twelve runs, four at a time, about 76 h from the queue's start. Every
-actor steps at ResFiT's 1e-6 but `aaa`'s, at 2.5e-7; every critic and encoder at 1e-4. No automatic
-stop. The calibration and the six integration smokes passed (TODO B20). The actor-speed line is
-closed on its readouts; what it leaves is in "What the actor-speed groups leave", below.
+**Now: the architecture swap, `arch-swap-1021`, is running** (Aden's architectural experiments,
+2026-10-20 DECISION; EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED, as Aden set its rates at review on
+10-21; [the plan](plans/2026-10-20-arch-swap.md), local). Six arms in the equivariant agent, each
+network equivariant, ablated (the equivariant one unconstrained) or ResFiT's own, at seeds 2 and 3,
+from the pinned worktree `~/projects/equi-resrl-aec1bdc`. Every actor steps at ResFiT's 1e-6 but
+`aaa`'s, at 2.5e-7; every critic and encoder at 1e-4. No automatic stop.
+- **At 09:55 on 10-23** (EXPERIMENTS.md, 2026-10-23 LAUNCHED): `rrr 2`, `ere 2`, `eee 2` and `aaa 2`
+  finished, packages complete; `ara 2` (130k), `rrr 3` (50k), `aaa 3` (10k) and `eee 3` (0k) running;
+  `ere 3`, `ara 3`, `rra 2` and `rra 3` queued, in the pre-registered order (Aden did not approve
+  moving `rra 2` up). The last is expected at 150k at about 03:00 on 10-25.
+- **Seed 2, provisional** (2026-10-23 NOTE; of 250 at 110k–150k): `ere 2` 172 and `rrr 2` 171, `eee 2`
+  129, `aaa 2` 85; `ara 2` about 0.24 at 110k–130k. The ablated encoder and critic never beat the base
+  alone, with either actor. But `eee 2` is 31 below `arch-wide 2`, its exact replicate, which is the
+  contrasts' bar: nothing is read until seed 3.
+- **Running in tmux:** `rfe-queue` (the slot queue), `swap-watch` (the watcher, watch-only),
+  `wandb-cache` (the cache cleanup, 07:35 and 19:35), and one `q-arch-swap-<arm>-<seed>` per job.
+  14 GB of disk free on 10-23; the PRE-REGISTERED entry leaves a reclaim below 10 GB to Aden.
+
+The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
+leave", below.
 
 This file describes what is true right now. Rewrite it in place; do not append. For history, see
 [EXPERIMENTS.md](EXPERIMENTS.md) and [PROGRESS.md](PROGRESS.md).
@@ -461,8 +473,9 @@ How the last groups were launched and followed, for the next ones:
 
 **0. Now: `arch-swap-1021`** (TODO B20): which of the equivariant agent's three networks, and
 which property of each (its weight constraint, or ResFiT's design), holds the equivariant residual
-below ResFiT's. Pre-registered and launching; its decision points are in the PRE-REGISTERED entry
-(the early speeds at about T+2.5 h, `rrr 2` against `bue9dupf` to 50k at about T+6 h). The
+below ResFiT's. Running, to about 03:00 on 10-25; every early speed was inside the band and `rrr 2`
+passed the gross-failure check against `bue9dupf`. Once all twelve are at 150k: `/analyze-experiment`
+against the PRE-REGISTERED rules, the NOTE, the drift readout (TODO B20), then phase 2. The
 actor-speed line closed on its readouts; "What the actor-speed groups leave" has what it found.
 
 **1. Read the residual and equivariant history again** once the plan reports: which conclusions

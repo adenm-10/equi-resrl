@@ -17,6 +17,35 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-21 (evening) to 10-23 — `arch-swap-1021` launched; seed 2 at 150k
+
+**Done**
+- **Committed and launched** `aec1bdc` (the pre-registration) from its pinned worktree at 19:35 on
+  10-21: the wandb cache cleared to 2 GB and cleaned every 12 h, the queue and the watcher started.
+  Two gates stopped on the usual render-guard test and launched on the queue's retry, 1.5 h late
+  (EXPERIMENTS.md, 2026-10-23 LAUNCHED). Every run's package checks out: its commit clean, mujoco
+  3.3.2, its argv the worktree's dry run.
+- **Every early speed inside the band.** The smokes predicted them within 1.2 times (but `rrr`'s), the
+  calibration 1.6–2 times too fast. `rrr` runs at ResFiT's own early speed at ResFiT's rate.
+- **An early read** at 40k–57k (10-22) and **seed 2 at 150k** (10-23), in the 2026-10-23 NOTE.
+
+**Found** (seed 2 only; nothing is read until seed 3)
+- The ablated encoder and critic never beat the base alone, with our actor (`aaa 2`, 85 of 250) or
+  ResFiT's (`ara 2`). Their critic fits the demos fastest and gives the flattest value slope.
+- ResFiT's actor on the equivariant encoder and critic (`ere 2`, 172) is level with all of ResFiT's
+  networks (`rrr 2`, 171); `eee 2` scored 129, but 31 below its own replicate `arch-wide 2`.
+- ResFiT's encoder and critic give a 1.4–1.6 times steeper value slope from 3k on, whatever the
+  actor; `rra` will say whether it is the ViTs or the critic.
+- The drift readout as registered cannot measure `aaa 2` or `ara 2`: their best model is step 0's.
+
+**Decided (Aden)**
+- Two seeds per arm kept, as registered (confirmed by Aden on 10-21).
+- The queue's order is not changed (Claude proposed moving `rra 2` up on 10-22; not approved).
+
+**Next:** the group at 150k (about 10-25 03:00), then `/analyze-experiment` and TODO B20's steps.
+
+---
+
 ## 2026-10-21 — the architecture swap: the smokes, the arms and the pre-registration; Aden sets the rates
 
 **Decided (Aden, 2026-10-21, at review)**

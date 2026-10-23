@@ -9128,3 +9128,134 @@ thread count, not the code); the six smokes above, each PASS by `check_smoke.py`
 0 of 6 episodes, so its save and reload was checked directly). After Aden's rates, on 10-21:
 `tests/test_sweep_arms.py` in full again, split over the two GPUs, 354 passed (the arch-swap tests 66,
 the rest 288); `tests/test_square_rerendered_watch.py` and `tests/test_config.py`, 68 passed.
+
+---
+
+## 2026-10-23 — LAUNCHED — `arch-swap-1021`: eight of twelve launched, four of them finished; two gates stopped on the render guard, and their retries launched
+
+Written at 09:55 on 10-23 (it was due once the first four reached wandb, on 10-21). It records what
+the run packages, the gate consoles (`outputs/queue/2026102?-*_arch-swap-*.log`), the queue's log
+(`outputs/queue/launchers/slot_queue.log`) and the watcher's (`outputs/queue/watch.log`) show. The
+queue (tmux `rfe-queue`) started at 19:35 on 10-21 with the 2026-10-20 PRE-REGISTERED jobs file
+(`outputs/queue/launchers/jobs-arch-swap-1021.txt`, in its order), from the pinned worktree
+`~/projects/equi-resrl-aec1bdc`. Each run package records:
+- commit `aec1bdc`, clean (no uncommitted file), and mujoco 3.3.2;
+- an argv equal to the worktree's `submit.sh` dry run for its arm and seed, less naming.
+
+| Job | Took the slot of (exited) | Launched | GPU | Gate: Tier 1; Tier 2 | In wandb | 150k | Run |
+|---|---|---|---|---|---|---|---|
+| `arch-swap-rrr` 2 | (the queue's start) | 10-21 19:40 | 0 | 227; 800 (87 min) | 21:45 | 10-22 07:48 | [**`w1g1d1tf`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/w1g1d1tf) |
+| `arch-swap-ere` 2 | (the queue's start) | 19:46, **NO-GO**; again 21:28 | 0 | first: 226 and 1 failed; 800 (88 min). Second: 227; 800 (82 min) | 23:37 | 10-23 03:12 | [**`6xh63lfb`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/6xh63lfb) |
+| `arch-swap-aaa` 2 | (the queue's start) | 19:51, **NO-GO**; again 21:32 | 1 | first: 226 and 1 failed; 800 (86 min). Second: 227; 800 (85 min) | 23:58 | 10-23 05:51 | [**`q60welj8`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/q60welj8) |
+| `arch-swap-eee` 2 | (the queue's start) | 19:57 | 1 | 227; 800 (84 min) | 22:02 | 10-23 04:49 | [**`wk45zp27`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/wk45zp27) |
+| `arch-swap-ara` 2 | `w1g1d1tf` (10-22 07:48) | 10-22 07:53 | 0 | 227; 800 (78 min) | 10:10 | (130k at 09:55 on 10-23) | [**`gv57nzkq`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/gv57nzkq) |
+| `arch-swap-rrr` 3 | `6xh63lfb` (10-23 03:12) | 10-23 03:17 | 0 | 227; 800 (78 min) | 05:34 | (50k) | [**`1u5xnikc`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/1u5xnikc) |
+| `arch-swap-aaa` 3 | `wk45zp27` (04:49) | 04:54 | 1 | 227; 800 (80 min) | 06:51 | (10k) | [**`i8uivy7b`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/i8uivy7b) |
+| `arch-swap-eee` 3 | `q60welj8` (05:51) | 05:57 | 1 | 227; 800 (79 min) | 08:20 | (0k) | [**`jr63pxb9`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/jr63pxb9) |
+
+- **The two NO-GOs** each failed one Tier-1 test, `tests/test_rerender_demos.py::test_every_guard_passes_on_cans_first_demos`,
+  and nothing else, as at every NO-GO since 2026-10-12 (2026-10-13 and 2026-10-20 LAUNCHED). Four
+  gates ran at once on two GPUs. The queue's retry, 600 s later, passed in both; each run started
+  about 1.5 h late.
+- **Tier 2 took 78–88 minutes** (800 tests; 57–61 minutes for 678 on 10-17), the longest with four
+  gates at once.
+- **The slots** were the planned ones: `rrr 2` and `ere 2` on GPU 0, `aaa 2` and `eee 2` on GPU 1, and
+  each later job in the slot the next exit freed, about 5 minutes after it.
+- **Launch to 150k:** `rrr 2` 12.1 h; `ere 2` 31.4 h and `aaa 2` 34.0 h, each with its stopped first
+  gate; `eee 2` 32.9 h.
+- **The early speed** (`train/residual_l1_magnitude` over steps 1–3,000; the watcher's `SPEED` lines),
+  every run inside 0.025–0.045:
+
+  | Arm | Seed 2 | Seed 3 | Smokes' prediction | Calibration's |
+  |---|---|---|---|---|
+  | `eee` | 0.0353 | 0.0348 | (0.037, `h216n857`'s) | 0.037 |
+  | `aaa` | 0.0301 | 0.0354 | 0.035 | 0.060 |
+  | `ere` | 0.0410 | — | 0.043 | 0.064 |
+  | `ara` | 0.0358 | — | 0.034 | 0.064 |
+  | `rrr` | 0.0286 | 0.0285 | 0.044 | 0.057 |
+
+  The calibration over-predicted every new arm by 1.6–2 times; the smokes came within 1.2 times but
+  for `rrr`'s (1.5). `rrr` runs at ResFiT's own early speed in its own agent (0.029–0.030), at
+  ResFiT's rate.
+- **GPU memory:** a CNN run about 11 GB with its nine env workers (about 5 GB the trainer, 0.66 GB each
+  worker), a ViT run less; the largest pair, `aaa` with `eee`, 22.4 GB of 24.5. **RAM:** 104 of
+  125 GB at 09:55 on 10-23, four runs.
+- **The disk:** the wandb cache cleanup (tmux `wandb-cache`; `outputs/queue/wandb_cache.log`) ran at
+  19:35 and 07:35 each day, from 6.8 GB to 1.7 GB first and from 2.6–3.7 GB to 1.8 GB since. 14 GB
+  free at 09:55 on 10-23, against 16 GB before the queue.
+- **Watched by `swap-watch`** (watch-only) throughout. It tracked each run, logged every eval and
+  each exit with a complete package, logged each early speed once, and FLAGged nothing.
+- **Still to launch,** in the jobs file's order: `ere 3`, `ara 3`, `rra 2`, `rra 3`. Expected at 150k
+  (from each slot's last runs): `ara 2` and `rrr 3` on 10-23 (afternoon), `aaa 3` and `eee 3` on 10-24
+  (about 13:00–15:00), `ere 3`, `ara 3` and `rra 2` on 10-24 to 10-25 (about 20:00–01:00), `rra 3` on
+  10-25 (about 03:00).
+- **The queue's order stays the pre-registered one.** Claude proposed on 10-22 to move `rra 2` ahead
+  of `rrr 3`, so that `rra` (which separates ResFiT's ViTs from its critic) would read a day earlier;
+  Aden did not approve it, and nothing was changed.
+
+---
+
+## 2026-10-23 — NOTE — `arch-swap-1021` at seed 2: the ablated encoder and critic below the base alone with either actor; ResFiT's actor on the equivariant encoder and critic level with all of ResFiT's networks; `eee 2` 31 of 250 below its own replicate. One seed: no contrast is read yet
+
+Read at 09:55 on 10-23 from the four finished run packages (each complete) and `ara 2`'s live record
+(at 130k). The 2026-10-20 PRE-REGISTERED rules read every contrast on two seeds pooled, so nothing
+here is a readout: it is seed 2 alone, for the next session's analysis. The scripts are local and
+gitignored, in `outputs/diagnostics/arch-swap-1021/analysis/`: `at_150k.py` (this table),
+`early_read.py` (the windows to 50k, beside the references) and `late_read.py` (50k–150k).
+
+- **Config caveats:** none of the overrides is a no-op. The agent refuses any field off its default
+  that no network of its mix reads (2026-10-20 CODE; ARCHITECTURE.md, "Which family reads which
+  field"), so the unread fields are logged at their defaults only. AdamW's weight decay scales with
+  the rate, so `aaa`'s is a quarter of the others'.
+
+**At 150k** (of 250 at 110k–150k; the base alone pools to 0.553; ResFiT's anchors 200 and 157):
+
+| Run | Arm [enc · actor · critic] | step-0 | best | final | Evals 0, 10k, …, 150k | 110k–150k | Training successes, 100k–150k |
+|---|---|---|---|---|---|---|---|
+| `w1g1d1tf` | `rrr 2` [R · R · R] | 0.68 | 0.78 | 0.72 | 0.68 0.14 0.44 0.32 0.50 0.40 0.70 0.46 0.76 0.78 0.62 0.66 0.64 0.66 0.74 0.72 | **171 (0.684)** | 172/246 (0.70) |
+| `6xh63lfb` | `ere 2` [E · R · E] | 0.46 | 0.74 | 0.68 | 0.46 0.02 0.18 0.60 0.56 0.56 0.66 0.72 0.58 0.64 0.62 0.70 0.64 0.68 0.74 0.68 | **172 (0.688)** | 136/232 (0.59) |
+| `wk45zp27` | `eee 2` [E · E · E] | 0.58 | 0.68 | 0.46 | 0.58 0.00 0.06 0.28 0.42 0.62 0.52 0.68 0.64 0.46 0.44 0.58 0.38 0.58 0.58 0.46 | 129 (0.516) | 113/215 (0.53) |
+| `q60welj8` | `aaa 2` [A · A · A] | 0.50 | **0.50 (step 0)** | 0.26 | 0.50 0.02 0.00 0.04 0.18 0.34 0.26 0.36 0.40 0.46 0.40 0.30 0.36 0.38 0.40 0.26 | **85 (0.340)** | 77/200 (0.39) |
+| `gv57nzkq` | `ara 2` [A · R · A], to 130k | 0.50 | **0.50 (step 0)** | 0.16 | 0.50 0.00 0.10 0.06 0.26 0.26 0.36 0.32 0.34 0.34 0.28 0.24 0.32 0.16 | (110k–130k: 0.24) | — |
+| `h216n857` | `arch-wide` 2 (`eee`'s launch, 2026-10-15) | 0.58 | 0.82 | 0.58 | 0.58 0.04 0.16 0.58 0.60 0.52 0.50 0.64 0.64 0.60 0.46 0.50 0.66 0.64 0.82 0.58 | 160 (0.640) | 138/226 (0.61) |
+| `bue9dupf` | ResFiT on the re-rendered demos | 0.60 | 0.90 | 0.88 | 0.60 0.16 0.48 0.60 0.70 0.58 0.62 0.64 0.76 0.88 0.74 0.74 0.74 0.90 0.88 0.88 | 207 (0.828) | 214/274 (0.78) |
+
+**What seed 2 shows** (each provisional until seed 3):
+- **The ablated encoder and critic never beat the base alone, with our actor or ResFiT's.** `aaa 2`'s
+  and `ara 2`'s best are their step-0 evals, and both sit at 0.16–0.46 from 40k on. At seed 2, C1
+  (`aaa` − `eee`) is −0.176 and C2 (`ara` − `ere`) about −0.45: the constraint's way, against the
+  pre-registered prediction 1 (C1 does not count; low confidence).
+- **ResFiT's actor on the equivariant encoder and critic is level with all of ResFiT's networks**
+  (`ere 2` 172, `rrr 2` 171), and 0.172 above `eee 2` (C4), the way prediction 3 has it.
+- **But `eee 2` is 31 of 250 (0.124) below `arch-wide 2`,** the same launch at the same seed and
+  starting weights (`tests/test_sweep_arms.py`; the episodes differ, as `seed` does not reach the envs).
+  That replicate gap is the contrasts' bar, 0.13. So C4 at one seed is not yet a finding; against
+  `arch-wide 2` it is +0.048.
+- **H:** `rrr 2` at 0.684 is above its bar, 0.584 (prediction 2); it is 0.144 below ResFiT on the same
+  re-rendered demos (`bue9dupf`) at one seed each.
+
+**The critics, from the early read** (10-22, at 40k–57k, and the finished runs to 150k; reported):
+- **ResFiT's encoder and critic give the actor a steeper value slope.** `debug/dQ_da_mean_abs` is 1.4–1.6
+  times the equivariant pair's from 3k on, in the same agent and action units (`rrr 2` 6.7e-5
+  against `arch-wide 2`'s 4.7–5.0e-5 at 100k–150k). Its value of online data
+  (`debug/q_data_online`) is positive from the start, while every equivariant critic's starts at −0.02
+  to −0.09 and crosses zero between 10k and 40k. `ere`'s critic has `eee`'s values, not `rrr`'s: the signature
+  follows the encoder and critic, not the actor. Whether it is the ViTs' or ResFiT's critic's is
+  `rra`'s to say (C5, C6).
+- **The ablated critic fit the demos fastest and gave the flattest slope:** `q_data_demo` 0.32 at
+  0–3k against 0.17, `dQ_da_mean_abs` 4.5e-5 and flat, its advantage ratio about 0.013 against
+  0.02–0.03, and its value of online data flat. Its residual grew as `eee`'s did (0.055–0.062 at
+  40k–50k). So its actor moved as far, on a weaker signal. At the shared critic rate of 1e-4 the dense
+  critic changes Q about 3 times as much per step (the PRE-REGISTERED entry), so "the constraint helps"
+  and "the dense critic is too fast at 1e-4" are not yet apart.
+- The residual's size and the value of the demos are our agent's in `rrr 2` as in `arch-wide 2`
+  (0.063–0.066 and 0.37–0.38 at 100k–150k), not ResFiT's (0.077–0.083 and 0.41–0.47): the host sets them, not the
+  networks.
+
+**The drift readout cannot measure `aaa 2` or `ara 2` as registered.** It reads each A run's
+`wandb_best/best_model.pt`, and both runs' best is their step-0 model: the residual's last layer still
+at zero, before any actor update. No other weights are kept (no checkpoints). For those runs the
+readout can only report the step-0 critic's invariance error, after its 10k warm-up; `aaa 3` and
+`ara 3` may differ. That is Aden's call, with the readout's analysis.
+
+---
