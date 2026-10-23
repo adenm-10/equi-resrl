@@ -98,9 +98,17 @@ class ResEncoder76InHand(torch.nn.Module):
         # self.out_ln = torch.nn.LayerNorm(n_out)
         self.out_ln = torch.nn.Identity()
         self.n_out = n_out
+        # The 9x9 map of c4 channels is conv[:map_end]'s output, before the last max pool.
+        self.map_end = len(seq) - 2
+        self.map_channels = c4
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.conv(x)              # [B, n_out, 1, 1]
         h = h.flatten(1)              # [B, n_out]
         # return h
         return self.out_ln(h)         # apply LN on the flat feature
+
+    def forward_map(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """(forward's output, the 9x9 map): conv in two slices, which compute what it does whole."""
+        fmap = self.conv[:self.map_end](x)
+        return self.out_ln(self.conv[self.map_end:](fmap).flatten(1)), fmap

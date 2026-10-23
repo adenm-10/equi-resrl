@@ -88,10 +88,17 @@ def vis_ih_layout(n_hidden: int, ih_out: int, n_arms: int = 1) -> list[tuple[str
     return [("regular", n_hidden), ("trivial", ih_out * n_arms)]
 
 
+def window_layout(fields: int, channels: int, n_arms: int = 1) -> list[tuple[str, int]]:
+    """The critic's window (ResObsEnc): regular fields from the agentview map, then each wrist's
+    scalar channels. Empty without one."""
+    return [(kind, count) for kind, count in (("regular", fields), ("trivial", n_arms * channels)) if count]
+
+
 def enc_out_layout_critic(
-    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2,
+    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2, window: tuple[int, int] = (0, 0),
 ) -> list[tuple[str, int]]:
-    return vis_ih_layout(n_hidden, ih_out, n_arms) + prop_layout(n_arms, gripper_dim)
+    return (vis_ih_layout(n_hidden, ih_out, n_arms) + window_layout(*window, n_arms)
+            + prop_layout(n_arms, gripper_dim))
 
 
 def enc_out_layout_actor(

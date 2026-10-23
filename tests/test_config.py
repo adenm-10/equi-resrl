@@ -244,6 +244,10 @@ def test_equivariant_defaults_build_the_reference_network(name):
     assert eq.ih_out_channel == eq.enc_degree_channel == 32
     # Added 2026-10-20: every run before had the equivariant networks.
     assert (eq.encoder_family, eq.actor_family, eq.critic_family) == ("equivariant",) * 3
+    # Added 2026-10-23: the wrist CNN's widths as they were fixed, the agentview encoder's output at
+    # enc_degree_channel's fields, and no window.
+    assert list(eq.ih_channels) == [16, 32, 64, 128] and eq.enc_out_channel is None
+    assert eq.critic_window == eq.critic_window_ih == 0
 
 
 # ---------------------------------------------------------------------------

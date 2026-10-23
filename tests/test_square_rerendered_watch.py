@@ -278,3 +278,19 @@ def test_arch_swap_is_never_stopped_and_logs_its_early_speed():
     rows = [json.loads(line) for line in open(H216N857 / "wandb_logs/metrics.jsonl")]
     residuals = [(int(r["_step"]), float(r[SPEED_KEY])) for r in rows if r.get(SPEED_KEY) is not None]
     assert early_speed(residuals) == pytest.approx(0.03673, abs=1e-5)
+
+
+def test_enc_iface_is_never_stopped_and_logs_its_early_speed():
+    """enc-iface-1023 (2026-10-23 PRE-REGISTERED): every arm to its own 150k with no automatic stop of
+    any kind (watch-only), and its early speed logged as arch-swap-1021's is."""
+    from square_rerendered_watch import ENC_IFACE, RESIDUAL_ARMS, SPEED_ARMS, WATCH_ONLY_ARMS
+
+    assert GROUPS["enc-iface-1023"] == ENC_IFACE
+    assert ENC_IFACE == ("iface-eee", "iface-wide-all", "iface-wide-out", "iface-window")
+    assert set(ENC_IFACE) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in ENC_IFACE:
+        for rates in (KYV7CLFC + [0.0] * 9, OJ5K0JQB, S8OPBLSD, [0.58] * 16, [0.0] * 20):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)

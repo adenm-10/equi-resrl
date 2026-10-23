@@ -60,7 +60,11 @@ residual on Square with each part of ResFiT's layout alone, and all four again",
 2026-10-16 PRE-REGISTERED, "the equivariant residual on Square with arch-wide's
 actor alone, and with a faster actor", and 2026-10-17 PRE-REGISTERED, "the
 equivariant residual on Square with the actor's parts at matched speed, and the
-speed's two edges", and 2026-10-20 PRE-REGISTERED, "the architecture swap".
+speed's two edges", 2026-10-20 PRE-REGISTERED, "the architecture swap", and 2026-10-23
+PRE-REGISTERED, "the encoder's interface": enc-iface-1023's four arms are arch-swap-eee's launch, and
+each of three with its interface grown (ih_channels, enc_out_channel, critic_window,
+critic_window_ih), each the anchor but for those fields (tests/test_interface.py checks what each
+builds).
 """
 
 from __future__ import annotations
@@ -88,6 +92,7 @@ PARTS_GROUP = "equi-arch-parts-1015"
 SPEED_GROUP = "equi-actor-speed-1016"
 MATCHED_GROUP = "equi-speed-matched-1017"
 SWAP_GROUP = "arch-swap-1021"
+IFACE_GROUP = "enc-iface-1023"
 
 RERENDERED = "resfit-residual-square-rerendered"
 NOLN = "resfit-residual-square-noln"
@@ -202,6 +207,25 @@ _SWAP_BASES = {
     SWAP_RRA: (EQUI_ANCHOR - {"agent.critic.num_q=5"}) | SWAP_HEADS,
 }
 LAUNCHED.update({arm: _swap_launch(arm, base) for arm, base in _SWAP_BASES.items()})
+# enc-iface-1023 (2026-10-23 PRE-REGISTERED): arch-swap-eee's launch, and each arm's interface beyond
+# it, as composed values.
+IFACE_CHANGES = {
+    "iface-eee": {},
+    "iface-wide-all": {"equivariance.enc_degree_channel": 64, "equivariance.ih_channels": [32, 64, 128, 256],
+                       "equivariance.ih_out_channel": 64},
+    "iface-wide-out": {"equivariance.enc_out_channel": 128, "equivariance.ih_out_channel": 256},
+    "iface-window": {"equivariance.critic_window": 96, "equivariance.critic_window_ih": 224},
+}
+IFACE_ARMS = tuple(IFACE_CHANGES)
+IFACE_EEE, IFACE_WIDE_ALL, IFACE_WIDE_OUT, IFACE_WINDOW = IFACE_ARMS
+
+
+def _as_override(path: str, value) -> str:
+    return f"{path}=[{','.join(map(str, value))}]" if isinstance(value, list) else f"{path}={value}"
+
+
+LAUNCHED.update({arm: LAUNCHED[SWAP_EEE] | {_as_override(k, v) for k, v in changes.items()}
+                 for arm, changes in IFACE_CHANGES.items()})
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -242,6 +266,7 @@ FROM_ANCHOR.update({
     SWAP_RRR: {"agent.critic.num_q"} | FAMILY_PATHS,
     SWAP_RRA: _SWAP_HEAD_PATHS | FAMILY_PATHS,
 })
+FROM_ANCHOR.update({arm: FROM_ANCHOR[SWAP_EEE] | set(changes) for arm, changes in IFACE_CHANGES.items()})
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -282,6 +307,7 @@ ARM_VALUES.update({
           "agent.actor_lr": float(SWAP_LRS.get(arm, 1e-6))}
     for arm, families in SWAP_ARMS.items()
 })
+ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in IFACE_CHANGES.items()})
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -289,7 +315,8 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              NOLN_ACTOR: DEMOS, NOLN_CRITIC: DEMOS, NOLN_VIT: DEMOS, ACTORLN: RERENDERED_DEMOS,
              CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS,
              ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
-             **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS)}
+             **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS),
+             **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -306,7 +333,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          PARTS_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          SPEED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          MATCHED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         SWAP_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         SWAP_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         IFACE_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -326,6 +354,9 @@ TRAINING = {
     "agent.critic_grad_clip_norm": 1.0, "agent.actor.action_bound": "box",
     "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True,
 }
+# The encoder's interface (2026-10-23 CODE), at the defaults that build every earlier run's encoder.
+EQUI_INTERFACE = {"equivariance.ih_channels": [16, 32, 64, 128], "equivariance.enc_out_channel": None,
+                  "equivariance.critic_window": 0, "equivariance.critic_window_ih": 0}
 EQUI_TRAINING = {
     **TRAINING, "offline_data.name": RERENDERED_DEMOS, "agent.critic.num_q": 5, "equivariance.N": 8,
     "equivariance.encoder_family": "equivariant", "equivariance.actor_family": "equivariant",
@@ -335,7 +366,7 @@ EQUI_TRAINING = {
     "equivariance.num_critic_layers": 1, "equivariance.critic_last_layer_init_scale": None,
     "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
     "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
-    "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True,
+    "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True, **EQUI_INTERFACE,
 }
 # The three network families (2026-10-20 CODE) at the default that builds every earlier run's networks.
 EQUI_FAMILIES = {f"equivariance.{part}_family": "equivariant" for part in ("encoder", "actor", "critic")}
@@ -361,7 +392,7 @@ ANCHORS = {
         "launch": EQUI_ANCHOR, "steps": 300_000,
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 0.0},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
-                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES},
+                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES, **EQUI_INTERFACE},
         "removed": EQUI_REMOVED,
     },
     "6ng62tpm": {
@@ -369,7 +400,7 @@ ANCHORS = {
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 1e-4},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
                   "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none",
-                  **EQUI_FAMILIES},
+                  **EQUI_FAMILIES, **EQUI_INTERFACE},
         "removed": EQUI_REMOVED,
     },
 }
@@ -384,13 +415,15 @@ def case_table_arms(script: str) -> list[str]:
 
 
 ARMS = case_table_arms(SUBMIT.read_text())
-# The arms whose networks are all equivariant: arch-swap-1021's eee among them.
-EQUI_ARMS = [arm for arm in ARMS if arm.startswith("equi-") or arm == SWAP_EEE]
+# The arms whose networks are all equivariant: arch-swap-1021's eee and enc-iface-1023's among them.
+EQUI_ARMS = [arm for arm in ARMS if arm.startswith(("equi-", "iface-")) or arm == SWAP_EEE]
 ARCH_ARMS = [arm for arm in EQUI_ARMS if arm in (ARCH, ARCH_WIDE)]
 RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in IFACE_CHANGES:
+        return IFACE_GROUP
     if arm in SWAP_ARMS:
         return SWAP_GROUP
     if arm in LN_ARMS:
@@ -731,13 +764,14 @@ def test_equivariant_arm_commutes_with_the_group(arm, training, tmp_path, device
     agent = _agent(cfg, device)
     agent.train(training)  # QAgent.train returns None
     eq, spec = cfg.equivariance, ONE_ARM
-    critic_layout = ga.enc_out_layout_critic(eq.enc_degree_channel, eq.ih_out_channel,
-                                             spec["n_arms"], spec["gripper_dim"])
+    out_fields = eq.enc_degree_channel if eq.enc_out_channel is None else eq.enc_out_channel
+    critic_layout = ga.enc_out_layout_critic(out_fields, eq.ih_out_channel, spec["n_arms"], spec["gripper_dim"],
+                                             window=(eq.critic_window, eq.critic_window_ih))
     if cfg.base_policy is None:
         actor_type, actor_layout = agent.enc.enc_out_type_critic, critic_layout
     else:
         actor_type = agent.enc.enc_out_type_actor
-        actor_layout = ga.enc_out_layout_actor(eq.enc_degree_channel, eq.ih_out_channel,
+        actor_layout = ga.enc_out_layout_actor(out_fields, eq.ih_out_channel,
                                                spec["n_arms"], spec["gripper_dim"], spec["hand_dof"])
     actor = agent.actor
     if cfg.agent.actor.actor_last_layer_init_scale == 0.0:
@@ -1082,9 +1116,9 @@ def test_each_matched_arm_starts_from_its_parents_weights(arm, tmp_path, device)
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS, *MATCHED_ARMS, *SWAP_ARMS])
+@pytest.mark.parametrize("arm", [INIT0_LONG, ACTORLN448, *LR_ARMS, *MATCHED_ARMS, *SWAP_ARMS, *IFACE_ARMS])
 def test_each_speed_arm_steps_its_actor_at_its_rate_and_the_rest_at_the_anchors(arm, tmp_path, device):
-    """equi-actor-speed-1016, equi-speed-matched-1017 and arch-swap-1021 (whatever the families: the
+    """equi-actor-speed-1016, equi-speed-matched-1017, arch-swap-1021 and enc-iface-1023 (whatever the families: the
     critic and encoder at ResFiT's 1e-4, phase 0 skipped). The actor's AdamW steps at agent.actor_lr
     (the anchor's 1e-6, or the arm's), and the critic's and the encoder's at agent.critic_lr, 1e-4,
     in every arm. No scheduler rescales either (agent.lr_warmup_steps and
@@ -1241,3 +1275,25 @@ def test_each_swap_pair_starts_from_the_same_weights(arm, other, shared, tmp_pat
         assert mine.keys() == its.keys(), part
         for key, value in mine.items():
             assert torch.equal(value, its[key]), f"{arm}: {part}.{key} differs from {other}'s"
+
+
+# ---------------------------------------------------------------------------
+# enc-iface-1023: the encoder's interface
+# ---------------------------------------------------------------------------
+
+
+def test_iface_eee_is_arch_swap_eee_again(tmp_path):
+    """enc-iface-1023's anchor is arch-swap-eee's launch (so arch-wide's) at the interface's commit: the
+    same overrides and the same composed config but for its naming."""
+    assert _unnamed(_overrides(IFACE_EEE, tmp_path)) == _unnamed(_overrides(SWAP_EEE, tmp_path))
+    assert _differing(_flat(_compose(_overrides(IFACE_EEE, tmp_path))),
+                      _flat(_compose(_overrides(SWAP_EEE, tmp_path)))) == set()
+
+
+@pytest.mark.parametrize("arm", IFACE_ARMS[1:])
+def test_each_iface_arm_is_the_anchor_but_for_its_interface(arm, tmp_path):
+    """Against iface-eee: its listed interface fields alone, at their listed values; the rates and
+    every other field the anchor's."""
+    ours, anchor = _flat(_compose(_overrides(arm, tmp_path))), _flat(_compose(_overrides(IFACE_EEE, tmp_path)))
+    assert _differing(ours, anchor) == set(IFACE_CHANGES[arm])
+    assert {k: ours[k] for k in IFACE_CHANGES[arm]} == IFACE_CHANGES[arm]

@@ -2,7 +2,7 @@
 
     CACHE_DIR=~/projects/equi-resrl python tools/square_rerendered_watch.py --group <seed-group>   # inside tmux
 
-Thirteen seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
+Fourteen seed groups (GROUPS), on the re-rendered Square demos unless said otherwise:
   - square-rerendered-1009: EXPERIMENTS.md's 2026-10-09 PRE-REGISTERED entry ("the equivariant
     residual and tuned RLPD on Square, on the re-rendered demos"), as its AMENDMENTs of 2026-10-09
     and 2026-10-10 change it;
@@ -40,7 +40,10 @@ Thirteen seed groups (GROUPS), on the re-rendered Square demos unless said other
     residual arms, each to its own 150k, never stopped (watch-only);
   - arch-swap-1021: the 2026-10-20 PRE-REGISTERED entry ("the architecture swap"): six residual arms
     of the equivariant agent, each network equivariant, ablated or ResFiT's, each to its own 150k,
-    never stopped (watch-only), each with its early speed logged (SPEED_ARMS).
+    never stopped (watch-only), each with its early speed logged (SPEED_ARMS);
+  - enc-iface-1023: the 2026-10-23 PRE-REGISTERED entry ("the encoder's interface"): arch-swap-eee's
+    agent again and with each of three wider interfaces from its encoder to its critic, each to its
+    own 150k, never stopped (watch-only), each with its early speed logged.
 An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
 STOP_AT step when its trainer would run on past it. A watch-only arm (WATCH_ONLY_ARMS) is never
 signalled: from 2026-10-17 (DEVIATION) no automatic stop of any kind applies to a new group, and Aden
@@ -107,17 +110,18 @@ EQUI_SPEED_MATCHED = ("equi-residual-square-actorln-lr3e-6", "equi-residual-squa
                       "equi-residual-square-actorln448-lr1e-5", "equi-residual-square-actorlr1e-4")
 ARCH_SWAP = ("arch-swap-eee", "arch-swap-aaa", "arch-swap-ere", "arch-swap-ara", "arch-swap-rrr",
              "arch-swap-rra")
+ENC_IFACE = ("iface-eee", "iface-wide-all", "iface-wide-out", "iface-window")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
           "equi-resfit-arch-1013": EQUI_RESFIT_ARCH, "equi-residual-long-1012": EQUI_LONG,
           "resfit-ln-place-1013": RESFIT_LN_PLACE, "equi-arch-parts-1015": EQUI_ARCH_PARTS,
           "equi-actor-speed-1016": EQUI_ACTOR_SPEED, "equi-speed-matched-1017": EQUI_SPEED_MATCHED,
-          "arch-swap-1021": ARCH_SWAP}
+          "arch-swap-1021": ARCH_SWAP, "enc-iface-1023": ENC_IFACE}
 RESIDUAL_ARMS = {RESIDUAL, *RESIDUAL_STARTS, *RESFIT_RX, NOTILT, DIAG,
                  *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG,
                  *RESFIT_LN_PLACE, *EQUI_ARCH_PARTS, *EQUI_ACTOR_SPEED,
-                 *EQUI_SPEED_MATCHED, *ARCH_SWAP}  # every other arm is tuned RLPD
+                 *EQUI_SPEED_MATCHED, *ARCH_SWAP, *ENC_IFACE}  # every other arm is tuned RLPD
 # Stopped only at their collapse (or a diverged critic); they end at their own total_timesteps.
 COLLAPSE_ONLY_ARMS = {*RESFIT_RX}
 # To a fixed length (2026-10-12 AMENDMENT, Aden): a residual that loses the base policy can win it
@@ -128,10 +132,10 @@ FIXED_LENGTH_ARMS = {NOTILT, *RESFIT_EQUI_DIFF, *EQUI_RESFIT_ARCH, *EQUI_LONG, *
 STOP_AT = {NOTILT: 150_000}  # launched for 300k
 # Tracked and logged, never stopped: a run that must go through its collapse to its own end, and
 # every arm of a group pre-registered from 2026-10-17, when Aden ruled out any automatic stop.
-WATCH_ONLY_ARMS = {DIAG, *EQUI_SPEED_MATCHED, *ARCH_SWAP}
-# The early speed, arch-swap-1021's speed readout (2026-10-20 PRE-REGISTERED): the 0-3k residual against
-# a band around arch-wide's, 0.037. Logged once per run, never a stop.
-SPEED_ARMS = {*ARCH_SWAP}
+WATCH_ONLY_ARMS = {DIAG, *EQUI_SPEED_MATCHED, *ARCH_SWAP, *ENC_IFACE}
+# The early speed, arch-swap-1021's speed readout (2026-10-20 PRE-REGISTERED), and enc-iface-1023's:
+# the 0-3k residual against a band around arch-wide's, 0.037. Logged once per run, never a stop.
+SPEED_ARMS = {*ARCH_SWAP, *ENC_IFACE}
 SPEED_KEY, SPEED_WINDOW, SPEED_BAND = "train/residual_l1_magnitude", 3_000, (0.025, 0.045)
 EPISODES = 50                       # per eval
 COLLAPSE_RATE, COLLAPSE_RUN = 0.05, 3

@@ -129,9 +129,10 @@ class AblatedActor(torch.nn.Module):
 
 
 class AblatedCritic(torch.nn.Module):
-    """The equivariant critic `critic`, its layers exported: visual projection, trunk, then each head,
-    each reading proprioception and the action beside its input; Q per head, [num_q, B, 1]. Its
-    q_value and q_value_for_policy are the equivariant critic's, which read only forward."""
+    """The equivariant critic `critic`, its layers exported: visual projection (and its window, if it
+    has one), trunk, then each head, each reading proprioception and the action beside its input; Q
+    per head, [num_q, B, 1]. Its q_value and q_value_for_policy are the equivariant critic's, which
+    read only forward."""
 
     q_value = EquiCritic.q_value
     q_value_for_policy = EquiCritic.q_value_for_policy
@@ -141,13 +142,29 @@ class AblatedCritic(torch.nn.Module):
         self.min_q_heads = critic.min_q_heads
         self.policy_gradient_type = critic.policy_gradient_type
         self.vis_ih_end = critic.vis_ih_type.size
+        self.window_end = self.vis_ih_end + (0 if critic.window_type is None else critic.window_type.size)
         self.visual_proj = plain(critic.visual_proj)
+        self.window_proj = None if critic.window_proj is None else plain(critic.window_proj)
         self.input_proj = plain(critic.input_proj)
         self.heads = torch.nn.ModuleList([plain(head.net) for head in critic.q_ensemble.heads])
 
+    def _visual(self, x: torch.Tensor):
+        """As the equivariant critic's _visual, on plain tensors."""
+        if self.window_proj is None:
+            return self.visual_proj(x[:, :self.vis_ih_end]), None
+        window = self.window_proj(x[:, self.vis_ih_end:self.window_end])
+        images = self.visual_proj[0](x[:, :self.vis_ih_end])
+        return self.visual_proj[1:](images + window), (window, images)
+
+    def window_share(self, feat) -> torch.Tensor:
+        """As the equivariant critic's."""
+        _, (window, images) = self._visual(feature_tensor(feat))
+        return (window.norm(dim=1) / images.norm(dim=1).clamp_min(1e-12)).mean()
+
     def forward(self, feat, act: torch.Tensor) -> torch.Tensor:
         x = feature_tensor(feat)
-        prop = x[:, self.vis_ih_end:]
-        z = self.input_proj(torch.cat([self.visual_proj(x[:, :self.vis_ih_end]), prop, act], dim=1))
+        prop = x[:, self.window_end:]
+        v, _ = self._visual(x)
+        z = self.input_proj(torch.cat([v, prop, act], dim=1))
         head_in = torch.cat([z, prop, act], dim=1)
         return torch.stack([head(head_in) for head in self.heads], dim=0)

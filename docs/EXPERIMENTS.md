@@ -9259,3 +9259,182 @@ readout can only report the step-0 critic's invariance error, after its 10k warm
 `ara 3` may differ. That is Aden's call, with the readout's analysis.
 
 ---
+
+## 2026-10-23 — CODE — the encoder's interface to the critic: the encoders' widths, their last layers' widths, and a window for the critic over each encoder's 9x9 map, for `enc-iface-1023`; the encoder probe
+
+The code for growing the encoder's interface (`docs/plans/2026-10-23-encoder-interface.md`, local),
+which Aden approved on 2026-10-23 with its review questions at Claude's recommendations: seeds 2 and 3,
+the window at 96 fields and 224 wrist channels, the probe in `tools/`, the ablated window built now,
+no fifth arm, the bars as proposed. The four arms join `submit.sh` here and are pre-registered in the
+next commit. It changes files under `resfit/`, so a run from it compares with the
+runs before it only through an anchor at it: `iface-eee`, `arch-swap-eee`'s launch again.
+
+**Why.** The equivariant critic sees 288 numbers per frame: its agentview encoder's 1x1 output (32
+regular fields, 256 numbers) and the wrist's 32. ResFiT's critic sees its ViTs' 20,736 spatial tokens.
+Inside the agentview encoder the 9x9 map before its last max pool is 20,736 numbers too, and the pool
+to 3x3 and the last conv keep 256 of them. The encoders are of a size (0.63M against 0.76M learnable
+weights) and the critics' heads of a width (10 x 2 x 1024), so the interface is the largest difference
+left between `eee` and `rrr` (the 2026-10-23 NOTE and the plan's section 0).
+
+- **Four fields** (`EquivarianceConfig`), each at the default that builds every earlier run's encoder:
+  - `ih_channels` (`[16, 32, 64, 128]`): the wrist CNN's four stage widths, a constructor argument fixed
+    at these before;
+  - `enc_out_channel` (`None`): the agentview encoder's output fields, from its last conv (3x3 to
+    1x1); `None` keeps `enc_degree_channel`;
+  - `critic_window` and `critic_window_ih` (`0`, `0`): the critic's window.
+- **The encoders** (`networks/equi_encoder.py`, `networks/ablate_equi_encoder.py`): each gains `map_end`,
+  the index of its 9x9 map in `conv`, and `forward_map`, which runs `conv[:map_end]` and then
+  `conv[map_end:]` and returns the output and the map. No module moves, so every state dict saved before
+  loads (`wk45zp27`'s, into `iface-eee`, on the GPU). Every family's forward runs this way from this
+  commit; the two slices compute what the whole does, bit for bit.
+- **The window** (`ResObsEnc`): a 9x9 conv over each encoder's 9x9 map, no padding, bias-free, to 1x1,
+  each then a ReLU.
+  - The agentview's is an `R2Conv` from the map's regular fields to `critic_window` regular fields: the
+    same kind of layer as the encoder's own last conv, so equivariant exactly at right angles and
+    approximately at 45° (EQUIVARIANCE.md). The wrist's is a plain `Conv2d` per arm to
+    `critic_window_ih` channels, declared trivial, as the wrist features are.
+  - Its features join the critic's alone, `[images | window | proprioception]`; the actor's stay
+    `[images | proprioception | base action]`.
+  - The critic reads them through `window_proj` (`rl/critic.py`), an escnn Linear from the window's
+    type to the visual projection's fields, bias-free, added to the projection's own Linear's output
+    before its norm. A window with `use_visual_proj=False` is refused.
+  - **It starts as the arm without it.** `window_proj` is built at zero (`initialize=False`, which
+    draws nothing), and the window's convs are built with torch's and numpy's random state forked. So at
+    a seed every other weight is the one built without the window, and Q is the same function.
+  - The ablated family exports the window's agentview conv (`plain`), and `AblatedCritic` mirrors
+    `window_proj`.
+  - `debug/critic_window_share` (`critic_diagnostics`): the window term's norm against the images',
+    before the norm they are added under; 0 at the start. `debug/enc_window_obs_grad_norm` and
+    `debug/enc_window_ih_grad_norm` come with the encoder's other children's.
+- **Refused** (`check_families`): the four fields beside ResFiT's encoder, and the two window fields
+  beside ResFiT's critic, which reads neither.
+- **Also:** `q_agent.build_encoder`, the encoder's construction out of `QAgent.__init__` (the same call
+  in the same order), which `tools/encoder_probe.py` uses. `tools/agent_fingerprint.py` gains three
+  candidates, `iface-wide-all`, `iface-wide-out` and `iface-window`, each one change off
+  `actor-critic-ln`. `submit.sh` gains `enc-iface-1023`'s four arms; `tools/square_rerendered_watch.py`
+  the group, watch-only, its early speeds logged. The gate runs the two new test files.
+- **`tools/encoder_probe.py`** (new): what a frozen encoder's taps hold about the nut. The re-rendered
+  Square demos, every 8th frame (10,216 frames of 300 episodes); targets from each frame's simulator
+  state set into the demos' scene as the frame was rendered (the grip site within 6e-8 m of the
+  dataset's end-effector position at every frame); ridge and an MLP on principal scores, at full size
+  and at equal size, held out by episode. Its results are the next entry's.
+- **Sizes** (parameters, seed 2, at each arm's design; `outputs/diagnostics/enc-iface/calibration.json`):
+
+  | Arm | Encoder | Actor | Critic |
+  |---|---|---|---|
+  | `iface-eee` (`arch-wide`) | 0.627M | 3.364M | 2.824M |
+  | `iface-wide-all` | 2.506M | 3.493M | 2.861M |
+  | `iface-wide-out` | 1.033M | 3.808M | 2.951M |
+  | `iface-window` | 3.712M (the window 3.085M: the wrist's plain conv 2.32M, the agentview's `R2Conv` 0.76M) | 3.364M | 2.951M (`window_proj` 0.127M) |
+
+- **The agent every earlier run used is bit for bit as before:**
+  - `tests/test_regression_agent.py`'s goldens and `tests/test_regression_single_arm.py`'s pass unchanged.
+  - `tools/agent_fingerprint.py --deep`, for all 19 earlier `CANDIDATES`, on the CPU at 4 threads, is
+    identical to `aec1bdc`'s tree (every arch-swap run's), tensor for tensor: 603–942 values each, after 8
+    updates and one act() (`outputs/diagnostics/enc-iface/deep/deep.log`).
+  - ResFiT's own agent is untouched: `off_policy/` does not change.
+- **The window starts as the arm without it,** measured at `iface-eee`'s and `iface-window`'s configs at
+  seed 2 (`tests/test_interface.py`): the same torch and numpy random state after construction; every
+  tensor the two share equal bit for bit; the same features (the critic's less the window's), the same Q
+  exactly, a window share of 0, and the same first critic loss. After two updates every window weight
+  has moved and the share is above 0. At the reference config with a small window (8 fields, 16 wrist
+  channels), on the CPU, the same, and the first critic loss is 0.20486762 in both.
+- **Tests:**
+  - New: `tests/test_interface.py` (above; the two slices; the refusals; each arm's input sizes; a
+    model saved before this commit, `wk45zp27`'s, loads into `iface-eee`) and `tests/test_encoder_probe.py`
+    (the targets against robosuite's own `NutAssemblySquare` env set to the same state; the split; ridge;
+    the AUROC).
+  - Extended: `test_equivariance.py` (the agentview features at `enc_out_channel`, at wide-all's width and
+    with the window, equivariant at right angles; the window's 45° error reported; the critic with a
+    window moved off zero, invariant), `test_ablated.py` (the three interfaces start as the equivariant
+    function; the ablated critic reads a window as the equivariant one), `test_sync_free.py` (the three
+    candidates and the ablated window), `test_obs_formats.py` (the window from float and uint8 images),
+    `test_resfit_heads.py` (the four fields refused beside ResFiT's networks), `test_sweep_arms.py`
+    (the group: each arm the anchor but for its fields, `iface-eee` `arch-swap-eee` again; the anchors'
+    recorded configs with the four new fields at their defaults), `test_square_rerendered_watch.py`,
+    `test_config.py`; `tests/group_action.py` lays out the window.
+  - **The suite on the CPU** (the GPUs were full; `--gpu` runs the GPU-marked tests on the session's
+    device): Tier 1 and the watcher's test 248 passed, 2 skipped; the GPU-marked files but
+    `test_sweep_arms.py` 440 passed; `test_sweep_arms.py` 392 passed. The 55 that failed each raised "No
+    CUDA GPUs are available" (the host-sync census, ResFiT's ViTs, the critic diagnostics and the BC
+    term call CUDA directly); none is a test of this change, and every one runs in each launch's gate,
+    on the GPU (the PRE-REGISTERED entry). After renaming the group from the plan's provisional
+    `enc-iface-1025`: the CPU-tier files again, 342 passed.
+- **Not tested here:** the trainer end to end with the window or the wider encoders. The integration
+  smokes run in the first free slot, before the queue (the PRE-REGISTERED entry).
+
+---
+
+## 2026-10-23 — MEASUREMENT — the encoder probe: the equivariant encoder's 9x9 map holds what its 1x1 output, the critic's input, loses; ResFiT's ViT tokens hold less than the map
+
+`tools/encoder_probe.py` (the CODE entry before), run on 2026-10-23 on the CPU from the uncommitted
+tree that became that commit; records in `outputs/diagnostics/enc-iface/probe/` (local: one JSON per
+encoder, `report.txt`, and a first pass that stored only each target's mean, kept in
+`pass1-xyz-only/`; its numbers are the same). The plan's section 2
+(`docs/plans/2026-10-23-encoder-interface.md`, local), approved by Aden on 2026-10-23.
+
+- **What it reads.** Frozen encoders on the re-rendered Square demos, every 8th frame: 10,216 frames
+  of 300 episodes, split by episode (192 fit, 48 pick the ridge penalty and stop the MLP, 60 held
+  out; 6,508, 1,691 and 2,017 frames). The targets come from each frame's simulator state, set into
+  the demos' scene as the frame was rendered; the grip site was within 6e-8 m of the dataset's
+  end-effector position at every frame. Each encoder is in eval mode: the centred crop, no shift.
+- **The encoders:** the best models of `eee 2` (`wk45zp27`, saved at 70k), `arch-wide 2` (`h216n857`,
+  140k), `ere 2` (`6xh63lfb`, 140k) and `rrr 2` (`w1g1d1tf`, 90k); and an untrained equivariant
+  encoder and an untrained pair of ViTs, each built from its run's config at torch seed 2 (not
+  necessarily the runs' own starts). `aaa 2`'s best model is its step-0 one, so it is left out.
+  `eee 3` is probed when it finishes.
+- **The taps:** the agentview encoder's 1x1 output (256 numbers, what the critic reads), its 3x3 map
+  after the last max pool (2,304) and its 9x9 map before it (20,736); the wrist CNN's 1x1 output (32),
+  3x3 (1,152) and 9x9 (10,368); each ViT's tokens (10,368) and their mean (128).
+- **The probes:** ridge regression and a one-hidden-layer MLP on each tap's principal components, at
+  full size and at equal size: the first 256 (and 32), so a wider tap gets no free advantage.
+
+**Held-out R² of the nut's xy relative to the gripper** (agentview camera unless said; ridge unless
+said):
+
+| Encoder | 1x1 (256) | 1x1, MLP | 3x3 at 256 | 9x9 at 256 | 9x9 at 256, MLP | 9x9 whole | yaw: 1x1 | yaw: 9x9 at 256 | wrist 1x1 (32) | wrist 9x9 at 32 | wrist 9x9 at 256 | xy error (mm): 1x1 / 9x9 at 256 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `eee 2` | 0.61 | 0.66 | 0.74 | 0.75 | 0.79 | 0.83 | 0.35 | 0.59 | 0.54 | 0.63 | 0.75 | 33 / 24 |
+| `arch-wide 2` | 0.63 | 0.69 | 0.75 | 0.75 | 0.79 | 0.83 | 0.35 | 0.59 | 0.57 | 0.62 | 0.76 | 32 / 25 |
+| `ere 2` | 0.61 | 0.72 | 0.73 | 0.73 | 0.78 | 0.83 | 0.41 | 0.60 | 0.52 | 0.59 | 0.75 | 34 / 25 |
+| untrained | 0.46 | 0.60 | 0.65 | 0.66 | 0.75 | 0.75 | 0.14 | 0.25 | 0.51 | 0.59 | 0.68 | 41 / 29 |
+
+For the ViTs the columns are the token mean (128) for "1x1" and the tokens for "9x9":
+
+| Encoder | mean (128) | mean, MLP | tokens at 256 | tokens at 256, MLP | tokens whole | yaw: mean | yaw: tokens at 256 | wrist mean | wrist tokens at 32 | wrist tokens at 256 | xy error (mm) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `rrr 2` | 0.68 | 0.74 | 0.67 | 0.72 | 0.74 | 0.26 | 0.27 | 0.67 | 0.57 | 0.68 | 30 / 29 |
+| untrained | 0.47 | 0.55 | 0.56 | 0.66 | 0.64 | 0.09 | 0.15 | 0.59 | 0.55 | 0.65 | 40 / 34 |
+
+The nut's position relative to the peg and in the world reads at 0.83–0.97 from every agentview tap
+of every trained encoder (ridge, whole or at 256), and the lifted flag at an AUROC of 0.986–0.997
+(`report.txt`): the nut's
+place in the scene is in every tap; its place against the gripper, which a residual correction needs,
+is what differs. An MLP on more than about 2,000 components overfits 6,508 frames (the 3x3 map's,
+whole: 0.50–0.58), so the whole-tap readings are ridge's.
+
+- **Reading, against the plan's bars** (decision on the 9x9 map against the 1x1 output, for both
+  trained equivariant encoders at equal size, nut-to-gripper xy):
+  - **"Lost in the squeeze."** The 9x9 map beats the 1x1 output by 0.14 (`eee 2`) and 0.11
+    (`arch-wide 2`) with ridge, and by 0.14 and 0.10 with the MLP: at or above the 0.10 bar in all
+    four. The plan's prediction for this outcome: the window above wide-out, wide-out at or above
+    `eee`.
+  - **Not "never extracted":** the maps hold more than ResFiT's tokens at equal size (0.75 against
+    0.67). **Not "already there":** the 1x1 output is 0.06 below the tokens at equal size (the bar
+    is 0.05) and 0.13 below them whole, which is what ResFiT's critic reads.
+  - **The loss is in the last conv, not the max pool.** At 256 components the 3x3 map is within 0.01
+    of the 9x9 map; the conv from 3x3 to 1x1 then loses 0.13. So `iface-wide-out`, which widens that
+    conv to 128 fields, can keep much of it too. Claude's prediction is therefore window ≥ wide-out >
+    eee, rather than the plan's window > wide-out ≥ eee.
+  - **It is the architecture's.** The untrained encoder shows the same gap (0.46 against 0.66);
+    training lifts the 1x1 output by 0.15–0.17 and the map at 256 by 0.07–0.09, so it narrows the gap
+    without closing it.
+  - **The nut's heading relative to the gripper is where the squeeze costs most:** 0.35 at the 1x1
+    output against 0.59 at the map at equal size. ResFiT's tokens hold less of it (0.27).
+  - **The wrist camera's squeeze is smaller:** 0.54 at its 32 outputs against 0.63 for the map's
+    first 32 components.
+- **Caveats.** A probe shows what can be read, not what the critic uses: a critic trained end to end
+  through a wider interface may use it or not. The trained encoders were saved at different steps (70k,
+  90k, 140k) by critics of different families. One seed of each; `eee 3` follows.
+
+---

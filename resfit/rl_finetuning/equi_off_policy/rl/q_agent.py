@@ -26,12 +26,14 @@ from resfit.rl_finetuning.equi_off_policy.rl.resfit_heads import ResFiTActor, Re
 
 # The EquivarianceConfig fields that only the equivariant family's network of each kind reads, and so
 # the ablated one, which is built by it. ResFiT's networks read agent.vit, agent.actor and
-# agent.critic instead, so behind them these do nothing.
+# agent.critic instead, so behind them these do nothing. The critic's window is read by both the
+# encoder, which computes it, and the critic, which reads it.
+WINDOW_FIELDS = ("critic_window", "critic_window_ih")
 ENCODER_FIELDS = ("encoder_norm", "encoder_orth_init", "initialize", "enc_degree_channel", "ih_out_channel",
-                  "float_images_as_uint8")
+                  "float_images_as_uint8", "ih_channels", "enc_out_channel", *WINDOW_FIELDS)
 ACTOR_FIELDS = ("actor_norm", "actor_degree_channel", "use_orth_init")
 CRITIC_FIELDS = ("critic_norm", "critic_pooled_norm", "num_critic_layers", "critic_degree_channel",
-                 "critic_orth_init", "critic_last_layer_init_scale")
+                 "critic_orth_init", "critic_last_layer_init_scale", *WINDOW_FIELDS)
 
 
 def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residual_actor: bool) -> None:
@@ -61,6 +63,7 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
         unread += ACTOR_FIELDS
     if critic == "resfit":
         unread += CRITIC_FIELDS
+    unread = list(dict.fromkeys(unread))  # the window's fields are in two lists
     if actor == critic == "resfit":
         unread.append("use_visual_proj")
     if critic != "equivariant":
@@ -70,6 +73,37 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
     if changed:
         raise ValueError(f"no network of this agent ({encoder} encoder, {actor} actor, {critic} critic) reads "
                          f"equivariance.{changed}; leave them at their defaults")
+
+
+def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equi_cfg: EquivarianceConfig,
+                  residual_actor: bool) -> ResObsEnc:
+    """The agent's observation encoder, as QAgent builds it, on the CPU. tools/encoder_probe.py builds
+    a run's encoder alone through here."""
+    return ResObsEnc(                              # was: EquivariantResObsEnc
+        obs_shape=obs_shape,
+        N=equi_cfg.N,
+        n_hidden=equi_cfg.enc_degree_channel,
+        encoder=equi_cfg.encoder_family,
+        vit_cfg=agent_cfg.vit if equi_cfg.encoder_family == "resfit" else None,
+        group=gspaces.no_base_space(CyclicGroup(equi_cfg.N)),
+        initialize=equi_cfg.initialize,
+        encoder_norm=equi_cfg.encoder_norm,
+        encoder_orth_init=equi_cfg.encoder_orth_init,
+        float_images_as_uint8=equi_cfg.float_images_as_uint8,
+        # Per-arm observation layout, the same in every family. Vanilla RL
+        # (residual_actor=False) has no base action to encode.
+        n_arms=equi_cfg.n_arms,
+        gripper_dim=equi_cfg.gripper_dim,
+        hand_dof=equi_cfg.hand_dof,
+        agentview_key=rl_cameras[0],
+        wrist_keys=tuple(rl_cameras[1:]),
+        ih_out_channel=equi_cfg.ih_out_channel,
+        base_action_input=residual_actor,
+        ih_channels=tuple(equi_cfg.ih_channels),
+        enc_out_channel=equi_cfg.enc_out_channel,
+        critic_window=equi_cfg.critic_window,
+        critic_window_ih=equi_cfg.critic_window_ih,
+    )
 
 
 class QAgent(torch.nn.Module):
@@ -129,8 +163,6 @@ class QAgent(torch.nn.Module):
                              "already, as its actions are")
         check_families(equi_cfg, agent_cfg, residual_actor)
 
-        N = self.equi_cfg.N
-        n_hid = self.equi_cfg.enc_degree_channel
         use_orth_init = self.equi_cfg.use_orth_init
 
         critic_hidden_dim = self.equi_cfg.critic_degree_channel
@@ -147,34 +179,9 @@ class QAgent(torch.nn.Module):
         actor_dropout = self.agent_cfg.actor.dropout
         last_layer_scale = self.agent_cfg.actor.actor_last_layer_init_scale
 
-        # Per-arm observation layout, the same in every family. Vanilla RL
-        # (residual_actor=False) has no base action to encode.
-        enc_layout = dict(
-            n_arms=self.equi_cfg.n_arms,
-            gripper_dim=self.equi_cfg.gripper_dim,
-            hand_dof=self.equi_cfg.hand_dof,
-            agentview_key=rl_cameras[0],
-            wrist_keys=tuple(rl_cameras[1:]),
-            ih_out_channel=self.equi_cfg.ih_out_channel,
-            base_action_input=residual_actor,
-        )
-
+        self.enc = build_encoder(obs_shape, rl_cameras, agent_cfg, equi_cfg, residual_actor).to(self.agent_cfg.device)
         # The group is built in every family: the action layout, which bounds every actor, is its.
-        self.group = gspaces.no_base_space(CyclicGroup(N))
-
-        self.enc = ResObsEnc(                              # was: EquivariantResObsEnc
-            obs_shape=obs_shape,
-            N=N,
-            n_hidden=n_hid,
-            encoder=self.equi_cfg.encoder_family,
-            vit_cfg=self.agent_cfg.vit if self.equi_cfg.encoder_family == "resfit" else None,
-            group=self.group,
-            initialize=self.equi_cfg.initialize,
-            encoder_norm=self.equi_cfg.encoder_norm,
-            encoder_orth_init=self.equi_cfg.encoder_orth_init,
-            float_images_as_uint8=self.equi_cfg.float_images_as_uint8,
-            **enc_layout,
-        ).to(self.agent_cfg.device)
+        self.group = self.enc.group
 
         # The critic, then the actor: the equivariant network, or it exported (ablated), or ResFiT's.
         if self.equi_cfg.critic_family == "resfit":
@@ -198,6 +205,7 @@ class QAgent(torch.nn.Module):
                 dropout=critic_dropout,
                 min_q_heads=min_q_heads,
                 policy_gradient_type=policy_gradient_type,
+                window_type=self.enc.window_type,
             )
             self.critic = critic if self.equi_cfg.critic_family == "equivariant" else AblatedCritic(critic)
 
@@ -838,10 +846,13 @@ class QAgent(torch.nn.Module):
         def q(action):
             return self.critic(obs["critic_feat"], action).squeeze(-1).mean(dim=0)
 
+        metrics = {}
+        if getattr(self.critic, "window_proj", None) is not None:
+            metrics["debug/critic_window_share"] = self.critic.window_share(obs["critic_feat"]).item()
+
         q_data, q_policy = q(data_action), q(policy_action)
         gap = (policy_action - data_action).abs().mean(dim=-1)
         halves = {"online": slice(0, num_online), "demo": slice(num_online, None)}
-        metrics = {}
         for name, rows in halves.items():
             if q_data[rows].numel() == 0:
                 continue

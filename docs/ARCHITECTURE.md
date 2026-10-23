@@ -167,6 +167,10 @@ makes each row executable.
 | `N` | `8` | used | used (via group) | used (via group) | **Live** |
 | `enc_degree_channel` | `32` | `n_out` | — | — | **Live** (last run overrode to 16) |
 | `ih_out_channel` | `32` | wrist width | — | — | **Live** from 2026-09-29. Before, the wrist width was `enc_degree_channel` |
+| `ih_channels` | `[16, 32, 64, 128]` | the wrist CNN's four stage widths | — | — | **Live** from 2026-10-23; fixed at these before |
+| `enc_out_channel` | `None` | the agentview encoder's output fields, from its last conv; `None` is `enc_degree_channel` | — | — | **Live** from 2026-10-23 |
+| `critic_window` | `0` | the critic's window: a 9×9 conv over the agentview's 9×9 map to this many regular fields | reads it through `window_proj` | — | **Live** from 2026-10-23; 0 and 0 build no window |
+| `critic_window_ih` | `0` | the window over each wrist's 9×9 map, plain, to this many channels | as `critic_window` | — | **Live** from 2026-10-23 |
 | `actor_degree_channel` | `128` | — | — | `hidden_dim` | **Live** |
 | `critic_degree_channel` | `128` | — | `hidden_dim` | — | **Live** |
 | `initialize` | `True` | passed through | hardcoded `True` | hardcoded `True` | **Partial** — only reaches the encoder |
@@ -192,17 +196,20 @@ before 2026-09-30 had as `iid_bn` (EXPERIMENTS.md, 2026-09-30 CODE). `float_imag
 2026-10-02, was in effect `True` in every run before then. The three families, added on 2026-10-20,
 were in effect `equivariant` in every run before; those runs' configs also record the two fields
 removed then, `use_equivariant_model` and `use_norms`, both `True`, which built the equivariant
-networks and reached none of them.
+networks and reached none of them. The interface's four, added on 2026-10-23, were in effect at their
+defaults in every run before.
 
 **Which family reads which field.** The table is the equivariant networks'. The ablated ones read the
 same fields, since the equivariant constructors build them. ResFiT's read `agent.vit`, `agent.actor`
 and `agent.critic` instead, as ResFiT's agent does, so behind them these do nothing and
 `check_families` refuses each off its default:
 - behind ResFiT's encoder: `encoder_norm`, `encoder_orth_init`, `initialize`, `enc_degree_channel`,
-  `ih_out_channel`, `float_images_as_uint8`;
+  `ih_out_channel`, `float_images_as_uint8`, `ih_channels`, `enc_out_channel`, `critic_window`,
+  `critic_window_ih`;
 - with ResFiT's actor: `actor_norm`, `actor_degree_channel`, `use_orth_init`;
 - with ResFiT's critic: `critic_norm`, `critic_pooled_norm`, `num_critic_layers`,
-  `critic_degree_channel`, `critic_orth_init`, `critic_last_layer_init_scale`;
+  `critic_degree_channel`, `critic_orth_init`, `critic_last_layer_init_scale`, `critic_window`,
+  `critic_window_ih` (the window is the encoder's and the critic's both);
 - with ResFiT's actor and critic both: `use_visual_proj`;
 - with any critic but the equivariant one: `frozen_target_critic`, since a plain critic computes the
   same in either mode.
@@ -284,6 +291,21 @@ One hidden layer. `actor_norm` also follows the visual and trunk projections. It
 since 2026-09-30, normalizes at none of the three sites, as in the SO(2) equivariant RL code this
 project follows. Every run before then had `IIDBatchNorm1d` at all three. `equi_tanh` is there only with
 `residual_squash=True`; without it the mean is not bounded by `action_scale`.
+
+**The encoder's interface to the critic** (from 2026-10-23). At the defaults the critic reads 288
+numbers per frame: the agentview encoder's 1×1 output, 32 regular fields (256 numbers), and the
+wrist's 32. Inside the agentview encoder the 9×9 map before its last max pool is 20,736 numbers, as
+many as ResFiT's critic reads; the pool to 3×3 and the last conv keep 256. Three fields widen what
+reaches the critic: `enc_degree_channel` and `ih_channels` the whole encoder, `enc_out_channel` and
+`ih_out_channel` only the last convs, and `critic_window` / `critic_window_ih` a second look for the
+critic alone. The window is a 9×9 conv over each encoder's 9×9 map (`forward_map`), the agentview's
+an `R2Conv` to regular fields and the wrist's a plain `Conv2d`, each then a ReLU. Its features join
+the critic's, `[images | window | proprioception]`, never the actor's, and reach the critic through
+`window_proj`, a Linear to the visual projection's fields added to its Linear's output before its
+norm. `window_proj` starts at zero and draws nothing, and the window's convs are built with the
+random state forked, so a window arm at a seed starts as the arm without it, bit for bit
+(`tests/test_interface.py`). `debug/critic_window_share` logs the window term's size against the
+images' (`critic_diagnostics`).
 
 **The ablated networks** (`*_family=ablated`) are these, each exported: the same graph, every
 escnn layer's expanded weights a plain parameter. At `arch-wide`'s sizes the agentview encoder has

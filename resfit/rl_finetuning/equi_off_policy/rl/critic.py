@@ -64,6 +64,11 @@ class Critic(torch.nn.Module):
     visual projection -> trunk projection -> an ensemble of num_q heads, each
     hidden layer followed by `norm` (HIDDEN_NORMS) and each head's pooled
     features by `pooled_norm` (POOLED_NORMS).
+
+    With a `window_type`, its features ([images | window | proprioception], ResObsEnc) are read
+    through `window_proj`, a Linear to the visual projection's fields added to its Linear's output,
+    before its norm. window_proj starts at zero and draws no random number, so the critic starts as
+    the one without a window, at every input.
     """
 
     def __init__(self,
@@ -82,10 +87,12 @@ class Critic(torch.nn.Module):
                  use_visual_proj: bool,
                  loss_cfg,
                  min_q_heads: int,
-                 policy_gradient_type: str):
+                 policy_gradient_type: str,
+                 window_type: nn.FieldType | None = None):
         super().__init__()
         self.group = group
         self.vis_ih_type = vis_ih_type
+        self.window_type = window_type
         self.prop_type   = prop_type
         self.action_type = action_type
 
@@ -104,6 +111,11 @@ class Critic(torch.nn.Module):
         else:
             self.vp_type = vis_ih_type
             self.visual_proj = torch.nn.Identity()
+        self.window_proj = None
+        if window_type is not None:
+            if not use_visual_proj:
+                raise ValueError("the critic's window adds into its visual projection: it needs use_visual_proj")
+            self.window_proj = nn.Linear(window_type, self.vp_type, bias=False, initialize=False)  # zero
 
         # ---- Trunk (visual_proj_out + prop + action) ----
         trunk_in_type        = self.vp_type + prop_type + action_type
@@ -144,15 +156,30 @@ class Critic(torch.nn.Module):
     def _logits_to_q(probs, support):
         return (probs * support).sum(-1, keepdim=True)
 
-    def forward(self, feat: nn.GeometricTensor, act: torch.Tensor, *, return_logits: bool = False):
+    def _visual(self, feat: nn.GeometricTensor):
+        """(the visual projection's output, its window term or None, proprioception)."""
         n          = feat.tensor.shape[1]
         vis_ih_end = self.vis_ih_type.size
+        window_end = vis_ih_end + (0 if self.window_type is None else self.window_type.size)
 
         vis_ih = slice_gt(feat, 0,          vis_ih_end, self.vis_ih_type)
-        prop   = slice_gt(feat, vis_ih_end, n,          self.prop_type)
-        act_gt = nn.GeometricTensor(act, self.action_type)
+        prop   = slice_gt(feat, window_end, n,          self.prop_type)
+        if self.window_proj is None:
+            return self.visual_proj(vis_ih), None, prop
+        window = self.window_proj(slice_gt(feat, vis_ih_end, window_end, self.window_type))
+        images = self.visual_proj[0](vis_ih)
+        return self.visual_proj[1:](images + window), (window, images), prop
 
-        v        = self.visual_proj(vis_ih)
+    def window_share(self, feat: nn.GeometricTensor) -> torch.Tensor:
+        """The window term's size against the images', mean over the batch of the ratio of their
+        norms, before the norm they are added under: 0 at the start. Logging only."""
+        _, (window, images), _ = self._visual(feat)
+        return (window.tensor.norm(dim=1) / images.tensor.norm(dim=1).clamp_min(1e-12)).mean()
+
+    def forward(self, feat: nn.GeometricTensor, act: torch.Tensor, *, return_logits: bool = False):
+        v, _, prop = self._visual(feat)
+        act_gt     = nn.GeometricTensor(act, self.action_type)
+
         trunk_in = cat_gts([v, prop, act_gt])
 
         z       = self.input_proj(trunk_in)

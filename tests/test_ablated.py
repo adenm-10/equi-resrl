@@ -25,9 +25,10 @@ FAMILIES = ("encoder_family", "actor_family", "critic_family")
 
 
 def _launches():
-    from tests.test_sweep_arms import ARCH_WIDE, INIT0_LONG, LAUNCHED, _launch_order
+    from tests.test_sweep_arms import ARCH_WIDE, IFACE_ARMS, INIT0_LONG, LAUNCHED, _launch_order
 
-    return {"init0": _launch_order(LAUNCHED[INIT0_LONG]), "arch-wide": _launch_order(LAUNCHED[ARCH_WIDE])}
+    return {"init0": _launch_order(LAUNCHED[INIT0_LONG]), "arch-wide": _launch_order(LAUNCHED[ARCH_WIDE]),
+            **{arm: _launch_order(LAUNCHED[arm]) for arm in IFACE_ARMS if arm != "iface-eee"}}
 
 
 def _build(launch, family: str, device, **paths):
@@ -54,7 +55,7 @@ def _build(launch, family: str, device, **paths):
 
 @pytest.mark.gpu
 @pytest.mark.slow
-@pytest.mark.parametrize("config", ["init0", "arch-wide"])
+@pytest.mark.parametrize("config", ["init0", "arch-wide", "iface-wide-all", "iface-wide-out", "iface-window"])
 def test_ablated_starts_as_the_equivariant_function(config, device, no_tf32):
     """Exporting draws no random number, so torch and numpy are where the equivariant build leaves
     them, and every update after draws alike. The actor's last layer is at escnn's own init here: at
@@ -199,3 +200,38 @@ def test_a_layer_with_no_plain_form_refuses_to_export(obs_enc, part, norm, devic
         else:
             ResObsEnc(obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
                       ih_out_channel=IH_OUT, encoder="ablated", encoder_norm=norm, wrist_keys=wrist_keys(1))
+
+
+@pytest.mark.gpu
+def test_the_ablated_critic_reads_the_window_as_the_equivariant_one(device, no_tf32):
+    """enc-iface-1023's window (2026-10-23): its projection starts at zero, so the start test above
+    cannot see the exported projection's path. Moved off zero before the export, the two critics give
+    the same Q, the same change in Q with the window, and the same window share."""
+    from escnn import nn as enn
+
+    from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
+    from resfit.rl_finetuning.equi_off_policy.rl.ablated import AblatedCritic
+    from tests.conftest import BATCH, ENC_HIDDEN, IH_OUT, build_critic
+
+    torch.manual_seed(0)
+    enc = ResObsEnc(N=N, n_hidden=ENC_HIDDEN, ih_out_channel=IH_OUT, encoder="equivariant",
+                    critic_window=4, critic_window_ih=8).to(device)
+    critic = build_critic(enc, device, window_type=enc.window_type, norm="layer_norm", num_layers=2)
+    with torch.no_grad():
+        critic.window_proj.weights.normal_()
+    ablated = AblatedCritic(critic).to(device).eval()
+    critic.eval()
+    g = torch.Generator().manual_seed(1)
+    feat = torch.randn(BATCH, enc.enc_out_dim_critic, generator=g).to(device)
+    act = torch.randn(BATCH, enc.action_dim, generator=g).to(device)
+    moved = feat.clone()
+    images = enc.vis_ih_type.size
+    moved[:, images:images + enc.window_type.size] += 1.0
+    with torch.no_grad():
+        q, qa = critic(enn.GeometricTensor(feat, enc.enc_out_type_critic), act), ablated(feat, act)
+        q2, qa2 = critic(enn.GeometricTensor(moved, enc.enc_out_type_critic), act), ablated(moved, act)
+        torch.testing.assert_close(qa, q, rtol=1e-5, atol=1e-6)
+        torch.testing.assert_close(qa2, q2, rtol=1e-5, atol=1e-6)
+        assert (q2 - q).abs().max() > 1e-4
+        share = critic.window_share(enn.GeometricTensor(feat, enc.enc_out_type_critic))
+        torch.testing.assert_close(ablated.window_share(feat), share, rtol=1e-5, atol=1e-7)

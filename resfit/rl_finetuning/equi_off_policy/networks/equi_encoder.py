@@ -89,17 +89,25 @@ class EquiResBlock(torch.nn.Module):
 
 
 class EquivariantResEncoder76Cyclic(torch.nn.Module):
-    """The C_N-equivariant agentview encoder, 76x76 in, a 1x1 map of n_out regular fields out.
+    """The C_N-equivariant agentview encoder, 76x76 in, a 1x1 map of out_fields regular fields out.
 
     Every conv is bias-free, as in every run so far, and followed by `norm`
     (ENCODER_NORMS). orth_init replaces escnn's He init with delta-orthonormal.
+
+    n_out sets the body's widths, and out_fields the last conv's (n_out unless set): the 3x3 map
+    of n_out fields collapses to 1x1 there. `map_end` indexes the 9x9 map of n_out fields in
+    `conv`, before the last max pool, which `forward_map` returns beside the output. Neither moves
+    a module, so every state dict saved before them loads.
     """
 
     def __init__(self, obs_channel: int = 2, n_out: int = 128, initialize: bool = True, N=8,
-                 norm: str = "none", orth_init: bool = False):
+                 norm: str = "none", orth_init: bool = False, out_fields: int | None = None):
         super().__init__()
         self.obs_channel = obs_channel
         self.group = gspaces.rot2dOnR2(N)
+        out_fields = n_out if out_fields is None else out_fields
+        self.out_type = nn.FieldType(self.group, out_fields * [self.group.regular_repr])
+        self.map_type = nn.FieldType(self.group, n_out * [self.group.regular_repr])
 
         layers = [
             # 76x76
@@ -131,21 +139,22 @@ class EquivariantResEncoder76Cyclic(torch.nn.Module):
             # 9x9
             EquiResBlock(self.group, n_out // 2, n_out, initialize=initialize, norm=norm),
             EquiResBlock(self.group, n_out, n_out, initialize=initialize, norm=norm),
-            nn.PointwiseMaxPool(nn.FieldType(self.group, n_out * [self.group.regular_repr]), 3),
+            nn.PointwiseMaxPool(self.map_type, 3),
             # 3x3
         ]
+        self.map_end = len(layers) - 1  # the 9x9 map is conv[:map_end]'s output
 
         layers += [
             nn.R2Conv(
-                nn.FieldType(self.group, n_out * [self.group.regular_repr]),
-                nn.FieldType(self.group, n_out * [self.group.regular_repr]),
+                self.map_type,
+                self.out_type,
                 kernel_size=3,
                 padding=0,
                 bias=False,
                 initialize=initialize,
             ),
-            *conv_norm(norm, nn.FieldType(self.group, n_out * [self.group.regular_repr])),
-            nn.ReLU(nn.FieldType(self.group, n_out * [self.group.regular_repr]), inplace=True),
+            *conv_norm(norm, self.out_type),
+            nn.ReLU(self.out_type, inplace=True),
             # 1x1
         ]
 
@@ -153,7 +162,15 @@ class EquivariantResEncoder76Cyclic(torch.nn.Module):
         if orth_init:
             apply_deltaortho_init(self.conv, exclude_final_layer=False)
 
-    def forward(self, x) -> nn.GeometricTensor:
+    def _as_input(self, x) -> nn.GeometricTensor:
         if type(x) is torch.Tensor:
             x = nn.GeometricTensor(x, nn.FieldType(self.group, self.obs_channel * [self.group.trivial_repr]))
-        return self.conv(x)
+        return x
+
+    def forward(self, x) -> nn.GeometricTensor:
+        return self.conv(self._as_input(x))
+
+    def forward_map(self, x) -> tuple[nn.GeometricTensor, nn.GeometricTensor]:
+        """(output, the 9x9 map): conv in two slices, which compute what it does whole."""
+        fmap = self.conv[:self.map_end](self._as_input(x))
+        return self.conv[self.map_end:](fmap), fmap

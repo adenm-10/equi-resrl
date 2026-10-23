@@ -6,10 +6,11 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: the architecture swap (seed-group arch-swap-1021), each network of the
-# equivariant agent equivariant, ablated or ResFiT's own, pre-registered in docs/EXPERIMENTS.md,
-# "2026-10-20 — PRE-REGISTERED — the architecture swap (arch-swap-1021)". The groups before it stay
-# in this table, each as it launched: equi-speed-matched-1017 ("2026-10-17 — PRE-REGISTERED — the
+# Currently configured for: the encoder's interface (seed-group enc-iface-1023), arch-swap-eee's agent
+# with each of three wider interfaces from its encoder to its critic, pre-registered in
+# docs/EXPERIMENTS.md, "2026-10-23 — PRE-REGISTERED — the encoder's interface (enc-iface-1023)". The
+# groups before it stay in this table, each as it launched: arch-swap-1021 ("2026-10-20 —
+# PRE-REGISTERED — the architecture swap"; from aec1bdc), equi-speed-matched-1017 ("2026-10-17 — PRE-REGISTERED — the
 # equivariant residual on Square with the actor's parts at matched speed, and the speed's two
 # edges"; from 8e8eceb), equi-actor-speed-1016 ("2026-10-16 — PRE-REGISTERED — the equivariant residual on
 # Square with arch-wide's actor alone, and with a faster actor"; from dd6f753),
@@ -141,6 +142,21 @@
 #   arch-swap-rrr   [R, R, R] ResFiT's networks in this agent, at ResFiT's rates.
 #   arch-swap-rra   [R, R, A] ResFiT's ViTs and actor, the ablated critic behind them.
 #
+# enc-iface-1023: arch-swap-eee's launch (arch-wide's networks), on Square for 150k steps, on the
+# re-rendered demos, at seeds 2 and 3, with the interface from its encoders to its critic grown in one
+# of three ways (docs/plans/2026-10-23-encoder-interface.md). The critic sees 288 numbers per frame in
+# the anchor (256 from the agentview camera, 32 from the wrist); ResFiT's sees 20,736. Every rate is
+# the anchor's: the actor's 1e-6, the critic's and the encoder's 1e-4. wandb robomimic-square-final /
+# equi-residual-rl.
+#   iface-eee        arch-swap-eee's launch again, at the interface's commit: the anchor. 288 / 288.
+#   iface-wide-all   every encoder twice as wide: 64 agentview fields, the wrist CNN's stages doubled,
+#                    64 wrist outputs. 576 to the critic and to the actor.
+#   iface-wide-out   the last layers alone wider: the agentview encoder's last conv to 128 fields, the
+#                    wrist's to 256. 1,280 to the critic and to the actor.
+#   iface-window     the critic's window: a 9x9 conv over each encoder's 9x9 map, 96 regular fields
+#                    from the agentview's and 224 channels from the wrist's, into the critic alone
+#                    through a Linear that starts at zero. 1,280 to the critic, 288 to the actor.
+#
 # Every arm here runs to its full 150k. From 2026-10-17 (DEVIATION) no automatic stop of any kind
 # applies, the divergence stop included: Aden stops a run by hand.
 
@@ -187,7 +203,19 @@ RESFIT_LAYOUT=(equivariance.actor_norm=layer_norm equivariance.critic_norm=layer
 # arch-wide's critic heads, for an equivariant or ablated critic beside another actor (arch-swap-1021).
 SWAP_HEADS=(equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivariance.num_critic_layers=2)
 
+# arch-swap-eee's, the anchor of enc-iface-1023.
+IFACE_ANCHOR=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448)
+
 case "$ARM" in
+    iface-eee)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}") ;;
+    iface-wide-all)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}" equivariance.enc_degree_channel=64
+                       "equivariance.ih_channels=[32,64,128,256]" equivariance.ih_out_channel=64) ;;
+    iface-wide-out)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}" equivariance.enc_out_channel=128 equivariance.ih_out_channel=256) ;;
+    iface-window)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}" equivariance.critic_window=96 equivariance.critic_window_ih=224) ;;
     arch-swap-eee)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448) ;;
     arch-swap-aaa)
@@ -265,6 +293,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    iface-*)
+        SEED_GROUP=enc-iface-1023 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     arch-swap-*)
         SEED_GROUP=arch-swap-1021 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

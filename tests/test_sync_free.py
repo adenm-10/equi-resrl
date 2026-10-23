@@ -10,9 +10,10 @@ docs/ARCHITECTURE.md, "Why the update used to stall", has the breakdown; docs/ST
           by identity; the project's GroupPooling gives exactly escnn's output; the random
           crops are the windows at the offsets the CPU generator draws; get6DRotation keeps
           its layout.
-  Tier 2  For every config in tools/agent_fingerprint.py's CANDIDATES, for the two-arm
-          layout, and for each mix of network families arch-swap-1021 runs, an update without
-          the actor, one with it, and an act() make no host sync.
+  Tier 2  For every config in tools/agent_fingerprint.py's CANDIDATES (enc-iface-1023's three
+          interfaces among them), for the two-arm layout, for each mix of network families
+          arch-swap-1021 runs, and for the ablated window, an update without the actor, one with
+          it, and an act() make no host sync.
 
 That the agent still trains bit for bit as before is checked elsewhere: within this tree by
 tests/test_regression_agent.py, and across trees by `tools/agent_fingerprint.py --deep`.
@@ -62,6 +63,10 @@ FAMILY_MIXES = {
     "rrr": {"agent.critic.num_q": 10, "equivariance.actor_norm": "none", **_families("resfit", "resfit", "resfit")},
     "rra": {**_HEADS, "equivariance.actor_norm": "none", **_families("resfit", "resfit", "ablated")},
 }
+# enc-iface-1023's window in the ablated family (2026-10-23): its exported convs and projection. The
+# equivariant one is a candidate (iface-window).
+FAMILY_MIXES["aaa-window"] = {**FAMILY_MIXES["aaa"], "equivariance.critic_window": 96,
+                              "equivariance.critic_window_ih": 224}
 
 
 # ---------------------------------------------------------------------------

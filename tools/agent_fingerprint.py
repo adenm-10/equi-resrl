@@ -83,6 +83,10 @@ def _candidates() -> dict[str, dict[str, object]]:
     The two network changes of square-trlpd-stab-1010 (2026-10-10), each one
     change off "default": LayerNorm on each critic head's pooled features, and
     RegularLayerNorm after every hidden Linear of the actor and the critic.
+
+    enc-iface-1023's three interfaces (2026-10-23), each one change off
+    "actor-critic-ln", which has their anchor's norms: every encoder twice as
+    wide, the encoders' last layers alone wider, and the critic's window.
     """
     fn = {"equivariance.critic_norm": "field_norm"}
     clipq = {"agent.clip_q_target_to_reward_range": True}
@@ -104,6 +108,12 @@ def _candidates() -> dict[str, dict[str, object]]:
     out["pooled-ln"] = {**new_default, "equivariance.critic_pooled_norm": "layer_norm"}
     out["actor-critic-ln"] = {"equivariance.actor_norm": "layer_norm",
                               "equivariance.critic_norm": "layer_norm"}
+    out["iface-wide-all"] = {**out["actor-critic-ln"], "equivariance.enc_degree_channel": 64,
+                             "equivariance.ih_channels": [32, 64, 128, 256], "equivariance.ih_out_channel": 64}
+    out["iface-wide-out"] = {**out["actor-critic-ln"], "equivariance.enc_out_channel": 128,
+                             "equivariance.ih_out_channel": 256}
+    out["iface-window"] = {**out["actor-critic-ln"], "equivariance.critic_window": 96,
+                           "equivariance.critic_window_ih": 224}
     return out
 
 

@@ -641,3 +641,111 @@ def test_vanilla_actor_output_is_bounded_per_block(obs_enc, arm_spec, device):
             assert max(_block_maxima(mean, layout)) <= 1.0 + 1e-6, "a squashed mean past 1"
         else:
             assert max(_block_maxima(mean, layout)) > 1.0, "the unbounded mean never left the bound"
+
+
+# ---------------------------------------------------------------------------
+# The encoder's interface (enc-iface-1023; 2026-10-23 CODE)
+# ---------------------------------------------------------------------------
+#
+# Through ResObsEnc's own modules, without its crop, which is a random translation in train mode.
+
+INTERFACE_OPTIONS = {
+    "out-fields": dict(enc_out_channel=2 * ENC_HIDDEN),   # iface-wide-out's agentview encoder
+    "wide": dict(n_hidden=2 * ENC_HIDDEN),                # iface-wide-all's
+    "window": dict(critic_window=4, critic_window_ih=8),  # iface-window's
+}
+
+
+def _interface_encoder(device, option, training, arm_spec=None):
+    from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ResObsEnc
+    from tests.conftest import ONE_ARM, wrist_keys
+
+    spec = arm_spec or ONE_ARM
+    torch.manual_seed(0)
+    np.random.seed(0)
+    opts = {"n_hidden": ENC_HIDDEN, **INTERFACE_OPTIONS[option]}
+    return ResObsEnc(obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, ih_out_channel=IH_OUT,
+                     encoder="equivariant", initialize=True, wrist_keys=wrist_keys(spec["n_arms"]),
+                     **spec, **opts).to(device).train(training)
+
+
+def _agentview_features(enc, x):
+    """The agentview encoder's output and, with a window, the window's agentview fields; their layout."""
+    out, fmap = enc.enc_obs.forward_map(x)
+    parts, layout = [out.tensor.reshape(len(x), -1)], [("regular", enc.vis_type.size // N)]
+    if enc.window_obs is not None:
+        window = enc.window_obs(fmap).tensor.reshape(len(x), -1)
+        parts.append(window)
+        layout.append(("regular", window.shape[1] // N))
+    return torch.cat(parts, dim=1), layout
+
+
+@pytest.mark.gpu
+@MODES
+@pytest.mark.parametrize("option", sorted(INTERFACE_OPTIONS))
+def test_the_interface_options_keep_the_agentview_features_equivariant_at_right_angles(
+        device, option, training, no_tf32):
+    """The window's agentview conv collapses a 9x9 map of regular fields to 1x1, as the encoder's own
+    last conv collapses its 3x3 one, so both are exact at right angles."""
+    enc = _interface_encoder(device, option, training)
+    g = torch.Generator(device="cpu").manual_seed(0)
+    x = torch.randn(BATCH, OBS_SHAPE[0], CROP, CROP, generator=g).to(device)
+    with torch.no_grad():
+        base, layout = _agentview_features(enc, x)
+        assert base.abs().max() > 1e-3, f"{option}: degenerate output"
+        for k in [k for k in range(1, N) if ga.is_right_angle(k, N)]:
+            got, _ = _agentview_features(enc, ga.rotate_image(x, k, N))
+            err = _rel_err(got, ga.act_on_layout(base, layout, k, N))
+            assert err < TOL, f"{option} not equivariant at k={k}: {err:.2e}"
+
+
+@pytest.mark.gpu
+def test_the_windows_error_at_diagonal_angles(device, capsys, no_tf32):
+    """Reported, as the encoder's own (test_vision_encoder_error_at_diagonal_angles): resampling a
+    pixel grid at 45 degrees, not the network."""
+    enc = _interface_encoder(device, "window", training=False)
+    g = torch.Generator(device="cpu").manual_seed(0)
+    x = torch.randn(BATCH, OBS_SHAPE[0], CROP, CROP, generator=g).to(device)
+    errs = {}
+    with torch.no_grad():
+        base, layout = _agentview_features(enc, x)
+        width = enc.vis_type.size
+        for k in [k for k in range(N) if not ga.is_right_angle(k, N)]:
+            got, _ = _agentview_features(enc, ga.rotate_image(x, k, N))
+            expected = ga.act_on_layout(base, layout, k, N)
+            errs[k] = (_rel_err(got[:, :width], expected[:, :width]), _rel_err(got[:, width:], expected[:, width:]))
+    with capsys.disabled():
+        pretty = ", ".join(f"k={k}: output {a:.3f}, window {b:.3f}" for k, (a, b) in sorted(errs.items()))
+        print(f"\n    [diagonal-angle equivariance error] {pretty}")
+    assert max(max(v) for v in errs.values()) < 2.0
+
+
+@pytest.mark.gpu
+@MODES
+def test_the_critic_with_a_window_is_invariant(arm_spec, device, training):
+    """With its window projection moved off zero, as training moves it, so the window's path is
+    what is tested; the window moves Q."""
+    from escnn import nn as enn
+
+    from tests.conftest import build_critic
+
+    enc = _interface_encoder(device, "window", training, arm_spec)
+    critic = build_critic(enc, device, window_type=enc.window_type, norm="layer_norm", num_layers=2)
+    with torch.no_grad():
+        critic.window_proj.weights.normal_()
+    critic.train(training)  # in eval mode escnn computes with the weights expanded here
+    feat_layout = ga.enc_out_layout_critic(ENC_HIDDEN, IH_OUT, arm_spec["n_arms"], arm_spec["gripper_dim"],
+                                           window=(4, 8))
+    act_layout = _action_layout(arm_spec)
+    feat, act = _feat(None, feat_layout, device, seed=31), _feat(None, act_layout, device, seed=32)
+    images, window = enc.vis_ih_type.size, enc.window_type.size
+    with torch.no_grad():
+        q = critic(enn.GeometricTensor(feat, enc.enc_out_type_critic), act)
+        moved = feat.clone()
+        moved[:, images:images + window] += 1.0
+        assert (critic(enn.GeometricTensor(moved, enc.enc_out_type_critic), act) - q).abs().max() > 1e-4
+        for k in range(1, N):
+            got = critic(enn.GeometricTensor(ga.act_on_layout(feat, feat_layout, k, N), enc.enc_out_type_critic),
+                         ga.act_on_layout(act, act_layout, k, N))
+            err = _rel_err(got, q)
+            assert err < TOL, f"critic with a window not invariant at k={k}: {err:.2e}"

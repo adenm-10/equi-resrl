@@ -107,6 +107,16 @@ class ResObsEnc(ModuleAttrMixin):
 
     ``base_action_input=False`` is vanilla RL's encoder (base_policy=None): it reads
     no ``observation.base_action``, so the actor's features are the critic's.
+
+    The interface, in the first two families (EXPERIMENTS.md, 2026-10-23 CODE). ``ih_channels`` are
+    the wrist CNN's stage widths; ``enc_out_channel`` the agentview encoder's output fields, from its
+    last conv, which is ``n_hidden`` unless set. ``critic_window`` and ``critic_window_ih`` give the
+    critic a second, wider look at the images: a 9x9 conv over each encoder's 9x9 map, before its last
+    max pool, to ``critic_window`` regular fields (equivariant, as the encoder's own last conv) and to
+    ``critic_window_ih`` channels per wrist (plain, as the wrist encoder), each then a ReLU. Their
+    outputs join the critic's features alone, [images | window | proprioception]; the actor's stay
+    [images | proprioception | base action]. They are built with the random state forked, so every
+    other weight at a seed is the one built without them.
     """
 
     def __init__(
@@ -132,6 +142,9 @@ class ResObsEnc(ModuleAttrMixin):
         encoder_orth_init: bool = False,
         float_images_as_uint8: bool = False,
         base_action_input: bool = True,
+        enc_out_channel: int | None = None,
+        critic_window: int = 0,
+        critic_window_ih: int = 0,
     ):
         super().__init__()
 
@@ -139,6 +152,9 @@ class ResObsEnc(ModuleAttrMixin):
             raise ValueError(f"unknown encoder {encoder!r}; expected one of {ENCODERS}")
         if (encoder == "resfit") != (vit_cfg is not None):
             raise ValueError("vit_cfg configures the ResFiT encoder, and only it")
+        if encoder == "resfit" and (enc_out_channel is not None or critic_window or critic_window_ih):
+            raise ValueError("enc_out_channel and the critic's window configure the equivariant and ablated "
+                             "encoders: the ResFiT encoder has no 9x9 map or last conv of its own")
 
         wrist_keys = tuple(wrist_keys)
         if len(wrist_keys) != n_arms:
@@ -205,6 +221,7 @@ class ResObsEnc(ModuleAttrMixin):
             # The tokens, declared invariant (the class docstring); there are no separate wrist features.
             self.vis_type = self.ih_type = None
             self.vis_ih_type = enn.FieldType(self.group, self.num_patch * self.patch_dim * [self.group.trivial_repr])
+            self.window_type = None
         else:
             self.crop_randomizer = dmvc.CropRandomizer(
                 input_shape=obs_shape,
@@ -216,14 +233,15 @@ class ResObsEnc(ModuleAttrMixin):
             self.enc_ih = torch.nn.ModuleList([
                 ResEncoder76InHand(
                     obs_channel=self.obs_channel,
-                    channels=ih_channels,
+                    channels=tuple(ih_channels),
                     n_out=ih_out_channel,
                     blocks_per_stage=ih_blocks_per_stage,
                 )
                 for _ in range(n_arms)
             ])
 
-            self.vis_type    = enn.FieldType(self.group, n_hidden * [self.group.regular_repr])
+            out_fields = n_hidden if enc_out_channel is None else enc_out_channel
+            self.vis_type    = enn.FieldType(self.group, out_fields * [self.group.regular_repr])
             self.ih_type     = enn.FieldType(self.group, n_arms * ih_out_channel * [self.group.trivial_repr])
             self.vis_ih_type = self.vis_type + self.ih_type
 
@@ -235,15 +253,49 @@ class ResObsEnc(ModuleAttrMixin):
                 initialize=initialize,
                 norm=encoder_norm,
                 orth_init=encoder_orth_init,
+                out_fields=out_fields,
             )
+            self.obs_map_end = enc_obs.map_end
             self.enc_obs = enc_obs if encoder == "equivariant" else plain(enc_obs.conv)
+            self._build_window(enc_obs, ih_channels[-1], critic_window, critic_window_ih, initialize)
 
-        # [images | proprioception], and the actor's adds the base action; vanilla RL's has none.
-        self.enc_out_type_critic = self.vis_ih_type + self.prop_type
-        self.enc_out_type_actor = (self.enc_out_type_critic + self.action_type if base_action_input
-                                   else self.enc_out_type_critic)
+        # The critic's [images | window | proprioception], and the actor's [images | proprioception |
+        # base action]; vanilla RL's has no base action, so without a window it is the critic's.
+        self.enc_out_type_critic = (self.vis_ih_type + self.prop_type if self.window_type is None
+                                    else self.vis_ih_type + self.window_type + self.prop_type)
+        self.enc_out_type_actor = self.vis_ih_type + self.prop_type
+        if base_action_input:
+            self.enc_out_type_actor = self.enc_out_type_actor + self.action_type
         self.enc_out_dim_critic = self.enc_out_type_critic.size
         self.enc_out_dim_actor  = self.enc_out_type_actor.size
+
+    def _build_window(self, enc_obs, ih_map_channels: int, fields: int, channels: int, initialize: bool):
+        """The critic's window (the class docstring): window_obs over the agentview encoder's 9x9 map
+        and window_ih over each wrist's, None where its width is 0; window_type, their features' type,
+        None without either. Exported to plain layers in the ablated family. Built with torch's and
+        numpy's random state forked, so it moves no other weight at a seed."""
+        self.window_obs = self.window_ih = self.window_type = None
+        if not (fields or channels):
+            return
+        reps = fields * [self.group.regular_repr] + self.n_arms * channels * [self.group.trivial_repr]
+        self.window_type = enn.FieldType(self.group, reps)
+        np_state = np.random.get_state()
+        with torch.random.fork_rng(devices=[]):
+            if fields:
+                out_type = enn.FieldType(enc_obs.group, fields * [enc_obs.group.regular_repr])
+                window_obs = torch.nn.Sequential(
+                    enn.R2Conv(enc_obs.map_type, out_type, kernel_size=9, padding=0, bias=False,
+                               initialize=initialize),
+                    enn.ReLU(out_type),
+                )
+                self.window_obs = window_obs if self.encoder == "equivariant" else plain(window_obs)
+            if channels:
+                self.window_ih = torch.nn.ModuleList([
+                    torch.nn.Sequential(torch.nn.Conv2d(ih_map_channels, channels, kernel_size=9, bias=False),
+                                        torch.nn.ReLU())
+                    for _ in range(self.n_arms)
+                ])
+        np.random.set_state(np_state)
 
     def get6DRotation(self, quat):
         """robosuite stores eef_quat as (x, y, z, w); reorder to (w, x, y, z).
@@ -306,22 +358,36 @@ class ResObsEnc(ModuleAttrMixin):
 
         batch_size = obs.shape[0]
 
+        window = []
         if self.encoder == "resfit":
             images = [self._vit_tokens(nobs)]
         else:
             # ----- Images (uint8 [0,255] or float [0,1] → float [-1,1]) -----
             # In-hand cameras are cropped before agentview; CropRandomizer draws a random
             # offset per call in train mode, so this order is part of the trained behaviour.
-            ih_out = []
+            # Each encoder runs in two slices, around its 9x9 map, which compute what it does whole.
+            ih_out, ih_maps = [], []
             for key, enc_ih in zip(self.wrist_keys, self.enc_ih):
                 ih = self._image_to_signed_unit(nobs[key])
-                ih_out.append(enc_ih(self.crop_randomizer(ih)))
+                out, ih_map = enc_ih.forward_map(self.crop_randomizer(ih))
+                ih_out.append(out)
+                ih_maps.append(ih_map)
 
             obs     = self._image_to_signed_unit(obs)
             obs     = self.crop_randomizer(obs)
-            enc_raw = self.enc_obs(obs)
+            if self.encoder == "equivariant":
+                enc_raw, obs_map = self.enc_obs.forward_map(obs)
+            else:
+                obs_map = self.enc_obs[:self.obs_map_end](obs)
+                enc_raw = self.enc_obs[self.obs_map_end:](obs_map)
             enc_out = (enc_raw.tensor if self.encoder == "equivariant" else enc_raw).reshape(batch_size, -1)
             images  = [enc_out, *ih_out]
+
+            if self.window_obs is not None:
+                w = self.window_obs(obs_map)
+                window.append((w.tensor if self.encoder == "equivariant" else w).reshape(batch_size, -1))
+            if self.window_ih is not None:
+                window += [win(ih_map).flatten(1) for win, ih_map in zip(self.window_ih, ih_maps)]
 
         # ---- Proprioception and action, one contiguous block per arm ----
         prop, action = [], []
@@ -353,9 +419,9 @@ class ResObsEnc(ModuleAttrMixin):
                 self.normalizer[arm_key("action_hand", arm)].normalize(a[:, 6:self.action_stride]),
             ]
 
-        # ----- Concatenate feature vector; without a base action the actor's is the critic's -----
-        critic_features = torch.cat([*images, *prop], dim=1)
-        actor_features  = torch.cat([critic_features, *action], dim=1) if action else critic_features
+        # ----- Concatenate feature vectors; vanilla RL's actor, without a window, has the critic's -----
+        critic_features = torch.cat([*images, *window, *prop], dim=1)
+        actor_features  = torch.cat([*images, *prop, *action], dim=1) if action or window else critic_features
 
         # Wrap in GeometricTensor for the equivariant family
         if self.encoder == "equivariant":

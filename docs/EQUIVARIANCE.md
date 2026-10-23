@@ -106,6 +106,16 @@ The in-hand decision is right and is documented in the `ResObsEnc` docstring. Th
 decision gives approximate rather than exact equivariance, because the camera is tilted — a
 reviewed and accepted trade-off, explained in assumption 1 below.
 
+**The critic's window** (`equivariance.critic_window`, from 2026-10-23) keeps both. Its agentview
+part is an `R2Conv` from the encoder's 9×9 map of regular fields to a 1×1 map of regular fields,
+the same kind of layer as the encoder's own last conv, which collapses the 3×3 map: rotating the
+image rotates the map and permutes each field's channels, and a steerable kernel commutes with both.
+So it is exact at right angles and approximate at 45°, as the encoder is (assumption 5;
+`tests/test_equivariance.py` measures both). Its wrist part is plain and declared trivial, as the wrist
+features are. The critic reads it through `window_proj`, an escnn Linear to the visual projection's
+regular fields, whose output is added to the projection's own before its norm: a sum of two
+equivariant maps into one field type, so the critic stays invariant.
+
 ### The Q function is invariant, not equivariant
 
 This distinction is the crux of the whole design.

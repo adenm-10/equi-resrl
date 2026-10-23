@@ -68,6 +68,17 @@ class EquivarianceConfig:
     # 2026-09-29 it was tied to enc_degree_channel; 32 matches the default.
     ih_out_channel: int = 32
     initialize: bool = True
+    # The encoder's interface to the critic (EXPERIMENTS.md, 2026-10-23 CODE; ResObsEnc). ih_channels:
+    # the wrist CNN's four stage widths, fixed at these before the field existed. enc_out_channel: the
+    # agentview encoder's output fields, from its last conv (3x3 to 1x1); None keeps
+    # enc_degree_channel, every run before the field. critic_window and critic_window_ih: the critic's
+    # window, a 9x9 conv over each encoder's 9x9 map, before its last max pool, to critic_window
+    # regular fields from the agentview map and critic_window_ih channels from each wrist's; its
+    # features reach the critic alone, through a Linear that starts at zero. 0 and 0 build no window.
+    ih_channels: list[int] = field(default_factory=lambda: [16, 32, 64, 128])
+    enc_out_channel: int | None = None
+    critic_window: int = 0
+    critic_window_ih: int = 0
 
     # Per-arm observation layout. State is [eef_pos 3, eef_quat 4, gripper_qpos G]
     # and action is [delta_pose 6, hand H] per arm; one wrist camera per arm.

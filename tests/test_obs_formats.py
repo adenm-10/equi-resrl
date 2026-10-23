@@ -44,7 +44,7 @@ def _observations(device) -> tuple[dict, dict]:
             {k: v.to(device) for k, v in buffer.items()})
 
 
-def _encoder(device, encoder: str, float_images_as_uint8: bool):
+def _encoder(device, encoder: str, float_images_as_uint8: bool, **interface):
     from resfit.rl_finetuning.config.rlpd import VitEncoderConfig
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
         build_equivariant_normalizer,
@@ -57,7 +57,7 @@ def _encoder(device, encoder: str, float_images_as_uint8: bool):
         obs_shape=OBS_SHAPE, crop_shape=(CROP, CROP), N=N, n_hidden=ENC_HIDDEN,
         ih_out_channel=IH_OUT, encoder=encoder, initialize=True,
         vit_cfg=VitEncoderConfig() if encoder == "resfit" else None,
-        wrist_keys=wrist_keys(1), float_images_as_uint8=float_images_as_uint8, **ONE_ARM,
+        wrist_keys=wrist_keys(1), float_images_as_uint8=float_images_as_uint8, **ONE_ARM, **interface,
     )
     enc.set_normalizer(
         build_equivariant_normalizer(
@@ -89,6 +89,18 @@ def test_encoder_reads_env_and_buffer_images_alike(device, encoder, no_tf32):
     enc = _encoder(device, encoder, float_images_as_uint8=False)
     for got, expected in zip(_features(enc, env), _features(enc, buffer)):
         torch.testing.assert_close(got, expected)
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("encoder", ["equivariant", "ablated"])
+def test_the_critics_window_reads_env_and_buffer_images_alike(device, encoder, no_tf32):
+    """enc-iface-1023's window (2026-10-23), which only the critic's features carry."""
+    env, buffer = _observations(device)
+    enc = _encoder(device, encoder, float_images_as_uint8=False, critic_window=4, critic_window_ih=8)
+    (actor_env, critic_env), (actor_buffer, critic_buffer) = _features(enc, env), _features(enc, buffer)
+    assert critic_env.shape[1] == actor_env.shape[1] - enc.action_type.size + enc.window_type.size
+    torch.testing.assert_close(critic_env, critic_buffer)
+    torch.testing.assert_close(actor_env, actor_buffer)
 
 
 @pytest.mark.gpu

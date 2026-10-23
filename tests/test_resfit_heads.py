@@ -206,6 +206,9 @@ UNREAD = {
     "critic_orth_init": ("resfit", True), "critic_last_layer_init_scale": ("resfit", 0.5),
     "use_visual_proj": ("resfit", False),
     "frozen_target_critic": ("ablated", True),
+    # The encoder's interface (2026-10-23): the window is read by the encoder and the critic both.
+    "ih_channels": ("resfit", [32, 64, 128, 256]), "enc_out_channel": ("resfit", 128),
+    "critic_window": ("resfit", 96), "critic_window_ih": ("resfit", 224),
 }
 STACKS = {"resfit": ("resfit", "resfit", "resfit"), "ablated": ("ablated", "ablated", "ablated"),
           "ere": ("equivariant", "resfit", "equivariant")}

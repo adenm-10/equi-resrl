@@ -218,10 +218,10 @@ def tier1_pytest() -> bool:
          "tests/test_tuned_rlpd_verdict.py", "tests/test_baseline_verdict.py",
          "tests/test_gpu_queue.py",
          "tests/test_render_check.py", "tests/test_demo_codec.py", "tests/test_rerender_demos.py",
-         "tests/test_field_metrics.py", "tests/test_field_ablation.py"],
+         "tests/test_field_metrics.py", "tests/test_field_ablation.py", "tests/test_encoder_probe.py"],
         "imports + config + regression + run package + env wrappers + base-rate eval + verdicts"
         " + queue runner + render check + demo codec + re-rendered demos + field metrics"
-        " + field ablation",
+        " + field ablation + encoder probe",
     )
 
 
@@ -252,9 +252,9 @@ def tier2() -> bool:
         ["tests/test_layouts.py", "tests/test_equivariance.py", "tests/test_no_ops.py",
          "tests/test_sweep_arms.py", "tests/test_sync_free.py", "tests/test_obs_formats.py",
          "tests/test_critic_diagnostics.py", "tests/test_bc_term.py",
-         "tests/test_ablated.py", "tests/test_resfit_heads.py"],
+         "tests/test_ablated.py", "tests/test_resfit_heads.py", "tests/test_interface.py"],
         "equivariance suite + sweep arms + sync-free update + env image format + critic diagnostics"
-        " + BC term + ablated and ResFiT families",
+        " + BC term + ablated and ResFiT families + the encoder's interface",
     )
 
 
