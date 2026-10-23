@@ -17,6 +17,38 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-23 — the encoder's interface: plan, probe, code and queue (`enc-iface-1023`)
+
+**Done**
+- **An update on the week's results for Aden,** then, on Aden's questions, a reading of arch-swap's seed 2:
+  `ere 2` level with `rrr 2` points away from the actor and toward the encoder→critic interface (288
+  numbers per frame against ResFiT's 20,736), not the encoder's size.
+- **The plan** (`docs/plans/2026-10-23-encoder-interface.md`, local), approved by Aden: three ways to grow
+  the interface (every encoder wider, the last layers wider, a window over the 9x9 maps for the critic
+  alone), an anchor, and a probe first.
+- **The probe** (`tools/encoder_probe.py`; EXPERIMENTS.md, 2026-10-23 MEASUREMENT): the 9x9 map holds
+  0.11–0.14 R² more of the nut's xy relative to the gripper than the 1x1 output the critic reads, at
+  equal size, and more than ResFiT's tokens. The loss is in the last conv, not the max pool.
+- **The code** (2026-10-23 CODE): four `EquivarianceConfig` fields, `forward_map`, the window and
+  `window_proj` (zero at the start, the window's convs built under a forked RNG), the ablated mirror,
+  `check_families`' refusals, `build_encoder`. The agent is bit for bit as before: the goldens, and
+  `--deep` on all 19 earlier candidates against `aec1bdc`. The test suite ran in full on the CPU (the GPUs
+  were full); the GPU pass is each launch's gate.
+- **Calibration:** every arm keeps 1e-6 (predicted 0–3k 0.035–0.037).
+- **Disk:** 9.4 GB free at 12:48; Aden approved deleting the duplicate `models/best_model.pt` of
+  finished runs (12.1 GB, each verified identical); 23 GB free.
+- **Pre-registered and queued** (2026-10-23 DECISION and PRE-REGISTERED): Aden asked for the runs to
+  start as soon as a slot and the disk allow, so the queue waits only for arch-swap's queue to place its
+  last run, runs the smokes in the first free slot, then launches seed 2 of each arm, then seed 3.
+
+**Decided** (Aden): seeds 2 and 3; the window at 96 fields and 224 wrist channels; no fifth arm; the
+reclaim; launch ahead of arch-swap's readout, which drops the plan's `rra` gate.
+
+**Next:** the smokes and the first launches about 10-24 18:00 (TODO B21); arch-swap's readout about
+10-25 09:00 (B20).
+
+---
+
 ## 2026-10-21 (evening) to 10-23 — `arch-swap-1021` launched; seed 2 at 150k
 
 **Done**

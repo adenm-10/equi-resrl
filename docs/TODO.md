@@ -9,11 +9,30 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now: the architecture swap, `arch-swap-1021` (B20).** Aden's architectural experiments
-(2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that
-bears on them.
+**Now: the architecture swap, `arch-swap-1021` (B20), finishing, and the encoder's interface,
+`enc-iface-1023` (B21), queued behind it.** Aden's architectural experiments (2026-10-20 DECISION);
+STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that bears on them.
 
-### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — RUNNING from 2026-10-21, to about 10-25 03:00 (Aden, 2026-10-20) `[SC]`
+### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — QUEUED 2026-10-23, to start about 10-24 18:00 (Aden, 2026-10-23) `[SC]`
+
+[The plan](plans/2026-10-23-encoder-interface.md) (local), approved by Aden on 2026-10-23 with Claude's
+recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
+DECISION).
+- **Done:** the code and the probe (EXPERIMENTS.md, 2026-10-23 CODE and MEASUREMENT); the calibration
+  (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the queue armed (tmux
+  `iface-queue`, `outputs/queue/launchers/iface/iface_queue.sh`) and the watcher (`iface-watch`).
+- **Next, automatic:** the three smokes in the first free slot after arch-swap's queue has placed its
+  last run, then the slot queue: seed 2 of each arm, then seed 3. Claude checks each smoke
+  (`outputs/diagnostics/enc-iface/smokes/`), `iface-wide-all`'s GPU memory against the 6,750 MiB rule
+  (above it, the slot holder keeps its GPU to itself), each first launch's gate and early speed, and the window's share at 30k.
+- **Then:** the LAUNCHED entry once the first four are in wandb; probe `eee 3`'s encoder once it
+  finishes (`python -m tools.encoder_probe probe eee3`); wave 1 at 150k (about 10-26), a provisional
+  read; wave 2 at 150k (about 10-28): `/analyze-experiment` against the rules, the NOTE, and the next
+  step from the PRE-REGISTERED entry's outcome table.
+- **When arch-swap's last run exits:** stop its `swap-watch` and `wandb-cache`, and start a cache
+  cleanup for this group (the same script, every 12 h) while its runs go on.
+
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — RUNNING from 2026-10-21, to about 10-25 09:00 (Aden, 2026-10-20) `[SC]`
 
 [The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
 its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated
@@ -30,7 +49,9 @@ its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equ
 - **Done:** launched from `aec1bdc` (EXPERIMENTS.md, 2026-10-23 LAUNCHED); every early speed inside
   the band; `rrr 2` passed the gross-failure check. Seed 2 at 150k is in the 2026-10-23 NOTE,
   provisional: `ere 2` 172, `rrr 2` 171, `eee 2` 129, `aaa 2` 85 of 250, `ara 2` below the base.
-- **Next, when all twelve are at 150k** (about 10-25 03:00; the queue's order unchanged):
+- **Next, when all twelve are at 150k** (about 10-25 09:00, if `rra` runs as fast as `rrr`; the
+  queue's order unchanged; seed 3's C1 and C4 are readable once `aaa 3` and `eee 3` finish, about 10-24
+  12:00–17:00):
   1. `/analyze-experiment` on the group against the 2026-10-20 PRE-REGISTERED rules (two seeds pooled,
      the 0.13 bar, H's 0.584, the speeds beside each contrast), and its NOTE. The local scripts in
      `outputs/diagnostics/arch-swap-1021/analysis/` read every run's evals and diagnostics.

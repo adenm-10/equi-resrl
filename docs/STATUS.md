@@ -1,27 +1,33 @@
 # Status
 
-**Last updated:** 2026-10-23 · **Last verified commit:** this file's own commit, docs only (the
-`arch-swap-1021` LAUNCHED entry and its seed-2 NOTE). The runs are from `aec1bdc`, the group's
-pre-registration; the network families' code is `8ca41cc` (EXPERIMENTS.md, 2026-10-20 CODE, which
-ended the freeze below). Main is ahead of origin and not pushed: pushing waits for Aden.
+**Last updated:** 2026-10-23 · **Last verified commit:** this file's own commit, the `enc-iface-1023`
+pre-registration; its code is the commit before it (EXPERIMENTS.md, 2026-10-23 CODE, "the encoder's
+interface"). The running arch-swap runs are from `aec1bdc`. Main is ahead of origin and not pushed:
+pushing waits for Aden.
 
-**Now: the architecture swap, `arch-swap-1021`, is running** (Aden's architectural experiments,
-2026-10-20 DECISION; EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED, as Aden set its rates at review on
-10-21; [the plan](plans/2026-10-20-arch-swap.md), local). Six arms in the equivariant agent, each
-network equivariant, ablated (the equivariant one unconstrained) or ResFiT's own, at seeds 2 and 3,
-from the pinned worktree `~/projects/equi-resrl-aec1bdc`. Every actor steps at ResFiT's 1e-6 but
-`aaa`'s, at 2.5e-7; every critic and encoder at 1e-4. No automatic stop.
-- **At 09:55 on 10-23** (EXPERIMENTS.md, 2026-10-23 LAUNCHED): `rrr 2`, `ere 2`, `eee 2` and `aaa 2`
-  finished, packages complete; `ara 2` (130k), `rrr 3` (50k), `aaa 3` (10k) and `eee 3` (0k) running;
-  `ere 3`, `ara 3`, `rra 2` and `rra 3` queued, in the pre-registered order (Aden did not approve
-  moving `rra 2` up). The last is expected at 150k at about 03:00 on 10-25.
-- **Seed 2, provisional** (2026-10-23 NOTE; of 250 at 110k–150k): `ere 2` 172 and `rrr 2` 171, `eee 2`
-  129, `aaa 2` 85; `ara 2` about 0.24 at 110k–130k. The ablated encoder and critic never beat the base
-  alone, with either actor. But `eee 2` is 31 below `arch-wide 2`, its exact replicate, which is the
-  contrasts' bar: nothing is read until seed 3.
-- **Running in tmux:** `rfe-queue` (the slot queue), `swap-watch` (the watcher, watch-only),
-  `wandb-cache` (the cache cleanup, 07:35 and 19:35), and one `q-arch-swap-<arm>-<seed>` per job.
-  14 GB of disk free on 10-23; the PRE-REGISTERED entry leaves a reclaim below 10 GB to Aden.
+**Now: two groups.** `arch-swap-1021` is finishing, and **`enc-iface-1023` is queued to start the
+moment arch-swap's queue has placed its last run and a slot frees** (Aden, 2026-10-23 DECISION: as
+soon as possible, not after arch-swap's readout).
+- **`arch-swap-1021`** (EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED; the 2026-10-23 LAUNCHED and seed-2
+  NOTE): at 17:00 on 10-23, `rrr 2`, `ere 2`, `eee 2`, `aaa 2`, `ara 2` and `rrr 3` finished; `aaa 3`,
+  `eee 3` and `ere 3` running; `ara 3` launched at 15:52 (`rrr 3` finished at 15:48: `rrr` pools 0.648, so H does not count);
+  `rra 2` and `rra 3` queued, about 12:00 and 16:40 on 10-24; the last at 150k about 08:00 on 10-25.
+  Seed 2, provisional: `ere 2` 172 and `rrr 2` 171 of 250, `eee 2` 129, `aaa 2` 85, `ara 2` 73
+  (110k–150k). Tmux: `rfe-queue`, `swap-watch`, `wandb-cache`, one `q-arch-swap-<arm>-<seed>` per job.
+- **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 CODE, MEASUREMENT, DECISION and PRE-REGISTERED;
+  [the plan](plans/2026-10-23-encoder-interface.md), local). The equivariant critic sees 288 numbers per
+  frame where ResFiT's sees 20,736; the probe found that the agentview encoder's 9x9 map holds what its
+  1x1 output loses (the nut's xy relative to the gripper, 0.11–0.14 R² at equal size), and more than
+  ResFiT's tokens. Four arms on `arch-swap-eee`'s launch, at seeds 2 and 3: `iface-eee` (the anchor),
+  `iface-wide-all` (the encoders twice as wide), `iface-wide-out` (their last layers wider; 1,280 numbers)
+  and `iface-window` (a window over the 9x9 maps for the critic alone; 1,280). Tmux `iface-queue`
+  (`outputs/queue/launchers/iface/iface_queue.sh`) waits for arch-swap's queue, runs the three smokes in
+  the first free slot (about 17:00 on 10-24), launches `iface-wide-all` there itself (alone on its GPU,
+  behind a slot holder, if its smoke's memory requires), then starts the slot queue for the other six;
+  `iface-watch` is the watcher. Expected in wandb: `iface-wide-all 2` about 20:00 on 10-24, the rest of
+  seed 2 by about 10:00 on 10-25, the last at 150k about 10-28 (10-29 with the holder).
+- **Disk:** 23 GB free at 15:20 on 10-23, after the 12.1 GB reclaim of duplicate best models Aden
+  approved (the DECISION); about 9 GB to spare when both groups are done.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.

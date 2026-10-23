@@ -9438,3 +9438,233 @@ whole: 0.50–0.58), so the whole-tap readings are ridge's.
   90k, 140k) by critics of different families. One seed of each; `eee 3` follows.
 
 ---
+
+## 2026-10-23 — DECISION — `enc-iface-1023` launches as soon as a slot and the disk allow, ahead of `arch-swap-1021`'s readout; the duplicate best models reclaimed
+
+Aden, 2026-10-23, on two questions Claude asked that afternoon:
+
+1. **The disk: yes.** At 12:48 the disk had 9.4 GB free, below the 10 GB the arch-swap
+   PRE-REGISTERED entry leaves to Aden, and the forecast (arch-swap's remaining packages about 5 GB,
+   this group's eight about 10 GB, the plan's 15 GB floor at launch) did not fit. Claude first deleted
+   its own deep-check tensors (2.9 GB, `outputs/diagnostics/enc-iface/deep/`; the verdict stays in
+   `deep.log`). Then, with Aden's yes, `outputs/diagnostics/enc-iface/reclaim.py` deleted the
+   duplicate `models/best_model.pt` of 68 finished run packages, each byte-identical (sha256) to the
+   package's `wandb_best/best_model.pt`, which stays: 12.1 GB. Kept: the four packages of runs not
+   finished, and `eaqorqki`'s, which `tests/test_field_ablation.py` reads. 23 GB free after, at 15:20.
+   The record is `reclaim.log` beside the script.
+2. **The launch: "as soon as possible, i.e. as soon as there is disk space and they aren't waiting for
+   experiments they depend on results from."** No arm of this group needs a result of
+   `arch-swap-1021` to start, so its queue starts when arch-swap's has placed its last run and a slot
+   frees, not after arch-swap's readout. The plan (`docs/plans/2026-10-23-encoder-interface.md`,
+   section 7, step 5) had held the launch until `rra` and seed 3 were in, to stop if they contradicted
+   the encoder hypothesis; that gate is dropped. If arch-swap's readout contradicts the hypothesis,
+   Claude reports it and Aden decides whether to stop runs, by hand. Claude posts this entry for
+   Aden's review and does not hold the launch for it: a change Aden makes is an AMENDMENT.
+
+---
+
+## 2026-10-23 — PRE-REGISTERED — the encoder's interface: the equivariant agent's encoders widened, their last layers widened, or a window over their 9x9 maps for the critic (`enc-iface-1023`)
+
+**Question** (the plan, `docs/plans/2026-10-23-encoder-interface.md`, local, approved by Aden on
+2026-10-23 with Claude's recommendations on its review questions). At seed 2, ResFiT's actor on our
+equivariant encoder and critic (`ere 2`) scored 172 of 250 at 110k–150k, level with ResFiT's networks
+in our agent (`rrr 2`, 171), and `arch-wide`'s actor scored 160 (`arch-wide 2`) and 129 (`eee 2`) on
+the same encoder and critic (2026-10-23 NOTE; one seed, nothing read). The largest difference left
+between the two stacks is what reaches the critic. The equivariant critic sees 288 numbers per frame:
+its agentview encoder's 1x1 output (32 regular fields, 256 numbers) and the wrist's 32. ResFiT's sees
+its ViTs' 20,736 tokens. Inside the agentview encoder, the 9x9 map before the last max pool is 20,736
+numbers too. The probe (the MEASUREMENT before) found that the map holds what the output loses: at equal
+size, the nut's xy relative to the gripper reads 0.11–0.14 R² better from the 9x9 map than from the 1x1
+output, and better than from ResFiT's tokens. **Does handing the critic more of the image raise the
+equivariant residual's level, and which way of growing the interface does it?**
+
+**The four arms**, each `arch-swap-eee`'s launch (`IFACE_ANCHOR` in `submit.sh`: `EQUI_ANCHOR` and
+`equivariance.actor_norm=layer_norm equivariance.critic_norm=layer_norm agent.critic.num_q=10
+equivariance.num_critic_layers=2 equivariance.actor_degree_channel=448`) plus its overrides:
+
+| # | Arm | Method | Overrides beyond `IFACE_ANCHOR` | Critic sees | Actor sees | Encoder / actor / critic, parameters at seed 2 |
+|---|---|---|---|---|---|---|
+| 1 | `iface-eee` | the anchor, at the interface's commit | none | 288 | 288 | 0.627M / 3.364M / 2.824M |
+| 2 | `iface-wide-all` | every encoder twice as wide | `equivariance.enc_degree_channel=64 equivariance.ih_channels=[32,64,128,256] equivariance.ih_out_channel=64` | 576 | 576 | 2.506M / 3.493M / 2.861M |
+| 3 | `iface-wide-out` | the encoders' last layers alone wider | `equivariance.enc_out_channel=128 equivariance.ih_out_channel=256` | 1,280 | 1,280 | 1.033M / 3.808M / 2.951M |
+| 4 | `iface-window` | a window for the critic over each encoder's 9x9 map | `equivariance.critic_window=96 equivariance.critic_window_ih=224` | 288 + 992 = 1,280 | 288 | 3.712M / 3.364M / 2.951M |
+
+- **Each launch** then has `algo.total_timesteps=150000 read_buffer_caches=false
+  write_buffer_caches=false`, its naming, `seed=<2|3> debug=false` and Hydra's run directory.
+- **`iface-eee` is `arch-swap-eee`'s launch exactly** (`tests/test_sweep_arms.py`: the same overrides
+  and composed config), and so `arch-wide`'s. At this commit its agent computes as at `aec1bdc`'s, bit
+  for bit (the CODE entry: `--deep` on all 19 earlier candidates), so its runs replicate `arch-wide 2`,
+  `eee 2` and `eee 3` in everything but the episodes.
+- **Arms 3 and 4 hand the critic the same 1,280 numbers**: a longer summary of the 3x3 map against a
+  second look at the 9x9 map. Arm 3 also gives the actor the 1,280; arm 4's actor is the anchor's.
+- **The window** (arm 4): an `R2Conv` from the agentview's 9x9 map (32 fields) to 96 regular fields
+  (768 numbers), and a plain `Conv2d` from the wrist's 9x9 map (128 channels) to 224, each a 9x9 kernel
+  to 1x1, then a ReLU. Its 3.09M weights train with the encoder, on the critic's loss, at 1e-4; the
+  critic reads it through `window_proj` (0.127M), which starts at zero.
+
+**Seed group `enc-iface-1023`, seeds 2 and 3 of each arm** (the plan's review question 1). Names
+`<arm>-<seed>`, notes `enc-iface-1023/<arm>/seed<seed>`, wandb `robomimic-square-final` /
+`equi-residual-rl`.
+
+**What every arm shares:** `arch-swap-eee`'s everything (the arch-swap PRE-REGISTERED entry, "What every
+arm shares"): our agent and trainer, the re-rendered demos, base policy v9, mujoco 3.3.2, 50-episode
+evals every 10k, 10 critic heads of 2 hidden layers with RegularLayerNorm, `arch-wide`'s actor (448
+fields, RegularLayerNorm), **the actor at 1e-6 and the critic and encoder at 1e-4 in every arm.**
+
+**The starting weights at one seed** (`tests/test_interface.py`, seed 2): the agent builds its
+encoder, then its critic, then its actor.
+- **`iface-window` starts as `iface-eee`:** the window's convs are built with the random state forked
+  and its projection at zero, drawing nothing. So every weight the two share is the same bit for bit,
+  and so are their Q, their features and their first critic loss.
+- `iface-wide-out` and `iface-wide-all` change the wrist CNN, which is built first, so every later
+  weight is drawn differently: they share no weights with the anchor at a seed.
+
+**The actors' rate: 1e-6 in every arm** (the plan's rule: a rate moves only if calibration puts an
+arm's early speed several times outside 0.025–0.045). The calibration
+(`outputs/diagnostics/enc-iface/calibrate.py`, arch-swap's method, on the CPU at this commit's tree:
+50 actor-only steps against each arm's own frozen critic at 1e-6, from seed 2):
+
+| Arm | Residual after 50 steps | Against `iface-eee` | Predicted 0–3k at 1e-6 (`h216n857`'s 0.0367 × that) |
+|---|---|---|---|
+| `iface-eee` | 1.17e-3 | 1.00 | 0.0367 |
+| `iface-wide-all` | 1.14e-3 | 0.97 | 0.0357 |
+| `iface-wide-out` | 1.11e-3 | 0.95 | 0.0348 |
+| `iface-window` | 1.17e-3 (exactly `iface-eee`'s, every step) | 1.00 | 0.0367 |
+
+Every arm inside the band.
+
+**The contrasts,** each on the two seeds pooled at 110k–150k (500 episodes per arm):
+
+| | Contrast | What it isolates | What else differs between its two ends |
+|---|---|---|---|
+| I1 | `iface-wide-all` − `iface-eee` | the encoder's capacity, body and output (576 numbers to both networks) | the encoder's body moves its features faster per step at 1e-4 (4 times the weights); the actor's first layer reads twice as much; no shared weights at a seed |
+| I2 | `iface-wide-out` − `iface-eee` | a longer summary: the last layers 4 and 8 times wider (1,280 numbers to both networks) | the actor's first layer reads 4.4 times as much; no shared weights at a seed |
+| I3 | `iface-window` − `iface-eee` | the critic reading the encoders' maps (1,280 numbers to the critic, 288 to the actor) | 3.2M more weights training on the critic's loss; nothing else at the start |
+| I4 | `iface-window` − `iface-wide-out` | a second look at the map against a longer summary, at the critic's equal input | `iface-wide-out`'s actor reads 1,280 numbers, the window arm's 288 |
+
+- **Every contrast counts at a difference of 0.13 or more,** arch-swap's bar (about two standard
+  deviations of a difference of two-seed means at the measured noise).
+- **Against ResFiT's networks:** each arm against `rrr`'s two-seed pool in `arch-swap-1021`; within
+  0.13 below it, or above it, reads "closes the gap to ResFiT's networks in our agent". Reported with
+  the caveat that the two groups ran from different commits and in overlapping, not identical,
+  conditions.
+- **The commit check, reported:** `iface-eee`'s pool against the `eee`-config runs before it
+  (`arch-wide 2` 160, `eee 2` 129, `eee 3`), as a replicate.
+
+**Rules.**
+- **To a fixed 150k, with no automatic stop of any kind.** The watcher (tmux `iface-watch`,
+  `tools/square_rerendered_watch.py --group enc-iface-1023`, from the group's worktree) logs every
+  eval, FLAGs critic values above 1.5, logs each run's early speed once, and finalizes a package a
+  crash leaves incomplete; it never signals a run (`tests/test_square_rerendered_watch.py`). Aden stops
+  a run by hand if one needs it.
+- **The speed readout:** each run's 0–3k residual, against 0.025–0.045; reported, never a relaunch.
+  Each contrast is reported with its two ends' early speeds.
+- **Reported, deciding nothing:**
+  - the 10k eval and 10k–30k pooled; training-episode success at 100k–150k;
+  - `debug/dQ_da_mean_abs` and `debug/q_data_online`, early (10k–30k) and late (120k–150k). If the
+    interface is the cause, the wider arms' slope is steeper and their online value positive from the
+    start, as `rrr`'s was in arch-swap;
+  - each residual field's size late;
+  - `iface-window`'s `debug/critic_window_share`: whether the window opens, and how far.
+- **A gross failure:** `iface-window`'s share above 10 (the window's term ten times the images', the
+  plain wrist window at 1e-4 running away), or any arm's critic values FLAGged above 1.5 for 10k steps:
+  Claude reports it at once, and Aden decides.
+- **No checkpoints,** as in the last four groups.
+
+**Predictions** (Claude's, before launch; from the probe and the plan's section 6):
+1. **I3 counts the window way** (low confidence): the window gives the critic back what the probe shows
+   its input loses (0.11–0.14 R² of the nut's xy relative to the gripper, more of its heading).
+2. **I4 does not count** (low): at 256 components the 3x3 map, which `iface-wide-out`'s last layer
+   reads, is within 0.01 of the 9x9 map, so a longer summary can keep most of what the window gets.
+   So I2 is positive, and may count.
+3. **I1 does not count** (low): `iface-wide-all` keeps the squeeze to 1x1, at 576 numbers.
+4. **`iface-eee` replicates its config:** its pool within 0.13 of the mean of `arch-wide 2`, `eee 2`
+   and `eee 3` (moderate).
+5. If the window or wide-out arm counts, it pools within 0.13 of `rrr`'s (low).
+
+**What the outcomes lead to** (the plan's section 6):
+
+| Counts | Reading | Next |
+|---|---|---|
+| I3, not I2 | the critic needs the map, not a longer summary | give the actor the window; then the equivariant-against-ablated contrast (arch-swap's C1) on that stack |
+| I2 (I4 not) | the interface's size matters, the map is not needed | split the wrist from the agentview: which camera's interface matters |
+| I1 alone | the encoder's body is too small | wider still, or the 128 fields its config's comment calls ideal |
+| none | the interface is not the gap | a bigger critic (`critic_degree_channel=256`), or back to the actor |
+
+**Launch.** From this entry's commit (its code `c705c4d`'s, the CODE entry), in its own pinned worktree
+(`~/projects/equi-resrl-<commit>`).
+`outputs/queue/launchers/iface/iface_queue.sh` (tmux `iface-queue`):
+1. waits until arch-swap's slot queue has placed its last job (`rra 3`), so the two queues never
+   compete for a slot;
+2. at the first slot free for 300 s, runs the three integration smokes there, one at a time, from the
+   worktree: arch-swap's (`iface-wide-all`, `iface-wide-out`, `iface-window`; each the arm's overrides
+   but for `algo.total_timesteps=1000 algo.learning_starts=300 eval_first=true eval_num_episodes=2
+   eval_interval_every_steps=500 seed=2`, offline, wandb `equi-resrl-smoke`). Each must reach 1,000
+   steps, log its three evals, `debug/q_data_*`, the 28 `debug/residual_field/*` keys (and
+   `debug/critic_window_share`, the window arm), save a best model that loads into its config's
+   agent, and finalize its package (`outputs/diagnostics/enc-iface/smokes/check_smoke.py`). An arm
+   whose smoke fails is left out of the jobs, and Claude reports it;
+3. runs `iface-wide-all`'s two jobs itself, on the smokes' GPU, seed 2 and then seed 3 (each through
+   `retry/run_job.sh`, its gate included), and from there starts `slot_queue.sh` (arch-swap's, unchanged)
+   on `outputs/queue/launchers/jobs-enc-iface-1023.txt`: `iface-eee 2`, `iface-window 2`,
+   `iface-wide-out 2`, `iface-eee 3`, `iface-window 3`, `iface-wide-out 3`. Each takes the first slot
+   free for 300 s, two per GPU, through its gate (Tiers 1–3: the GPU suite with this commit's tests),
+   retried up to 3 times; the new arms' jobs carry `if=../iface/smoke_passed.sh`, which skips an arm whose
+   smoke failed. `iface-wide-all` runs apart because of its memory (below).
+
+**Resources and timeline.**
+- **Slots.** arch-swap holds all four until its queue has placed `rra 3` (about 16:40 on 10-24, in
+  `ere 3`'s slot). The first slot free after that is expected about 17:00 on 10-24 (`eee 3`'s, beside
+  `rra 2`), the second about 21:00 (`ara 3`'s, beside `rra 3`; `ara 3` launched at 15:52 on 10-23), the
+  third and fourth about 03:00 and 08:00 on 10-25 (`rra 2`'s and `rra 3`'s, if `rra` runs as `rrr`, about
+  14 h; its speed is unmeasured).
+- **Speed:** a CNN arm about 31 h from launch to 150k, its gate included (`arch-wide` 30 h). Each launch
+  adds about 5 min to settle, 70–85 min of gate (`ere 3`'s: 85 min) and about 20 min of demo labelling.
+  `iface-wide-all`'s encoder does about 4 times the convolution, so it may run slower; its smoke
+  measures by how much.
+- **GPU memory.** A CNN run holds about 10.9 GB of a 24.5 GB GPU: its trainer about 4.9 GB (`eee 3`'s
+  5.0 GB, `aaa 3`'s 5.3 GB at 10-23) and its nine env workers 656 MB each; a ViT run about 9.1 GB
+  (`rrr 3`'s trainer 3.2 GB). One update at the trainer's batch (256), on the CPU
+  (`outputs/diagnostics/enc-iface/mem_probe.py`), adds 1.93 GiB in `iface-eee`, 1.88 in `iface-wide-out`,
+  1.99 in `iface-window` and **4.59 in `iface-wide-all`**. If the GPU follows, a `wide-all` run holds about
+  13.5 GB: beside a ViT run 22.6 GB, but beside another CNN run 24.3 GB, past arch-swap's 23.5 GB
+  bound for a pair. **The rule:** if `iface-wide-all`'s smoke's trainer peaks above 6,750 MiB (so that
+  it and a CNN run would pass 23.5 GB), a slot holder (`outputs/queue/launchers/iface/hold/run_job.sh`,
+  counted by the queue as one slot) keeps the other slot of its GPU from every other run while a
+  `wide-all` run is on it; it shares its GPU with the ViT run already there, `rra 2` or `rra 3`, until that
+  ends. The first free slot sits beside one of them, which is why `wide-all` takes it.
+- **RAM:** four runs fill the machine at 150k, as in every group since 10-13; a smoke peaks at about
+  14 GB and runs only in a free slot.
+- **Disk:** 23 GB free at 15:20 on 10-23, after the reclaim (the DECISION above). The trainer still
+  writes each best model twice, so a CNN package is about 1.1 GB: eight about 9 GB, with arch-swap's
+  remaining packages about 5 GB, about 9 GB to spare at the end. The wandb cache cleanup (tmux
+  `wandb-cache`, every 12 h) runs until arch-swap's last run has exited, and then again for this group.
+  **At 16:54 on 10-23 the disk filled for a few minutes and then came back to 23 GB free.** No file
+  over 200 MB had been written in the two hours before, and nothing found explains it; the three
+  trainers running were unaffected, and `ara 3`'s gate went on. A watchdog (`/dev/shm/disk_watch.sh`)
+  logs the free space every 20 s and wakes Claude below 8 GB, with the largest writers at that moment.
+- **Expected starts** (in wandb, after the smokes, the gate and the labelling): `iface-wide-all 2` about
+  20:00 on 10-24 in the smokes' slot, `iface-eee 2` about 23:00 (`ara 3`'s slot), `iface-window 2` and
+  `iface-wide-out 2` about 05:00 and 10:00 on 10-25 (`rra 2`'s and `rra 3`'s); then each seed 3 as a run of
+  its arm ends. Without the holder, the last at 150k about 10-28; with it, one slot is held from when
+  `wide-all`'s ViT neighbour ends, and the last about 10-29.
+- **Decision points:**
+
+  | When | What | Decision |
+  |---|---|---|
+  | each smoke | its checks; `iface-wide-all`'s trainer's GPU peak | a failed smoke: its arm is left out, Claude reports; wide-all above 6,750 MiB: the slot holder (automatic) |
+  | each first launch + about 2.5 h | its 0–3k speed and its GPU pair's memory | the speed: reported; a pair above 23.5 GB: stop one and reorder (Aden) |
+  | `iface-window 2` at 30k | its window share | above 10: reported at once (a gross failure) |
+  | about 10-25, morning | `arch-swap-1021` complete: its readout and NOTE | if it contradicts the encoder hypothesis, reported; Aden decides whether to stop runs |
+  | about 10-26 | wave 1 at 150k: a provisional read | nothing |
+  | about 10-28 | wave 2 at 150k | `/analyze-experiment` against these rules, the NOTE, the next step from the table above |
+
+**Departures from the plan,** each already above: the launch ahead of arch-swap's readout (Aden, the
+DECISION above); the group named for this entry's date, 10-23, not the plan's provisional 10-25; the
+GPU suite run as each launch's gate rather than before the CODE commit (the CODE entry: the suite ran in
+full on the CPU, where the GPU was not free); the smokes in the first free slot, after this entry;
+`iface-wide-all` launched apart, first, and alone on its GPU if its memory requires (the plan's order had
+it last in each wave); and prediction 2, refined by the probe (the plan's table had the window above
+wide-out).
+
+---
