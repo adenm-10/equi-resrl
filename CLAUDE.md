@@ -62,12 +62,13 @@ The gate fails on any other mujoco, and checks the render against the demos (`to
 
 ## Session protocol
 
-Three skills in `.claude/skills/` cover this:
+Four skills in `.claude/skills/` cover this:
 
 | Skill | When |
 |---|---|
 | `/session-start` | Beginning of a session. Reads the state docs, checks them against the repo, reports where things stand, asks what you want to work on. |
 | `/session-end` | End of a session. Writes the session into the docs, takes safe condensing opportunities, asks about committing. |
+| `/wrapup` | Periodically, or after `/session-end`. Sorts leftover files, worktrees, tmux sessions and unfinished work into keep, commit, park, delete or ask; applies only what you approve; ends with a paste-ready paragraph for the next session. |
 | `/analyze-experiment` | After runs finish. Comparison table, plain-English read on the results, suggested next steps. |
 
 Doing it by hand instead, the end-of-session protocol is, in the same commit as the code change:
