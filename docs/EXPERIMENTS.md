@@ -9668,3 +9668,84 @@ it last in each wave); and prediction 2, refined by the probe (the plan's table 
 wide-out).
 
 ---
+
+## 2026-10-24 — DECISION — the queue reordered: `iface-window 2` and `iface-wide-out 2` first, then `arch-swap-rra` 2 and 3, then `iface-wide-all`; `rra` kept; a GPU-memory collision in the old order removed
+
+Aden, 2026-10-24 morning, asked whether `rra` could be skipped or the interface arms moved up, so that a
+progress update today could show interface results. Claude recommended keeping `rra` and moving the two
+arms that give the critic more of the image to the front; Aden: "queue them as you recommend."
+
+**Why `rra` stays.** C5 (`rra` − `ara`) is arch-swap's one contrast of a critic fed many more numbers
+(20,736 per frame from ResFiT's ViTs, against 288 from our CNNs; confounded with the encoder and the
+augmentation, the arch-swap PRE-REGISTERED entry), so it is the early, cheap version of this group's
+question, with `rra 2` at 150k on 10-25. C6 needs it too. Skipping both runs would have moved this group
+up about 4.5 h and left `iface-wide-all` no ViT run to sit beside.
+
+**The collision the old order had.** From the last 6 h's speeds (wandb, at 09:00 on 10-24), `aaa 3`
+reaches 150k about 12:23 and `eee 3` about 16:52 (both GPU 1), `ere 3` about 19:03 and `ara 3` about
+00:21 on 10-25 (both GPU 0). The pre-registration expected `ere 3`'s slot to free before `eee 3`'s. In
+this order, arch-swap's queue would have put both `rra` runs on GPU 1, and iface-queue the smokes and
+`iface-wide-all 2` on GPU 0 beside `ara 3`, which holds 11,058 MiB (measured at 09:00, trainer and
+workers): with `wide-all` at about 13.5 GB, about 24.6 GB on a 24,564 MiB GPU, from about 19:00 to 00:21.
+
+**The new queue,** `outputs/queue/launchers/order-1024/order_queue.sh`, tmux `order-queue`, started 09:25.
+At 09:24 Claude stopped iface-queue's `iface_queue.sh` (still waiting for arch-swap's queue) and then
+rfe-queue's `slot_queue.sh` (waiting to place `rra 2`). Nothing about any run changes: the same
+worktrees (`aec1bdc` for `rra`, `58d55d7` for enc-iface), `retry/run_job.sh` and its gate, the same
+smokes and checks (`launch_smoke.sh`, `check_smoke.py`, a failed smoke drops its arm), the same
+300 s settle. What changes is the order, and how memory is kept within 23.5 GB a pair: at each free slot
+the first job that fits beside what is on that GPU launches. `iface-wide-all` never goes beside another
+`wide-all`, nor beside a CNN run unless its smoke's trainer peaks at or below 6,750 MiB (the
+pre-registered rule), and then no CNN run goes beside it either; a ViT run may. This replaces the slot
+holder (`iface/hold/`, never started). The order, with the slots expected:
+
+| Job | Slot (expected) | Beside | In wandb (expected) |
+|---|---|---|---|
+| `iface-window` smoke, then `iface-window 2` | `aaa 3`'s, GPU 1, about 12:30 | `eee 3` | about 14:45 on 10-24 |
+| `iface-wide-out` smoke, then `iface-wide-out 2` | `eee 3`'s, GPU 1, about 17:00 | `iface-window 2` | about 19:15 |
+| `arch-swap-rra 2` | `ere 3`'s, GPU 0, about 19:10 | `ara 3` | 150k about 07:40 on 10-25 |
+| `arch-swap-rra 3` | `ara 3`'s, GPU 0, about 00:30 on 10-25 | `rra 2` | 150k about 13:00 on 10-25 |
+| `iface-wide-all` smoke, then `iface-wide-all 2` | `rra 2`'s, GPU 0, about 07:45 on 10-25 | `rra 3` | about 10:00 on 10-25 |
+| `iface-wide-all 3`, `iface-eee 2`, `iface-window 3`, `iface-wide-out 3`, `iface-eee 3` | the first slot each fits | | `iface-eee 2` about 13:00 on 10-25 (`rra 3`'s), or about 20:00 (`iface-window 2`'s) if `wide-all` is too big to share with a CNN run |
+
+The last at 150k is still expected about 10-28. arch-swap's last run moves from about 06:30 to about 13:00
+on 10-25, and its readout with it.
+
+**What is read early, and what is not.** No contrast, bar or rule of either pre-registration changes:
+I1–I4 are read against `iface-eee`, two seeds pooled at 110k–150k. Until `iface-eee 2` runs,
+`iface-window 2`'s and `iface-wide-out 2`'s early evals are set beside `eee 2`, `eee 3` and `arch-wide 2`
+(the same launch, `iface-eee`'s, from `aec1bdc` and before) at the same steps, as a description only: at
+10k–30k this agent's evals dip to about 0 and recover, and `eee`'s two seeds there differ by 0.11 against
+0.33. The checks that can be read on 10-24: each smoke; `iface-window 2`'s 0–3k speed (about 16:00) and
+its window share at 30k (about 20:45).
+
+---
+
+## 2026-10-24 — NOTE — the disk-full minutes of 10-23 stopped wandb's local record of `aaa 3`, `eee 3` and `ere 3`; wandb's server has every step
+
+At 16:54 on 10-23 (the 2026-10-23 PRE-REGISTERED entry, "Disk"), wandb could not write the local
+transaction log (`run-<id>.wandb`) of the three runs then training: "no space left on device". It never
+resumed. At 08:53 on 10-24 every record was still failing ("transactionlog: error starting next record";
+13,523 times in `i8uivy7b`'s `debug-internal.log`), with 24 GB free. The local records end at step
+51,700 (`aaa 3`, `i8uivy7b`), 37,100 (`eee 3`, `jr63pxb9`) and 11,699 (`ere 3`, `ifpm32n9`). `ara 3`
+(`kfos81cr`) started after and is unaffected.
+- **wandb's server is complete:** the filestream kept sending history (`i8uivy7b`'s at offset 1,828 at
+  08:52), and the API's evals of all three match their console logs (`aaa 3` 0.46, 0.44, 0.44 at
+  110k–130k; `eee 3` 0.54 at 110k; `ere 3` 0.66 at 90k).
+- **The trainers are not affected;** their console logs and evals continue.
+- **The watcher** (`tools/square_rerendered_watch.py`, tmux `swap-watch`) reads the local record, so it
+  has logged nothing of these three since then: no evals, and none of its flags. Claude read them by hand
+  at 09:00: critic loss about 1e-4, demo value 0.35–0.42, online value 0.05–0.17; nothing collapsing or
+  diverging.
+- **Their packages will be short.** `finalize_run_package` copies the local record and builds
+  `metrics.jsonl` from it, so the three packages will hold history only to the steps above, and the copy
+  of the record, kept to restore a run wandb deletes, the same.
+- **Aden, 10-24: rebuild them from the server.** `outputs/diagnostics/arch-swap-1021/rebuild_metrics.py`
+  writes a package's `metrics.jsonl` from the server's history once the run has ended, keeping the short
+  file as `metrics_local.jsonl` and saying so in `metrics_source.txt`; tmux `metrics-rebuild`
+  (`rebuild_when_done.sh`, log `rebuild.log`) runs it for each of the three as its package completes. It
+  writes nothing unless the server's rows equal the local ones over the local record's steps and the
+  server has the eval at 150k. The check, at 09:33: on `1u5xnikc` (`rrr 3`, its record complete) the
+  server's 2,142 rows equal the package's in every value; over the three short records (702, 514 and
+  156 rows), 0 differ. The server writes NaN as the string "NaN" and a histogram's bins as `packedBins`;
+  the script puts both back in the local form. The copy of the record itself cannot be rebuilt.

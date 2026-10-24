@@ -5,27 +5,31 @@ pre-registration; its code is the commit before it (EXPERIMENTS.md, 2026-10-23 C
 interface"). The running arch-swap runs are from `aec1bdc`. Main is ahead of origin and not pushed:
 pushing waits for Aden.
 
-**Now: two groups.** `arch-swap-1021` is finishing, and **`enc-iface-1023` is queued to start the
-moment arch-swap's queue has placed its last run and a slot frees** (Aden, 2026-10-23 DECISION: as
-soon as possible, not after arch-swap's readout).
+**Now: two groups in one queue.** `arch-swap-1021` is finishing, and **`enc-iface-1023` starts in the
+next free slot, its critic-window arm first** (Aden, 2026-10-24 DECISION: `iface-window 2` and
+`iface-wide-out 2` first, then `rra` 2 and 3, then `iface-wide-all` and the rest). One queue places
+both groups' remaining jobs: tmux `order-queue`, `outputs/queue/launchers/order-1024/order_queue.sh`
+(log `order_queue.log` there), which fits each job beside what is on a GPU by memory.
 - **`arch-swap-1021`** (EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED; the 2026-10-23 LAUNCHED and seed-2
-  NOTE): at 17:00 on 10-23, `rrr 2`, `ere 2`, `eee 2`, `aaa 2`, `ara 2` and `rrr 3` finished; `aaa 3`,
-  `eee 3` and `ere 3` running; `ara 3` launched at 15:52 (`rrr 3` finished at 15:48: `rrr` pools 0.648, so H does not count);
-  `rra 2` and `rra 3` queued, about 12:00 and 16:40 on 10-24; the last at 150k about 08:00 on 10-25.
-  Seed 2, provisional: `ere 2` 172 and `rrr 2` 171 of 250, `eee 2` 129, `aaa 2` 85, `ara 2` 73
-  (110k–150k). Tmux: `rfe-queue`, `swap-watch`, `wandb-cache`, one `q-arch-swap-<arm>-<seed>` per job.
+  NOTE): at 09:00 on 10-24, `rrr` 2 and 3, `ere 2`, `eee 2`, `aaa 2` and `ara 2` finished (`rrr` pools
+  0.648, so H does not count); `aaa 3`, `eee 3`, `ere 3` and `ara 3` running, at 150k about 12:23,
+  16:52, 19:03 and 00:21 on 10-25; `rra 2` and `rra 3` queued, about 19:10 on 10-24 and 00:30 on 10-25;
+  the last at 150k about 13:00 on 10-25. Seed 2: `ere 2` 172 and `rrr 2` 171 of 250, `eee 2` 129,
+  `aaa 2` 85, `ara 2` 73 (110k–150k). **The local wandb records of `aaa 3`, `eee 3` and `ere 3` stopped
+  at the 10-23 disk-full minutes** (the 2026-10-24 NOTE): wandb's server has every step, but their
+  packages' `metrics.jsonl` is rebuilt from the server as each ends (tmux `metrics-rebuild`, Aden's
+  yes), and `swap-watch` logs nothing of them. Tmux: `swap-watch`, `wandb-cache`, `metrics-rebuild`, one
+  `q-arch-swap-<arm>-<seed>` per job.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 CODE, MEASUREMENT, DECISION and PRE-REGISTERED;
   [the plan](plans/2026-10-23-encoder-interface.md), local). The equivariant critic sees 288 numbers per
   frame where ResFiT's sees 20,736; the probe found that the agentview encoder's 9x9 map holds what its
   1x1 output loses (the nut's xy relative to the gripper, 0.11–0.14 R² at equal size), and more than
   ResFiT's tokens. Four arms on `arch-swap-eee`'s launch, at seeds 2 and 3: `iface-eee` (the anchor),
   `iface-wide-all` (the encoders twice as wide), `iface-wide-out` (their last layers wider; 1,280 numbers)
-  and `iface-window` (a window over the 9x9 maps for the critic alone; 1,280). Tmux `iface-queue`
-  (`outputs/queue/launchers/iface/iface_queue.sh`) waits for arch-swap's queue, runs the three smokes in
-  the first free slot (about 17:00 on 10-24), launches `iface-wide-all` there itself (alone on its GPU,
-  behind a slot holder, if its smoke's memory requires), then starts the slot queue for the other six;
-  `iface-watch` is the watcher. Expected in wandb: `iface-wide-all 2` about 20:00 on 10-24, the rest of
-  seed 2 by about 10:00 on 10-25, the last at 150k about 10-28 (10-29 with the holder).
+  and `iface-window` (a window over the 9x9 maps for the critic alone; 1,280). Each new arm's smoke runs
+  in its first job's slot. Expected in wandb: `iface-window 2` about 14:45 on 10-24 (window share at 30k
+  about 20:45), `iface-wide-out 2` about 19:15, `iface-wide-all 2` about 10:00 on 10-25, `iface-eee 2`
+  13:00–20:00 on 10-25; the last at 150k about 10-28. `iface-watch` is the watcher.
 - **Disk:** 23 GB free at 15:20 on 10-23, after the 12.1 GB reclaim of duplicate best models Aden
   approved (the DECISION); about 9 GB to spare when both groups are done.
 
@@ -312,7 +316,8 @@ needs it. New groups go in the watcher's watch-only set.
 
 How the last groups were launched and followed, for the next ones:
 - **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, in tmux `rfe-queue`. Not running: it
-  ended at 00:28 on 10-18, when every job had launched.
+  placed arch-swap's first ten jobs and was stopped on 10-24, its last two moved to
+  `order-1024/order_queue.sh` (which fits each job to a GPU by memory; the 2026-10-24 DECISION).
   - Start it with `bash slot_queue.sh <jobs file> 2>&1 | tee -a slot_queue.log`. Job lines are
     `<worktree> <arm> <seed> <smoke_first> [if=<script>]`.
   - Each job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own

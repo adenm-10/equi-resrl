@@ -13,18 +13,23 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 `enc-iface-1023` (B21), queued behind it.** Aden's architectural experiments (2026-10-20 DECISION);
 STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that bears on them.
 
-### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — QUEUED 2026-10-23, to start about 10-24 18:00 (Aden, 2026-10-23) `[SC]`
+### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — QUEUED 2026-10-23, `iface-window 2` first, about 10-24 12:30 (Aden, 2026-10-23 and 10-24) `[SC]`
 
 [The plan](plans/2026-10-23-encoder-interface.md) (local), approved by Aden on 2026-10-23 with Claude's
 recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
-DECISION).
+DECISION), the critic-window arm first (2026-10-24 DECISION).
 - **Done:** the code and the probe (EXPERIMENTS.md, 2026-10-23 CODE and MEASUREMENT); the calibration
   (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the queue armed (tmux
-  `iface-queue`, `outputs/queue/launchers/iface/iface_queue.sh`) and the watcher (`iface-watch`).
-- **Next, automatic:** the three smokes in the first free slot after arch-swap's queue has placed its
-  last run, then the slot queue: seed 2 of each arm, then seed 3. Claude checks each smoke
+  `order-queue`, `outputs/queue/launchers/order-1024/order_queue.sh`, both groups' remaining jobs) and
+  the watcher (`iface-watch`).
+- **Next, automatic:** `iface-window 2` (its smoke first) in `aaa 3`'s slot about 12:30 on 10-24,
+  `iface-wide-out 2` in `eee 3`'s about 17:00, then `rra` 2 and 3, `iface-wide-all 2` (about 07:45 on
+  10-25, beside `rra 3`), and the rest as they fit. Claude checks each smoke
   (`outputs/diagnostics/enc-iface/smokes/`), `iface-wide-all`'s GPU memory against the 6,750 MiB rule
-  (above it, the slot holder keeps its GPU to itself), each first launch's gate and early speed, and the window's share at 30k.
+  (above it, no CNN run beside it), each first launch's gate and early speed, and the window's share at
+  30k (about 20:45 on 10-24). For Aden's progress update on 10-24: `iface-window 2`'s and
+  `iface-wide-out 2`'s first evals beside `eee 2`, `eee 3` and `arch-wide 2` at the same steps, as a
+  description only (the DECISION).
 - **Then:** the LAUNCHED entry once the first four are in wandb; probe `eee 3`'s encoder once it
   finishes (`python -m tools.encoder_probe probe eee3`); wave 1 at 150k (about 10-26), a provisional
   read; wave 2 at 150k (about 10-28): `/analyze-experiment` against the rules, the NOTE, and the next
@@ -62,7 +67,10 @@ its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equ
      match the equivariant critic's change per step (about 3.3e-5), which would separate "the constraint
      helps" from "the dense critic is too fast at 1e-4"; the PRE-REGISTERED entry's own follow-up
      (`eee` at `agent.critic_lr=3e-4`) was for C1 the other way.
-- **Meanwhile:** the tmux sessions `rfe-queue`, `swap-watch` and `wandb-cache` stay up; stop the
+- **Meanwhile:** `rra` 2 and 3 are placed by `order-queue` (2026-10-24 DECISION); `swap-watch` and
+  `wandb-cache` stay up; `aaa 3`, `eee 3` and `ere 3` are followed by hand, their local wandb records
+  stopped (2026-10-24 NOTE); tmux `metrics-rebuild` rebuilds their packages' `metrics.jsonl` from the
+  server as each ends: check `outputs/diagnostics/arch-swap-1021/rebuild.log` before the readout; stop the
   watcher and the cleanup once the last run has exited and its package is complete.
 
 ### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — DONE 2026-10-19 (Aden, 2026-10-17) `[SC]`
