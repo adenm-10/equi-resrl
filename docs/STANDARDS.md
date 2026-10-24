@@ -213,9 +213,9 @@ test in TODO P2.0 makes this enforced rather than aspirational.
 
 ### 4.3 Unreachable means deleted or documented `[CS]`
 
-A file nothing imports gets removed, or gets a header comment saying why it is being kept. Five
-unreachable modules accumulated silently; three duplicated reachable code. One is now deleted, four
-are pending in TODO P3.5.
+A file nothing imports gets removed, or gets a header comment saying why it is being kept. Six
+unreachable modules accumulated silently; four duplicated reachable code. All are deleted now, the
+last four on 2026-10-24 (TODO P3.5).
 
 ### 4.4 No commented-out alternatives left in place `[CS]` `[HI]`
 

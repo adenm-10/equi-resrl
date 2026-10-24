@@ -197,38 +197,6 @@ def test_vc5o977f_replayed_is_flagged_at_99100_and_stopped_at_120000():
     assert stops[0][0] == 120_000 and "critic diverged" in stops[0][1]
 
 
-def test_arms_hold_is_the_preregistered_break_rule():
-    """tools/arms_hold.py, which decides combined: an arm breaks at 39 or fewer of 150 at 10k-30k,
-    or at three evals in a row at or below 0.05; and cannot be decided before its 30k eval."""
-    from arms_hold import holds
-
-    assert holds(evals(OJ5K0JQB[:4])) == (True, holds(evals(OJ5K0JQB[:4]))[1])   # 71 of 150
-    assert holds(evals(KYV7CLFC[:4]))[0] is False                                # collapsed
-    assert holds(evals([0.6, 0.26, 0.26, 0.26]))[0] is False                     # 39 of 150
-    assert holds(evals([0.6, 0.26, 0.26, 0.28]))[0] is True                      # 40 of 150
-    assert holds(evals(OJ5K0JQB[:3]))[0] is None
-    assert holds(evals([0.6, 0.5, 0.0, 0.0, 0.0]))[0] is False                   # collapsed after 30k
-
-
-def test_parts_seed3_is_the_preregistered_rule_less_arch_wide():
-    """tools/parts_seed3.py, which decides equi-arch-parts-1015's seed 3s: better than init0 at 105
-    of 250 at 110k-150k and not 104 (oav5gk76's 83, two standard errors); the two highest if more
-    than two qualify, a tie for second launching both; arch-wide is not a candidate (2026-10-16
-    DEVIATION)."""
-    from parts_seed3 import CANDIDATES, better_than_init0, due
-
-    assert better_than_init0(105) and not better_than_init0(104)
-    assert "equi-residual-square-arch-wide" not in CANDIDATES and len(CANDIDATES) == 4
-    actorln, criticln, heads, actor448 = CANDIDATES
-    late = {actorln: 140, criticln: 90, heads: 104, actor448: 105}
-    assert [due(arm, late) for arm in CANDIDATES] == [True, False, False, True]
-    late = {actorln: 140, criticln: 120, heads: 110, actor448: 105}
-    assert [due(arm, late) for arm in CANDIDATES] == [True, True, False, False]
-    late = {actorln: 140, criticln: 120, heads: 120, actor448: 60}
-    assert [due(arm, late) for arm in CANDIDATES] == [True, True, True, False]
-    assert not any(due(arm, dict.fromkeys(CANDIDATES, 83)) for arm in CANDIDATES)
-
-
 def test_equi_speed_matched_is_never_stopped():
     """equi-speed-matched-1017 (2026-10-17 PRE-REGISTERED): every arm to its own 150k with no
     automatic stop of any kind, the divergence stop included (2026-10-17 DEVIATION). Its arms are

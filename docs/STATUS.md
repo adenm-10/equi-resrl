@@ -1,9 +1,11 @@
 # Status
 
-**Last updated:** 2026-10-23 · **Last verified commit:** this file's own commit, the `enc-iface-1023`
-pre-registration; its code is the commit before it (EXPERIMENTS.md, 2026-10-23 CODE, "the encoder's
-interface"). The running arch-swap runs are from `aec1bdc`. Main is ahead of origin and not pushed:
-pushing waits for Aden.
+**Last updated:** 2026-10-24 · **Last verified commit:** this file's own commit, the 2026-10-24 repo
+cleanup, which removed only code no run reaches; the full gate has not run on it (TODO H12: only the
+watcher tests, with four runs leaving 4 GB of RAM). The queued `enc-iface-1023` jobs launch from
+`58d55d7`, its pre-registration (its code is the commit before it, EXPERIMENTS.md, 2026-10-23 CODE),
+and the running arch-swap runs are from `aec1bdc`. Main is ahead of origin and not pushed: pushing
+waits for Aden.
 
 **Now: two groups in one queue.** `arch-swap-1021` is finishing, and **`enc-iface-1023` starts in the
 next free slot, its critic-window arm first** (Aden, 2026-10-24 DECISION: `iface-window 2` and
@@ -30,8 +32,9 @@ both groups' remaining jobs: tmux `order-queue`, `outputs/queue/launchers/order-
   in its first job's slot. Expected in wandb: `iface-window 2` about 14:45 on 10-24 (window share at 30k
   about 20:45), `iface-wide-out 2` about 19:15, `iface-wide-all 2` about 10:00 on 10-25, `iface-eee 2`
   13:00–20:00 on 10-25; the last at 150k about 10-28. `iface-watch` is the watcher.
-- **Disk:** 23 GB free at 15:20 on 10-23, after the 12.1 GB reclaim of duplicate best models Aden
-  approved (the DECISION); about 9 GB to spare when both groups are done.
+- **Disk:** 31 GB free at 11:16 on 10-24, after the cleanup deleted the finished runs' eval videos
+  (7.15 GB; EXPERIMENTS.md, 2026-10-24 NOTE). The 10-23 reclaim of duplicate best models (12.1 GB, the
+  DECISION) had left 23 GB and about 9 GB to spare when both groups are done; about 16 GB now.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -341,8 +344,10 @@ How the last groups were launched and followed, for the next ones:
   after its four runs had exited.
   - A watch-only group (`WATCH_ONLY_ARMS`) is logged, FLAGged and finalized, and never signalled.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux:** the finished runs' `q-*` sessions and `sq-tilt-notilt` are idle shells. So are the old queue
-  runners `gpu0`, `gpu1` and `gpu1-bars`.
+- **tmux:** the finished `q-arch-swap-*` sessions are idle shells, left until arch-swap's readout. The
+  30 idle sessions from before it (the older `q-*`, `sq-tilt-notilt`, and the old queue runners `gpu0`,
+  `gpu1` and `gpu1-bars`, which polled queue files empty since 10-10) were killed on 10-24, their
+  scrollback saved in `outputs/cleanup-20261024/tmux_scrollback/`.
 
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field
@@ -357,14 +362,14 @@ How the last groups were launched and followed, for the next ones:
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 19 GB free on 2026-10-19** (23 GB on 10-17). The wandb cache was last cleared on
-    2026-10-15 (21.7 GB; EXPERIMENTS.md, that date's NOTE on `vqzx1ir9`).
+  - **The disk had 31 GB free on 2026-10-24** ("Disk", above). The wandb cache is cleared to 2 GB every
+    12 h by tmux `wandb-cache` (`outputs/queue/launchers/wandb_cache_cleanup.sh`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
     the disk falls below about 15 GB. Each run's current best is also in its run package's
     `wandb_best/`.
-  - The old worktrees are about 4 MB each. Equivariant checkpoints are 87 MB each and ResFiT's
-    223 MB.
+  - A worktree is about 4 MB. Equivariant checkpoints are 87 MB each and ResFiT's 223 MB. Each
+    run's eval videos come to about 110 MB (TODO H13).
 - **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (ResFiT) and
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every
   watcher action, and consoles are in `outputs/queue/`.
@@ -505,9 +510,12 @@ survive the render fix.
   and verified, in `~/equi-resrl-preserve/wandb-offline-only/`: **`rdoj0ex8`** (upstream's
   trainer in our env), **`zwmk393l`** (upstream's trainer in its env) and `9atavlcs` (that run's
   first launch, which died at startup).
-- **The 15 pinned worktrees hold no records now.** Their 32 records, and upstream's clone's 2,
-  were moved into `wandb/` and `outputs/` on 2026-10-07 (EXPERIMENTS.md, CODE). Removing the
-  worktrees is Aden's (TODO B15 has the commands).
+- **Worktrees hold no records.** The 32 records of the 15 early pinned worktrees, and upstream's
+  clone's 2, were moved into `wandb/` and `outputs/` on 2026-10-07 (EXPERIMENTS.md, CODE); every run
+  since records into main. The 19 unused worktrees were removed on 2026-10-24 (TODO B15); `58d55d7`
+  and `aec1bdc` stay while their groups run.
+- `outputs/cleanup-20261024/`: the lists of what the 2026-10-24 cleanup deleted, and the killed tmux
+  sessions' scrollback.
 - `outputs/diagnostics/`: the render figures and the scripts that made them, cited by the FINDING,
   and the frames and repeats behind the gate's bar (`render_frames_mujoco{332,381}.npz`,
   `render_check_mujoco332_repeats10.jsonl`), cited by the 2026-10-07 CODE entry.

@@ -12,9 +12,9 @@ Aden wants to do. Do **not** start making changes — this skill ends with a que
 
 Read all four. They are small and they are the point of this skill.
 
-1. [docs/STATUS.md](../../../docs/STATUS.md) — what is true right now. **Check for an active freeze**; there is currently one on `resfit/rl_finetuning/equi_off_policy/` until the 3-seed replication reports.
+1. [docs/STATUS.md](../../../docs/STATUS.md) — what is true right now. **Check for an active freeze**; STATUS.md says whether one is on and on which files.
 2. [docs/PROGRESS.md](../../../docs/PROGRESS.md) — what happened in recent sessions. Top 2–3 entries.
-3. [docs/TODO.md](../../../docs/TODO.md) — the prioritized backlog, organized as H (housekeeping), R (replicate the recovered run), P1–P4 (standards, tests, cleanup, science).
+3. [docs/TODO.md](../../../docs/TODO.md) — the prioritized backlog: B (the current experiments) first, then H (housekeeping), R (the old replication, superseded), P1–P4 (standards, tests, cleanup, science).
 4. [docs/EXPERIMENTS.md](../../../docs/EXPERIMENTS.md) — the run record. Read the summary table and any entry STATUS.md points at.
 
 Then skim for orientation, not in depth:
@@ -50,7 +50,7 @@ docs or silently trust the repo — report the conflict and let Aden resolve it.
 
 Use ARCHITECTURE.md's module map and "where to find things" index rather than searching blind.
 Read what the next TODO items actually touch, preferring the specific functions the docs name over
-whole files. The main training script is 1316 lines; its phase order is summarized in
+whole files. The main training script is about 1,500 lines; its phase order is summarized in
 ARCHITECTURE.md, so read that first and then jump to the phase that matters.
 
 Two things that will mislead you if you skip them:
@@ -91,10 +91,11 @@ The one-paragraph version, so this skill still works if a doc is broken. The rep
 ResFiT (residual off-policy RL for finetuning BC policies). Stage 1 trains a base BC policy; stage
 2 freezes it and trains a small TD3 residual on top. The research question is whether making that
 residual SO(2)-equivariant, following the SO(2) equivariant RL paper, improves sample efficiency —
-even though the base policy it corrects is not equivariant. The baseline reproduces on the Can and
-Square robomimic tasks. An equivariant version trained successfully once on Can (`z8yoqylh`, 0.94). That run was
-long believed deleted; on 2026-09-16 it was found intact on a second workstation, `boce-WS-01`, with
-its full config. Replicating it across 3 seeds is the current priority, and those runs are in
-flight there. **Work spans two machines now** — check STATUS.md for which is which. The three
+even though the base policy it corrects is not equivariant. Two early results do not count: every
+equivariant run before 2026-10-02 acted on near-blank images (EXPERIMENTS.md, 2026-10-02
+CORRECTION), `z8yoqylh` included, and every run before 2026-10-07 rendered the floor unlike the
+demos (CLAUDE.md, the mujoco pin). Since then the work is on Square, where ResFiT's residual lifts
+the base policy and the equivariant residual stays below it; the current experiments ask which part
+of the equivariant agent holds it there. STATUS.md has what is running, and where. The three
 project priorities, in order, are scientific consistency, code simplicity and correctness, and
 human interpretability.

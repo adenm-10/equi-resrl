@@ -9749,3 +9749,16 @@ resumed. At 08:53 on 10-24 every record was still failing ("transactionlog: erro
   server's 2,142 rows equal the package's in every value; over the three short records (702, 514 and
   156 rows), 0 differ. The server writes NaN as the string "NaN" and a histogram's bins as `packedBins`;
   the script puts both back in the local form. The copy of the record itself cannot be rebuilt.
+
+## 2026-10-24 — NOTE — the eval videos of every run finished by 11:15 on 10-24 deleted from the run packages; each run's best video kept
+
+Aden approved, in the repo cleanup (PROGRESS.md, 2026-10-24). 1,050 `.mp4` files, 7.15 GB, deleted
+from `outputs/runs/`: every eval video a trainer saved locally (under a package's `outputs/` or
+`eval_*/`), in every package but the four then training (`aaa 3` `i8uivy7b`, `eee 3` `jr63pxb9`,
+`ere 3` `ifpm32n9`, `ara 3` `kfos81cr`). The list is `outputs/cleanup-20261024/deleted_eval_videos.txt`.
+- **Kept:** each run's `wandb_best/best_eval.mp4` (76), the copy of its one wandb upload, and every
+  other file of every package.
+- **Nothing read them:** no tool, test or doc read or cited a per-eval video, and success rates in
+  this file come from the `✓`/`✗` markers in each run's `output.log`, not from the videos.
+- **The trainer still saves every eval's video,** about 110 MB per 150k Square run (TODO H13). The
+  runs training now and every later run keep theirs until a cleanup removes them.

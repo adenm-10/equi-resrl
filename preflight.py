@@ -215,7 +215,6 @@ def tier1_pytest() -> bool:
          "tests/test_regression_single_arm.py", "tests/test_regression_agent.py",
          "tests/test_run_package.py", "tests/test_env_wrapper.py",
          "tests/test_eval_base_policy.py", "tests/test_square_verdict.py",
-         "tests/test_tuned_rlpd_verdict.py", "tests/test_baseline_verdict.py",
          "tests/test_gpu_queue.py",
          "tests/test_render_check.py", "tests/test_demo_codec.py", "tests/test_rerender_demos.py",
          "tests/test_field_metrics.py", "tests/test_field_ablation.py", "tests/test_encoder_probe.py"],

@@ -406,16 +406,15 @@ mixes.
 | `common_utils/escnn_fixes.py` | Two fixes to escnn 1.0.11 that remove its host syncs, exact to its outputs: basis expansions hash by identity, and a `GroupPooling` that slices with Python ints. See "Why the update used to stall". | yes |
 | `common_utils/module_attr_mixin.py` | Device/dtype helper base class. | yes |
 | `common_utils/tensor_util.py` | Tensor helpers used by the crop randomizer. | yes |
-| `common_utils/field_norm.py` | **Unreachable.** `FieldNorm` also exists in `equi_rl_utils.py`. | **no** |
-| `common_utils/rotation_transformer.py` | **Unreachable.** | **no** |
-| `common_utils/rotation_utils.py` | **Unreachable** (only imported by `rotation_transformer.py`). | **no** |
 
-Three unreachable files, all tracked, deferred to TODO P3.5. Check `field_norm.py` against
-`equi_rl_utils.py`'s `FieldNorm` before removing it — if the standalone copy is the better one, keep
-that instead. The fourth, `networks/ablate_equi_obs_encoder.py`, was deleted on 2026-10-20 with the
-scalar ablation.
+No unreachable file is left here. Four were deleted on 2026-10-24 (TODO P3.5; last at `7f9c42a`):
+`common_utils/field_norm.py`, an older `FieldNorm` than `equi_rl_utils.py`'s (it detached its
+statistics and had no spatial axes) that no run imported; `rotation_transformer.py` and the
+`rotation_utils.py` only it imported; and `common_utils/utils.py`, whose five functions are
+`off_policy/common_utils/utils.py`'s, byte for byte. `networks/ablate_equi_obs_encoder.py` was
+deleted on 2026-10-20 with the scalar ablation.
 
-A fifth, `rl/rl_utils.py`, was deleted on 2026-09-16: untracked, imported by nothing, and
+Before them, `rl/rl_utils.py` was deleted on 2026-09-16: untracked, imported by nothing, and
 unimportable (`from __future__ import annotations` on line 15, a hard `SyntaxError`), so it had
 never loaded in any run. Its one original class, `TrivialLayerNorm`, is preserved verbatim in
 TODO P3.4.
@@ -694,7 +693,7 @@ were moved into main on 2026-10-07 (EXPERIMENTS.md, CODE). The helpers are at th
 | `manifest.json` | wandb ids and URL, host, argv, git commit **plus the list of uncommitted files**, one entry per resume, the best step and success rate, `completed` |
 | `wandb_best/` | An exact copy of the run's one wandb upload: `best.json`, `best_eval.mp4`, and `policy/` (BC) or `best_model.pt` (residual) |
 | `wandb_logs/` | wandb's `config.yaml`, `output.log`, summary, metadata and `requirements.txt`, the `run-<id>.wandb` record, and `metrics.jsonl` |
-| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` (`best_model.pt`, and `step_<N>.pt` every `checkpoint_interval` steps from 2026-10-12) and `outputs/` |
+| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` (`best_model.pt`, and `step_<N>.pt` every `checkpoint_interval` steps from 2026-10-12) and `outputs/`. The eval videos of runs finished by 2026-10-24 were deleted, the best one kept in `wandb_best/` (EXPERIMENTS.md, 2026-10-24 NOTE) |
 
 **The upload rule.** A run uploads one artifact, `run_<id>_best`: the best model plus the video of
 the eval that produced it. Each new best uploads a new version, waits for it to commit, then deletes

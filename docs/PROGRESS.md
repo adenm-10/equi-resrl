@@ -17,6 +17,51 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-24 — the `/wrapup` skill, and a cleanup of the repo and the machine
+
+**Done**
+- **The `/wrapup` skill** (`.claude/skills/wrapup/SKILL.md`; CLAUDE.md lists it): sorts every leftover
+  file, worktree, branch, tmux session and piece of unfinished work into keep, commit, park, delete or
+  ask; applies nothing until Aden answers; parks unfinished work on a `wip/` branch, never a stash; ends
+  with a paste-ready paragraph for the next session. Writing the docs stays `/session-end`'s.
+- **An audit, then the cleanup Aden approved.** Each item was checked by an import graph of the
+  tracked Python, greps of the repo, the queue launchers and the docs, Hydra composes of the 116
+  upstream launch scripts, and byte compares. Every list of what went is in `outputs/cleanup-20261024/`.
+  - Deleted from git (all still at `7f9c42a`): `field_norm.py`, `rotation_transformer.py`,
+    `rotation_utils.py` and `utils.py` from `equi_off_policy/common_utils/` (TODO P3.5); the nine
+    `shell/paper_runs/pouring/` scripts that name `residual_td3_pouring_config`, which does not exist;
+    the closed groups' verdict tools `tuned_rlpd_verdict`, `baseline_verdict`, `arms_hold` and
+    `parts_seed3`, with their tests, two test functions and two preflight Tier 1 entries.
+  - Deleted locally: the 1,050 eval videos of finished runs (7.15 GB; EXPERIMENTS.md, 2026-10-24
+    NOTE), two stray logs, `outputs/dashboards/` and `outputs/videos/`. Disk 24 → 31 GB free.
+  - Removed: 19 unused worktrees (TODO B15), 30 idle tmux sessions (scrollback saved), the merged
+    branch `sync-free-update`. `.gitignore` now covers `docs/plans/`, `docs/update_slides/` and
+    `docs/*.pptx`, kept local on purpose.
+  - Stale text fixed: session-start's freeze, TODO layout, script length and project paragraph;
+    TODO H2, B15 and P3.5; ARCHITECTURE's unreachable list; STANDARDS 4.3.
+
+**Findings**
+- `field_norm.py` was an older `FieldNorm` than `equi_rl_utils.py`'s: it detached its statistics and
+  had no spatial axes. `common_utils/utils.py` was a byte-for-byte copy, and missing from the
+  unreachable list.
+- The eval videos were 8 GB of the 29 GB of run packages, and nothing read them. The trainer still
+  saves every one (TODO H13).
+- H2's two stashes no longer exist; the one dangling stash commit, `3f86708`, had already landed.
+
+**Decided** (Aden): delete tracked files only where they will certainly not be used again, or only as a
+one-off, since git keeps them. So these stay: the 107 upstream launch scripts that compose, the general
+tools (`bench_update`, `critic_start`, `target_bound`), the live watcher's `run_watch` and
+`square_verdict`, the `1u5xnikc` duplicate best model and the tilt runs' step checkpoints (4.1 GB). The
+doc budget (TODO H5) waits for Aden's new one.
+
+**Not verified:** the full gate (TODO H12); four runs left 4 GB of RAM. The watcher tests passed (24),
+with a compile check and the import graph.
+
+**Next:** as on 10-23: the `enc-iface-1023` smokes and launches (TODO B21), arch-swap's readout about
+10-25 09:00 (B20), then its six finished tmux sessions can go.
+
+---
+
 ## 2026-10-23 — the encoder's interface: plan, probe, code and queue (`enc-iface-1023`)
 
 **Done**

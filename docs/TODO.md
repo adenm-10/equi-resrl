@@ -162,7 +162,11 @@ demos").
    residual's path, not the critic design.
 7. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
 
-### B15. Fix the render, then new baselines — NEXT (Aden's plan, 2026-10-07) `[SC]` `[CS]`
+### B15. Fix the render, then new baselines — RAN 2026-10-07 to 10-10 (Aden's plan, 2026-10-07) `[SC]` `[CS]`
+
+**Status (2026-10-24):** the baselines ran; their record runs from EXPERIMENTS.md's 2026-10-07
+PRE-REGISTERED entry for the fixed-env baselines to the 2026-10-10 NOTE on `s8opblsd`. The items
+below are the plan as written then.
 
 Why: our `residual` env's mujoco 3.8.1 renders the floor differently from the demos, and
 upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in ours (EXPERIMENTS.md,
@@ -171,9 +175,11 @@ upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in our
 1. **DONE 2026-10-07: the worktrees' records are in main** (EXPERIMENTS.md, CODE, "records in
    main"). 34 records and 34 Hydra folders moved, hashes verified; the three never-synced records
    also copied to `~/equi-resrl-preserve/wandb-offline-only/`. New runs record into main wherever
-   they launch from. **Left for Aden: remove the 15 worktrees,** which now hold only code,
-   bytecode and an `artifacts` symlink into main's `artifacts/`. Unlink the symlink first, so
-   nothing can follow it:
+   they launch from. **Done 2026-10-24 (Aden approved): the 15 worktrees and four later ones
+   removed,** 19 in all, each checked unused and holding nothing but bytecode and an empty
+   `tea_debug.log`; `58d55d7` and `aec1bdc` stay while their groups run. The commands, for the
+   next time, run only over worktrees no live process or armed queue uses (`/wrapup` checks; unlink
+   the symlink first, so nothing can follow it):
    ```bash
    cd ~/projects/equi-resrl
    for w in ~/projects/equi-resrl-*/; do
@@ -461,15 +467,16 @@ PRE-REGISTERED). That gate ran under the image bug, and B10 reopens it.
 `rl_utils.py` deleted: untracked, unimported, and a hard `SyntaxError` on line 15, so it had never
 once loaded. Its only original content, `TrivialLayerNorm`, is preserved verbatim in P3.4 below.
 `note.txt` and `log.txt` removed from tracking, content migrated into these docs and recoverable via
-`git show 8442ba2^:note.txt`. Four unreachable modules remain, deferred to P3.5.
+`git show 8442ba2^:note.txt`. Four unreachable modules remained, deferred to P3.5 (all deleted by
+2026-10-24).
 
-### H2. Review two git stashes `[HI]`
+### H2 — CLOSED 2026-10-24: the two git stashes are gone `[HI]`
 
-`stash@{0}` on `aabde0f`, titled *"transferring to new compute"*. `stash@{1}` on `d9909ce`. Contents
-still unreviewed. That first title is more interesting than it looked: work has moved between the
-two workstations before, and that is exactly how `z8yoqylh` came to be invisible from
-`ZXP-S-works`. Worth five minutes of `git stash show -p`.
-**Updates:** STATUS.md.
+`stash@{0}` on `aabde0f` (*"transferring to new compute"*) and `stash@{1}` on `d9909ce` were never
+reviewed, and no longer exist: `git stash list` is empty and neither survives as a dangling commit
+(`git fsck --no-reflog`), so nothing is left to review. The one dangling stash commit found,
+`3f86708` (2026-09-27, on `f3e6315`), changes only `residual_env_wrapper.py`, and that file at
+`7f9c42a` is the stash's version exactly: its work landed.
 
 ### H4. Restore `z8yoqylh` to wandb `[SC]`
 
@@ -530,6 +537,21 @@ residual xy| > 1 (or the tilt pair's), which the demos' xy length passes at abou
 percentile. Measure how often the executed and the trained action differ in a run's online data,
 and by how much, before deciding whether execution should clip as training does. That change would
 alter what every later run executes, so it would need its own entry.
+
+### H12. Run the full gate on the 2026-10-24 cleanup `[CS]` (found 2026-10-24)
+
+The cleanup deleted four tools, two test files, two test functions and those files' two entries in
+preflight's Tier 1 list (PROGRESS.md, 2026-10-24). Only the watcher tests ran on it (24 passed),
+with a compile check and the import graph: four runs left 4 GB of RAM. Run
+`python preflight.py --skip-tier2` when the RAM allows, and before the next launch from main. The
+queued `enc-iface-1023` jobs launch from `58d55d7`, which the cleanup did not touch.
+
+### H13. The trainer saves every eval's video locally `[HI]` (found 2026-10-24)
+
+About 110 MB per 150k Square run (16 evals). Nothing reads them, and each run's best video is kept
+in `wandb_best/`; the 2026-10-24 cleanup deleted 7.15 GB of them (EXPERIMENTS.md, that date's NOTE).
+Stopping them changes what a run package holds, so it is Aden's call: a config field that branches
+(STANDARDS 1.2), or deleting them at each `/wrapup`.
 
 ### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
 
@@ -808,13 +830,14 @@ Belongs in `equi_rl_utils.py` alongside `FieldNorm`. Gated on R10 — it changes
 cannot land before the reproduction. R10 is moot since 2026-10-02 (P3's note). Any version of this must be covered by the P2.3 critic
 invariance test, since normalization is exactly where equivariance tends to break.
 
-### P3.5 Sweep the three remaining unreachable modules `[CS]`
+### P3.5 Sweep the remaining unreachable modules — FILES DONE 2026-10-24 `[CS]`
 
-`field_norm.py`, `rotation_transformer.py`, `rotation_utils.py`. All tracked, so deletion is
-reversible. Check `field_norm.py` against `equi_rl_utils.py`'s `FieldNorm` before removing — if the
-standalone copy is the better one, keep that instead. See H1. The fourth,
+**Done 2026-10-24 (Aden approved, in the repo cleanup):** `field_norm.py`, `rotation_transformer.py`,
+`rotation_utils.py`, and `equi_off_policy/common_utils/utils.py`, which this list had missed, are
+deleted; all four are in git at `7f9c42a`. The standalone `FieldNorm` was the worse copy: it detached
+its statistics and had no spatial axes, and no run ever imported it (ARCHITECTURE.md). The fourth,
 `ablate_equi_obs_encoder.py`, was deleted on 2026-10-20 with the scalar ablation it duplicated.
-`equi_rl_utils.py`'s `TruncatedNormal` and `clip_action_norm` are unreachable too: only the deleted
+**Left:** `equi_rl_utils.py`'s `TruncatedNormal` and `clip_action_norm` are unreachable too: only the deleted
 scalar actor's distribution path was near them, and it used `off_policy`'s.
 
 ---
