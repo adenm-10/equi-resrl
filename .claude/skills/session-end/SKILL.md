@@ -59,7 +59,8 @@ If you find nothing safe to condense, say so. A clean pass is a fine outcome.
 
 - Internal doc links resolve.
 - Docs agree with each other — especially STATUS.md against the actual `git log`.
-- Size check: `du -ch $(git ls-files docs .claude CLAUDE.md) | tail -1` stays under 150 KB.
+- Size check: the command in CLAUDE.md's end-of-session protocol stays under 350 KB (EXPERIMENTS.md
+  not counted). If it is over, step 2 is where the room comes from.
 - If any code changed, confirm it still imports.
 
 ## 4. Ask about committing

@@ -9762,3 +9762,12 @@ from `outputs/runs/`: every eval video a trainer saved locally (under a package'
   this file come from the `✓`/`✗` markers in each run's `output.log`, not from the videos.
 - **The trainer still saves every eval's video,** about 110 MB per 150k Square run (TODO H13). The
   runs training now and every later run keep theirs until a cleanup removes them.
+
+## 2026-10-24 — DECISION — from now on each `/wrapup` deletes the eval videos of finished runs; the trainer is not changed
+
+Aden, after the NOTE above (TODO H13). The trainer keeps saving every eval's video into the run's
+package: a switch to stop it would change what a package holds in the middle of `arch-swap-1021` and
+`enc-iface-1023`. Instead each `/wrapup` deletes the eval videos of every run that has finished, keeps
+`wandb_best/best_eval.mp4`, and lists what it deleted under `outputs/cleanup-<date>/`. So a package of
+a run finished before its group's last cleanup holds its best video only. Success rates are unaffected:
+they come from each run's `output.log`.

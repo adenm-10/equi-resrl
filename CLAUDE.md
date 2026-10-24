@@ -77,9 +77,11 @@ Doing it by hand instead, the end-of-session protocol is, in the same commit as 
 2. Prepend a dated entry to PROGRESS.md.
 3. Append to EXPERIMENTS.md if a run was launched or finished. Never edit or delete past entries.
 4. Update TODO.md.
-5. Check doc size: `docs/`, `.claude/` and this file should stay under 150 KB combined.
-   Test and tool code does not count against that budget.
-   `cat CLAUDE.md docs/*.md .claude/skills/*/SKILL.md .claude/settings.json | wc -c`
+5. Check doc size: `docs/`, `.claude/` and this file should stay under 350 KB combined, not counting
+   EXPERIMENTS.md, which is append-only and can only grow. Test and tool code does not count either.
+   Over budget means condensing the rewritable docs, never trimming EXPERIMENTS.md (Aden, 2026-10-24;
+   TODO H5).
+   `cat CLAUDE.md $(ls docs/*.md | grep -v EXPERIMENTS.md) .claude/skills/*/SKILL.md .claude/settings.json | wc -c`
 
 ## Before launching a training run
 

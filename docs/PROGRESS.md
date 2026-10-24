@@ -52,13 +52,24 @@ other four docs, with a pointer from here.
 one-off, since git keeps them. So these stay: the 107 upstream launch scripts that compose, the general
 tools (`bench_update`, `critic_start`, `target_bound`), the live watcher's `run_watch` and
 `square_verdict`, the `1u5xnikc` duplicate best model and the tilt runs' step checkpoints (4.1 GB). The
-doc budget (TODO H5) waits for Aden's new one.
+doc budget (TODO H5): below.
 
-**Not verified:** the full gate (TODO H12); four runs left 4 GB of RAM. The watcher tests passed (24),
-with a compile check and the import graph.
+**Verified:** Tier 1 of the gate passes on `dd7e543`, run at low priority beside the four runs: the
+render on Can and Square, git state, 213 tests passed (TODO H12). Tier 3 fails only on RAM for a fifth
+run.
+
+**Then, Aden's decisions on what was left:**
+- **The doc budget (TODO H5):** 350 KB, EXPERIMENTS.md not counted (329 KB that day). It is append-only,
+  so it could only ever break the old 150 KB. One command now states it, in CLAUDE.md and both skills.
+- **The eval videos (TODO H13):** no code change mid-group; each `/wrapup` deletes finished runs' eval
+  videos, the best kept (EXPERIMENTS.md, 2026-10-24 DECISION; the skill's one standing exception).
+- **Kept again:** the `1u5xnikc` duplicate and the tilt runs' step checkpoints.
+- **tmux:** the six idle `q-arch-swap-*` sessions killed too (scrollback saved), after checking that
+  the queue reads a job's session only on a restart and that none of their jobs is in its list.
+- **Main pushed to origin.**
 
 **Next:** as on 10-23: the `enc-iface-1023` smokes and launches (TODO B21), arch-swap's readout about
-10-25 09:00 (B20), then its six finished tmux sessions can go.
+10-25 09:00 (B20).
 
 ---
 

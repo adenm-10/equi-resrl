@@ -1,11 +1,10 @@
 # Status
 
-**Last updated:** 2026-10-24 · **Last verified commit:** this file's own commit, the 2026-10-24 repo
-cleanup, which removed only code no run reaches; the full gate has not run on it (TODO H12: only the
-watcher tests, with four runs leaving 4 GB of RAM). The queued `enc-iface-1023` jobs launch from
+**Last updated:** 2026-10-24 · **Last verified commit:** `dd7e543`, the 2026-10-24 repo cleanup,
+which removed only code no run reaches: Tier 1 of the gate passes on it (TODO H12; Tier 2 not run,
+the GPUs full). Later commits change docs and skills only. The queued `enc-iface-1023` jobs launch from
 `58d55d7`, its pre-registration (its code is the commit before it, EXPERIMENTS.md, 2026-10-23 CODE),
-and the running arch-swap runs are from `aec1bdc`. Main is ahead of origin and not pushed: pushing
-waits for Aden.
+and the running arch-swap runs are from `aec1bdc`. Main is pushed to origin (2026-10-24, Aden).
 
 **Now: two groups in one queue.** `arch-swap-1021` is finishing, and **`enc-iface-1023` starts in the
 next free slot, its critic-window arm first** (Aden, 2026-10-24 DECISION: `iface-window 2` and
@@ -21,7 +20,7 @@ both groups' remaining jobs: tmux `order-queue`, `outputs/queue/launchers/order-
   at the 10-23 disk-full minutes** (the 2026-10-24 NOTE): wandb's server has every step, but their
   packages' `metrics.jsonl` is rebuilt from the server as each ends (tmux `metrics-rebuild`, Aden's
   yes), and `swap-watch` logs nothing of them. Tmux: `swap-watch`, `wandb-cache`, `metrics-rebuild`, one
-  `q-arch-swap-<arm>-<seed>` per job.
+  `q-arch-swap-<arm>-<seed>` per running job.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 CODE, MEASUREMENT, DECISION and PRE-REGISTERED;
   [the plan](plans/2026-10-23-encoder-interface.md), local). The equivariant critic sees 288 numbers per
   frame where ResFiT's sees 20,736; the probe found that the agentview encoder's 9x9 map holds what its
@@ -344,10 +343,12 @@ How the last groups were launched and followed, for the next ones:
   after its four runs had exited.
   - A watch-only group (`WATCH_ONLY_ARMS`) is logged, FLAGged and finalized, and never signalled.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux:** the finished `q-arch-swap-*` sessions are idle shells, left until arch-swap's readout. The
-  30 idle sessions from before it (the older `q-*`, `sq-tilt-notilt`, and the old queue runners `gpu0`,
-  `gpu1` and `gpu1-bars`, which polled queue files empty since 10-10) were killed on 10-24, their
-  scrollback saved in `outputs/cleanup-20261024/tmux_scrollback/`.
+- **tmux:** only live sessions are left: one `q-<arm>-<seed>` per running job, the queue, the
+  watchers, `metrics-rebuild`, `wandb-cache` and `disk-watch`. Every idle one was killed on 10-24 (36:
+  the finished runs' `q-*`, `sq-tilt-notilt`, and the old queue runners `gpu0`, `gpu1` and `gpu1-bars`,
+  which polled queue files empty since 10-10), its scrollback saved in
+  `outputs/cleanup-20261024/tmux_scrollback/`. The queue checks a job's `q-*` session only on a
+  restart, and none of the killed sessions' jobs is in its list.
 
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field

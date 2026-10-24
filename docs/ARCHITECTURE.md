@@ -693,7 +693,7 @@ were moved into main on 2026-10-07 (EXPERIMENTS.md, CODE). The helpers are at th
 | `manifest.json` | wandb ids and URL, host, argv, git commit **plus the list of uncommitted files**, one entry per resume, the best step and success rate, `completed` |
 | `wandb_best/` | An exact copy of the run's one wandb upload: `best.json`, `best_eval.mp4`, and `policy/` (BC) or `best_model.pt` (residual) |
 | `wandb_logs/` | wandb's `config.yaml`, `output.log`, summary, metadata and `requirements.txt`, the `run-<id>.wandb` record, and `metrics.jsonl` |
-| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` (`best_model.pt`, and `step_<N>.pt` every `checkpoint_interval` steps from 2026-10-12) and `outputs/`. The eval videos of runs finished by 2026-10-24 were deleted, the best one kept in `wandb_best/` (EXPERIMENTS.md, 2026-10-24 NOTE) |
+| everything else | What the trainer already saved locally: BC `checkpoints/`, `latest/`, `best/` and eval videos; residual `models/` (`best_model.pt`, and `step_<N>.pt` every `checkpoint_interval` steps from 2026-10-12) and `outputs/`. A finished run's eval videos are deleted at each `/wrapup`, the best one kept in `wandb_best/` (EXPERIMENTS.md, 2026-10-24 NOTE and DECISION) |
 
 **The upload rule.** A run uploads one artifact, `run_<id>_best`: the best model plus the video of
 the eval that produced it. Each new best uploads a new version, waits for it to commit, then deletes

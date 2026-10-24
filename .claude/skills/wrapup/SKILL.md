@@ -18,7 +18,9 @@ here. Do not write the docs a second way.
   packages in `outputs/runs/`, `wandb/run-*` records, `artifacts/`, Hydra folders under
   `outputs/<date>/`, the buffer caches, `docs/papers/`, `~/equi-resrl-preserve/`, any file a doc
   cites (grep the docs for its path), and any past EXPERIMENTS.md entry. A run deleted from wandb is
-  restored from its local record; a deleted local record is gone for good.
+  restored from its local record; a deleted local record is gone for good. **One standing
+  exception** (Aden, 2026-10-24; TODO H13): the eval videos in finished runs' packages, outside
+  `wandb_best/`, are a Delete row at every wrapup.
 - **Live work is not cleanup.** A running process, a job in an armed queue, the worktree either one
   runs from, and every tmux session STATUS.md lists stay, however finished they look. Runs end on
   their own at 150k; stopping one is Aden's call.
@@ -38,13 +40,12 @@ ps -eo pid,etime,args | grep -E 'train_|queue|watch' | grep -v grep
 for s in $(tmux ls -F '#{session_name}'); do     # 0 children: an idle shell, its job has ended
   echo "$s $(pgrep -P "$(tmux list-panes -t "$s" -F '#{pane_pid}' | head -1)" | wc -l)"; done
 df -h .; du -sh wandb outputs artifacts *_buffer_cache 2>/dev/null
-cat CLAUDE.md docs/*.md .claude/skills/*/SKILL.md .claude/settings.json | wc -c   # budget 150 KB
+cat CLAUDE.md $(ls docs/*.md | grep -v EXPERIMENTS.md) .claude/skills/*/SKILL.md .claude/settings.json | wc -c   # budget 350 KB
 ```
 
 A launch worktree is in use if a live process runs from it (`readlink /proc/<pid>/cwd`) or its path
 appears under `outputs/queue/launchers/`. If the docs are over budget, say by how much and which
-docs could shrink. EXPERIMENTS.md cannot (append-only), and condensing the others is `/session-end`'s
-step 2.
+docs could shrink; condensing them is `/session-end`'s step 2.
 
 In the tracked tree, look for what nothing reaches: a module nothing imports (STANDARDS 4.3), a tool
 no test, script, queue or doc runs, a test of a tool that is gone, a launch script for no recorded

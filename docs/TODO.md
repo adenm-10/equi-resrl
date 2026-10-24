@@ -486,9 +486,14 @@ from local data. Aden's call, because it publishes; recommended, because this pr
 lost two runs to wandb deletion and this is the one that matters.
 **Updates:** STATUS.md, EXPERIMENTS.md.
 
-### H5. The 150 KB doc budget no longer fits, and cannot `[HI]`
+### H5 — RESOLVED 2026-10-24: EXPERIMENTS.md left out, the budget 350 KB `[HI]`
 
-Needs a decision from Aden. The budget in CLAUDE.md is 150 KB for `CLAUDE.md` + `docs/*.md` +
+**Aden, 2026-10-24:** option 1 below, with the ceiling set to what the rewritable docs hold now plus a
+little room: 350 KB for everything but EXPERIMENTS.md (329 KB that day; the whole set was 999 KB).
+Over budget means condensing the rewritable docs, never trimming EXPERIMENTS.md. CLAUDE.md, the
+session-end skill and the wrapup skill state it with one command. The original item follows.
+
+Needed a decision from Aden. The budget in CLAUDE.md is 150 KB for `CLAUDE.md` + `docs/*.md` +
 skills + `settings.json`. After the run-package session on 2026-09-25 it is **201 KB by the
 `wc -c` check in CLAUDE.md, roughly 34% over**. That session added 11.7 KB, mostly the Run packages
 section in ARCHITECTURE.md and its PROGRESS.md entry; the bimanual session before it added the
@@ -538,20 +543,22 @@ percentile. Measure how often the executed and the trained action differ in a ru
 and by how much, before deciding whether execution should clip as training does. That change would
 alter what every later run executes, so it would need its own entry.
 
-### H12. Run the full gate on the 2026-10-24 cleanup `[CS]` (found 2026-10-24)
+### H12 — DONE 2026-10-24: the gate on the cleanup `[CS]`
 
 The cleanup deleted four tools, two test files, two test functions and those files' two entries in
-preflight's Tier 1 list (PROGRESS.md, 2026-10-24). Only the watcher tests ran on it (24 passed),
-with a compile check and the import graph: four runs left 4 GB of RAM. Run
-`python preflight.py --skip-tier2` when the RAM allows, and before the next launch from main. The
-queued `enc-iface-1023` jobs launch from `58d55d7`, which the cleanup did not touch.
+preflight's Tier 1 list (PROGRESS.md, 2026-10-24). `python preflight.py --skip-tier2` on `dd7e543`,
+run at low priority beside the four runs (Aden's yes): every Tier 1 check passes (the render on Can
+and Square, git state, 213 tests passed and 2 skipped). Tier 3's one FAIL is RAM headroom for a fifth
+run (6 GB available, about 21 GB needed), the four runs, not the code. Tier 2 was not run (the GPUs
+are full); the queued `enc-iface-1023` jobs run it from `58d55d7`, which the cleanup did not touch.
 
-### H13. The trainer saves every eval's video locally `[HI]` (found 2026-10-24)
+### H13 — DECIDED 2026-10-24: the trainer keeps saving every eval's video; `/wrapup` deletes them `[HI]`
 
 About 110 MB per 150k Square run (16 evals). Nothing reads them, and each run's best video is kept
 in `wandb_best/`; the 2026-10-24 cleanup deleted 7.15 GB of them (EXPERIMENTS.md, that date's NOTE).
-Stopping them changes what a run package holds, so it is Aden's call: a config field that branches
-(STANDARDS 1.2), or deleting them at each `/wrapup`.
+**Aden, 2026-10-24: no code change.** A switch would change what a run package holds in the middle of
+two groups; instead every `/wrapup` deletes the eval videos of finished runs, the best kept
+(EXPERIMENTS.md, 2026-10-24 DECISION).
 
 ### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
 
