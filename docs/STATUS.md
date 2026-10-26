@@ -37,8 +37,8 @@ which fits each job beside what is on a GPU by memory ("Running now", below).
   about 04:30 on 10-30). `iface-wide-all 3` is dropped, so I1 is not read. `iface-watch` is its watcher.
 - **Parked:** the observation, latency and chunk experiments (TODO B23), until both groups are read and
   the actor is settled (Aden).
-- **Disk:** 21 GB free at 10:00 on 10-26; about 9 GB when both groups are done, under Aden's 10 GB: the
-  next `/wrapup`'s eval-video cleanup comes before then.
+- **Disk:** 21 GB free at 14:10 on 10-26, after the cleanup (875 MB of eval videos). About 10 GB when
+  both groups are done; the next `/wrapup`'s eval-video cleanup comes before then.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -366,15 +366,19 @@ How the runs are launched and followed:
   the group's pinned worktree), each watch-only: logged, FLAGged and finalized, never signalled.
   - `ad-watch` (`actor-design-1026`, from `equi-resrl-a5b5cc8`);
   - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
-  - `swap-watch` (`arch-swap-1021`, from `equi-resrl-aec1bdc`): every run of its group has exited, so
-    it has nothing left to watch.
+  - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
+    stays: the launcher scripts name it.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux:** `order-queue`; `q-iface-wide-all-2` and `q-iface-eee-2`; the three watchers; `wandb-cache`
-  (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space every 20 s;
-  it wakes Claude below 8 GB). Idle, their jobs ended: `metrics-rebuild` (done 19:06 on 10-24), the
-  finished runs' `q-arch-swap-*` and `q-iface-window-2`, `q-iface-wide-out-2`. The queue checks a job's
-  `q-*` session only on a restart. The 10-24 cleanup's scrollback is in
-  `outputs/cleanup-20261024/tmux_scrollback/`.
+- **tmux, at 14:10 on 10-26:**
+  - `order-queue` and `queue-digest`;
+  - `q-actor-resfit-shape-2` and `q-iface-eee-2`, one per running job;
+  - the watchers `ad-watch` and `iface-watch`;
+  - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
+    every 20 s; it logs, and woke a Claude session below 8 GB when one was open).
+
+  The 10-26 cleanup closed the 10 idle sessions and `swap-watch`; their scrollback is in
+  `outputs/cleanup-20261026/tmux_scrollback/`, as the 10-24 cleanup's is in `outputs/cleanup-20261024/`.
+  The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field

@@ -80,6 +80,14 @@ other four docs, with a pointer from here.
   - The slower dense critic (`aaa` at a critic rate of about 3.3e-5) is planned first after B22, for
     review, not launched unattended.
   - C4 is read with `iface-eee`'s two runs too; more seeds only if B22 reads nothing.
+- **Cleanup** (`/wrapup`, Aden's answers; lists in `outputs/cleanup-20261026/`):
+  - 122 eval videos (875 MB) deleted from 10 finished runs and 4 smoke packages, each keeping its best
+    video. On Aden's word, "the insignificant runs'": `eee 3` and `ere 3` keep all theirs (231 MB), the two
+    whose best eval beat step 0 by 0.13 or more.
+  - The main checkout's 22 bytecode and pytest cache folders removed.
+  - The 10 idle tmux sessions and `swap-watch` closed, their scrollback saved.
+  - 4 stale Claude background waiters stopped.
+  - No tracked file removed.
 - **The queue left to run alone:** tmux `queue-digest` (`order-1026/digest.py`, every 30 minutes) records
   the checks Claude would make by hand. Each smoke and early speed goes into `digest.md`; the
   gross-failure check writes a FLAG in `watch.log`.
