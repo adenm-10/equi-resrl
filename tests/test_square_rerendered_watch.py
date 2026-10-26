@@ -262,3 +262,19 @@ def test_enc_iface_is_never_stopped_and_logs_its_early_speed():
             for i in range(1, len(rates) + 1):
                 for passed in (False, True):
                     assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+
+def test_actor_design_is_never_stopped_and_logs_its_early_speed():
+    """actor-design-1026 (2026-10-26 PRE-REGISTERED): every arm to its own 150k with no automatic stop
+    of any kind (watch-only), and its early speed logged as enc-iface-1023's is."""
+    from square_rerendered_watch import ACTOR_DESIGN, RESIDUAL_ARMS, SPEED_ARMS, WATCH_ONLY_ARMS
+
+    assert GROUPS["actor-design-1026"] == ACTOR_DESIGN
+    assert ACTOR_DESIGN == ("actor-resfit-shape", "actor-resfit-shape-wide", "actor-eae")
+    assert set(ACTOR_DESIGN) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in ACTOR_DESIGN:
+        for rates in (KYV7CLFC + [0.0] * 9, OJ5K0JQB, S8OPBLSD, [0.58] * 16, [0.0] * 20):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)

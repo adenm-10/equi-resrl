@@ -67,6 +67,9 @@ FAMILY_MIXES = {
 # equivariant one is a candidate (iface-window).
 FAMILY_MIXES["aaa-window"] = {**FAMILY_MIXES["aaa"], "equivariance.critic_window": 96,
                               "equivariance.critic_window_ih": 224}
+# actor-design-1026's eae (2026-10-26): arch-wide's actor exported, between the equivariant encoder and
+# critic. Its ResFiT-shaped actor is a candidate (actor-resfit-shape).
+FAMILY_MIXES["eae"] = {**FAMILY_MIXES["aaa"], **_families("equivariant", "ablated", "equivariant")}
 
 
 # ---------------------------------------------------------------------------

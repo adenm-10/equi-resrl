@@ -114,6 +114,10 @@ def _candidates() -> dict[str, dict[str, object]]:
                              "equivariance.ih_out_channel": 256}
     out["iface-window"] = {**out["actor-critic-ln"], "equivariance.critic_window": 96,
                            "equivariance.critic_window_ih": 224}
+    # actor-design-1026's equivariant actor wired as ResFiT's (2026-10-26 CODE), with its arms' norms,
+    # at its two widths.
+    out["actor-resfit-shape"] = {**out["actor-critic-ln"], "equivariance.actor_design": "resfit"}
+    out["actor-resfit-shape-wide"] = {**out["actor-resfit-shape"], "equivariance.actor_degree_channel": 362}
     return out
 
 

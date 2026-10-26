@@ -9771,3 +9771,52 @@ package: a switch to stop it would change what a package holds in the middle of 
 `wandb_best/best_eval.mp4`, and lists what it deleted under `outputs/cleanup-<date>/`. So a package of
 a run finished before its group's last cleanup holds its best video only. Success rates are unaffected:
 they come from each run's `output.log`.
+
+---
+
+## 2026-10-26 — CODE — the actor's design: the equivariant actor wired as ResFiT's (`equivariance.actor_design`), for `actor-design-1026`
+
+**What it adds.** `ResFiTShapedActor` (`rl/actor.py`), chosen by `equivariance.actor_design=resfit`
+(default `ours`, `Actor`, every run before). It is ResFiT's actor's wiring (`off_policy/rl/actor.py`,
+as `arch-swap-ere` runs it) with every Linear between escnn field types:
+
+```
+inputs: f = 32 regular fields (agentview, 256) + 32 trivial (wrist)              = 288
+        s = 4 irrep(1) pairs + 3 trivial = 11;  b = 2 irrep(1) pairs (xy, tilt) + 3 trivial (z, yaw, gripper) = 7
+c  = ReLU(norm(Linear(f       -> actor_feature_fields regular fields)))        16 fields = 128 channels
+h1 = ReLU(norm(Linear([c,s,b] -> actor_degree_channel regular fields)))        128 fields = 1,024
+h2 = ReLU(norm(Linear(h1      -> actor_degree_channel regular fields)))
+mu = Linear(h2 -> the action's fields), then the bound and noise of every actor (bounded_residual)
+```
+
+ResFiT's: `c = ReLU(LayerNorm(Linear(288 -> 128)))`, `h1 = ReLU(LayerNorm(Linear(146 -> 1024)))`,
+`h2 = ReLU(LayerNorm(Linear(1024 -> 1024)))`, `mu = Linear(1024 -> 7)`. `Actor` differs from both in two
+ways: it projects the image features to its full width (arch-wide: 448 fields, 3,584 channels), with no
+bottleneck, and it joins the state and base action twice, before its trunk and again before its last
+hidden layer. What stays from `Actor`: three hidden layers each followed by `actor_norm` and a ReLU, the
+delta-orthonormal start with the last layer scaled (to 0 in every residual arm), the bound and the noise.
+What stays different from ResFiT's: the weights tied across the 8 rotations (156,083 free parameters at
+128 fields against ResFiT's 1,248,647; at 362 fields the hidden-to-hidden Linear has 1,048,714 against
+ResFiT's 1,049,600), RegularLayerNorm's scale and shift shared by a field's 8 channels where LayerNorm
+has one per channel, and the delta-orthonormal start against ResFiT's orthogonal one.
+
+- `equivariance.actor_feature_fields` (default 16): the bottleneck, read with `actor_design=resfit` alone.
+- `check_families` refuses `actor_design=resfit` in the ablated family (it exports `Actor` alone), behind
+  ResFiT's actor (both fields are unread there) and in vanilla RL, and `actor_feature_fields` off its
+  default with `actor_design=ours`.
+- Every earlier run's agent is unchanged: the default path builds `Actor` as before.
+
+**Tests** (CPU unless said; the full GPU suite runs as each launch's gate):
+- `tests/test_actor_design.py` (new, Tier 2): the arm's widths (128, 1,024, 1,024, then 7), the state
+  and base action read at the first hidden layer alone, three RegularLayerNorms, 156,083 parameters; the
+  wide arm's hidden Linear at ResFiT's parameters to 0.1%; zero at the start; equivariant with and
+  without its norm and squash, in eval and train, at one and two arms; the refusals.
+- `tests/test_sweep_arms.py`: the three arms (`actor-resfit-shape`, `actor-resfit-shape-wide`,
+  `actor-eae`) launch their pinned overrides, compose to `arch-swap-eee`'s config but for their actor
+  fields, build the families they name, start with eee's encoder and critic bit for bit at seed 2,
+  update with finite losses, are equivariant where all-equivariant, see every input, and step each
+  network at its rate.
+- `tests/test_sync_free.py` (on GPU 0): `eae`'s mix and the two shaped candidates make no host sync.
+- `tests/test_regression_agent.py`: the default agent's pinned fingerprint, unchanged.
+- `tests/test_square_rerendered_watch.py`: the group is watch-only, with its early speed logged.
+- Results: on the CPU, `tests/test_actor_design.py` and the watcher's and regression tests (47 with the first two arms; again with the third), the config, no-op and ablated-family suites (141), and `tests/test_sweep_arms.py` for the three arms, the case table and every anchor's composition (72), after its launch-level tests for every arm (246); on GPU 0, `tests/test_sync_free.py` for `eae`'s mix and the two shaped candidates (3). Every one passed. Run on the CPU, `test_arm_builds_and_updates[resfit-residual-square-noln-actor]` fails: ResFiT's agent asks for CUDA, and fails the same way at `58d55d7`; the gate runs it on a GPU.

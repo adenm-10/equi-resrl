@@ -172,6 +172,8 @@ makes each row executable.
 | `critic_window` | `0` | the critic's window: a 9×9 conv over the agentview's 9×9 map to this many regular fields | reads it through `window_proj` | — | **Live** from 2026-10-23; 0 and 0 build no window |
 | `critic_window_ih` | `0` | the window over each wrist's 9×9 map, plain, to this many channels | as `critic_window` | — | **Live** from 2026-10-23 |
 | `actor_degree_channel` | `128` | — | — | `hidden_dim` | **Live** |
+| `actor_design` | `"ours"` | — | — | which wiring: `ours` (`Actor`) or `resfit` (`ResFiTShapedActor`) | **Live** from 2026-10-26; the equivariant family alone |
+| `actor_feature_fields` | `16` | — | — | `ResFiTShapedActor`'s bottleneck, in regular fields | **Live** from 2026-10-26, with `actor_design=resfit` alone |
 | `critic_degree_channel` | `128` | — | `hidden_dim` | — | **Live** |
 | `initialize` | `True` | passed through | hardcoded `True` | hardcoded `True` | **Partial** — only reaches the encoder |
 | `actor_norm` | `none` | — | — | all 3 sites | **Live** from 2026-09-29. Every run before 2026-09-30 had `iid_bn`, the default until then |
@@ -206,7 +208,10 @@ and `agent.critic` instead, as ResFiT's agent does, so behind them these do noth
 - behind ResFiT's encoder: `encoder_norm`, `encoder_orth_init`, `initialize`, `enc_degree_channel`,
   `ih_out_channel`, `float_images_as_uint8`, `ih_channels`, `enc_out_channel`, `critic_window`,
   `critic_window_ih`;
-- with ResFiT's actor: `actor_norm`, `actor_degree_channel`, `use_orth_init`;
+- with ResFiT's actor: `actor_norm`, `actor_degree_channel`, `use_orth_init`, `actor_design`,
+  `actor_feature_fields`;
+- with `actor_design=ours`: `actor_feature_fields`. The ablated actor exports `Actor` alone, so it
+  and vanilla RL refuse `actor_design=resfit`;
 - with ResFiT's critic: `critic_norm`, `critic_pooled_norm`, `num_critic_layers`,
   `critic_degree_channel`, `critic_orth_init`, `critic_last_layer_init_scale`, `critic_window`,
   `critic_window_ih` (the window is the encoder's and the critic's both);
@@ -306,6 +311,18 @@ norm. `window_proj` starts at zero and draws nothing, and the window's convs are
 random state forked, so a window arm at a seed starts as the arm without it, bit for bit
 (`tests/test_interface.py`). `debug/critic_window_share` logs the window term's size against the
 images' (`critic_diagnostics`).
+
+**The actor's design** (from 2026-10-26; `equivariance.actor_design`). `Actor` (`ours`, every run
+before) projects the image features to `actor_degree_channel` regular fields, then runs a trunk and one
+policy layer of that width, proprioception and the base action joined before each. `ResFiTShapedActor`
+(`resfit`) is ResFiT's actor's wiring (`off_policy/rl/actor.py`) in escnn layers: the image features
+compressed to `actor_feature_fields` regular fields (16, ResFiT's 128 channels), then `[compressed |
+proprioception | base action]` once, through two hidden layers of `actor_degree_channel` fields, each
+hidden layer followed by `actor_norm` and a ReLU, then the Linear to the action. At 128 fields its layers
+are ResFiT's 128, 1,024 and 1,024 channels, with 156,083 free parameters against ResFiT's 1,248,647 (an
+equivariant Linear between regular fields has 8 coefficients per pair of fields where a dense one has 64);
+at 362, its hidden-to-hidden Linear has ResFiT's 1,049,600 to 0.1%. Its start, bound and noise are
+`Actor`'s (`tests/test_actor_design.py`).
 
 **The ablated networks** (`*_family=ablated`) are these, each exported: the same graph, every
 escnn layer's expanded weights a plain parameter. At `arch-wide`'s sizes the agentview encoder has

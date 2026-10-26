@@ -157,6 +157,21 @@
 #                    from the agentview's and 224 channels from the wrist's, into the critic alone
 #                    through a Linear that starts at zero. 1,280 to the critic, 288 to the actor.
 #
+# actor-design-1026: arch-swap-eee's launch (arch-wide's networks), on Square for 150k steps, on the
+# re-rendered demos, at seeds 2 and 3, with its actor changed one of two ways; its encoder and critic
+# are eee's. With arch-swap's eee and ere they make a 2x2 of the actor's design (ours, or ResFiT's
+# wiring) and its constraint (equivariant, or not). The critic and encoder keep 1e-4.
+# wandb robomimic-square-final / equi-residual-rl.
+#   actor-resfit-shape  the equivariant actor wired as ResFiT's (equivariance.actor_design=resfit): the
+#                       image features compressed to 16 regular fields (128 channels), then two hidden
+#                       layers of 128 fields (1,024), the state and base action read once. At 3e-6,
+#                       so its early speed is eee's: at 1e-6 it is 0.31 times eee's, its last layer
+#                       reading 1,024 channels, not 3,584 (outputs/diagnostics/actor-design/calibrate.py).
+#   actor-resfit-shape-wide  the same at 362 fields per hidden layer, whose hidden-to-hidden Linear has
+#                       ResFiT's free parameters (1,048,714 against 1,049,600). At 1e-6.
+#   actor-eae           [E, A, E] arch-wide's actor exported, unconstrained (equivariance.actor_family=
+#                       ablated), on eee's encoder and critic, at aaa's 2.5e-7 for the same actor.
+#
 # Every arm here runs to its full 150k. From 2026-10-17 (DEVIATION) no automatic stop of any kind
 # applies, the divergence stop included: Aden stops a run by hand.
 
@@ -207,6 +222,13 @@ SWAP_HEADS=(equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivarian
 IFACE_ANCHOR=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448)
 
 case "$ARM" in
+    actor-resfit-shape)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_design=resfit agent.actor_lr=3e-6) ;;
+    actor-resfit-shape-wide)
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_design=resfit
+                       equivariance.actor_degree_channel=362) ;;
+    actor-eae)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}" equivariance.actor_family=ablated agent.actor_lr=2.5e-7) ;;
     iface-eee)
         ARM_OVERRIDES=("${IFACE_ANCHOR[@]}") ;;
     iface-wide-all)
@@ -293,6 +315,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    actor-*)
+        SEED_GROUP=actor-design-1026 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     iface-*)
         SEED_GROUP=enc-iface-1023 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

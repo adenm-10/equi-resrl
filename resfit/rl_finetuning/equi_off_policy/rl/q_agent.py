@@ -18,7 +18,7 @@ from resfit.rl_finetuning.off_policy.common_utils import utils
 
 from resfit.rl_finetuning.equi_off_policy.networks.obs_encoder import ENCODERS, ResObsEnc
 from resfit.rl_finetuning.equi_off_policy.rl.ablated import AblatedActor, AblatedCritic
-from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor as EquiActor
+from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor as EquiActor, ResFiTShapedActor
 from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic as EquiCritic
 from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_clip, field_bounds
 from resfit.rl_finetuning.equi_off_policy.rl.resfit_heads import ResFiTActor, ResFiTCritic
@@ -31,7 +31,8 @@ from resfit.rl_finetuning.equi_off_policy.rl.resfit_heads import ResFiTActor, Re
 WINDOW_FIELDS = ("critic_window", "critic_window_ih")
 ENCODER_FIELDS = ("encoder_norm", "encoder_orth_init", "initialize", "enc_degree_channel", "ih_out_channel",
                   "float_images_as_uint8", "ih_channels", "enc_out_channel", *WINDOW_FIELDS)
-ACTOR_FIELDS = ("actor_norm", "actor_degree_channel", "use_orth_init")
+ACTOR_FIELDS = ("actor_norm", "actor_degree_channel", "use_orth_init", "actor_design", "actor_feature_fields")
+ACTOR_DESIGNS = ("ours", "resfit")
 CRITIC_FIELDS = ("critic_norm", "critic_pooled_norm", "num_critic_layers", "critic_degree_channel",
                  "critic_orth_init", "critic_last_layer_init_scale", *WINDOW_FIELDS)
 
@@ -53,6 +54,13 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
     if not residual_actor and (encoder, actor, critic) != ("equivariant",) * 3:
         raise ValueError("the ablated and ResFiT families are residual-only: vanilla RL keeps the "
                          "equivariant networks")
+    if equi_cfg.actor_design not in ACTOR_DESIGNS:
+        raise ValueError(f"equivariance.actor_design={equi_cfg.actor_design!r}: expected one of {ACTOR_DESIGNS}")
+    if equi_cfg.actor_design == "resfit" and actor == "ablated":
+        raise ValueError("equivariance.actor_design=resfit: the ablated actor exports Actor's layers, "
+                         "\"ours\"; it has no export of ResFiTShapedActor")
+    if equi_cfg.actor_design == "resfit" and not residual_actor:
+        raise ValueError("equivariance.actor_design=resfit is residual-only, as ResFiT's actor is here")
     if critic == "resfit" and agent_cfg.critic.loss.type != "mse":
         raise ValueError(f"agent.critic.loss.type={agent_cfg.critic.loss.type!r}: this agent's critic loss "
                          f"is a mean squared error on Q, so ResFiT's critic must output Q itself")
@@ -63,8 +71,12 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
         unread += ACTOR_FIELDS
     if critic == "resfit":
         unread += CRITIC_FIELDS
+    if actor != "resfit" and equi_cfg.actor_design == "ours":
+        unread.append("actor_feature_fields")  # ResFiTShapedActor's alone
     unread = list(dict.fromkeys(unread))  # the window's fields are in two lists
-    if actor == critic == "resfit":
+    # use_visual_proj is read by Actor and by the equivariant and ablated critic, not by
+    # ResFiTShapedActor or ResFiT's networks.
+    if (actor == "resfit" or equi_cfg.actor_design == "resfit") and critic == "resfit":
         unread.append("use_visual_proj")
     if critic != "equivariant":
         unread.append("frozen_target_critic")  # a plain critic computes the same in either mode
@@ -209,12 +221,30 @@ class QAgent(torch.nn.Module):
             )
             self.critic = critic if self.equi_cfg.critic_family == "equivariant" else AblatedCritic(critic)
 
-        if self.equi_cfg.actor_family == "resfit":
+        if self.equi_cfg.actor_family == "resfit":  # check_families: then actor_design is "ours"
             bound = field_bounds(self.enc.action_type.size, action_scale, self.equi_cfg.residual_field_bound,
                                  self.enc.action_layout, self.enc.action_fields, residual_actor)
             self.actor = ResFiTActor(self.enc.vis_ih_type.size, self.enc.prop_dim, self.enc.action_dim,
                                      self.agent_cfg.actor, action_layout=self.enc.action_layout, bound=bound,
                                      residual_squash=self.equi_cfg.residual_squash)
+        elif self.equi_cfg.actor_design == "resfit":  # the equivariant family (check_families)
+            self.actor = ResFiTShapedActor(
+                group=self.group,
+                vis_ih_type=self.enc.vis_ih_type,
+                prop_type=self.enc.prop_type,
+                action_type=self.enc.action_type,
+                action_layout=self.enc.action_layout,
+                feature_fields=self.equi_cfg.actor_feature_fields,
+                hidden_dim=actor_hidden_dim,
+                action_shape=self.enc.action_shape,
+                norm=self.equi_cfg.actor_norm,
+                use_orth_init=use_orth_init,
+                last_layer_scale=last_layer_scale,
+                action_scale=action_scale,
+                residual_squash=self.equi_cfg.residual_squash,
+                field_bound=self.equi_cfg.residual_field_bound,
+                action_fields=self.enc.action_fields,
+            )
         else:
             actor = EquiActor(
                 group=self.group,

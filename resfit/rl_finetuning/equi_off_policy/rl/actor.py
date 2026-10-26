@@ -132,3 +132,78 @@ class Actor(torch.nn.Module):
 
         mu: torch.Tensor = self.policy(policy_in).tensor
         return bounded_residual(mu, self.action_layout, self.bound, self.residual_squash, std)
+
+
+class ResFiTShapedActor(torch.nn.Module):
+    """The equivariant actor wired as ResFiT's actor is (equivariance.actor_design=resfit;
+    EXPERIMENTS.md, 2026-10-26 CODE). ResFiT's (off_policy/rl/actor.py) compresses the image
+    features to 128 with LayerNorm and a ReLU, reads [compressed | state | base action] once, and
+    runs two hidden layers of 1,024, each with LayerNorm and a ReLU, before its output Linear. This
+    is that, with every Linear between escnn field types:
+
+    compress (image features -> feature_fields regular fields) -> two hidden layers of hidden_dim
+    regular fields -> Linear to the action representation, each hidden layer followed by `norm` and
+    a ReLU. At ResFiT's widths, 16 and 128 fields of 8 channels: 128 and 1,024.
+
+    It differs from Actor in two ways: the image features pass a bottleneck before anything else
+    reads them, and proprioception and the base action enter once, at the first hidden layer, not
+    again before the last. Its start (delta-orthonormal, the last layer scaled), bound and noise are
+    Actor's. Residual only: the agent refuses this design in vanilla RL and in the ablated family.
+    """
+
+    def __init__(self,
+                 group,
+                 vis_ih_type: nn.FieldType,
+                 prop_type:   nn.FieldType,
+                 action_type: nn.FieldType,
+                 action_layout,
+                 feature_fields: int,
+                 hidden_dim: int,
+                 action_shape,
+                 norm: str,
+                 use_orth_init: bool,
+                 last_layer_scale,
+                 action_scale: float,
+                 residual_squash: bool,
+                 field_bound: dict[str, float] | None = None,
+                 action_fields: list[str] | None = None):
+        super().__init__()
+        self.vis_ih_type   = vis_ih_type
+        self.prop_type     = prop_type
+        self.action_type   = action_type
+        self.action_layout = action_layout
+        self.residual_squash = residual_squash
+        bound = field_bounds(action_type.size, action_scale, field_bound, action_layout, action_fields, True)
+        self.register_buffer("bound", bound, persistent=False)  # as Actor's
+
+        self.compress_type = nn.FieldType(group, feature_fields * [group.regular_repr])
+        self.compress = torch.nn.Sequential(
+            nn.Linear(vis_ih_type, self.compress_type, initialize=True),
+            *hidden_norm(norm, self.compress_type),
+            nn.ReLU(self.compress_type),
+        )
+        hidden_type = nn.FieldType(group, hidden_dim * [group.regular_repr])
+        self.policy = torch.nn.Sequential(
+            nn.Linear(self.compress_type + prop_type + action_type, hidden_type, initialize=True),
+            *hidden_norm(norm, hidden_type),
+            nn.ReLU(hidden_type),
+            nn.Linear(hidden_type, hidden_type, initialize=True),
+            *hidden_norm(norm, hidden_type),
+            nn.ReLU(hidden_type),
+            nn.Linear(hidden_type, nn.FieldType(group, action_shape), initialize=True),
+        )
+        if use_orth_init:
+            apply_deltaortho_init(self.compress, exclude_final_layer=False)
+            apply_deltaortho_init(self.policy, exclude_final_layer=False)
+        if last_layer_scale is not None:
+            scale_final_equi_layer(self.policy, last_layer_scale)
+
+    def forward(self, feat: nn.GeometricTensor, std=None):
+        assert isinstance(feat, nn.GeometricTensor)
+        vis_ih_end = self.vis_ih_type.size
+        prop_end   = vis_ih_end + self.prop_type.size
+        vis_ih = slice_gt(feat, 0,          vis_ih_end,           self.vis_ih_type)
+        prop   = slice_gt(feat, vis_ih_end, prop_end,             self.prop_type)
+        base   = slice_gt(feat, prop_end,   feat.tensor.shape[1], self.action_type)
+        mu: torch.Tensor = self.policy(cat_gts([self.compress(vis_ih), prop, base])).tensor
+        return bounded_residual(mu, self.action_layout, self.bound, self.residual_squash, std)

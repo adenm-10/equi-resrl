@@ -144,7 +144,14 @@ class EquivarianceConfig:
 
     num_actor_layers: int = 2
     actor_degree_channel: int = 128
-    
+    # The equivariant actor's wiring (rl/actor.py; EXPERIMENTS.md, 2026-10-26 CODE): "ours", Actor, as
+    # every run before the field; or "resfit", ResFiTShapedActor, ResFiT's actor's wiring in escnn
+    # layers: the image features compressed to actor_feature_fields regular fields (16, ResFiT's 128
+    # channels), then two hidden layers of actor_degree_channel fields, the state and base action read
+    # once. The equivariant family alone: the ablated one exports "ours" only.
+    actor_design: str = "ours"
+    actor_feature_fields: int = 16
+
     # Hidden layers in each critic head, before GroupPooling. Logged as 2 until
     # 2026-09-29, while the field was dead and every critic had 1.
     num_critic_layers: int = 1
