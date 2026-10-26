@@ -1,39 +1,38 @@
 # Status
 
-**Last updated:** 2026-10-24 · **Last verified commit:** `dd7e543`, the 2026-10-24 repo cleanup,
-which removed only code no run reaches: Tier 1 of the gate passes on it (TODO H12; Tier 2 not run,
-the GPUs full). Later commits change docs and skills only. The queued `enc-iface-1023` jobs launch from
-`58d55d7`, its pre-registration (its code is the commit before it, EXPERIMENTS.md, 2026-10-23 CODE),
-and the running arch-swap runs are from `aec1bdc`. Main is pushed to origin (2026-10-24, Aden).
+**Last updated:** 2026-10-26 · **Last verified commit:** `0d9fb30`, the actor's design (EXPERIMENTS.md,
+2026-10-26 CODE): its new tests, the sweep-arm tests for its three arms, the regression, config, no-op
+and ablated-family suites pass on the CPU, and its host-sync tests on GPU 0; the rest of Tier 2 runs as
+each launch's gate. `actor-design-1026` launches from this file's own commit, its pre-registration; enc-iface's
+last jobs from `58d55d7`. Main was pushed to origin on 2026-10-24 (Aden); the commits since are not.
 
-**Now: two groups in one queue.** `arch-swap-1021` is finishing, and **`enc-iface-1023` starts in the
-next free slot, its critic-window arm first** (Aden, 2026-10-24 DECISION: `iface-window 2` and
-`iface-wide-out 2` first, then `rra` 2 and 3, then `iface-wide-all` and the rest). One queue places
-both groups' remaining jobs: tmux `order-queue`, `outputs/queue/launchers/order-1024/order_queue.sh`
-(log `order_queue.log` there), which fits each job beside what is on a GPU by memory.
-- **`arch-swap-1021`** (EXPERIMENTS.md, 2026-10-20 PRE-REGISTERED; the 2026-10-23 LAUNCHED and seed-2
-  NOTE): at 09:00 on 10-24, `rrr` 2 and 3, `ere 2`, `eee 2`, `aaa 2` and `ara 2` finished (`rrr` pools
-  0.648, so H does not count); `aaa 3`, `eee 3`, `ere 3` and `ara 3` running, at 150k about 12:23,
-  16:52, 19:03 and 00:21 on 10-25; `rra 2` and `rra 3` queued, about 19:10 on 10-24 and 00:30 on 10-25;
-  the last at 150k about 13:00 on 10-25. Seed 2: `ere 2` 172 and `rrr 2` 171 of 250, `eee 2` 129,
-  `aaa 2` 85, `ara 2` 73 (110k–150k). **The local wandb records of `aaa 3`, `eee 3` and `ere 3` stopped
-  at the 10-23 disk-full minutes** (the 2026-10-24 NOTE): wandb's server has every step, but their
-  packages' `metrics.jsonl` is rebuilt from the server as each ends (tmux `metrics-rebuild`, Aden's
-  yes), and `swap-watch` logs nothing of them. Tmux: `swap-watch`, `wandb-cache`, `metrics-rebuild`, one
-  `q-arch-swap-<arm>-<seed>` per running job.
-- **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 CODE, MEASUREMENT, DECISION and PRE-REGISTERED;
-  [the plan](plans/2026-10-23-encoder-interface.md), local). The equivariant critic sees 288 numbers per
-  frame where ResFiT's sees 20,736; the probe found that the agentview encoder's 9x9 map holds what its
-  1x1 output loses (the nut's xy relative to the gripper, 0.11–0.14 R² at equal size), and more than
-  ResFiT's tokens. Four arms on `arch-swap-eee`'s launch, at seeds 2 and 3: `iface-eee` (the anchor),
-  `iface-wide-all` (the encoders twice as wide), `iface-wide-out` (their last layers wider; 1,280 numbers)
-  and `iface-window` (a window over the 9x9 maps for the critic alone; 1,280). Each new arm's smoke runs
-  in its first job's slot. Expected in wandb: `iface-window 2` about 14:45 on 10-24 (window share at 30k
-  about 20:45), `iface-wide-out 2` about 19:15, `iface-wide-all 2` about 10:00 on 10-25, `iface-eee 2`
-  13:00–20:00 on 10-25; the last at 150k about 10-28. `iface-watch` is the watcher.
-- **Disk:** 31 GB free at 11:16 on 10-24, after the cleanup deleted the finished runs' eval videos
-  (7.15 GB; EXPERIMENTS.md, 2026-10-24 NOTE). The 10-23 reclaim of duplicate best models (12.1 GB, the
-  DECISION) had left 23 GB and about 9 GB to spare when both groups are done; about 16 GB now.
+**Now: `arch-swap-1021` is finished, `enc-iface-1023` is half run, and `actor-design-1026` is starting**
+(Aden, 2026-10-26 DECISION: the actor is where the gap is). One queue places both groups' jobs: tmux
+`order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there), which
+fits each job beside what is on a GPU by memory.
+- **`arch-swap-1021` is complete** (all twelve runs at 150k; its NOTE is still to be written). Pooled at
+  110k–150k, two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314
+  (the base alone 0.553). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere` −0.378), the
+  constraint; C4 (`ere` − `eee` +0.152), ResFiT's actor; C6 (`rrr` − `rra` +0.246), ResFiT's critic. Not
+  counted: H (−0.066), C3 (−0.074), C5 (+0.088). Every ablated-critic run's best eval is its step 0.
+  Every early speed was within 1.35 times of the others. The packages of `aaa 3`, `eee 3` and `ere 3`
+  hold `metrics.jsonl` rebuilt from wandb's server (the 2026-10-24 NOTE; `rebuild.log`).
+- **`actor-design-1026`** (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED): eee's agent
+  with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6; `actor-resfit-shape-wide`,
+  362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's actor unconstrained
+  (`actor-eae`, at 2.5e-7), seeds 2 and 3, against `arch-swap`'s `eee` and `ere`. `actor-resfit-shape 2`
+  took the slot of `iface-window 3`, stopped by hand (Aden). Expected in wandb: `actor-resfit-shape 2`
+  about 12:45 on 10-26, `actor-eae 2` about 00:30 on 10-27, `actor-resfit-shape-wide 2` about 09:00 on
+  10-27; the last at 150k about 10-29. Watcher: tmux `ad-watch`.
+- **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs).
+  Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; the critic leaned on the window,
+  1.55 times the summary late, and fit like the ablated critics), `iface-wide-out` 0.452 (`gcrewpq2`),
+  against `eee 2`'s 0.516; `iface-wide-all 2` (`5shh877a`) at 150k about 22:30 on 10-26, `iface-eee 2`
+  (`mgcifv1y`) about 06:30 on 10-27. Still to run: `iface-window 3` again (tonight), `iface-wide-out 3`
+  and `iface-eee 3` (about 10-28). `iface-wide-all 3` is dropped, so I1 is not read. `iface-watch` is
+  its watcher.
+- **Disk:** 21 GB free at 09:00 on 10-26; about 9 GB when both groups are done, under Aden's
+  10 GB: the next `/wrapup`'s eval-video cleanup comes before then.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.

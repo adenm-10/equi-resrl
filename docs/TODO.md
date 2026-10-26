@@ -9,11 +9,31 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now: the architecture swap, `arch-swap-1021` (B20), finishing, and the encoder's interface,
-`enc-iface-1023` (B21), queued behind it.** Aden's architectural experiments (2026-10-20 DECISION);
-STATUS.md's "What the actor-speed groups leave" has what B17–B19 found that bears on them.
+**Now: the actor's design, `actor-design-1026` (B22), starting; the encoder's interface,
+`enc-iface-1023` (B21), half run; the architecture swap, `arch-swap-1021` (B20), complete, its NOTE to
+write.** Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups
+leave" has what B17–B19 found that bears on them.
 
-### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — QUEUED 2026-10-23, `iface-window 2` first, about 10-24 12:30 (Aden, 2026-10-23 and 10-24) `[SC]`
+### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — QUEUED 2026-10-26, `actor-resfit-shape 2` first (Aden, 2026-10-26) `[SC]`
+
+C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's
+launch, seeds 2 and 3, read against arch-swap's `eee` and `ere` (EXPERIMENTS.md, 2026-10-26 CODE,
+DECISION and PRE-REGISTERED).
+- **Done:** `ResFiTShapedActor` (`equivariance.actor_design=resfit`, `actor_feature_fields`) and its
+  tests; the three arms in `submit.sh`, the sweep-arm tests and the watcher; the calibration
+  (`outputs/diagnostics/actor-design/`: the 128-field arm at 3e-6, the 362-field at 1e-6, `eae` at 2.5e-7);
+  `iface-window 3` stopped for the slot (Aden); the queue (`order-1026`) and the watcher (`ad-watch`).
+- **Next, automatic:** each arm's smoke in its first slot (`outputs/diagnostics/actor-design/smokes/`),
+  then its run: `actor-resfit-shape 2` on 10-26, `actor-eae 2` and `iface-window 3` (again) when
+  `iface-wide-all 2` ends (about 22:30), `actor-resfit-shape-wide 2` about 10-27 06:30, then the seeds 3.
+  Claude checks each smoke, each first launch's gate and early speed against the prediction (the 128-field
+  arm 0.035 at 3e-6; `eae` about 0.033, the calibration's 0.056 over-predicting a dense actor as for
+  `aaa`), and `actor-resfit-shape 2`'s evals to 50k (the gross-failure check).
+- **Then:** the LAUNCHED entry; seed 2 at 150k (about 10-27 evening to 10-28), a provisional read; seed 3 at
+  150k (about 10-29): `/analyze-experiment` against the rules, the NOTE, the next step from the
+  PRE-REGISTERED entry's readings.
+
+### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 of two arms at 150k (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 
 [The plan](plans/2026-10-23-encoder-interface.md) (local), approved by Aden on 2026-10-23 with Claude's
 recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
@@ -22,14 +42,11 @@ DECISION), the critic-window arm first (2026-10-24 DECISION).
   (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the queue armed (tmux
   `order-queue`, `outputs/queue/launchers/order-1024/order_queue.sh`, both groups' remaining jobs) and
   the watcher (`iface-watch`).
-- **Next, automatic:** `iface-window 2` (its smoke first) in `aaa 3`'s slot about 12:30 on 10-24,
-  `iface-wide-out 2` in `eee 3`'s about 17:00, then `rra` 2 and 3, `iface-wide-all 2` (about 07:45 on
-  10-25, beside `rra 3`), and the rest as they fit. Claude checks each smoke
-  (`outputs/diagnostics/enc-iface/smokes/`), `iface-wide-all`'s GPU memory against the 6,750 MiB rule
-  (above it, no CNN run beside it), each first launch's gate and early speed, and the window's share at
-  30k (about 20:45 on 10-24). For Aden's progress update on 10-24: `iface-window 2`'s and
-  `iface-wide-out 2`'s first evals beside `eee 2`, `eee 3` and `arch-wide 2` at the same steps, as a
-  description only (the DECISION).
+- **Now** (the 2026-10-26 DECISION): `iface-window 2` (0.236) and `iface-wide-out 2` (0.452) at 150k,
+  `iface-wide-all 2` and `iface-eee 2` running; `iface-window 3` stopped at 15.6k for
+  `actor-resfit-shape 2`'s slot and queued again (tonight, GPU 0); `iface-wide-out 3` and `iface-eee 3`
+  after B22's runs (about 10-28); `iface-wide-all 3` dropped, so I1 is not read. The LAUNCHED entry is
+  still to write.
 - **Then:** the LAUNCHED entry once the first four are in wandb; probe `eee 3`'s encoder once it
   finishes (`python -m tools.encoder_probe probe eee3`); wave 1 at 150k (about 10-26), a provisional
   read; wave 2 at 150k (about 10-28): `/analyze-experiment` against the rules, the NOTE, and the next
@@ -37,7 +54,7 @@ DECISION), the critic-window arm first (2026-10-24 DECISION).
 - **When arch-swap's last run exits:** stop its `swap-watch` and `wandb-cache`, and start a cache
   cleanup for this group (the same script, every 12 h) while its runs go on.
 
-### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — RUNNING from 2026-10-21, to about 10-25 09:00 (Aden, 2026-10-20) `[SC]`
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — all twelve at 150k by 2026-10-25 09:36; the NOTE to write (Aden, 2026-10-20) `[SC]`
 
 [The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
 its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated

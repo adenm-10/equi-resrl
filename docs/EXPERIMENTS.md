@@ -9820,3 +9820,124 @@ has one per channel, and the delta-orthonormal start against ResFiT's orthogonal
 - `tests/test_regression_agent.py`: the default agent's pinned fingerprint, unchanged.
 - `tests/test_square_rerendered_watch.py`: the group is watch-only, with its early speed logged.
 - Results: on the CPU, `tests/test_actor_design.py` and the watcher's and regression tests (47 with the first two arms; again with the third), the config, no-op and ablated-family suites (141), and `tests/test_sweep_arms.py` for the three arms, the case table and every anchor's composition (72), after its launch-level tests for every arm (246); on GPU 0, `tests/test_sync_free.py` for `eae`'s mix and the two shaped candidates (3). Every one passed. Run on the CPU, `test_arm_builds_and_updates[resfit-residual-square-noln-actor]` fails: ResFiT's agent asks for CUDA, and fails the same way at `58d55d7`; the gate runs it on a GPU.
+
+---
+
+## 2026-10-26 — DECISION — `actor-design-1026` goes ahead of enc-iface's last runs: `iface-window 3` stopped to free a slot and run again; `iface-wide-all 3` dropped (Aden)
+
+Aden, on the morning of 10-26, after `arch-swap-1021`'s readout (Claude's, in conversation; its NOTE is
+still to be written): C4 counted, ResFiT's actor on our encoder and critic beating ours, so the actor is
+where the gap is. Aden's choices, each on Claude's recommendation unless said:
+1. **Queue `eae`** (arch-wide's actor exported, unconstrained, on eee's encoder and critic) **and an
+   equivariant actor wired as ResFiT's**, at ResFiT's widths in channels. Then, on Aden's own question
+   (would 0.16M free parameters learn?), **a second width matched to ResFiT's free parameters per hidden
+   layer** (362 fields) beside it.
+2. **Rates:** `eae` at `aaa`'s 2.5e-7, the same actor; the 128-field arm at 3e-6, which matches eee's early
+   speed (at 1e-6 the calibration puts it at 0.31 times eee's); the 362-field arm at 1e-6, in the band.
+3. **Order:** the new arms first. And "can we get the resfit-shaped actor to run asap": no slot fitted it
+   before `iface-wide-all 2` ends (about 22:30), so Aden asked to cancel one run and submit it again later
+   today. **Claude stopped `iface-window 3`** (`dwww8nes`, SIGINT at step 15,600, at 09:43 on 10-26), the run with the least behind it,
+   so `actor-resfit-shape 2` takes its slot on GPU 1. `iface-window 3` runs again from step 0 in tonight's
+   GPU 0 slot, from `58d55d7` as before; `dwww8nes` is not a result.
+4. **`iface-wide-all 3` dropped:** it needs a GPU to itself, and its seed 2 (`5shh877a`, at 150k about
+   22:30) was behind eee's at 50k–80k (0.33 against 0.54). I1 has one seed and is not read as a contrast.
+
+For `enc-iface-1023` this changes the order alone: `iface-wide-out 3` and `iface-eee 3` start about
+Wednesday, and its readout moves to about Thursday or Friday. No run's config changes.
+
+---
+
+## 2026-10-26 — PRE-REGISTERED — the actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`)
+
+**Question** (Aden, 2026-10-26, the DECISION above). In `arch-swap-1021`, at two seeds pooled at
+110k–150k: ResFiT's actor on our encoder and critic (`ere`, 0.692) beat ours (`eee`, 0.540) by 0.152 (C4,
+counted), and level with ResFiT's whole agent (`rrr`, 0.648); with the constraint off in the encoder and
+critic, nothing learned (C2, −0.378; every ablated-critic run's best eval was its step 0). So the gap is in
+the actor. Which part of it: the wiring, the free parameters, or the constraint?
+
+**Seed group `actor-design-1026`**, seeds 2 and 3 of each arm, 150k steps, on the re-rendered demos.
+- Names `<arm>-<seed>`; notes `actor-design-1026/<arm>/seed<seed>`; wandb `robomimic-square-final` /
+  `equi-residual-rl`.
+- **The anchors** are `arch-swap-1021`'s runs, from `aec1bdc`: `eee` (arch-wide's launch: `wk45zp27`
+  0.516, `jr63pxb9` 0.564; pooled 0.540) and `ere` (`6xh63lfb` 0.688, `ifpm32n9` 0.696; pooled 0.692).
+  Each arm is `arch-swap-eee`'s launch but for its actor fields (`tests/test_sweep_arms.py`), and at seed 2
+  starts with eee's encoder and critic bit for bit (the agent builds its actor last). `iface-eee 2`
+  (`mgcifv1y`, `58d55d7`, at 150k about 10-27 06:30) is eee's launch again, from this week.
+
+| Arm | Change from `arch-swap-eee` | Actor (CODE above) | Its rate | Free parameters | 0–3k at its rate: calibration (CPU) | expected |
+|---|---|---|---|---|---|---|
+| `actor-resfit-shape` | `equivariance.actor_design=resfit agent.actor_lr=3e-6`; its width the default, 128 | `ResFiTShapedActor`, 16 / 128 / 128 fields: ResFiT's 128 / 1,024 / 1,024 channels | 3e-6 | 0.156M | 0.0346 (0.0115 at 1e-6) | the same |
+| `actor-resfit-shape-wide` | `equivariance.actor_design=resfit equivariance.actor_degree_channel=362` | `ResFiTShapedActor`, 16 / 362 / 362 fields: its hidden-to-hidden Linear at ResFiT's free parameters | 1e-6 | 1.111M | 0.0330 | the same |
+| `actor-eae` | `equivariance.actor_family=ablated agent.actor_lr=2.5e-7` | `AblatedActor`: arch-wide's actor exported, every weight free | 2.5e-7 | 26.9M | 0.0558 | about 0.033, `aaa`'s measured |
+
+**The calibration** (`outputs/diagnostics/actor-design/calibrate.py`, enc-iface's method: 50 actor-only
+AdamW steps at seed 2 against the arm's own frozen critic, at its rate; each arm's 0–3k predicted as
+`h216n857`'s measured 0.0367 times its 50-step residual over eee's). For the equivariant actors it has been
+close: enc-iface's arms were predicted at 0.0348–0.0367 and ran at 0.0351–0.0411. For a dense actor it
+over-predicts, and by one factor: `aaa` at 2.5e-7 is predicted 0.0558 against its runs' 0.0301 and 0.0354,
+`ere`'s ResFiT actor at 1e-6 0.0639 against 0.0410 and 0.0361, both about 1.7 times. `eae`'s 50 steps are
+`aaa`'s exactly (its critic starts as `aaa`'s function), so it is expected at `aaa`'s speed. Each arm's
+smoke logs its residual at 500 and 1,000 steps as a second check.
+
+**The contrasts,** each on two seeds pooled at 110k–150k (500 episodes per arm), **each counting at a
+difference of 0.13 or more** (arch-swap's bar):
+
+| | Contrast | Isolates | What else differs |
+|---|---|---|---|
+| D1 | `actor-resfit-shape` − `eee` | ResFiT's wiring, in an equivariant actor: the bottleneck, and the state and base action joined once | the width (128 fields against 448; 0.16M free parameters against 3.36M); the rate (3e-6, at eee's early speed); the commit and the week |
+| D2 | `actor-resfit-shape-wide` − `actor-resfit-shape` | the free parameters, at ResFiT's wiring | the rate (1e-6 against 3e-6, each at eee's early speed) |
+| D3 | `actor-eae` − `eee` | our actor's constraint | each weight's step, at the rate matched as `aaa`'s; the commit and the week |
+| D4 | `ere` − `actor-resfit-shape` | ResFiT's actor against its equivariant twin at its widths: the constraint, at ResFiT's wiring | 8 times the free parameters; LayerNorm's scale and shift per channel; the orthogonal start; ResFiT's rate (1e-6) and its early speed (0.039) |
+| D5 | `ere` − `actor-eae` | ResFiT's design against ours, both unconstrained | the widths, the norms' placement, the start, the rate |
+
+**Readings:**
+
+| Result | Reading | Next |
+|---|---|---|
+| D1 counts the shape way, D2 does not | the wiring is what our actor lacked; free parameters do not matter | the shaped actor is the anchor; split its two changes (the bottleneck alone, the single join alone) |
+| D2 counts the wide way | the free parameters matter, at ResFiT's wiring | the wide shaped actor is the anchor; is the same true of ours (arch-wide's at 1,024 fields)? |
+| D3 counts the `eae` way, D1 does not | the actor's constraint costs, its wiring does not | what the constraint forbids the actor (the scene's own asymmetries); a partly constrained actor |
+| none of D1–D3 counts, D4 does | the gap is in what neither change touches: the norm's per-channel scale, the start | ResFiT's actor with each made ours, one at a time |
+| nothing counts | the actor's design and constraint are not the gap at this bar | C4's 0.152 was at the edge of the bar; more seeds of `eee` and `ere` |
+
+**Predictions** (Claude's, before launch):
+1. **D1 counts the shape way** (low). The wiring is the one difference between the two actors no run has
+   tested, and ResFiT's actor, which has it, beat ours by 0.152 on the same encoder and critic.
+2. **D2 does not count** (moderate). Our actor's free parameters did not matter at matched speed:
+   arch-wide's 448 fields (3.36M) against 128 (0.31M) moved the late level by −0.02
+   (`equi-speed-matched-1017`), and an equivariant layer at ResFiT's width can represent every
+   equivariant map ResFiT's can.
+3. **D3 does not count** (low). Without the constraint anywhere, `aaa` lost 0.152 to `eee`; with it off in
+   the encoder and critic alone, `ara` lost 0.378 to `ere`. Neither isolates the actor, but the critic is
+   where it mattered most.
+4. **D5 counts the R way** (low): if 1 and 3 hold.
+
+**Launch.** From this entry's commit in its pinned worktree (`~/projects/equi-resrl-<commit>`), through
+`outputs/queue/launchers/order-1026/order_queue.sh` (tmux `order-queue`; the DECISION above), with
+enc-iface-1023's last three jobs: `actor-resfit-shape 2` (in `iface-window 3`'s slot), `actor-eae 2`,
+`iface-window 3` again, `actor-resfit-shape-wide 2`, then seed 3 of each new arm in that order, then
+`iface-wide-out 3` and `iface-eee 3`. Each job takes the first slot it fits, two per GPU, free for 300 s;
+a launch its gate stops is tried again up to 3 times. Each new arm's first job runs its integration smoke
+in its slot first (`outputs/diagnostics/actor-design/smokes/`: enc-iface's, less the window's share: 1,000
+steps, evals, the best model's save and reload into its config's agent, the package, the GPU and RAM
+peaks); a failed smoke drops its arm. The watcher, tmux `ad-watch` (`tools/square_rerendered_watch.py
+--group actor-design-1026`): watch-only, the early speed logged. Every run to 150k, no automatic stop.
+
+**Readouts:**
+- **The main readout:** the contrasts above.
+- **The speed readout:** each run's 0–3k residual against 0.025–0.045, reported beside each contrast; a
+  contrast whose ends differ by more than 1.5 times is read with the difference stated (arch-swap's rule).
+- **Reported, deciding nothing:** the 10k eval and 10k–30k pooled; `debug/dQ_da_mean_abs`,
+  `debug/q_data_demo`, `debug/q_data_online`, `train/actor_grad_norm`, early and late; each residual
+  field's size late; pinning at 3k–10k.
+- **A gross failure:** `actor-resfit-shape 2`'s evals near 0 through 50k (every arm of this agent so far
+  recovers by 30k–50k): reported at once.
+
+**Resources.** GPU memory: a CNN run of this agent holds about 11 GB (`eee 3` 10.85, `aaa 3` 11.2 at 10-24,
+trainer and workers); the shaped actors are smaller than eee's and `eae`'s is `aaa`'s, so every pair is at
+most about 22.5 GB. Disk: 21 GB free at 09:00 on 10-26; this group's six packages and enc-iface's five
+still to come, about 1.1 GB each, leave about 9 GB, under the 10 GB the arch-swap entry leaves to Aden:
+the next `/wrapup`'s eval-video cleanup reclaims space before then. Expected, in wandb: `actor-resfit-shape
+2` about 12:45 on 10-26, `actor-eae 2` about 00:30 on 10-27 (after its smoke, beside `iface-window 3`),
+`actor-resfit-shape-wide 2` about 09:00 on 10-27; seeds 3 from about 10-27 evening; the last of this group
+at 150k about 10-29.
