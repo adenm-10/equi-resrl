@@ -18,6 +18,11 @@ python -m pytest tests/ -q -s       # with measured equivariance errors printed
 `./submit.sh <arm> <seed> [gpu]` runs `preflight.py` automatically and refuses to launch if a
 blocking check fails. `SKIP_PREFLIGHT=1` overrides that; don't.
 
+One exception, in the queue alone (Aden, EXPERIMENTS.md 2026-10-26 DECISION, afternoon): a launch
+through `outputs/queue/launchers/retry/run_job.sh` from a commit whose Tier 2 has already passed at a
+launch's gate skips Tier 2. Tier 2 tests the code alone, so it would pass again. Tiers 1 and 3 still
+run. The commits are listed in `retry/tier2_passed.txt`, and `retry/gate_python.sh` adds the flag.
+
 ## What each file does
 
 | File | Tier | Needs GPU | Checks |

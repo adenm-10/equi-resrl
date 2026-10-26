@@ -3,36 +3,42 @@
 **Last updated:** 2026-10-26 · **Last verified commit:** `0d9fb30`, the actor's design (EXPERIMENTS.md,
 2026-10-26 CODE): its new tests, the sweep-arm tests for its three arms, the regression, config, no-op
 and ablated-family suites pass on the CPU, and its host-sync tests on GPU 0; the rest of Tier 2 runs as
-each launch's gate. `actor-design-1026` launches from this file's own commit, its pre-registration; enc-iface's
-last jobs from `58d55d7`. Main was pushed to origin on 2026-10-24 (Aden); the commits since are not.
+each launch's gate. `actor-design-1026` launches from `a5b5cc8`, its pre-registration; enc-iface's last jobs from
+`58d55d7`. Main was pushed to origin on 2026-10-24 (Aden); the commits since are not.
 
-**Now: `arch-swap-1021` is finished, `enc-iface-1023` is half run, and `actor-design-1026` is starting**
-(Aden, 2026-10-26 DECISION: the actor is where the gap is). One queue places both groups' jobs: tmux
-`order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there), which
-fits each job beside what is on a GPU by memory.
-- **`arch-swap-1021` is complete** (all twelve runs at 150k; its NOTE is still to be written). Pooled at
-  110k–150k, two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314
-  (the base alone 0.553). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere` −0.378), the
-  constraint; C4 (`ere` − `eee` +0.152), ResFiT's actor; C6 (`rrr` − `rra` +0.246), ResFiT's critic. Not
-  counted: H (−0.066), C3 (−0.074), C5 (+0.088). Every ablated-critic run's best eval is its step 0.
-  Every early speed was within 1.35 times of the others. The packages of `aaa 3`, `eee 3` and `ere 3`
-  hold `metrics.jsonl` rebuilt from wandb's server (the 2026-10-24 NOTE; `rebuild.log`).
+**Now: `arch-swap-1021` is finished and read, `enc-iface-1023` is half run, and `actor-design-1026` is
+starting** (Aden, 2026-10-26 DECISION: the actor is where the gap is). One queue places both groups' jobs:
+tmux `order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there),
+which fits each job beside what is on a GPU by memory ("Running now", below).
+- **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
+  two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
+  step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
+  −0.378), the constraint; C4 (`ere` − `eee` +0.152), ResFiT's actor; C6 (`rrr` − `rra` +0.246), ResFiT's
+  critic. Not counted: H (−0.066), C3 (−0.074), C5 (+0.088). No run with an unconstrained critic beat its
+  step 0. Every run's early speed was inside the band (0.0285–0.0410). C4 is just past the bar: against
+  all three runs of `eee`'s launch, `arch-wide 2` included, it is +0.119. Aden's calls (TODO B20; the
+  last 2026-10-26 DECISION): the drift readout dropped; a slower dense critic planned first after
+  `actor-design-1026`; C4 read with `iface-eee`'s replicates too.
 - **`actor-design-1026`** (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED): eee's agent
   with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6; `actor-resfit-shape-wide`,
   362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's actor unconstrained
   (`actor-eae`, at 2.5e-7), seeds 2 and 3, against `arch-swap`'s `eee` and `ere`. `actor-resfit-shape 2`
-  took the slot of `iface-window 3`, stopped by hand (Aden). Expected in wandb: `actor-resfit-shape 2`
-  about 12:45 on 10-26, `actor-eae 2` about 00:30 on 10-27, `actor-resfit-shape-wide 2` about 09:00 on
-  10-27; the last at 150k about 10-29. Watcher: tmux `ad-watch`.
-- **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs).
-  Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; the critic leaned on the window,
-  1.55 times the summary late, and fit like the ablated critics), `iface-wide-out` 0.452 (`gcrewpq2`),
-  against `eee 2`'s 0.516; `iface-wide-all 2` (`5shh877a`) at 150k about 22:30 on 10-26, `iface-eee 2`
-  (`mgcifv1y`) about 06:30 on 10-27. Still to run: `iface-window 3` again (tonight), `iface-wide-out 3`
-  and `iface-eee 3` (about 10-28). `iface-wide-all 3` is dropped, so I1 is not read. `iface-watch` is
-  its watcher.
-- **Disk:** 21 GB free at 09:00 on 10-26; about 9 GB when both groups are done, under Aden's
-  10 GB: the next `/wrapup`'s eval-video cleanup comes before then.
+  took the slot of `iface-window 3`, stopped by hand (Aden). Its smoke passed and its gate passed (953
+  tests), and its trainer started about 13:25 on 10-26. Expected in wandb: `actor-eae 2` about 16:00 on 10-26 and
+  `actor-resfit-shape-wide 2` about 10:00 on 10-27. The readout is about 02:00 on 10-29 (the afternoon
+  DECISION: `iface-wide-all 2` stopped, and Tier 2 skipped on relaunches). Watcher: tmux `ad-watch`.
+- **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
+  the 2026-10-26 LAUNCHED and NOTE). Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`;
+  never above its step 0; its critic leaned on the window, 1.55 times the summary late, and valued online
+  data as the unconstrained critics did), `iface-wide-out` 0.452 (`gcrewpq2`), against `eee 2`'s 0.516.
+  `iface-wide-all 2` (`5shh877a`) was stopped at about 113k (Aden, the afternoon DECISION), a description
+  only. `iface-eee 2` (`mgcifv1y`) reaches 150k about 08:00 on 10-27. Still to run: `iface-window 3` again
+  (from about 15:30 on 10-26), then `iface-wide-out 3` and `iface-eee 3` (from about 10-28; the readout
+  about 04:30 on 10-30). `iface-wide-all 3` is dropped, so I1 is not read. `iface-watch` is its watcher.
+- **Parked:** the observation, latency and chunk experiments (TODO B23), until both groups are read and
+  the actor is settled (Aden).
+- **Disk:** 21 GB free at 10:00 on 10-26; about 9 GB when both groups are done, under Aden's 10 GB: the
+  next `/wrapup`'s eval-video cleanup comes before then.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -308,46 +314,67 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**Nothing is running or queued** (2026-10-20), and both GPUs are idle. The last runs, the four of
-`equi-speed-matched-1017`, finished on 10-19 between 03:11 and 07:57, each complete.
+**At 13:40 on 2026-10-26:**
+
+| GPU | Running | Ends |
+|---|---|---|
+| 0 | `actor-eae`'s smoke (from 13:38), then `actor-eae 2` and `iface-window 3`; `iface-wide-all 2` was stopped at about 113k at 13:33 (Aden, the afternoon DECISION) | both about 20:30 on 10-27 |
+| 1 | `iface-eee 2` (`mgcifv1y`, about 59k); `actor-resfit-shape 2`, its trainer started about 13:25 | `iface-eee 2` about 08:00 on 10-27; `actor-resfit-shape 2` about 18:30 on 10-27 |
+
+Queued in `order-1026`, in order: `actor-resfit-shape-wide 2` (its smoke first), `actor-resfit-shape 3`, `actor-eae 3`,
+`actor-resfit-shape-wide 3`, `iface-wide-out 3`, `iface-eee 3`. The times are in the afternoon DECISION.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
 needs it. New groups go in the watcher's watch-only set.
 
-How the last groups were launched and followed, for the next ones:
-- **The queue:** `outputs/queue/launchers/retry/slot_queue.sh`, in tmux `rfe-queue`. Not running: it
-  placed arch-swap's first ten jobs and was stopped on 10-24, its last two moved to
-  `order-1024/order_queue.sh` (which fits each job to a GPU by memory; the 2026-10-24 DECISION).
-  - Start it with `bash slot_queue.sh <jobs file> 2>&1 | tee -a slot_queue.log`. Job lines are
-    `<worktree> <arm> <seed> <smoke_first> [if=<script>]`.
-  - Each job goes into the first slot to have been free for 300 s, two runs per GPU, and gets its own
-    tmux session, `q-<arm>-<seed>`.
-  - A launch its gate stops is tried again, up to 3 tries 600 s apart (2026-10-13 LAUNCHED).
+How the runs are launched and followed:
+- **The queue:** `outputs/queue/launchers/order-1026/order_queue.sh`, in tmux `order-queue`, started at
+  09:44 on 10-26 with `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8`. Its log is `order_queue.log`
+  beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants and where each job
+  would fit.
+  - At each slot free for 300 s (two per GPU), the first job in its list that fits that GPU's memory
+    launches there through `retry/run_job.sh`, in tmux `q-<arm>-<seed>`. The run's gate goes first; a
+    launch its gate stops is tried again, up to 3 tries 600 s apart.
+  - The fit: a CNN run holds about 11 GB, a ViT run about 9.1 GB, against 23.5 GB for a pair; nothing
+    but a ViT run goes beside `iface-wide-all` (the 2026-10-26 LAUNCHED entry).
+  - A new arm's first job runs the arm's integration smoke in its slot first (its group's
+    `launch_smoke.sh` and `check_smoke.py`, under `outputs/diagnostics/<group>/smokes/`). A failed smoke
+    drops the arm, and the log says so.
+  - **Its jobs are in the script (`JOBS`), read once at start.** To change them, stop it while it is only
+    waiting, edit, and start it again, as `order-1024` became `order-1026` on 10-26.
+  - It is `order-1024/order_queue.sh` but for its jobs, which was `retry/slot_queue.sh` (tmux `rfe-queue`,
+    stopped on 10-24) but for the fit; all three count a slot with the same `held()`.
+  - **The gate skips Tier 2 on a commit that already passed it** (Aden, 2026-10-26 DECISION, afternoon).
+    `run_job.sh` sets `PYTHON` to `retry/gate_python.sh`, which adds `--skip-tier2` to `preflight.py` for
+    a commit listed in `retry/tier2_passed.txt` (`58d55d7`, `a5b5cc8`), and is plain python otherwise.
+    Tiers 1 and 3 still run. A new commit's first launch runs the full gate: add the commit to the list
+    once its Tier 2 passes.
+  - The gate prints nothing until each tier ends, so its console is blank for its first minutes, or
+    about two hours with Tier 2 (953 tests, 124 minutes at `a5b5cc8`).
   - The render-guard test (`test_every_guard_passes_on_cans_first_demos`) still fails now and then in
-    a gate that starts within minutes of a run exiting. The retry passed it on 10-18, as on 10-12; its
-    failing assertion is still not recorded.
-  - Its log is `outputs/queue/launchers/slot_queue.log`. The scripts are in `outputs/queue/launchers/`,
-    which is gitignored (TODO: move them into `tools/`).
-  - **The queue reads its jobs file once, at start.** To change the jobs, stop `rfe-queue` while it is
-    only waiting for a slot (its last log line is a launch, more than a minute old), rewrite the file
-    and start it again.
-  - A job with `if=<script>` runs that script (in `retry/`) once a slot is free, with `JOB_WORKTREE`,
-    `JOB_ARM` and `JOB_SEED` set, and launches only on exit 0.
-  - The gate prints nothing until each tier ends, so its console is blank for about its first hour.
-  - To check its slot count, source its functions:
-    `source <(sed -n '1,/^mapfile/p' slot_queue.sh | grep -v '^mapfile')`, then `held 0; held 1`.
-- **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group,
-  from the group's pinned worktree): none is running. `matched-watch` was stopped at 08:59 on 10-20,
-  after its four runs had exited.
-  - A watch-only group (`WATCH_ONLY_ARMS`) is logged, FLAGged and finalized, and never signalled.
+    a gate that starts within minutes of a run exiting; the retry has passed it every time. Its failing
+    assertion is still not recorded.
+  - The scripts are in `outputs/queue/launchers/`, which is gitignored (TODO: move them into `tools/`).
+- **The digest** (tmux `queue-digest`; `order-1026/digest.py` every 30 minutes, by `run_digest.sh`). It
+  rewrites `outputs/queue/launchers/order-1026/digest.md`: each run's state, step and evals, its early
+  speed against the band and its arm's prediction, the gross-failure check of `actor-resfit-shape 2`
+  (a FLAG line in `watch.log` once, if every eval at 10k–50k is at or below 0.10), the queue's smokes,
+  launches and drops, every FLAG, and the GPUs, RAM and disk. It changes nothing about any run, and stops
+  itself when the queue is done. **Read it first when a session opens.**
+- **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group, from
+  the group's pinned worktree), each watch-only: logged, FLAGged and finalized, never signalled.
+  - `ad-watch` (`actor-design-1026`, from `equi-resrl-a5b5cc8`);
+  - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
+  - `swap-watch` (`arch-swap-1021`, from `equi-resrl-aec1bdc`): every run of its group has exited, so
+    it has nothing left to watch.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux:** only live sessions are left: one `q-<arm>-<seed>` per running job, the queue, the
-  watchers, `metrics-rebuild`, `wandb-cache` and `disk-watch`. Every idle one was killed on 10-24 (36:
-  the finished runs' `q-*`, `sq-tilt-notilt`, and the old queue runners `gpu0`, `gpu1` and `gpu1-bars`,
-  which polled queue files empty since 10-10), its scrollback saved in
-  `outputs/cleanup-20261024/tmux_scrollback/`. The queue checks a job's `q-*` session only on a
-  restart, and none of the killed sessions' jobs is in its list.
+- **tmux:** `order-queue`; `q-iface-wide-all-2` and `q-iface-eee-2`; the three watchers; `wandb-cache`
+  (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space every 20 s;
+  it wakes Claude below 8 GB). Idle, their jobs ended: `metrics-rebuild` (done 19:06 on 10-24), the
+  finished runs' `q-arch-swap-*` and `q-iface-window-2`, `q-iface-wide-out-2`. The queue checks a job's
+  `q-*` session only on a restart. The 10-24 cleanup's scrollback is in
+  `outputs/cleanup-20261024/tmux_scrollback/`.
 
 - **What each run records beyond its evals and videos:**
   - `notilt` and `diag` log the residual and the critic's slope per action field
@@ -362,7 +389,7 @@ How the last groups were launched and followed, for the next ones:
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 31 GB free on 2026-10-24** ("Disk", above). The wandb cache is cleared to 2 GB every
+  - **The disk had 21 GB free on 2026-10-26** ("Disk", above). The wandb cache is cleared to 2 GB every
     12 h by tmux `wandb-cache` (`outputs/queue/launchers/wandb_cache_cleanup.sh`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when

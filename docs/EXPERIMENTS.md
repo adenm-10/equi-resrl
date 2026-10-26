@@ -9941,3 +9941,307 @@ the next `/wrapup`'s eval-video cleanup reclaims space before then. Expected, in
 2` about 12:45 on 10-26, `actor-eae 2` about 00:30 on 10-27 (after its smoke, beside `iface-window 3`),
 `actor-resfit-shape-wide 2` about 09:00 on 10-27; seeds 3 from about 10-27 evening; the last of this group
 at 150k about 10-29.
+
+---
+
+## 2026-10-26 — LAUNCHED — `arch-swap-1021`'s last four and `enc-iface-1023`'s first five: one gate stopped and its retry launched; the three smokes passed; `iface-wide-all` too big to share its GPU with a CNN run; `iface-window 3` stopped by hand
+
+Written at 10:00 on 10-26 (it was due once each first run reached wandb). It records what the run
+packages, the gate consoles (`outputs/queue/2026102?-*_<job>_gpu?.log`), the queues' logs
+(`outputs/queue/launchers/slot_queue.log` to 10-24 09:24, then `order-1024/order_queue.log`) and the
+watchers' (`outputs/queue/watch.log`) show. `ere 3` and `ara 3` launched through arch-swap's slot queue
+(tmux `rfe-queue`), the rest through `order-1024/order_queue.sh` (tmux `order-queue`, from 09:25 on 10-24;
+the 2026-10-24 DECISION). Each package records commit `aec1bdc` (arch-swap) or `58d55d7` (enc-iface),
+clean, mujoco 3.3.2, and an argv equal to its worktree's `submit.sh` dry run for its arm and seed, less
+naming.
+
+| Job | Took the slot of (exited) | Launched | GPU | Gate: Tier 1; Tier 2 | In wandb | 150k | Run |
+|---|---|---|---|---|---|---|---|
+| `arch-swap-ere` 3 | `ara 2` (10-23 12:49) | 10-23 12:53 | 0 | 227; 800 (79 min) | 15:00 | 10-24 19:03 | [**`ifpm32n9`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/ifpm32n9) |
+| `arch-swap-ara` 3 | `rrr 3` (15:47) | 15:52, **NO-GO**; again 17:13 | 0 | first: 227; 16 failed, 55 errors (66 min). Second: 227; 800 (78 min) | 19:29 | 10-24 22:35 | [**`kfos81cr`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/kfos81cr) |
+| `iface-window` 2 | `aaa 3` (10-24 12:26), after its smoke | 10-24 14:03 | 1 | 233; 886 (111 min) | 16:46 | 10-26 01:06 | [**`od14pmu3`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/od14pmu3) |
+| `iface-wide-out` 2 | `eee 3` (15:31), after its smoke | 16:36 | 1 | 233; 886 (112 min) | 19:30 | 10-26 02:48 | [**`gcrewpq2`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/gcrewpq2) |
+| `arch-swap-rra` 2 | `ere 3` (19:03) | 19:08 | 0 | 227; 800 (78 min) | 21:26 | 10-25 06:15 | [**`u6960hfi`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/u6960hfi) |
+| `arch-swap-rra` 3 | `ara 3` (22:35) | 22:40 | 0 | 227; 800 (79 min) | 10-25 00:46 | 09:36 | [**`wkaqgta6`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/wkaqgta6) |
+| `iface-wide-all` 2 | `rra 2` (10-25 06:15), after its smoke | 10-25 08:18 | 0 | 233; 886 (111 min) | 10:43 | (96.5k at 09:57 on 10-26) | [**`5shh877a`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/5shh877a) |
+| `iface-eee` 2 | `iface-window 2` (10-26 01:06) | 10-26 01:10 | 1 | 233; 886 (111 min) | 03:36 | (33.2k at 09:58) | [**`mgcifv1y`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/mgcifv1y) |
+| `iface-window` 3 | `iface-wide-out 2` (02:48) | 02:53 | 1 | 233; 886 (111 min) | 05:45 | **stopped by hand at 15.6k, 09:43** | [`dwww8nes`](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/dwww8nes) |
+
+- **The NO-GO** (`ara 3`'s first gate): 16 tests failed and 55 errored in Tier 2, among them
+  `tests/test_sync_free.py`'s host-sync candidates and two `tests/test_sweep_arms.py` tests, which pass
+  in every other gate of this commit. The gate keeps no pytest output beyond the failing names, so the
+  cause is not recorded. Its Tier 2 ran from about 15:56 to 17:02 on 10-23, across the minutes the disk
+  filled (16:54; the 2026-10-24 NOTE). The queue's retry, 600 s later, passed 800; the run started about
+  1.5 h late.
+- **Tier 2 at `58d55d7` is 886 tests in 111–112 minutes,** against 800 in 78–79 at `aec1bdc`: this
+  commit's interface tests.
+- **Launch to 150k:** `ere 3` 30.2 h; `ara 3` 30.7 h with its stopped gate; `rra 2` 11.1 h and `rra 3`
+  10.9 h (a ViT arm alone or beside another); `iface-window 2` 35.0 h and `iface-wide-out 2` 34.2 h, two
+  CNN runs on one GPU with the longer gate. `iface-wide-all 2` ran about 4.2k steps an hour alone on its
+  GPU, so 150k about 23:00 on 10-26 (about 38.7 h).
+- **The smokes** (`outputs/diagnostics/enc-iface/smokes/`; each `<arm>.check`), each in the first slot its
+  arm's job reached, before the job: each reached 1,000 steps, logged its three evals, `debug/q_data_*`
+  and the 28 `debug/residual_field/*` keys, saved a best model that reloads into its config's agent,
+  and finalized its package (commit `58d55d7`, clean). Each PASS.
+
+  | Smoke | Ran | Beside | Package | ms per env step | Trainer's GPU peak (MiB) | RAM peak (GiB) | Residual at 500, 1,000 |
+  |---|---|---|---|---|---|---|---|
+  | `iface-window` | 10-24 12:31–14:03, GPU 1 | `eee 3` | `217eb9du` | 779 | 5,154 | 14.75 | 0.0156, 0.0361 (window share 0.18) |
+  | `iface-wide-out` | 15:35–16:36, GPU 1 | `iface-window 2`'s gate | `645t7iu1` | 575 | 5,046 | 14.27 | 0.0135, 0.0277 |
+  | `iface-wide-all` | 10-25 06:19–08:18, GPU 0 | `rra 3` | `o5fhz71z` | 1,436 | **8,736** | 13.75 | 0.0128, 0.0311 |
+
+- **`iface-wide-all` is too big to share a GPU with a CNN run.** Its smoke's trainer peaked at 8,736 MiB,
+  past the pre-registered 6,750, so the queue put nothing but a ViT run beside it (the queue's rule, the
+  2026-10-24 DECISION; the slot holder was never needed). The run itself holds 15,013 MiB with its
+  workers (09:58 on 10-26), against about 10.9 GB for a CNN run of this agent. So GPU 0's second slot has
+  been empty since `rra 3` exited at 09:36 on 10-25, about 37 h by the time `wide-all 2` ends. This is why
+  `iface-wide-all 3` was dropped (the 2026-10-26 DECISION).
+- **The early speed** (the watchers' `SPEED` lines), every run inside 0.025–0.045:
+
+  | Arm | Seed 2 | Seed 3 | Predicted (calibration) |
+  |---|---|---|---|
+  | `arch-swap-ere` | 0.0410 | 0.0361 | 0.064 (smokes 0.043) |
+  | `arch-swap-ara` | 0.0358 | 0.0340 | 0.064 (smokes 0.034) |
+  | `arch-swap-rra` | 0.0346 | 0.0347 | 0.046 (smokes 0.047) |
+  | `iface-eee` | 0.0351 | — | 0.0367 |
+  | `iface-window` | 0.0371 | 0.0379 (`dwww8nes`, stopped) | 0.0367 |
+  | `iface-wide-out` | 0.0411 | — | 0.0348 |
+  | `iface-wide-all` | 0.0369 | — | 0.0357 |
+
+  For the equivariant actors the calibration came within 1.2 times (`iface-wide-out` ran 1.18 times its
+  prediction); for ResFiT's actor it over-predicted by 1.3–1.9 times, as for arch-swap's first wave.
+- **`iface-window 2`'s window share** (`debug/critic_window_share`): 0.20 at the start, 0.62 at 30k (the
+  decision point), 1.55 over 100k–150k, at most 1.81. Never near the gross-failure bar of 10.
+- **`iface-window 3` (`dwww8nes`) is not a result.** Claude stopped it with SIGINT at step 15,600, at 09:43
+  on 10-26, to free its slot for `actor-resfit-shape 2` (Aden; the 2026-10-26 DECISION). Its evals were
+  0.48 at step 0 and 0.00 at 10k; the watcher finalized its package. It runs again from step 0 in
+  `order-1026`'s queue, from `58d55d7` as before.
+- **`aaa 3`, `eee 3` and `ere 3`'s packages** hold `metrics.jsonl` rebuilt from wandb's server, 2,082–2,156
+  rows to step 150,001 each, the first rows equal to the local record's (`rebuild.log`; the 2026-10-24
+  NOTE). Every eval of every run above matches its console's ✓/✗ markers.
+- **The watchers** (`swap-watch`, `iface-watch`) logged every eval and exit, finalized `dwww8nes`'s
+  package, and FLAGged nothing.
+- **The disk:** 21 GB free at 07:35 on 10-26 after the wandb cache cleanup (tmux `wandb-cache`, 12-hourly:
+  2.4–3.3 GB down to 1.9 GB each time). **RAM:** 68 of 125 GB used at 09:58 on 10-26, two runs and a smoke.
+- **Still to run** (`order-1026`; the 2026-10-26 PRE-REGISTERED entry): `iface-window 3` again,
+  `iface-wide-out 3`, `iface-eee 3`, among `actor-design-1026`'s six.
+
+---
+
+## 2026-10-26 — NOTE — `arch-swap-1021` complete: with the constraint off in the encoder and critic nothing learns (C1 −0.152, C2 −0.378); ResFiT's actor on the equivariant encoder and critic is the best arm (C4 +0.152); ResFiT's critic beats ours unconstrained behind the ViTs (C6 +0.246); our agent costs ResFiT's networks nothing at the bar (H)
+
+Read at 10:00 on 10-26, from the twelve run packages, all at 150k and complete. The script is
+`outputs/diagnostics/arch-swap-1021/analysis/readout_1026.py` (local, gitignored; its output
+`readout_1026.json` beside it). Claude gave Aden this readout in conversation on the morning of 10-26,
+before the 2026-10-26 DECISION. The rules are the 2026-10-20 PRE-REGISTERED entry's.
+
+- **Config caveats:** none of the overrides is a no-op. The agent refuses any field off its default that
+  no network of its mix reads (2026-10-20 CODE), so the unread fields are logged at their defaults only.
+  AdamW's weight decay scales with the rate, so `aaa`'s is a quarter of the others'.
+
+**Every run** (evals of 50 episodes; the twelve step-0 evals, the base alone, pool to 0.552; training successes
+are episodes with a positive return):
+
+| Run | Arm [enc · actor · critic], seed | step-0 | best | final | Evals 0, 10k, …, 150k | 110k–150k | Training successes, 100k–150k |
+|---|---|---|---|---|---|---|---|
+| `w1g1d1tf` | `rrr` [R · R · R] 2 | 0.68 | 0.78 (90k) | 0.72 | 0.68 0.14 0.44 0.32 0.50 0.40 0.70 0.46 0.76 0.78 0.62 0.66 0.64 0.66 0.74 0.72 | 171 (0.684) | 172/246 |
+| `1u5xnikc` | `rrr` 3 | 0.44 | 0.72 (150k) | 0.72 | 0.44 0.24 0.44 0.32 0.42 0.38 0.48 0.38 0.58 0.44 0.62 0.58 0.64 0.62 0.50 0.72 | 153 (0.612) | 153/233 |
+| `6xh63lfb` | `ere` [E · R · E] 2 | 0.46 | 0.74 (140k) | 0.68 | 0.46 0.02 0.18 0.60 0.56 0.56 0.66 0.72 0.58 0.64 0.62 0.70 0.64 0.68 0.74 0.68 | 172 (0.688) | 136/232 |
+| `ifpm32n9` | `ere` 3 | 0.56 | 0.76 (150k) | 0.76 | 0.56 0.02 0.54 0.50 0.52 0.56 0.44 0.74 0.62 0.66 0.48 0.70 0.70 0.66 0.66 0.76 | 174 (0.696) | 151/238 |
+| `wk45zp27` | `eee` [E · E · E] 2 | 0.58 | 0.68 (70k) | 0.46 | 0.58 0.00 0.06 0.28 0.42 0.62 0.52 0.68 0.64 0.46 0.44 0.58 0.38 0.58 0.58 0.46 | 129 (0.516) | 113/215 |
+| `jr63pxb9` | `eee` 3 | 0.52 | 0.74 (140k) | 0.54 | 0.52 0.20 0.38 0.40 0.30 0.44 0.46 0.50 0.44 0.64 0.62 0.54 0.52 0.48 0.74 0.54 | 141 (0.564) | 153/235 |
+| `u6960hfi` | `rra` [R · R · A] 2 | 0.62 | **0.62 (step 0)** | 0.56 | 0.62 0.00 0.18 0.34 0.20 0.26 0.32 0.22 0.40 0.52 0.34 0.24 0.28 0.44 0.42 0.56 | 97 (0.388) | 58/188 |
+| `wkaqgta6` | `rra` 3 | 0.64 | **0.64 (step 0)** | 0.36 | 0.64 0.02 0.14 0.26 0.30 0.62 0.30 0.54 0.44 0.46 0.52 0.48 0.38 0.48 0.38 0.36 | 104 (0.416) | 94/205 |
+| `q60welj8` | `aaa` [A · A · A] 2 | 0.50 | **0.50 (step 0)** | 0.26 | 0.50 0.02 0.00 0.04 0.18 0.34 0.26 0.36 0.40 0.46 0.40 0.30 0.36 0.38 0.40 0.26 | 85 (0.340) | 77/200 |
+| `i8uivy7b` | `aaa` 3 | 0.54 | **0.54 (step 0)** | 0.48 | 0.54 0.00 0.02 0.12 0.20 0.24 0.44 0.42 0.36 0.18 0.40 0.46 0.44 0.44 0.36 0.48 | 109 (0.436) | 93/207 |
+| `gv57nzkq` | `ara` [A · R · A] 2 | 0.50 | **0.50 (step 0)** | 0.42 | 0.50 0.00 0.10 0.06 0.26 0.26 0.36 0.32 0.34 0.34 0.28 0.24 0.32 0.16 0.32 0.42 | 73 (0.292) | 55/189 |
+| `kfos81cr` | `ara` 3 | 0.58 | **0.58 (step 0)** | 0.28 | 0.58 0.00 0.00 0.14 0.18 0.28 0.20 0.12 0.32 0.34 0.32 0.30 0.40 0.32 0.38 0.28 | 84 (0.336) | 61/190 |
+
+**The main readout,** two seeds pooled at 110k–150k (500 episodes an arm): `ere` 0.692, `rrr` 0.648,
+`eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314. Each contrast counts at 0.13 or more:
+
+| | Contrast | Difference | Counts | Its ends' early speeds (two seeds averaged) | Prediction |
+|---|---|---|---|---|---|
+| C1 | `aaa` − `eee`: the constraint, all three networks | **−0.152** | yes, the constraint's way | 0.0328 against 0.0351 (0.93 times) | 1: does not count (low): **wrong** |
+| C2 | `ara` − `ere`: the constraint in the encoder and critic | **−0.378** | yes, the constraint's way | 0.0349 against 0.0386 (0.91) | none |
+| C3 | `ara` − `aaa`: ResFiT's actor against ours, unconstrained | −0.074 | no | 0.0349 against 0.0328 (1.07) | none |
+| C4 | `ere` − `eee`: ResFiT's actor against ours | **+0.152** | yes, ResFiT's way | 0.0386 against 0.0351 (1.10) | 3: counts the R way (low): **right** |
+| C5 | `rra` − `ara`: ResFiT's ViTs against our CNNs, ablated critic | +0.088 | no | 0.0347 against 0.0349 (0.99) | none |
+| C6 | `rrr` − `rra`: ResFiT's critic against ours unconstrained | **+0.246** | yes, ResFiT's way | 0.0286 against 0.0347 (0.82) | 4: counts the R way (low): **right** |
+| H | `rrr` against ResFiT as run (0.714) | −0.066 (0.648, above the bar 0.584) | no | 0.0286 against ResFiT's 0.029–0.030 | 2: does not count (moderate): **right** |
+| — | (`aaa` − `eee`) − (`ara` − `ere`) | +0.226 | reported only | | |
+
+No contrast's ends differ by more than 1.5 times in early speed (the most, C6, 1.21), so none carries a
+speed caveat. Every run's 0–3k residual was inside 0.025–0.045 (0.0285–0.0410).
+
+**What it shows:**
+- **No run with an unconstrained critic learned anything.** All six (`aaa`, `ara`, `rra`, both seeds) have
+  their best eval at step 0, and pool at 0.31–0.40, below the base alone (0.552). Every run with the
+  equivariant critic or ResFiT's (`eee`, `ere`, `rrr`) beat its step 0. So C1 and C2 count, and C2, with
+  ResFiT's actor at both ends, is the larger: the constraint matters most where the critic is.
+- **That is the constraint as it trains at the critic's 1e-4.** At that rate the dense critic changes Q about
+  3 times as much per step as the equivariant one (the PRE-REGISTERED entry), so "the constraint helps" and
+  "the dense critic is too fast at 1e-4" are still not apart. The run that would separate them, `aaa` with
+  its critic slowed to the equivariant critic's change per step (about 3.3e-5; TODO B20), is not queued:
+  Aden chose the actor next (the 2026-10-26 DECISION). The PRE-REGISTERED entry's own follow-up, `eee` at
+  `agent.critic_lr=3e-4`, was for C1 counting the other way.
+- **ResFiT's actor on our encoder and critic is the best arm** (`ere`, 0.692), 0.152 above ours (C4) and
+  0.044 above all of ResFiT's networks in our agent. **The caveat:** C4 is just past the bar. Against all
+  three runs of `eee`'s launch (`arch-wide 2` 0.640, `eee 2` 0.516, `eee 3` 0.564; mean 0.573), `ere` is
+  0.119 above, under the bar, and `eee 2` and `arch-wide 2` at one seed and the same starting weights
+  differed by 0.124 (the 2026-10-23 NOTE).
+- **Unconstrained, the two actors are level** (C3 −0.074), but both sit at the floor the ablated critic
+  sets, so C3 says little about the actors.
+- **Behind the ViTs, ResFiT's critic beats the unconstrained one by 0.246** (C6), and ResFiT's ViTs do not
+  rescue the unconstrained critic (C5 +0.088): whatever the encoder, the critic decides.
+- **H does not count:** our agent hosts ResFiT's networks at 0.648 against ResFiT's 0.714 as it ran (and
+  0.828 for one seed of ResFiT on the re-rendered demos, `bue9dupf`).
+
+**The critics** (reported, deciding nothing; early is 10k–30k, late 100k–150k, each arm's two seeds):
+
+| Arm | `dQ_da_mean_abs` early, late | `q_data_demo` early | `q_data_online` early, late | `actor_grad_norm` late |
+|---|---|---|---|---|
+| `rrr` | 8.2–8.4e-5, 6.3–6.7e-5 | 0.368 | +0.040 to +0.077, 0.155–0.174 | 0.27–0.29 |
+| `ere` | 6.4–7.1e-5, 5.0–5.3e-5 | 0.322–0.334 | −0.020 to −0.008, 0.107–0.117 | 0.016–0.018 |
+| `eee` | 6.0–7.1e-5, 4.8–5.4e-5 | 0.322–0.343 | −0.011 to +0.019, 0.090–0.131 | 0.013–0.017 |
+| `rra` | 6.4–6.8e-5, 5.0–5.3e-5 | 0.386–0.395 | +0.007 to +0.020, 0.072–0.087 | 0.046–0.050 |
+| `aaa` | 4.2–4.7e-5, 4.9–5.2e-5 | 0.400–0.414 | +0.010 to +0.019, 0.070–0.088 | 0.015–0.016 |
+| `ara` | 4.4–4.9e-5, 4.7–5.1e-5 | 0.390–0.396 | +0.008 to +0.017, 0.046–0.050 | 0.011–0.012 |
+
+- ResFiT's critic gives the steepest slope, a positive value of online data from the start, and an actor
+  gradient 6 times `rra`'s and 15 times or more any CNN arm's.
+- The unconstrained critics fit the demos highest early (0.39–0.41 against 0.32–0.34) and value online data
+  least late; behind the CNNs their early slope is the flattest (4.2–4.9e-5).
+- `ere`'s critic reads as `eee`'s, as at seed 2: the signature follows the critic and encoder, not the actor.
+
+**Reported, deciding nothing:**
+- **The 10k eval and 10k–30k pooled:** `rrr` 0.19 and 0.317, `ere` 0.02 and 0.310, `eee` 0.10 and 0.220,
+  `rra` 0.01 and 0.157, `ara` 0.00 and 0.050, `aaa` 0.01 and 0.033. Every arm dips at 10k (0.00–0.24); the
+  unconstrained-critic arms with CNNs stay under 0.15 to 30k, and lie between 0.12 and 0.48 from 60k on.
+- **Pinning at 3k–10k:** none. The largest field size of any run was 0.095 (`eee 2`'s z and yaw), under 0.098.
+- **Each field's size late:** xy 0.084–0.092, z 0.073–0.084, yaw 0.062–0.081, tilt 0.064–0.090; the
+  unconstrained-critic CNN arms smallest on tilt (0.064–0.076, against 0.080–0.090). Yaw's signed mean
+  late −0.028 to +0.027. The residual's size late 0.060–0.067 in every arm.
+- **The drift readout was not run.** Every A run's best model, the only weights kept, is its step-0 model,
+  before any update: the readout as registered cannot measure drift on these runs, as the 2026-10-23 NOTE
+  found at seed 2. Left to Aden.
+- **The gross-failure check passed:** `rrr 2`'s evals to 50k (0.68 0.14 0.44 0.32 0.50 0.40) were close to
+  ResFiT's on the re-rendered demos (`bue9dupf`: 0.60 0.16 0.48 0.60 0.70 0.58).
+
+**What it leads to.** The PRE-REGISTERED entry's next step was phase 2, and Aden chose the actor
+(`actor-design-1026`; the 2026-10-26 DECISION and PRE-REGISTERED entries): C4 counted, and the
+unconstrained critic is no route. Still open: whether the dense critic only needs a slower rate (`aaa` with its
+critic at about 3.3e-5, TODO B20), and C4's margin (more seeds of `eee` and `ere`, the actor-design
+readings' last row).
+
+---
+
+## 2026-10-26 — NOTE — `enc-iface-1023` at seed 2, provisional: `iface-window` 0.236 and `iface-wide-out` 0.452, against `eee 2`'s 0.516; the window's critic leaned on the window and valued online data as the unconstrained critics did. One seed: nothing read
+
+Read at 10:00 on 10-26, from the two finished packages and the two live records
+(`outputs/diagnostics/arch-swap-1021/analysis/readout_1026.py`). The 2026-10-23 PRE-REGISTERED rules read
+I1–I4 against `iface-eee`, two seeds pooled; `iface-eee 2` is at 30k. So this is a description beside
+`eee`'s launch at seed 2 from `aec1bdc` (`eee 2` 0.516, `arch-wide 2` 0.640), nothing more. Config
+caveats: none of the overrides is a no-op (the 2026-10-23 CODE entry; the agent refuses unread fields).
+
+| Run | Arm, seed | step-0 | best | final | Evals 0, 10k, … | 110k–150k | Training successes, 100k–150k |
+|---|---|---|---|---|---|---|---|
+| `od14pmu3` | `iface-window` 2 | 0.50 | **0.50 (step 0)** | 0.26 | 0.50 0.00 0.16 0.10 0.38 0.18 0.26 0.18 0.22 0.40 0.28 0.16 0.30 0.24 0.22 0.26 | **59 (0.236)** | 71/194 |
+| `gcrewpq2` | `iface-wide-out` 2 | 0.52 | 0.56 (120k) | 0.50 | 0.52 0.04 0.16 0.42 0.34 0.38 0.40 0.46 0.36 0.46 0.52 0.34 0.56 0.44 0.42 0.50 | 113 (0.452) | 89/201 |
+| `5shh877a` | `iface-wide-all` 2, to 90k | 0.54 | 0.54 (step 0) so far | 0.28 | 0.54 0.08 0.10 0.28 0.22 0.30 0.16 0.48 0.38 0.28 | — | — |
+| `mgcifv1y` | `iface-eee` 2, to 30k | 0.56 | — | 0.24 | 0.56 0.16 0.26 0.24 | — | — |
+
+- **`iface-window 2` never beat its step 0,** like every unconstrained-critic run in arch-swap, and pooled
+  0.280 below `eee 2`, whose starting weights it shares bit for bit. Its critic leaned on the window more and
+  more (share 0.62 at 30k, 1.55 late). Late, its value slope was the flattest of any run in either group
+  (`dQ_da_mean_abs` 3.6e-5, against `eee`'s 4.8–5.4e-5) and its value of online data `ara`'s (0.047, against
+  `eee`'s 0.090–0.131). Prediction 1 (I3 counts the window way) is on course to be wrong, if seed 3 agrees.
+- **`iface-wide-out 2` sits 0.064 below `eee 2`,** inside the bar, with `eee`'s critic signature (slope
+  4.9e-5 and online value 0.094 late).
+- **`iface-wide-all 2` was behind `eee`'s two seeds at 50k–80k** (0.33 against 0.54), the reason
+  `iface-wide-all 3` was dropped (the 2026-10-26 DECISION); I1 will have one seed and is not read as a contrast.
+- Every early speed was inside the band (the LAUNCHED entry above). No field pinned at 3k–10k; the largest,
+  `iface-wide-out 2`'s z and yaw, reached 0.097.
+
+---
+
+## 2026-10-26 — DECISION — the queue compressed: `iface-wide-all 2` stopped at about 110k; the gate skips Tier 2 on a commit that already passed it; the observation, latency and chunk ideas parked (Aden)
+
+Aden, at about 13:20 on 10-26, asked whether the timeline could be compressed. The limit is the
+machine: four runs at a time (two per GPU by memory; four fill the RAM) at about 31 h each, with nine
+jobs queued behind three running. Claude proposed three levers; Aden chose two ("do A and C"):
+- **A. Stop `iface-wide-all 2` (`5shh877a`) at about 110k.** It holds GPU 0 alone, since only a ViT
+  run fits beside it, so GPU 0's second slot had been empty since 09:36 on 10-25. Stopping it frees GPU 0
+  about 9 h early for `actor-eae 2` and `iface-window 3`. What is lost: its 110k–150k window, so the arm
+  is a description to 110k only. I1 was already not read, with `iface-wide-all 3` dropped (the morning's
+  DECISION). Its evals: 0.54 at step 0, then 0.08 0.10 0.28 0.22 0.30 0.16 0.48 0.38 0.28 0.20 0.14 at
+  10k–110k. Claude's SIGINT was refused by the session's permission check, so **Aden stopped it by hand
+  at 13:33 on 10-26, at step about 113,000** (a KeyboardInterrupt; the console's EXIT 130). The watcher
+  finalized its package: complete, its best its step 0 (0.54). The queue started `actor-eae`'s smoke on
+  GPU 0 at 13:38.
+- **C. The gate skips Tier 2 on a commit whose Tier 2 has already passed at a launch's gate.** Tier 2
+  is the GPU test suite (953 tests, 124 minutes at `a5b5cc8`; 886, 111 minutes at `58d55d7`). It tests
+  the code alone, so a commit that passed it once passes it again. Tier 1 (the environment, the render
+  against the demos, git state, composition, the CPU tests) and Tier 3 (resources) still run at every
+  launch.
+  - How: `outputs/queue/launchers/retry/run_job.sh` now sets `PYTHON` to `gate_python.sh` beside it. That
+    is plain python, but for `preflight.py` on a commit listed in `tier2_passed.txt`, where it adds
+    `--skip-tier2` and prints the gate that passed. The pinned worktrees' `submit.sh` and `preflight.py`
+    are not touched, so no run's commit or package changes. Every other call, the trainer's included,
+    passes through unchanged.
+  - The list: `58d55d7` (five gates since 10-24) and `a5b5cc8` (`actor-resfit-shape 2`'s gate, 11:15 to
+    13:20 on 10-26: Tier 1 213, Tier 2 953 passed, GO).
+  - Checked with a stand-in python on all three worktrees: listed commits get the flag, `aec1bdc` does
+    not, and the trainer's and the interpreter check's calls pass through.
+  - The old file is kept as `run_job.sh.before-20261026`. The new one was put in place by rename, so the
+    three `run_job.sh` instances running keep reading theirs.
+  - It saves about 2 h a launch, on the eight left.
+- **Not chosen: B,** moving `iface-window 3` behind the actor seeds 3. The queue's order stays the
+  morning DECISION's.
+- **Not worth doing** (Claude): shorter runs (no 110k–150k window to compare); three runs a GPU (no
+  memory); one seed an arm (the 0.13 bar needs two).
+
+**Expected,** if the stop lands by about 14:00 on 10-26:
+- `actor-eae 2` (after its smoke) and `iface-window 3` in wandb about 16:00, at 150k about 20:30 on 10-27;
+- `actor-resfit-shape 2` at 150k about 18:30 on 10-27;
+- `iface-eee 2` about 08:00 on 10-27, and then `actor-resfit-shape-wide 2` after its smoke, at 150k
+  about 14:40 on 10-28;
+- the seeds 3: `actor-resfit-shape 3` about 23:30 on 10-28, `actor-eae 3` and `actor-resfit-shape-wide 3`
+  about 01:30 on 10-29;
+- `iface-wide-out 3` about 19:45 on 10-29 and `iface-eee 3` about 04:30 on 10-30.
+
+So `actor-design-1026` reads about 10-29 02:00 (from about 14:30), and `enc-iface-1023` about 10-30
+04:30 (from about 08:00).
+
+**Also decided: the observation, latency and chunk experiments are parked** in TODO B23 until this
+group and `enc-iface-1023` are read and the actor is settled (Aden). They are object-centric
+observations (after `obj_cent_resrl.pdf`), sampled latency and control delay (after `steadyTray.pdf`),
+and how the base's chunks reach the residual. Nothing is coded or run for them.
+
+---
+
+## 2026-10-26 — DECISION — arch-swap's three open items, on Claude's recommendations (Aden): the drift readout dropped; the slower dense critic planned first after `actor-design-1026`; C4's margin read with `iface-eee`'s replicates
+
+Aden, at about 13:50 on 10-26, took Claude's recommendation on each (TODO B20):
+1. **The drift readout is dropped.** The 2026-10-20 PRE-REGISTERED entry listed it under "reported,
+   deciding nothing", measured on each A run's `wandb_best/best_model.pt`. Every A-critic run's best eval
+   is its step 0 (`aaa`, `ara`, `rra`, both seeds; the 2026-10-26 NOTE), so every saved model is the
+   agent before any update. No other weights were kept (no checkpoints, as registered). On those models
+   the readout would report only the export's own error, which `tests/test_ablated.py` already bounds,
+   and nothing about training. So it is not run. A drift measurement would need a run that keeps
+   checkpoints, under a new pre-registration.
+2. **The slower dense critic is the first candidate after `actor-design-1026` reads,** planned and
+   pre-registered for Aden's review, not launched unattended. It is `aaa` with `agent.critic_lr` at about
+   3.3e-5, the rate at which the dense critic changes Q per step as the equivariant one does at 1e-4
+   (the arch-swap plan's probe). It separates "the constraint helps the critic" (C1, C2) from "the dense
+   critic is too fast at 1e-4". The design questions for its plan:
+   - `agent.critic_lr` sets the encoder's rate too (`q_agent.py`: `encoder_opt` and `critic_opt`). The
+     dense encoder moves about 2.7 times as much per step, so whether to slow both or the critic alone is
+     open.
+   - Whether to run `ara` too, the larger contrast (C2).
+   - That GPU 0 is free from about 01:30 on 10-29, when the queue has nothing left for it.
+3. **C4's margin: no new runs now.** At `actor-design-1026`'s readout, C4 (`ere` − `eee`) is also
+   reported against `eee` with `iface-eee 2` and `iface-eee 3` added. They are `eee`'s launch again, at
+   `58d55d7`, whose agent computes as `aec1bdc`'s bit for bit. That is reported, not a registered
+   contrast. More seeds of `eee` and `ere` come only if `actor-design-1026` reads nothing (its readings'
+   last row).

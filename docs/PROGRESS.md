@@ -17,6 +17,83 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-24 to 10-26 — the interface arms moved up; `arch-swap-1021` complete and read; the actor's design coded and queued (`actor-design-1026`)
+
+**Done**
+- **10-24, the queue reordered** (Aden: "queue them as you recommend"; EXPERIMENTS.md, 2026-10-24
+  DECISION). `iface-window 2` and `iface-wide-out 2` go first, for interface results that day, then `rra`
+  2 and 3, then `iface-wide-all`. One queue for both groups, `order-1024/order_queue.sh`, fits each job to
+  a GPU by memory; the old order would have put `wide-all` beside a CNN run, past the GPU.
+- **10-24, the three packages the disk-full minutes cut short** (`aaa 3`, `eee 3`, `ere 3`): rebuilt from
+  wandb's server as each run ended (Aden: "yes"; the 2026-10-24 NOTE). 0 mismatches over the local
+  rows, and every eval matches the console.
+- **10-26, `arch-swap-1021` read** against its rules, and its readout given to Aden. Then the
+  enc-iface seed-2 description, the launches of both groups since 10-23, and arch-swap's NOTE written
+  (EXPERIMENTS.md, 2026-10-26 LAUNCHED and the two NOTEs; script
+  `outputs/diagnostics/arch-swap-1021/analysis/readout_1026.py`).
+- **10-26, the actor's design** (`0d9fb30`; the 2026-10-26 CODE entry): `ResFiTShapedActor`,
+  `equivariance.actor_design=resfit`. It is ResFiT's actor's wiring in escnn layers: the image features
+  compressed to 16 regular fields, then two hidden layers, with the state and base action joined once.
+  Its tests are `tests/test_actor_design.py`, the sweep-arm tests, the host-sync tests and the watcher.
+- **10-26, `actor-design-1026` pre-registered** (`a5b5cc8`) and queued (`order-1026`, tmux `order-queue`;
+  the watcher `ad-watch`). It has three arms on eee's launch: the shaped actor at 128 fields (3e-6) and at
+  362 (1e-6), and `eae` (2.5e-7). The calibration is in `outputs/diagnostics/actor-design/`.
+
+**Findings**
+- **arch-swap** (the 2026-10-26 NOTE). No run with an unconstrained critic beat its step 0, so the
+  constraint matters where the critic is: C1 −0.152, C2 −0.378. ResFiT's actor on our encoder and critic
+  is the best arm: `ere` 0.692, C4 +0.152, though only +0.119 against all three of `eee`'s runs.
+  ResFiT's critic beats the unconstrained one behind the ViTs (C6 +0.246). Our agent costs ResFiT's
+  networks nothing at the bar (H −0.066). Predictions 2, 3 and 4 right; 1 (C1 does not count) wrong.
+- **enc-iface, seed 2** (one seed; nothing read). `iface-window 2` never beat its step 0 (0.236). Its
+  critic leaned on the window (1.55 times the summary late) and lost its value slope. `iface-wide-out 2`
+  scored 0.452 against `eee 2`'s 0.516.
+- **`iface-wide-all` holds 15 GB of GPU memory;** a CNN run holds 11 GB. So it cannot share a GPU with a
+  CNN run, and one slot sat empty for about 37 h (the 2026-10-26 LAUNCHED entry).
+- **The calibration over-predicts a dense actor about 1.7 times** (`aaa`, `ere`), and an equivariant one
+  within 1.2 times. So `eae` is expected at `aaa`'s measured speed, not its predicted.
+- `ara 3`'s first gate failed 16 tests and errored 55, across the disk-full minutes of 10-23. Its cause
+  is not recorded, and the retry passed.
+
+**Decided** (Aden, 10-26; the 2026-10-26 DECISION)
+- **The actor next, not phase 2's other candidates:** C4 counted, and the unconstrained critic is no
+  route. Two arms: `eae`, and an equivariant actor wired as ResFiT's. On Aden's question, would 0.16M free
+  parameters learn, a third: ResFiT's free parameters per hidden layer (362 fields). Not 1,024 fields:
+  that would be 8 times ResFiT's free parameters, and so not a match.
+- **Rates matched to eee's early speed:** 3e-6 for the 128-field arm (0.31 times eee's speed at 1e-6),
+  1e-6 for the 362-field arm, and `aaa`'s 2.5e-7 for `eae`.
+- **"asap":** `iface-window 3` (`dwww8nes`) stopped at 15.6k for `actor-resfit-shape 2`'s slot, and
+  queued again for tonight. `iface-wide-all 3` dropped, since it needs a GPU to itself and its seed 2
+  trailed; so I1 is not read.
+- **The afternoon, to compress the queue** (the second 2026-10-26 DECISION). Two levers:
+  - Stop `iface-wide-all 2` at about 110k. Claude's SIGINT was refused by the permission check, so Aden
+    stopped it, at 13:33 at about 113k.
+  - The gate skips Tier 2 on a commit that already passed it, through `retry/gate_python.sh`. The pinned
+    worktrees are untouched.
+
+  Together they bring the actor-design readout from about 14:30 to about 02:00 on 10-29. Moving
+  `iface-window 3` back was not chosen.
+- **The observation, latency and chunk ideas** (object poses, sampled delay, chunk phase and lookahead)
+  are written up and parked in TODO B23 until both groups are read and the actor is settled.
+- **arch-swap's open items, on Claude's recommendations** (the last 2026-10-26 DECISION):
+  - The drift readout is dropped: the saved models are all untrained step-0 models.
+  - The slower dense critic (`aaa` at a critic rate of about 3.3e-5) is planned first after B22, for
+    review, not launched unattended.
+  - C4 is read with `iface-eee`'s two runs too; more seeds only if B22 reads nothing.
+- **The queue left to run alone:** tmux `queue-digest` (`order-1026/digest.py`, every 30 minutes) records
+  the checks Claude would make by hand. Each smoke and early speed goes into `digest.md`; the
+  gross-failure check writes a FLAG in `watch.log`.
+
+**Next:**
+- Read `outputs/queue/launchers/order-1026/digest.md` first: the smokes, early speeds and the
+  gross-failure check since this session.
+- The actor-design LAUNCHED entry.
+- Seed 2 of each arm at 150k (10-27 evening to 10-28 afternoon), a provisional read.
+- The readout about 10-29 02:00.
+- Then plan the slower dense critic (TODO B20) and B23.
+
+---
+
 ## 2026-10-24 — the `/wrapup` skill, and a cleanup of the repo and the machine
 
 **Done**

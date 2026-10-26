@@ -9,10 +9,85 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now: the actor's design, `actor-design-1026` (B22), starting; the encoder's interface,
-`enc-iface-1023` (B21), half run; the architecture swap, `arch-swap-1021` (B20), complete, its NOTE to
-write.** Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups
-leave" has what B17–B19 found that bears on them.
+**Now: the actor's design, `actor-design-1026` (B22), running; the encoder's interface,
+`enc-iface-1023` (B21), half run; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
+2026-10-26).** Then B23 (the observation, latency and chunk ideas), parked until B22 and B21 are read.
+Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
+has what B17–B19 found that bears on them.
+
+### B23. The observation, latency and chunk experiments — PARKED until B22 and B21 are read and the actor is settled (Aden, 2026-10-26) `[SC]`
+
+Ideas Aden asked for on 2026-10-26, held here until `actor-design-1026` and `enc-iface-1023` are read
+and the actor is figured out. Nothing is coded, planned or queued. Next: a plan in `docs/plans/` for
+Aden's approval, with each arm one change on the anchor B22 leaves (likely `ere`, or a shaped actor),
+two seeds to 150k, and every new field off by default and bit-identical when off (the regression
+fingerprint).
+
+**Where things stand** (read from the code on 2026-10-26):
+- **The residual sees** two 84×84 cameras, the 9-number proprio state (`robot0_eef_pos`, `_quat`,
+  `robot0_gripper_qpos`; `dexmg.py`'s `_get_expected_low_dim_keys`) and this step's base action.
+- **The nut's pose is dropped.** robosuite computes it every step, and our wrapper keeps only the keys
+  above. The demos' sim states (robomimic's `demo_v15.hdf5`, the path `tools/rerender_demos.py` uses) give
+  it for the demo half of the buffer.
+- **No latency.** The env runs at 20 Hz (`control_freq`), and the action from observation t is applied
+  at t.
+- **The base plans in chunks.** The Square base (`3hzs5bz1` v9) is a diffusion policy (DDPM, 100
+  denoising steps, fresh noise each plan). It plans `horizon` 16 steps from 2 observations and runs 15 of
+  them open-loop (`n_action_steps` 20, clipped to what the plan holds), so it re-plans every 0.75 s.
+- **The residual (`residual_env_wrapper.py`)** acts every step on `observation.base_action`, this step's
+  base action alone. It does not see where it is in the chunk or the rest of the plan. So between re-plans
+  it is the only closed-loop part, and its problem is partly hidden: the base's next action comes from a
+  plan it cannot see.
+
+**O. Object-centric observation** (after `docs/papers/obj_cent_resrl.pdf`: residual RL on 6-DoF object
+poses plus proprio plus the base action, with pose noise and dropout for sim-to-real).
+- O1 `obj-both`: the nut's pose (position, 6-D rotation, and relative to the gripper) to actor and
+  critic; images kept. Does handing over what the encoder loses (the 2026-10-23 probe: the nut's xy
+  relative to the gripper) raise the level?
+- O2 `obj-critic`: the pose to the critic alone. Is the critic's view the bottleneck (arch-swap: the
+  critic is where the constraint mattered)? The actor stays deployable without a pose estimator.
+- O3 `obj-only`: pose, proprio and base action, no images (the paper's recipe). Do images matter to the
+  residual? Likely several times faster per run (unmeasured).
+- O4 `obj+peg`: O1 and the fixed peg's position. The peg breaks the scene's rotation symmetry. As an
+  input (an irrep(1) field), the equivariant network can use it and stay exactly equivariant. Tests
+  whether the scene's asymmetry is what the actor's constraint costs (if B22's D3 counts).
+- Later: the paper's noise and dropout (5 mm, 0.1 rad), for sim-to-real.
+- Equivariance: the nut's xy about the rotation centre is an irrep(1) field and z a trivial one; its
+  rotation takes the end-effector's 6-D encoding. So these are more fields of types the agent has.
+
+**L. Sampled latency and control delay** (after `docs/papers/steadyTray.pdf`: observation delay and
+control latency, sampled and held over many steps, were critical to its transfer).
+- L0, eval only, no training: existing best models (`ere`, `rrr`, `eee`, and the base alone) at 0–3
+  steps (0–150 ms) of observation delay, and of action delay. How fragile is what we have?
+- L1 `act-delay-2`: every action applied 2 steps (100 ms) late. Can the residual compensate?
+- L2 `delay-rand`: observation and action delay each sampled from 0–2 steps per episode and held;
+  evaluated at 0, 1, 2 and 3. Robust at each delay, and at what cost at zero?
+- L3 `delay-rand-aware`: L2, with the actions still in flight in the actor's and critic's input. A
+  delayed problem is not fully observed without them.
+- Build: an env wrapper with an observation FIFO and an action FIFO, delay 0 identical to now. The base
+  sees the delayed frames too, as on a robot; it was trained without delay, so its own level falls.
+  Delay is a trivial quantity, and the in-flight actions are action fields.
+
+**C. How the base's chunks reach the residual.**
+- C0, eval only: trained best models with the base re-planning every 15 steps (as trained), 8, 4 and
+  1. Does the residual's correction depend on the chunk schedule?
+- C1 `chunk-phase`: the step's index within the chunk to actor and critic (a trivial field). The
+  cheapest fix for the hidden part.
+- C2 `chunk-lookahead`: the base's next 4 planned actions to actor and critic (fields of the base action's
+  types). Can it correct a plan it sees coming?
+- C3 `replan-4`: the base re-plans every 4 steps. Does a shorter open-loop stretch leave the residual
+  less to do? The base's step-0 eval changes too.
+- C4 `base-deterministic`: the base's noise fixed per episode, or DDIM with no noise. How much of what
+  the residual corrects is the base's own sampling randomness?
+- Later: a residual over the whole chunk at each re-plan (Policy Decorator's, which ResFiT contrasts
+  itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
+  of adding to its action.
+
+**Suggested order** (Claude's, 2026-10-26):
+1. L0 and C0 first, eval only, in spare GPU room. They change no recorded run, and show where the
+   effects are large.
+2. The code while the GPUs are busy.
+3. After B22's readout, a first training wave of O2, O1, C2 and L2 (8 runs, about 2.6 days on four slots).
 
 ### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — QUEUED 2026-10-26, `actor-resfit-shape 2` first (Aden, 2026-10-26) `[SC]`
 
@@ -23,15 +98,20 @@ DECISION and PRE-REGISTERED).
   tests; the three arms in `submit.sh`, the sweep-arm tests and the watcher; the calibration
   (`outputs/diagnostics/actor-design/`: the 128-field arm at 3e-6, the 362-field at 1e-6, `eae` at 2.5e-7);
   `iface-window 3` stopped for the slot (Aden); the queue (`order-1026`) and the watcher (`ad-watch`).
-- **Next, automatic:** each arm's smoke in its first slot (`outputs/diagnostics/actor-design/smokes/`),
-  then its run: `actor-resfit-shape 2` on 10-26, `actor-eae 2` and `iface-window 3` (again) when
-  `iface-wide-all 2` ends (about 22:30), `actor-resfit-shape-wide 2` about 10-27 06:30, then the seeds 3.
-  Claude checks each smoke, each first launch's gate and early speed against the prediction (the 128-field
-  arm 0.035 at 3e-6; `eae` about 0.033, the calibration's 0.056 over-predicting a dense actor as for
-  `aaa`), and `actor-resfit-shape 2`'s evals to 50k (the gross-failure check).
-- **Then:** the LAUNCHED entry; seed 2 at 150k (about 10-27 evening to 10-28), a provisional read; seed 3 at
-  150k (about 10-29): `/analyze-experiment` against the rules, the NOTE, the next step from the
-  PRE-REGISTERED entry's readings.
+- **Next, automatic** (times with `iface-wide-all 2` stopped at 13:33 on 10-26, and Tier 2 skipped
+  on relaunches; the 2026-10-26 DECISION, afternoon): `actor-resfit-shape 2` passed its gate (953 tests)
+  and is starting. `actor-eae 2`, after its smoke, and `iface-window 3` (again) take GPU 0 (in wandb
+  about 16:00). `actor-resfit-shape-wide 2`, after its smoke, takes `iface-eee 2`'s slot (about 10-27
+  09:40). Then the seeds 3 from about 10-27 18:30. Every check Claude would make by hand is in tmux
+  `queue-digest`'s page, `outputs/queue/launchers/order-1026/digest.md`: each smoke, each early speed
+  against its prediction (the 128-field arm 0.035 at 3e-6; `eae` about 0.033, the calibration's 0.056
+  over-predicting a dense actor as for `aaa`), and `actor-resfit-shape 2`'s evals to 50k (the
+  gross-failure check; a FLAG in `watch.log` if they fail it). The next session reads it first.
+- **Then:** the LAUNCHED entry; seed 2 at 150k (10-27 evening to 10-28 afternoon), a provisional read;
+  seed 3 at 150k (about 10-29 02:00): `/analyze-experiment` against the rules, the NOTE, the next step from
+  the PRE-REGISTERED entry's readings.
+- **Before the disk reaches 10 GB free** (about 9 GB when both groups are done; 21 GB on 10-26): the next
+  `/wrapup` deletes the finished runs' eval videos (H13).
 
 ### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 of two arms at 150k (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 
@@ -39,56 +119,45 @@ DECISION and PRE-REGISTERED).
 recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
 DECISION), the critic-window arm first (2026-10-24 DECISION).
 - **Done:** the code and the probe (EXPERIMENTS.md, 2026-10-23 CODE and MEASUREMENT); the calibration
-  (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the queue armed (tmux
-  `order-queue`, `outputs/queue/launchers/order-1024/order_queue.sh`, both groups' remaining jobs) and
-  the watcher (`iface-watch`).
-- **Now** (the 2026-10-26 DECISION): `iface-window 2` (0.236) and `iface-wide-out 2` (0.452) at 150k,
-  `iface-wide-all 2` and `iface-eee 2` running; `iface-window 3` stopped at 15.6k for
-  `actor-resfit-shape 2`'s slot and queued again (tonight, GPU 0); `iface-wide-out 3` and `iface-eee 3`
-  after B22's runs (about 10-28); `iface-wide-all 3` dropped, so I1 is not read. The LAUNCHED entry is
-  still to write.
-- **Then:** the LAUNCHED entry once the first four are in wandb; probe `eee 3`'s encoder once it
-  finishes (`python -m tools.encoder_probe probe eee3`); wave 1 at 150k (about 10-26), a provisional
-  read; wave 2 at 150k (about 10-28): `/analyze-experiment` against the rules, the NOTE, and the next
+  (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the three smokes, each PASS;
+  the first five launches (2026-10-26 LAUNCHED: every early speed in the band; `iface-wide-all` too big
+  to share its GPU with a CNN run); seed 2 of `iface-window` (0.236) and `iface-wide-out` (0.452) at
+  150k, a description beside `eee 2` (2026-10-26 NOTE: the window's critic leaned on the window, and its
+  run never beat its step 0).
+- **Now** (the 2026-10-26 DECISIONs): `iface-eee 2` (`mgcifv1y`, 150k about 08:00 on 10-27) running.
+  `iface-wide-all 2` (`5shh877a`) was stopped at about 113k at 13:33 (Aden; I1 was already unread), so it
+  is a description to 110k only. `iface-window 3` again on GPU 0 from about 15:30 on 10-26, then
+  `iface-wide-out 3` and `iface-eee 3`, starting about 10-28 14:45 and 23:30. `iface-wide-all 3` is
+  dropped. Queue: `order-1026`.
+- **Then:** probe `eee 3`'s encoder (`python -m tools.encoder_probe probe eee3`; it finished on 10-24);
+  wave 2 at 150k (about 10-30 04:30): `/analyze-experiment` against the rules, the NOTE, and the next
   step from the PRE-REGISTERED entry's outcome table.
-- **When arch-swap's last run exits:** stop its `swap-watch` and `wandb-cache`, and start a cache
-  cleanup for this group (the same script, every 12 h) while its runs go on.
+- **The wandb cache cleanup** (tmux `wandb-cache`) keeps running for this group and B22's.
 
-### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — all twelve at 150k by 2026-10-25 09:36; the NOTE to write (Aden, 2026-10-20) `[SC]`
+### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — DONE 2026-10-26: read, its NOTE written; the drift readout dropped (Aden, 2026-10-20 and 10-26) `[SC]`
 
 [The plan](plans/2026-10-20-arch-swap.md) (local), approved by Aden with Claude's recommendations on
 its four questions (2026-10-20). Six arms, [encoder · actor · critic] each equivariant (E), ablated
 (A) or ResFiT's (R): `eee` (`arch-wide` again), `aaa`, `ere`, `ara`, `rrr`, `rra`, at seeds 2 and 3.
-- **Done:** the code (EXPERIMENTS.md, 2026-10-20 CODE): `equivariance.encoder_family`,
-  `actor_family` and `critic_family`, the ablated family by export (`rl/ablated.py`), ResFiT's
-  networks wrapped (`rl/resfit_heads.py`), and `check_families`'s refusals.
-- **Done:** the speed calibration and the six integration smokes (each through the real trainer,
-  with evals, the best model's save and reload, and the package); the six arms in `submit.sh`,
-  `tests/test_sweep_arms.py` and the watcher, with its log-only speed line; the DECISION and
-  PRE-REGISTERED entries (EXPERIMENTS.md, 2026-10-20), reviewed by Aden on 10-21, who set the rates:
-  ResFiT's 1e-6 for every actor, `rrr`'s included, but `aaa`'s, at 2.5e-7 (the plan's matched rates
-  rejected).
-- **Done:** launched from `aec1bdc` (EXPERIMENTS.md, 2026-10-23 LAUNCHED); every early speed inside
-  the band; `rrr 2` passed the gross-failure check. Seed 2 at 150k is in the 2026-10-23 NOTE,
-  provisional: `ere 2` 172, `rrr 2` 171, `eee 2` 129, `aaa 2` 85 of 250, `ara 2` below the base.
-- **Next, when all twelve are at 150k** (about 10-25 09:00, if `rra` runs as fast as `rrr`; the
-  queue's order unchanged; seed 3's C1 and C4 are readable once `aaa 3` and `eee 3` finish, about 10-24
-  12:00–17:00):
-  1. `/analyze-experiment` on the group against the 2026-10-20 PRE-REGISTERED rules (two seeds pooled,
-     the 0.13 bar, H's 0.584, the speeds beside each contrast), and its NOTE. The local scripts in
-     `outputs/diagnostics/arch-swap-1021/analysis/` read every run's evals and diagnostics.
-  2. **The drift readout** (`outputs/diagnostics/arch-swap-1021/drift.py`, on each A run's
-     `wandb_best/best_model.pt`). **Aden's call first:** `aaa 2`'s and `ara 2`'s best are their step-0
-     models, so the readout measures nothing of their training (the 2026-10-23 NOTE).
-  3. Phase 2, decided on the readouts. A candidate the NOTE raises: `aaa` with its critic slowed to
-     match the equivariant critic's change per step (about 3.3e-5), which would separate "the constraint
-     helps" from "the dense critic is too fast at 1e-4"; the PRE-REGISTERED entry's own follow-up
-     (`eee` at `agent.critic_lr=3e-4`) was for C1 the other way.
-- **Meanwhile:** `rra` 2 and 3 are placed by `order-queue` (2026-10-24 DECISION); `swap-watch` and
-  `wandb-cache` stay up; `aaa 3`, `eee 3` and `ere 3` are followed by hand, their local wandb records
-  stopped (2026-10-24 NOTE); tmux `metrics-rebuild` rebuilds their packages' `metrics.jsonl` from the
-  server as each ends: check `outputs/diagnostics/arch-swap-1021/rebuild.log` before the readout; stop the
-  watcher and the cleanup once the last run has exited and its package is complete.
+- **Done:** the code (2026-10-20 CODE); the calibration, the smokes, the DECISION and PRE-REGISTERED
+  entries (2026-10-20; the rates Aden's, 10-21); the launches from `aec1bdc` (2026-10-23 and 10-26
+  LAUNCHED); all twelve at 150k by 09:36 on 10-25; `aaa 3`, `eee 3` and `ere 3`'s `metrics.jsonl` rebuilt
+  from wandb's server (2026-10-24 NOTE); the readout (2026-10-26 NOTE): `ere` 0.692, `rrr` 0.648, `eee`
+  0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314; C1, C2, C4 and C6 count, C3, C5 and H do not; no run with
+  an unconstrained critic beat its step 0.
+- **Phase 2** (Aden, 2026-10-26 DECISION): the actor's design, B22.
+- **Decided** (Aden, on Claude's recommendations; EXPERIMENTS.md 2026-10-26 DECISION, the last of the day):
+  1. **The drift readout is dropped.** Every A run's saved best is its untrained step-0 model, so it would
+     measure nothing of training.
+  2. **The slower dense critic is the first candidate after B22 reads,** to be planned and pre-registered
+     for Aden's review. It is `aaa` at `agent.critic_lr` about 3.3e-5. Open for the plan:
+     - `agent.critic_lr` sets the encoder's rate too, so: slow both, or the critic alone?
+     - `ara` too?
+     - GPU 0 is free from about 10-29 01:30.
+
+     It separates "the constraint helps the critic" from "the dense critic is too fast at 1e-4".
+  3. **C4's margin:** no new runs. At B22's readout, C4 is also reported with `iface-eee 2` and 3 as more
+     `eee` replicates. More `eee` and `ere` seeds only if B22 reads nothing.
 
 ### B19. The actor parts at matched speed, and the speed's two edges (`equi-speed-matched-1017`) — DONE 2026-10-19 (Aden, 2026-10-17) `[SC]`
 
