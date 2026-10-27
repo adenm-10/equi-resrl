@@ -4,7 +4,7 @@
 2026-10-26 CODE): its new tests, the sweep-arm tests for its three arms, the regression, config, no-op
 and ablated-family suites pass on the CPU, and its host-sync tests on GPU 0; the rest of Tier 2 runs as
 each launch's gate. `actor-design-1026` launches from `a5b5cc8`, its pre-registration; enc-iface's last jobs from
-`58d55d7`. Main was pushed to origin through `ef6829d` on 2026-10-26 (Aden); no code has changed since.
+`58d55d7`. Main is pushed to origin through the 2026-10-27 doc commits (Aden); no code has changed since `ef6829d`.
 
 **Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last runs. The next phase is planned
 in Aden's order** (EXPERIMENTS.md, 2026-10-27 DECISION; TODO B24): the long runs, then the object-centric
