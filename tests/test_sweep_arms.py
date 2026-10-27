@@ -1,7 +1,7 @@
 """The arms submit.sh launches, exactly as it launches them.
 
 A queued arm that fails at launch loses its GPU slot. So every arm in
-submit.sh's case table is checked here first. Eight seed groups, and each arm
+submit.sh's case table is checked here first. Every seed group, and each arm
 against its anchor's launch, less the anchor's run length:
   - resfit-equi-diff-1012 and resfit-ln-place-1013: oj5k0jqb's
     (resfit-residual-square 1, 9cf207d);
@@ -67,7 +67,10 @@ critic_window_ih), each the anchor but for those fields (tests/test_interface.py
 builds); and 2026-10-26 PRE-REGISTERED, "the actor's design": actor-design-1026's three arms are
 arch-swap-eee's launch with its actor wired as ResFiT's (actor_design, at two widths) or exported
 (actor_family=ablated, at aaa's rate), each eee but for those fields, its encoder and critic eee's at
-seed 2 (tests/test_actor_design.py checks what the wiring builds).
+seed 2 (tests/test_actor_design.py checks what the wiring builds); and 2026-10-27 PRE-REGISTERED, "the
+long runs": long-1027's two arms are resfit-residual-square-rerendered's and arch-swap-eee's launches
+run to 300k with a checkpoint every 50k, each its source arm but for those two fields, and only the
+trainer's loop end reads the run length.
 """
 
 from __future__ import annotations
@@ -247,6 +250,15 @@ _SHAPED = _SWAP_BASES[SWAP_EEE] - {"equivariance.actor_degree_channel=448"} | {"
 LAUNCHED[AD_RESFIT] = _SHAPED | {"agent.actor_lr=3e-6"}
 LAUNCHED[AD_WIDE] = _SHAPED | {"equivariance.actor_degree_channel=362"}
 LAUNCHED[AD_EAE] = LAUNCHED[SWAP_EEE] | {"equivariance.actor_family=ablated", "agent.actor_lr=2.5e-7"}
+# long-1027 (2026-10-27 PRE-REGISTERED): two arms run as they ran before, to 300k with a checkpoint every
+# 50k, each its source arm's launch but for those two fields.
+LONGRUN_GROUP = "long-1027"
+LONGRUN_SOURCES = {"long-resfit": RERENDERED, "long-eee": SWAP_EEE}
+LONGRUN_ARMS = tuple(LONGRUN_SOURCES)
+LONGRUN_VALUES = {"algo.total_timesteps": 300_000, "checkpoint_interval": 50_000}
+LAUNCHED.update({arm: (LAUNCHED[source] - {"algo.total_timesteps=150000"})
+                 | {"algo.total_timesteps=300000", "checkpoint_interval=50000"}
+                 for arm, source in LONGRUN_SOURCES.items()})
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -291,6 +303,7 @@ FROM_ANCHOR.update({arm: FROM_ANCHOR[SWAP_EEE] | set(changes) for arm, changes i
 FROM_ANCHOR[AD_RESFIT] = LAYOUT_PATHS | {"equivariance.actor_design", "agent.actor_lr"}
 FROM_ANCHOR[AD_WIDE] = LAYOUT_PATHS | {"equivariance.actor_design", "equivariance.actor_degree_channel"}
 FROM_ANCHOR[AD_EAE] = FROM_ANCHOR[SWAP_EEE] | set(AD_CHANGES[AD_EAE])
+FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(LONGRUN_VALUES) for arm, source in LONGRUN_SOURCES.items()})
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -333,6 +346,7 @@ ARM_VALUES.update({
 })
 ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in IFACE_CHANGES.items()})
 ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in AD_CHANGES.items()})
+ARM_VALUES.update({arm: {**ARM_VALUES[source], **LONGRUN_VALUES} for arm, source in LONGRUN_SOURCES.items()})
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -341,7 +355,8 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              CRITICLN: RERENDERED_DEMOS, HEADS: RERENDERED_DEMOS, ACTOR448: RERENDERED_DEMOS,
              ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
              **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS),
-             **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS), **dict.fromkeys(AD_ARMS, RERENDERED_DEMOS)}
+             **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS), **dict.fromkeys(AD_ARMS, RERENDERED_DEMOS),
+             **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -364,7 +379,7 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
-    "task": "Square", "algo.total_timesteps": 150_000, "read_buffer_caches": False,
+    "task": "Square", "algo.total_timesteps": 150_000, "checkpoint_interval": -1, "read_buffer_caches": False,
     "write_buffer_caches": False, "algo.n_step": 3, "algo.gamma": 0.99, "algo.batch_size": 256,
     "algo.offline_fraction": 0.5, "algo.num_updates_per_iteration": 4,
     "algo.actor_updates_per_iteration": 1, "algo.buffer_size": 200_000, "algo.learning_starts": 10_000,
@@ -452,6 +467,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in LONGRUN_SOURCES:
+        return LONGRUN_GROUP
     if arm in AD_CHANGES:
         return AD_GROUP
     if arm in IFACE_CHANGES:
@@ -472,9 +489,15 @@ def group_of(arm: str) -> str:
 
 
 def anchor_of(arm: str) -> str:
+    arm = LONGRUN_SOURCES.get(arm, arm)
     if arm in RESFIT_ARMS:
         return "oj5k0jqb"
     return "6ng62tpm" if arm == LONG else "eaqorqki"
+
+
+def wandb_of(arm: str) -> tuple[str, str]:
+    """The wandb project and group: a long arm's are its source arm's."""
+    return WANDB[group_of(LONGRUN_SOURCES.get(arm, arm))]
 
 
 def _launch_order(overrides) -> list[str]:
@@ -539,7 +562,7 @@ def test_arm_launches_its_preregistered_overrides(arm, tmp_path):
 @pytest.mark.parametrize("arm", ARMS)
 def test_arm_composes_to_its_preregistered_recipe(arm, tmp_path):
     flat = _flat(_compose(_overrides(arm, tmp_path)))
-    project, group = WANDB[group_of(arm)]
+    project, group = wandb_of(arm)
     expected = {**ANCHORS[anchor_of(arm)]["shared"], **ARM_VALUES[arm], "wandb.project": project,
                 "wandb.group": group, "wandb.name": f"{arm}-1", "wandb.notes": f"{group_of(arm)}/{arm}/seed1"}
     for path, value in expected.items():
@@ -651,6 +674,31 @@ def test_each_matched_arm_is_its_parent_runs_launch_but_for_the_rate(arm, tmp_pa
     assert "seed=2" in argv
     unseeded = ("hydra.run.dir", "seed")
     assert _unnamed(_overrides(arm, tmp_path), unseeded) == _unnamed(argv, unseeded) | {f"agent.actor_lr={rate}"}
+
+
+@pytest.mark.parametrize("arm", LONGRUN_ARMS)
+def test_each_long_arm_is_its_source_arm_run_longer(arm, tmp_path):
+    """long-1027 (2026-10-27 PRE-REGISTERED): each arm launches its source arm's overrides with the run
+    length at 300k and a checkpoint every 50k, and composes to its source arm's config but for those two."""
+    ours, theirs = _overrides(arm, tmp_path), _overrides(LONGRUN_SOURCES[arm], tmp_path)
+    assert _unnamed(ours) == (_unnamed(theirs) - {"algo.total_timesteps=150000"}) | {
+        "algo.total_timesteps=300000", "checkpoint_interval=50000"}
+    ours, theirs = _flat(_compose(ours)), _flat(_compose(theirs))
+    assert _differing(ours, theirs) == set(LONGRUN_VALUES)
+    assert {k: ours[k] for k in LONGRUN_VALUES} == LONGRUN_VALUES
+    assert theirs["checkpoint_interval"] == -1
+
+
+def test_only_the_loop_end_reads_the_run_length():
+    """A long run's first 150k is its source arm's run at a new seed only if nothing in the trainer reads
+    the run length but its loop's end: no schedule, buffer or eval scales with it. The configs declare it,
+    and the tuned-RLPD trainer, which no residual run uses, reads it too."""
+    hits = [(path.relative_to(REPO).as_posix(), line.strip())
+            for path in sorted((REPO / "resfit").rglob("*.py"))
+            if "config" not in path.parts and path.name != "train_rlpd_dexmg.py"
+            for line in path.read_text().splitlines() if "total_timesteps" in line]
+    assert hits == [("resfit/rl_finetuning/scripts/train_residual_td3.py",
+                     "while global_step <= cfg.algo.total_timesteps:")]
 
 
 def test_the_rerendered_demos_leave_the_action_scaler_as_it_was():

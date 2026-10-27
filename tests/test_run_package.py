@@ -389,13 +389,45 @@ def test_residual_model_round_trip(tmp_path, device, family):
     assert rest == {"config": {"task": "Can"}, "global_step": 7, "success_rate": 0.5}
 
 
-def test_a_checkpoint_mid_training_changes_neither_the_agent_nor_any_random_stream(tmp_path, device):
+def _resfit_agent(device, *, seed: int):
+    """ResFiT's own agent (off_policy/), at QAgentConfig's defaults, as its runs build it: long-resfit
+    (long-1027) is the first of its runs to save step checkpoints."""
+    from resfit.rl_finetuning.config.rlpd import QAgentConfig
+    from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
+
+    torch.manual_seed(seed)
+    return QAgent(obs_shape=OBS_SHAPE, prop_shape=(9,), action_dim=7,
+                  rl_cameras=["observation.images.agentview", "observation.images.robot0_eye_in_hand"],
+                  cfg=QAgentConfig(device=str(device)), residual_actor=True)
+
+
+@pytest.mark.gpu
+def test_resfits_own_agent_round_trip(tmp_path, device):
+    """ResFiT's own agent comes back from its file too: strict, and acting as the saving agent does. On the
+    GPU: its ViT encoders run on CUDA only."""
+    from resfit.rl_finetuning.utils.checkpoint import load_residual_model, save_residual_model
+
+    obs = {k: v.to(device) for k, v in _inputs().items()}
+    src, dst = _resfit_agent(device, seed=0), _resfit_agent(device, seed=1)
+    path = tmp_path / "models" / "step_50000.pt"
+    save_residual_model(src, path, config={"task": "Square"}, global_step=50_000, success_rate=None)
+    assert src.training and src.actor.training, "saving must leave the agent in train mode"
+    expected = _act(src, obs)
+    assert not torch.allclose(_act(dst, obs), expected)
+    rest = load_residual_model(dst, path)
+    torch.testing.assert_close(_act(dst, obs), expected, rtol=0, atol=1e-6)
+    assert rest == {"config": {"task": "Square"}, "global_step": 50_000, "success_rate": None}
+
+
+@pytest.mark.parametrize("stack", ["equivariant", "resfit"])
+def test_a_checkpoint_mid_training_changes_neither_the_agent_nor_any_random_stream(tmp_path, device, stack):
     """checkpoint_interval saves the agent mid-run (2026-10-12), so saving must leave training as it
     was: every parameter and buffer, the train mode, and torch's CPU and CUDA random states. The eval
-    mode it toggles draws nothing and runs no forward pass."""
+    mode it toggles draws nothing and runs no forward pass. For the equivariant agent and ResFiT's own,
+    whose long runs (long-1027) save a checkpoint every 50k."""
     from resfit.rl_finetuning.utils.checkpoint import save_residual_model
 
-    agent = _agent(device, seed=0, stats_scale=1.0)
+    agent = _agent(device, seed=0, stats_scale=1.0) if stack == "equivariant" else _resfit_agent(device, seed=0)
     agent.train(True)
     before = {k: v.clone() for k, v in agent.state_dict().items()}
     rng = [torch.get_rng_state()] + ([torch.cuda.get_rng_state(device)] if device.type == "cuda" else [])

@@ -10363,3 +10363,43 @@ first wave would take about five days in it.
 - where the slower dense critic (the 2026-10-26 DECISION, item 2) goes in this order.
 
 `actor-design-1026`'s seeds 3 keep their place, so its readout (about 10:30 on 10-29) stands.
+
+---
+
+## 2026-10-27 — CODE — the long runs' two arms (`long-resfit`, `long-eee`): their source arms run to 300k with a checkpoint every 50k; nothing under `resfit/` changes
+
+**What it adds** (`submit.sh`, the tests, the watcher; no file under `resfit/`):
+- Two arms, seed group `long-1027`. `long-resfit` is `resfit-residual-square-rerendered`'s launch (ResFiT's
+  own agent on the re-rendered demos, `bue9dupf`'s arm) and `long-eee` is `arch-swap-eee`'s (arch-wide's),
+  each with `algo.total_timesteps=300000` and `checkpoint_interval=50000`. `ARM_STEPS` is now set per
+  arm: 150000 for every arm but these two. Each keeps its source arm's wandb group (`residual-rl`,
+  `equi-residual-rl`) and gate stack.
+- New names, not the source arms': `resfit-residual-square-rerendered` is in the watcher's
+  `FIXED_LENGTH_ARMS`, whose divergence stop sends SIGINT. Both new arms are watch-only (`long-1027` in
+  `GROUPS`, `RESIDUAL_ARMS`, `WATCH_ONLY_ARMS`, `SPEED_ARMS`): logged, FLAGged and finalized, never
+  signalled.
+- A checkpoint holds the agent's weights in eval mode, its config, the step and no optimizer state, so a
+  long run that dies cannot resume from one. Step 0 is saved too: seven per run (about 1.56 GB for
+  ResFiT's, 0.61 GB for eee's).
+
+**What is checked:**
+- `tests/test_sweep_arms.py`: each long arm launches its source arm's overrides with the length at 300k
+  and the checkpoint field, and composes to its source arm's config but for exactly those two keys; every
+  other arm composes to `checkpoint_interval=-1`; and a search of `resfit/` (less `config/` and the
+  tuned-RLPD trainer) finds the run length read only at `train_residual_td3.py`'s loop end
+  (`while global_step <= cfg.algo.total_timesteps`). With the constant exploration noise (0.05) and the
+  fixed 200k buffer, that makes a long run's first 150k its source arm's run at a new seed. 267 CPU tests
+  pass; the GPU part runs in the first long launch's gate.
+- `tests/test_run_package.py`: saving a checkpoint mid-run changes no parameter, buffer, mode or random
+  state for ResFiT's own agent too (CPU; it was checked for the equivariant agent only), and a ResFiT
+  checkpoint reloads strictly to identical actions (GPU: its ViTs run on CUDA only). 19 pass, 1 skipped
+  on the CPU.
+- `tests/test_square_rerendered_watch.py`: neither arm is stopped through 31 evals and a runaway critic,
+  and neither is a fixed-length arm. 16 pass. The gate does not run this file (`preflight.py:211–224`);
+  it is run by hand.
+
+**Config caveats:** none new. ResFiT's own agent is pinned by `tests/test_action_bound.py`'s goldens,
+captured before `bue9dupf` launched; its code path has changed since only by two fields at no-op defaults.
+
+**Changed vs. previous:** `submit.sh`, three test files, the watcher, `tests/README.md` and the wrapup
+skill (the long runs' `models/step_*.pt` are never deleted). The trainer is untouched.

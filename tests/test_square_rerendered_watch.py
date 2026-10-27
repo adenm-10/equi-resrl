@@ -278,3 +278,21 @@ def test_actor_design_is_never_stopped_and_logs_its_early_speed():
             for i in range(1, len(rates) + 1):
                 for passed in (False, True):
                     assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+
+def test_the_long_runs_are_never_stopped_and_log_their_early_speed():
+    """long-1027 (2026-10-27 PRE-REGISTERED): both arms to their own 300k with no automatic stop of any
+    kind (watch-only), through 31 evals and a runaway critic, and neither in the fixed-length set whose
+    divergence stop sends SIGINT."""
+    from square_rerendered_watch import (FIXED_LENGTH_ARMS, LONG_RUNS, RESIDUAL_ARMS, SPEED_ARMS,
+                                         WATCH_ONLY_ARMS)
+
+    assert GROUPS["long-1027"] == LONG_RUNS == ("long-resfit", "long-eee")
+    assert set(LONG_RUNS) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    assert not set(LONG_RUNS) & FIXED_LENGTH_ARMS
+    runaway = _qs(0, 300_000, 50.0)
+    for arm in LONG_RUNS:
+        for rates in (KYV7CLFC + [0.0] * 9, OJ5K0JQB, [0.58] * 31, [0.0] * 31):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)

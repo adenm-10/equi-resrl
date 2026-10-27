@@ -20,10 +20,10 @@ here. Do not write the docs a second way.
   cites (grep the docs for its path), and any past EXPERIMENTS.md entry. A run deleted from wandb is
   restored from its local record; a deleted local record is gone for good. **One standing
   exception** (Aden, 2026-10-24; TODO H13): the eval videos in finished runs' packages, outside
-  `wandb_best/`, are a Delete row at every wrapup.
+  `wandb_best/`, are a Delete row at every wrapup; the long runs' `models/step_*.pt` never are.
 - **Live work is not cleanup.** A running process, a job in an armed queue, the worktree either one
   runs from, and every tmux session STATUS.md lists stay, however finished they look. Runs end on
-  their own at 150k; stopping one is Aden's call.
+  their own at their full length; stopping one is Aden's call.
 - **Nothing is applied until Aden has answered the table.** Delete rows can be approved as a batch,
   Ask rows one by one. Reading and listing need no approval.
 - **Not a refactor.** Removing code a recorded config can still select changes what a run can reach,

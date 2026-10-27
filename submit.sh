@@ -6,10 +6,12 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: the encoder's interface (seed-group enc-iface-1023), arch-swap-eee's agent
-# with each of three wider interfaces from its encoder to its critic, pre-registered in
-# docs/EXPERIMENTS.md, "2026-10-23 — PRE-REGISTERED — the encoder's interface (enc-iface-1023)". The
-# groups before it stay in this table, each as it launched: arch-swap-1021 ("2026-10-20 —
+# Currently configured for: the long runs (seed-group long-1027), ResFiT's own agent and arch-swap-eee's
+# to 300k with a checkpoint every 50k, pre-registered in docs/EXPERIMENTS.md, "2026-10-27 —
+# PRE-REGISTERED — the long runs (long-1027)". The groups before it stay in this table, each as it
+# launched: actor-design-1026 ("2026-10-26 — PRE-REGISTERED — the actor's design"; from a5b5cc8),
+# enc-iface-1023 ("2026-10-23 — PRE-REGISTERED — the encoder's interface"; from 58d55d7),
+# arch-swap-1021 ("2026-10-20 —
 # PRE-REGISTERED — the architecture swap"; from aec1bdc), equi-speed-matched-1017 ("2026-10-17 — PRE-REGISTERED — the
 # equivariant residual on Square with the actor's parts at matched speed, and the speed's two
 # edges"; from 8e8eceb), equi-actor-speed-1016 ("2026-10-16 — PRE-REGISTERED — the equivariant residual on
@@ -172,8 +174,15 @@
 #   actor-eae           [E, A, E] arch-wide's actor exported, unconstrained (equivariance.actor_family=
 #                       ablated), on eee's encoder and critic, at aaa's 2.5e-7 for the same actor.
 #
-# Every arm here runs to its full 150k. From 2026-10-17 (DEVIATION) no automatic stop of any kind
-# applies, the divergence stop included: Aden stops a run by hand.
+# long-1027: two arms run as they ran before, to 300k steps (algo.total_timesteps; nothing else in the
+# trainer reads it), with a checkpoint every 50k (models/step_<N>.pt, step 0 included), at new seeds
+# 4 and 5. Each arm's first 150k is its source arm's run at a new seed. wandb robomimic-square-final /
+# its source arm's group.
+#   long-resfit   resfit-residual-square-rerendered: ResFiT's own agent on the re-rendered demos.
+#   long-eee      arch-swap-eee: the all-equivariant agent at arch-wide's launch.
+#
+# Every arm here runs to its full length (150k; the long group's 300k). From 2026-10-17 (DEVIATION) no
+# automatic stop of any kind applies, the divergence stop included: Aden stops a run by hand.
 
 set -euo pipefail
 
@@ -220,8 +229,16 @@ SWAP_HEADS=(equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivarian
 
 # arch-swap-eee's, the anchor of enc-iface-1023.
 IFACE_ANCHOR=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448)
+# The long group's checkpoints. Its run length is ARM_STEPS, set in its arms below.
+LONG_RUN=(checkpoint_interval=50000)
 
+# Every arm's length but the long group's.
+ARM_STEPS=150000
 case "$ARM" in
+    long-resfit)
+        ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" "$RERENDERED" "${LONG_RUN[@]}") ARM_STEPS=300000 ;;
+    long-eee)
+        ARM_OVERRIDES=("${IFACE_ANCHOR[@]}" "${LONG_RUN[@]}") ARM_STEPS=300000 ;;
     actor-resfit-shape)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_design=resfit agent.actor_lr=3e-6) ;;
     actor-resfit-shape-wide)
@@ -315,6 +332,12 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    long-resfit)
+        SEED_GROUP=long-1027 PROJECT=robomimic-square-final GROUP=residual-rl
+        GATE=(--task Square --method residual --stack resfit) ;;
+    long-eee)
+        SEED_GROUP=long-1027 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     actor-*)
         SEED_GROUP=actor-design-1026 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;
@@ -346,7 +369,6 @@ case "$ARM" in
         SEED_GROUP=equi-residual-long-1012 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;
 esac
-ARM_STEPS=150000
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
     # The arm as it launches, briefly, and kept apart from the real runs' records.
