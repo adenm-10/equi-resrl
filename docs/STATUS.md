@@ -257,7 +257,7 @@ needs it. New groups go in the watcher's watch-only set.
 How the runs are launched and followed:
 - **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
   `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree;
-  restarted 13:19 with the long runs first. It is `order-1026`'s queue with the long runs added, at most two at once
+  restarted 13:19 with the long runs first, and 16:28 with O1's `eee` jobs added (`OBJ_WORKTREE` `equi-resrl-e7710f4`). It is `order-1026`'s queue with the long runs added, at most two at once
   (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
   last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
   `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,
@@ -298,6 +298,7 @@ How the runs are launched and followed:
   - `ad-watch` (`actor-design-1026`, from `equi-resrl-a5b5cc8`);
   - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
   - `long-watch` (`long-1027`, from its pinned worktree);
+  - `obj-watch` (`obj-1027`, from `equi-resrl-e7710f4`);
   - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
     stays: the launcher scripts name it.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
