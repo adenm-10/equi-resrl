@@ -1,16 +1,29 @@
 # Status
 
-**Last updated:** 2026-10-27 · **Last verified commit:** `78575b0`, the long runs' two arms (EXPERIMENTS.md,
-2026-10-27 CODE): the sweep-arm, watcher and run-package tests pass on the CPU; the GPU part runs in the
-first long launch's full gate. Nothing under `resfit/` has changed since `0d9fb30`. `long-1027` launches from
-its pre-registration commit, `actor-design-1026` from `a5b5cc8`, enc-iface's last jobs from `58d55d7`. Main
-is pushed to origin through `4a6ab43`; the commits since are local.
+**Last updated:** 2026-10-27, evening · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
+goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
+The full gate's GPU tier runs at O1's first launch. Where each group launches from:
+- `obj-1027` from its pre-registration commit;
+- `long-1027` from `e2fdb27`;
+- `actor-design-1026` from `a5b5cc8`.
+
+Main is pushed to origin through `4a6ab43`; the commits since are local.
+
+**Waiting on Aden: the rate of O1's two `rrr` arms** (the CODE entry's early speed). Their predicted 0–3k
+speed sits at the band's lower edge, as `rrr`'s own does (0.0285–0.0286):
+- `obj-nut-rrr`: 0.0268, or 0.0249 on real demo frames;
+- `obj-peg-rrr`: 0.0218, or 0.0272 on real frames.
+
+Claude's recommendation is the source rate, 1e-6, so each arm differs from `rrr` only in its input. They
+are not queued until Aden answers. The `eee` arms are queued.
 
 **Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last run. The long runs (`long-1027`)
 are first in the queue** (EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION): ResFiT's
 own agent and `eee` to 300k at seeds 4 and 5, two at once, from about 22:00 tonight; actor-design's seeds 3
-take the other slots. Then O1, approved as a 2×2 on the evening of 10-27 (the nut alone or with the peg,
-on `eee` and `rrr`; plan `docs/plans/2026-10-27-long-O-L-steps.md`, local; being built in tmux `claude-o1`).
+take the other slots. Then O1 (`obj-1027`; EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED), built and
+pre-registered on the evening of 10-27: the nut alone or with the peg, on `eee` and `rrr`. The `eee` arms
+are queued after actor-design's seeds 3; the `rrr` arms wait for Aden (above).
 Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
@@ -233,7 +246,9 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 | 1 | `actor-resfit-shape 2` (`j457zalw`, about 103k) and `actor-resfit-shape-wide 2` (`160x34lf`, about 3k) | about 22:00 on 10-27; about 18:30 on 10-28 |
 
 Queued in `order-1027`, in order: `long-eee 4`, `long-resfit 4`, `long-eee 5`, `long-resfit 5`,
-`actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`.
+`actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`, then O1's `obj-nut-eee 2`,
+`obj-peg-eee 2`, `obj-nut-eee 3`, `obj-peg-eee 3` (from the evening restart; `OBJ_WORKTREE`, O1's pinned
+worktree). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
@@ -443,9 +458,9 @@ ours (C4) through its wiring, its free parameters, or its lack of a constraint.
 - **The long runs, first in the queue** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at
   seeds 4 and 5, to see where each levels off; the gap is described. Every run above the base was still
   climbing at 150k. First about 22:00 on 10-27; all four done about 10-31 to 11-01.
-- **Then O1** (TODO B23, B24 call 5): approved as a 2×2, the nut alone or with the peg, on `eee` and
-  `rrr`, eight runs. It targets the critic's low value of online data. Built from the evening of 10-27;
-  the runs about 10-30 to 11-03.
+- **Then O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
+  with the peg, on `eee` and `rrr`, eight runs. It targets the critic's low value of online data. The
+  `eee` arms are queued; the `rrr` arms wait for Aden's call on their rate. The runs about 10-30 to 11-03.
 - **Then the new task, Stack, `eee` against `rrr`** (TODO B25; planned, not approved to build). Square's
   symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
   Turned Square is dropped.

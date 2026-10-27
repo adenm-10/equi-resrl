@@ -10734,3 +10734,98 @@ encoder).
 - tests: `tests/group_action.py`, `tests/test_sweep_arms.py`, `tests/test_square_rerendered_watch.py`,
   `tests/test_demo_codec.py`, `tests/README.md`;
 - docs: EQUIVARIANCE.md and ARCHITECTURE.md.
+
+---
+
+## 2026-10-27 — PRE-REGISTERED — O1, the objects' poses: the nut's, or the nut's and the peg's, on `eee` and `rrr`, at seeds 2 and 3 (`obj-1027`)
+
+**Decided by Aden:** the 2026-10-27 evening DECISION; "approved, implement the plan as written and submit
+the experiments when ready", with the plan `docs/plans/2026-10-27-long-O-L-steps.md`, section 2 (local). Code
+`6e74a1e` (the CODE entry above). **This entry's commit is the launch pin**, run from the worktree
+`equi-resrl-<this commit>`. The object demos were built from `6e74a1e`, a clean tree (their
+`meta/object_obs.json`). Every guard passed, and the build is identical, parquet for parquet, to a first
+build from the uncommitted tree, kept at `outputs/diagnostics/obj/dataset-built-before-commit`.
+
+**Questions:**
+1. **The nut's effect.** Does handing each agent the nut's pose raise its level (`obj-nut-X` − `X`)? The
+   encoder's compressed output loses it (the 2026-10-23 probe).
+2. **The peg's effect.** Does the peg's pose, added to the nut's, raise it further (`obj-peg-X` −
+   `obj-nut-X`)? For `eee` the peg is a fixed direction in the world, which its C8 layers cannot otherwise
+   produce (the 2026-10-27 FINDING). For `rrr` it is a constant input, so `obj-peg-rrr` is the control.
+3. **Described, not tested:** is either effect larger in `eee` than in `rrr`? The standard error of a
+   difference of two such effects is about 0.1 at two seeds an arm.
+4. **The critic's signal:** does `eee`'s critic's value of online data at 10k–30k (`debug/q_data_online`,
+   about 0.005 against ResFiT's 0.082 in the 49-run analysis) rise with the objects?
+
+**The runs** (seed group `obj-1027`; wandb `robomimic-square-final` / `equi-residual-rl`; 150k each; at the
+source arms' rates, the actor's 1e-6, the critic's and the encoder's 1e-4):
+
+| Order | Arm | Source arm | `object_obs` | Seed |
+|---|---|---|---|---|
+| 1 | `obj-nut-eee` | `arch-swap-eee` | `nut` | 2 |
+| 2 | `obj-nut-rrr` | `arch-swap-rrr` | `nut` | 2 |
+| 3 | `obj-peg-eee` | `arch-swap-eee` | `nut+peg` | 2 |
+| 4 | `obj-peg-rrr` | `arch-swap-rrr` | `nut+peg` | 2 |
+| 5–8 | the same four | | | 3 |
+
+- **Where they go:** in the queue `order-1027`, after `actor-design-1026`'s seeds 3. Each arm's smoke
+  runs in its first slot (`outputs/diagnostics/obj/smokes/`). The first launch runs the full gate with
+  Tier 2.
+- **The `rrr` arms wait for Aden's call on their rate** (the CODE entry's early speed). Their predicted
+  early speed sits at the band's lower edge, and on one of the two batches below it. They are queued at
+  the source rate only once Aden says so; any other rate is an AMENDMENT before their launch.
+- **When:** the first launch about 10-30; all eight done about 11-03, if the `rrr` arms are queued by then.
+
+**What is held fixed:** each arm is its source arm's launch but for two fields:
+- `offline_data.name`: the same demos, file for file, with `observation.object` added;
+- `object_obs`.
+
+So the images, the state, the actions, the base policy, the rates and every network size but the first
+layers' input width are the source's. **Not held:** the starting weights. The first layers read 9 or 18
+more numbers, so they are drawn differently at the same seed (call 2a), and no run pairs with its
+source's start. The same-seed spread of `eee`'s launch (0.516 to 0.676 at seed 2) is already above the
+bar, so a paired start would buy little. No new anchor runs (call 2c): the regression goldens pin the off
+path bit for bit.
+
+**The anchors** (110k–150k pools, the 2026-10-27 NOTE on `iface-eee 2` and arch-swap's NOTE):
+- `eee`: four runs of its launch, `h216n857` 0.640, `wk45zp27` 0.516, `jr63pxb9` 0.564, `mgcifv1y` 0.676,
+  mean **0.599**. `long-eee 4` and `5`'s 110k–150k pools join it when they are read: they are fresh-seed
+  copies of the launch, by the long runs' tests.
+- `rrr`: `w1g1d1tf` 0.684 and `1u5xnikc` 0.612, mean **0.648**.
+
+**Readouts** (pools of five 50-episode evals at 110k–150k, 250 episodes a run; an arm is the mean of its
+runs):
+- **C1, the nut's effect:** `obj-nut-eee` − `eee`, and `obj-nut-rrr` − `rrr`.
+- **C2, the peg's effect:** `obj-peg-eee` − `obj-nut-eee`, and `obj-peg-rrr` − `obj-nut-rrr`.
+- **Each counts at a difference of 0.13 or more** (arch-swap's bar), either way.
+- **C3, described:** each effect in `eee` less the same in `rrr`.
+- **The signals:** `debug/q_data_online` at 10k–30k; `debug/q_data_demo` − `debug/q_data_online`; training
+  success per 10k; each arm against its source's runs.
+- **The early speed:** each run's 0–3k residual (the watcher's SPEED line) against its prediction
+  (`obj-nut-eee` 0.0350, `obj-peg-eee` 0.0359, `obj-nut-rrr` 0.0268, `obj-peg-rrr` 0.0218, by the method's
+  batch).
+- **A gross failure is reported to Aden, not acted on:** every eval at 10k–50k at or below 0.10. No
+  automatic stop of any kind applies (2026-10-17 DEVIATION).
+
+**Readings:**
+
+| Result | Reading | Next |
+|---|---|---|
+| C1 counts up in both | the pose is what both encoders lose; not specific to the constraint | the pose to the critic alone (O2), then no images (O3) |
+| C1 counts up in `eee` only | the equivariant encoder loses what ResFiT's ViTs keep | O2; a wider equivariant interface again |
+| C2 counts up in `eee`, not in `rrr` | the constraint costs through the fixed world direction it cannot represent; the peg's constant input gives it back | the peg in every equivariant arm; is the gap to ResFiT still there? |
+| C2 counts in `rrr` too | the peg's numbers help as more inputs, not as a direction | read C2 as capacity, not symmetry |
+| nothing counts | the residual is not limited by what the pose gives | the tuning group; the new task (B25) |
+
+**Predictions** (Claude's, before launch):
+- the nut lifts both agents, `eee` more;
+- the peg lifts `eee` and leaves `rrr` level;
+- `eee`'s critic's online value at 10k–30k rises from about 0.005 towards 0.03 or more.
+
+**Resources:**
+- Each `eee` arm runs about 30 h to 150k and each `rrr` arm about 10 h, as the source arms' runs did
+  (28–31 h and 10 h).
+- RAM about 23 GB each, under the queue's 28 GB memory floor.
+- No buffer caches: both buffers are filled in the run, as for the source arms.
+- The disk: about 1 GB for the object demos, about 1 GB for the cache LeRobot builds of them, and the run
+  packages (about 0.3 GB each).

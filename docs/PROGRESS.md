@@ -30,9 +30,20 @@ other four docs, with a pointer from here.
 calls 2a–2c as recommended. Turned Square is dropped. The new task is Stack, `eee` against `rrr`; it is
 planned, not approved to build.
 
-**Next:** O1's code, tests, dataset, early speeds, pre-registration and queue entries (in `claude-o1`). The
-first long launch, about 22:00 or later, under the memory floor: its smoke verdict, the full gate, the
-LAUNCHED entry.
+**Then, in `claude-o1`:**
+- **O1 built:** code `6e74a1e`, its CODE entry.
+- **The object demos:** built from that commit, every guard passed. A first build from the uncommitted tree
+  is kept under `outputs/diagnostics/obj/`; `rm -rf` of it was denied by the settings.
+- **The early speeds:** the `eee` arms are in the band; the `rrr` arms are at its edge, their rate Aden's call.
+- **Pre-registered** as `obj-1027`, the launch pin; the `eee` arms queued.
+
+**Next:**
+- Aden's call on the `rrr` arms' rate.
+- The first long launch, about 22:00 or later, under the memory floor: its smoke verdict, the full gate,
+  the LAUNCHED entry.
+- O1's first launch, about 10-30.
+- For deletion by hand: the first build, `outputs/diagnostics/obj/dataset-built-before-commit` (1 GB), and
+  its Hugging Face cache, `~/.cache/huggingface/datasets/parquet/default-f9731f15a2d25c36` (1 GB).
 
 ## 2026-10-27 (later) — the long runs coded, pre-registered and first in the queue; Square's symmetry found extrinsic; Aden's revised order
 
