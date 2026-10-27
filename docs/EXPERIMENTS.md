@@ -10572,3 +10572,37 @@ on O's input, "lets try to match the shape that the paper used".
 
 **The order now:** the long runs; O1; a new task; then latency and the tuning. The slower dense critic
 (the 2026-10-26 DECISION, item 2) has no place in it yet.
+
+---
+
+### 2026-10-27 — DECISION — O1 approved as a 2×2; the new task: Stack, eee against rrr, planned but not approved to build; Turned Square dropped (Aden, evening)
+
+Aden, in order: "Lets test both the nut alone and the nut+peg as two expeirments"; "i dont like turned
+square"; on the step-by-step O1 plan, "approved, implement the plan as written and submit the experiments
+when ready", with "a coarse todo list of what it would take to setup a stack experiment to compare eee vs
+rrr on it"; then "submit the stack plan to docs".
+
+1. **O1 is a 2×2:** the nut alone (7 numbers: position and quaternion) or the nut and the peg (14, the
+   paper's rule of including targets), each on `eee` and `rrr`. Four arms, `obj-nut-eee`, `obj-nut-rrr`,
+   `obj-peg-eee`, `obj-peg-rrr`, at seeds 2 and 3, 150k: eight runs, queued after actor-design's seeds 3,
+   the four seeds 2 first. The steps plan's calls as recommended: the new numbers concatenated onto the
+   low-dimensional block (2a); each quaternion turned into the gripper's 6-D rotation, in both families
+   (2b); no new anchor runs, the off path pinned bit for bit by the goldens (2c). The contrasts: the
+   nut's effect, `obj-nut-X` − `X`; the peg's, `obj-peg-X` − `obj-nut-X`; whether either is larger in `eee`
+   than in `rrr` is described, not tested. The full contrasts and predictions go in O1's PRE-REGISTERED
+   entry. The plan is `docs/plans/2026-10-27-long-O-L-steps.md`, section 2 (local).
+2. **The peg, for each family.** It never moves on Square. For `rrr` it is a constant input, so
+   `obj-peg-rrr` is the control. For `eee` it is a fixed direction in the world, which an equivariant
+   network cannot otherwise represent (the 2026-10-27 FINDING). Asked whether to test the pose on ResFiT's
+   agent first: no, since `rrr` is ResFiT's networks in this agent and runs beside `eee`.
+3. **Turned Square is dropped** as the new task.
+4. **The new task is planned as robosuite's own Stack,** `eee` against `rrr` (TODO B25 has the coarse
+   to-do). Why Stack: the goal is the other cube, and every cube-to-cube direction occurs (each 45° sector
+   holds 12.4–12.6% of MimicGen's Stack D0 layouts, against Square's nut-to-peg span of 18.5°). It is a
+   standard benchmark, not one built for equivariance, and it already runs under our robosuite. Its costs:
+   - no ResFiT result, so every arm is trained here;
+   - MimicGen's demos were recorded under robosuite 1.4.1, so a replay check comes first;
+   - a new base policy;
+   - the risk of no headroom, if the base succeeds above about 0.85.
+
+   Nothing is built until Aden approves it.

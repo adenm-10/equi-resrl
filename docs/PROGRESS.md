@@ -17,6 +17,23 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-27 (evening) — O1 approved as a 2×2 and its build started; Stack planned as the new task
+
+**Done**
+- **O1's step-by-step plan** (`docs/plans/2026-10-27-long-O-L-steps.md`, section 2, local), approved by
+  Aden as written.
+- **Stack's coarse plan** (TODO B25; the detailed copy is the steps plan's section 4).
+- **EXPERIMENTS.md:** the evening DECISION.
+- **The build moved to tmux `claude-o1`,** a fork of this session, so the VSCode window could close.
+
+**Decided** (Aden): O1 is the nut alone and the nut with the peg, each on `eee` and `rrr`, eight runs, with
+calls 2a–2c as recommended. Turned Square is dropped. The new task is Stack, `eee` against `rrr`; it is
+planned, not approved to build.
+
+**Next:** O1's code, tests, dataset, early speeds, pre-registration and queue entries (in `claude-o1`). The
+first long launch, about 22:00 or later, under the memory floor: its smoke verdict, the full gate, the
+LAUNCHED entry.
+
 ## 2026-10-27 (later) — the long runs coded, pre-registered and first in the queue; Square's symmetry found extrinsic; Aden's revised order
 
 **Done**

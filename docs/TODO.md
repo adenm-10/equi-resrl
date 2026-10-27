@@ -33,23 +33,29 @@ runs above the base was still climbing at 150k, which is the case for the long r
    PRE-REGISTERED entries). Since the afternoon they are first in the queue `order-1027`, actor-design's
    seeds 3 behind them; the iface pair is dropped (the afternoon DECISION).
 4. **DONE:** the duplicate best-model reclaim (6.9 GB).
-5. **O1:** the nut's pose on `eee` and `rrr`, seeds 2 and 3, 150k, after actor-design's seeds 3, in the
-   object-centric paper's shape (7 numbers an object: position and quaternion). **Open:** whether the peg
-   goes in (the paper includes targets), and the steps plan's calls 2a–2c.
+5. **O1: APPROVED as a 2×2** (the 2026-10-27 evening DECISION): the nut alone or the nut and the peg, on
+   `eee` and `rrr`, seeds 2 and 3, 150k, after actor-design's seeds 3. Each object takes the object-centric
+   paper's shape (7 numbers: position and quaternion). The steps plan's calls 2a–2c are as recommended.
+   The build started on the evening of 10-27 in tmux `claude-o1`.
 6. **DONE:** the gate adds a commit to `retry/tier2_passed.txt` itself once a full gate passes.
 7. **The slower dense critic (B20):** with the tuning screens (Claude's recommendation, not objected to).
 8. **The 49-run analysis as an EXPERIMENTS.md NOTE:** to write (Claude's recommendation, not objected to).
 9. **Latency (L) is sidelined** until the long runs, O1 and a new task have results; B23 keeps its design.
-10. **The new task:** chosen later. Turned Square is Claude's first pick (the 2026-10-27 FINDING); ResFiT
-    reported no Stack results, so Stack would be trained from scratch.
+10. **The new task: Stack, `eee` against `rrr`, planned (B25), not approved to build.** Turned Square is
+    dropped (Aden).
 
 **The to-do** (coarse; the days are targets):
 1. **The long runs: DONE but the launches** (the first about 22:00 on 10-27, its smoke and the full gate
    first). The watchers and the digest cover them.
-2. **O1, the code from 10-28** (the steps plan's section 2, once Aden settles its shape): the pose through
-   the wrapper; the demos' column from robomimic's states; its field types and tests (off is today bit for
-   bit; a turned raw observation gives the declared representation); both arms' early speeds; the smokes;
-   the pre-registration; the four jobs in the queue. Launch about 10-30.
+2. **O1, approved; the build started on the evening of 10-27** (the steps plan's section 2):
+   - the pose through the wrapper;
+   - the demos' column from robomimic's states;
+   - its field types and tests: with the switch off, everything is today's bit for bit, and a turned raw
+     observation gives the declared representation;
+   - the four arms' early speeds;
+   - the smokes, the pre-registration, and the eight jobs in the queue.
+
+   Committed and queued about 10-28; the first launch about 10-30.
 3. **While they run.**
    - `tools/residual_field_ablation.py` for ResFiT's agent, for the long runs' 200-episode
      re-evaluations; it reads the equivariant agent only.
@@ -60,13 +66,51 @@ runs above the base was still climbing at 150k, which is the case for the long r
 afternoon and 11-01; O1 about 11-02.
 
 **Then, after these results:**
-- **A new task** (call 10). Each needs a base policy, re-rendered demos and a render check. Can (`v7`) and
-  BoxCleanup (ACT) have base policies; neither has the symmetry.
+- **A new task** (call 10): Stack, `eee` against `rrr` (B25), once Aden approves it.
 - **The tuning group** (the plan's section 3).
   - Stage 1: 50k screens at seed 2, each one change from the anchor. They are scored on the online value
     at 20k–50k, with the speed band as a gate. The arms: critic rate 3e-4 and 3e-5, updates per step 8 and
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
+
+### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, not approved to build `[SC]`
+
+The plan of record for the new task (the 2026-10-27 evening DECISION, item 4). Stack is robosuite's own
+task, MimicGen's Stack D0: two cubes within ±8 cm of the table's middle, at any yaw. Every cube-to-cube
+direction occurs, where Square's nut-to-peg direction spans 18.5°. ResFiT reported no Stack result, so
+every arm is trained here. The arms are `eee` and `rrr`, as in O1; ResFiT's own agent is an optional
+reference.
+
+1. **Demos** (half a day, CPU):
+   - download MimicGen's `core/stack_d0.hdf5` (Hugging Face `amandlek/mimicgen_datasets`; 1,000 demos,
+     recorded under robosuite 1.4.1);
+   - check that they replay under our 1.5.1: set each state by joint name, then check the cubes' placement
+     and that each demo's last state counts as a success;
+   - if they don't replay: map qpos by name (as the turned-demo replays did), or script grasp-and-place
+     demos.
+2. **Env** (a few hours): add `Stack` to `dexmg.py` (`ENV_ROBOTS`, the horizon, the single-arm camera and
+   low-dim key sets), and confirm the success signal (sparse reward 1 at a stack) ends the episode as
+   Square's does.
+3. **Dataset** (a few hours, a little GPU for EGL): a LeRobot dataset re-rendered through our env.
+   `tools/rerender_demos.py` copies its non-image columns from a LeRobot source, which Stack lacks, so it
+   needs a path from the hdf5 alone. Add `tools/render_check.py`'s expectations for Stack.
+4. **Base policy** (about a day of GPU): the diffusion base, trained as v9 was, then 200 or more episodes
+   of the base alone. **A headroom rule, set before training:** if the base succeeds above about 0.85,
+   train it on fewer demos or move to Stack D1 (±20 cm, wider camera).
+5. **The symmetry record** (CPU): turned-demo replays (`outputs/diagnostics/symmetry/turned_replay.py`) on
+   Stack, so the claim that turned scenes are real rests on a measurement, as Square's FINDING does.
+6. **Agent plumbing:**
+   - robot-base detection and the normalizer's statistics from the new dataset;
+   - every Square-specific spot in the trainer, preflight (its task checks and render check), the
+     watcher and the digest.
+7. **Arms:** `stack-eee` and `stack-rrr`. For each: the early-speed check, `test_sweep_arms.py`, the
+   queue's `kind()` and `smokes_of()`, and the smokes.
+8. **Pre-register:** seeds 2 and 3, 150k, pools at 110k–150k, the 0.13 bar, and the predictions (`eee`'s
+   gain over `rrr` larger than on Square).
+9. **Runs:** four, two at a time, about 3–4 days; then the readout.
+
+**In all, about 1–1.5 weeks,** mostly waiting on the GPU. Steps 1–3 and 5 need no training slot, so they
+can run while O1 trains. The detailed copy is `docs/plans/2026-10-27-long-O-L-steps.md`, section 4 (local).
 
 ### B23. The observation, latency and chunk experiments — O1 next, after the long runs (B24); L SIDELINED and C parked (Aden, 2026-10-26 and 10-27) `[SC]`
 
@@ -254,123 +298,55 @@ and 2026-10-20 for `actor448`). At 110k–150k, of 250, at one seed each: `arch-
 
 ### B16. Demos rendered by our env, then the equivariant residual on them — DONE through item 5e (Aden, 2026-10-08) `[SC]`
 
-Why: the demos' video codec gave the critic a perfect online/demo cue, and coding the env's frames
-to match let equivariant tuned RLPD learn Can (`gkck6eqp`, 0.94 at 10k). Aden chose to fix the
-demos rather than the env for the residual runs (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered
-demos").
+**Done; condensed 2026-10-27.** The demos' video codec gave the critic a perfect cue for telling online
+frames from demo frames, so Aden chose to fix the demos (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered
+demos"). What was done:
+- `tools/rerender_demos.py`, with its guards and tests; frames one physics substep late, as `step()`
+  observes;
+- both datasets built and verified, their figures in each `meta/rerender.json`;
+- the Square runs (2026-10-10 NOTE);
+- the stabilization group, cancelled (2026-10-12 DEVIATION);
+- the residual's start (2026-10-12 NOTE);
+- the tilt diagnosis, not the cause (2026-10-13 and 10-15 NOTEs);
+- the 2026-10-13 schedule: ResFiT's residual needs the actor's LayerNorm (2026-10-15 NOTEs).
 
-1. **DONE 2026-10-08: `tools/rerender_demos.py`,** its guards and tests. Every frame after an
-   episode's first is rendered one physics substep late, as robosuite's `step()` observes (Aden's
-   choice over making the env exact), and observation.state with it.
-2. **DONE 2026-10-08: both datasets built and verified** (EXPERIMENTS.md, NOTE, "the re-rendered
-   datasets"); the figures are in each `meta/rerender.json`.
-3. **DONE 2026-10-08: checked against the env.** No frame statistic tells them from env frames;
-   the identity guard allows the GPU's 1-level residue (2026-10-09 CODE, Aden's option A).
-4. **Skipped (Aden, 2026-10-09): the validation run on Can.** The Square runs went ahead directly.
-5. **DONE 2026-10-10: the equivariant residual and equivariant tuned RLPD on Square**
-   (`square-rerendered-1009` seed 1; EXPERIMENTS.md, 2026-10-10 NOTE). The residual collapsed by
-   its first eval (`6ng62tpm`). Tuned RLPD learned to 0.50 at 80k, then its critic ran away from
-   about 92k and every eval from 100k was 0 (`vc5o977f`). Its seed 2 (`6yh4l5mq`) runs as the
-   anchor of item 5b.
-5b. **CANCELLED 2026-10-12: stabilizing equivariant tuned RLPD on Square** (`square-trlpd-stab-1010`;
-   EXPERIMENTS.md, 2026-10-12 DEVIATION). Seed 1 of `clipq`, `pooledln` and `ln` passed the
-   learning check and no critic diverged, nor did the anchor's seed 2; `clipq` converged at 230k
-   (0.628). Aden dropped `10x2` and the three seed 2s, so the group has one seed per arm and no
-   verdict. Its analysis NOTE is not written. Second-wave candidates, if it is ever resumed: the
-   clamp and the pooled norm together; the LayerNorm arm plus per-pixel LayerNorm in the encoders.
-5c. **DONE 2026-10-12: the equivariant residual's start and the critic's readiness**
-   (`square-residual-start-1011`; EXPERIMENTS.md, 2026-10-12 NOTE). Both arms lost the base policy
-   by 10k. The 1e-4 start is not the cause, and a better-informed critic did not stop the drift.
-   The penalty named next is held (2026-10-12 FINDING: it would hold ResFiT's useful residual down
-   too).
-5d. **DONE 2026-10-13: the tilt diagnosis** (plan `docs/plans/2026-10-12-residual-tilt-diagnosis.md`,
-   local). No single field of the residual carries the collapse (the field test, 2026-10-12 NOTE),
-   and `notilt` ended at 0.200 at 110k–150k, within the equivariant baseline's 0.216–0.272
-   (2026-10-13 and 2026-10-15 NOTEs). Its conditional follow-ups (a tilt bound of 0.03, the L2
-   penalty) are not triggered: tilt is not the cause.
-5e. **DONE 2026-10-15: the 2026-10-13 schedule** (EXPERIMENTS.md, 2026-10-15 LAUNCHED and NOTEs).
-   - (1) LayerNorm is needed by ResFiT's residual (`noln` 0 of 150 at both seeds); (2a) the actor's
-     is the one (`noln-actor` 0.144, 0.264 late; `noln-critic` 0.776, 0.720; `noln-vit` 0.792 and
-     0.800 to 130k). By the registered 10k–30k rule `noln-critic` also "breaks" (37, 34 of 150), but
-     the anchor's own seed 2 scored 35 there: the bar sits inside seed spread (recorded as a
-     conflict).
-   - `limits` (0.800) and `noise` (0.824) hold: the action space does not break ResFiT.
-   - The equivariant baseline's 150k reference: 0.272, 0.216; init0 seed 2 0.332; neither back to
-     the base.
-   - Left: `vqzx1ir9`'s (`noln-vit` 2) 150k NOTE (B17 step 0.2). `noln-vit`'s seed 3 was set aside
-     (2026-10-15 DEVIATION).
-   - Still open from this item: move `outputs/queue/launchers/` into `tools/` (the queue is empty
-     between experiments now); make `preflight.py` record a failing assertion, not just the test's
-     name (the render-guard test that failed three gates on 2026-10-12; it has not failed since the
-     300 s settle wait).
-6. **The regroup** (Aden, 2026-10-09) was for neither arm training by 100k. Tuned RLPD trained, so
-   it is not triggered as written, but its residual half stands: **the residual's collapse is a
-   different failure** (no value carried to online states; online value negative by 20k), which
-   item 5b does not address. Ablations on Can, to set the residual's design: norm (none or
-   RegularLayerNorm), the squash, head count, head depth, and N = 8, 4 or no equivariance. Norm
-   also on the equivariant residual on Can (`residual_equi_td3_can_config`), since Aden expects it
-   may come out differently for a residual. Caveat: Can's base policy is at 0.852, so a residual
-   has little room to show a gain. Claude's suggestion (2026-10-10): the equivariant residual on
-   Can with the critic that learned Can on both seeds. If it still collapses, the fault is in the
-   residual's path, not the critic design.
-7. **Later, for a fair stack comparison:** ResFiT's residual on the same demos.
+**Still open from it:**
+- If the stabilization group (5b) is ever resumed, its second-wave candidates: the clamp and the pooled
+  norm together; the LayerNorm arm plus per-pixel LayerNorm in the encoders.
+- `vqzx1ir9`'s 150k NOTE (B17 step 0.2).
+- Move `outputs/queue/launchers/` into `tools/`.
+- Make `preflight.py` record a failing assertion, not just the test's name.
+- From the regroup (Aden, 2026-10-09), not triggered as written: the residual's own design ablations on
+  Can (norm, squash, head count and depth, N = 8, 4 or none). Caveat: Can's base sits at 0.852, which
+  leaves little headroom.
 
 ### B15. Fix the render, then new baselines — RAN 2026-10-07 to 10-10 (Aden's plan, 2026-10-07) `[SC]` `[CS]`
 
-**Status (2026-10-24):** the baselines ran; their record runs from EXPERIMENTS.md's 2026-10-07
-PRE-REGISTERED entry for the fixed-env baselines to the 2026-10-10 NOTE on `s8opblsd`. The items
-below are the plan as written then.
+**Done; condensed 2026-10-27.** The record runs from EXPERIMENTS.md's 2026-10-07 FINDING (mujoco 3.8.1
+renders the floor unlike the demos) and its CODE entries ("records in main", "mujoco 3.3.2") to the
+2026-10-10 NOTE on `s8opblsd`:
+- the worktrees' records moved into main;
+- `tools/gpu_queue.sh` fixed;
+- mujoco pinned to 3.3.2, with the render check in the gate;
+- B_sq and B_can re-measured at 500 episodes;
+- `critic_diagnostics` for both agents;
+- the five baseline arms.
 
-Why: our `residual` env's mujoco 3.8.1 renders the floor differently from the demos, and
-upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in ours (EXPERIMENTS.md,
-2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). STATUS has the numbers.
-
-1. **DONE 2026-10-07: the worktrees' records are in main** (EXPERIMENTS.md, CODE, "records in
-   main"). 34 records and 34 Hydra folders moved, hashes verified; the three never-synced records
-   also copied to `~/equi-resrl-preserve/wandb-offline-only/`. New runs record into main wherever
-   they launch from. **Done 2026-10-24 (Aden approved): the 15 worktrees and four later ones
-   removed,** 19 in all, each checked unused and holding nothing but bytecode and an empty
-   `tea_debug.log`; `58d55d7` and `aec1bdc` stay while their groups run. The commands, for the
-   next time, run only over worktrees no live process or armed queue uses (`/wrapup` checks; unlink
-   the symlink first, so nothing can follow it):
-   ```bash
-   cd ~/projects/equi-resrl
-   for w in ~/projects/equi-resrl-*/; do
-       [ -L "$w/artifacts" ] && unlink "$w/artifacts"
-       git worktree remove --force "$w"   # --force: 7dae4925 has an untracked empty tea_debug.log
-   done
-   git worktree prune && git worktree list
-   ```
-   Fewer worktrees from here (Aden, 2026-10-07): B15 launches from one, at its launch commit, removed
-   when its runs end.
-2. **DONE 2026-10-07: `tools/gpu_queue.sh` fixed** (same CODE entry). It launches only once the
-   line is deleted and 5 GB are free, a log line cut off by a full disk no longer swallows the
-   next, and it runs from main, safe to edit while running. The `gpu0.log` append was never
-   broken: the EXIT line was glued to the cut-off LAUNCH line (the CODE entry's CORRECTION).
-3. **DONE 2026-10-07: mujoco 3.3.2 pinned, and the render on the record and in the gate**
-   (EXPERIMENTS.md, CODE, "mujoco 3.3.2"). `pip freeze` moved by that one line. Every run logs
-   its `versions`; the online cache key records mujoco; the gate fails on another mujoco and on a
-   render that does not match the demos (`tools/render_check.py`), on Can and Square. Its bar is
-   2.5x the within-demo gap, not about 2x: the matching render sits at 2.06x on Can. New:
-   `read_buffer_caches=false`, for the baselines' "no cache reads".
-4. **DONE 2026-10-07: B_sq and B_can re-measured,** 500 episodes each with `eval_base_policy`
-   (EXPERIMENTS.md, 2026-10-07 LAUNCHED and MEASUREMENT).
-5. **DONE 2026-10-07: the equivariant agent logs `critic_diagnostics`** (same CODE entry), and
-   the trainer calls it for both agents.
-6. **DONE: the baselines** (condensed 2026-10-27). The plan as written then is in EXPERIMENTS.md's
-   2026-10-07 PRE-REGISTERED entry for the fixed-env baselines: the five arms, the shared settings, the
-   equivariant design, the validation, the verdicts and the resources.
-   - **Kept here, from Aden's review of the arms (2026-10-07), because the entry does not hold it:** the
-     zero-init arm was added on the evidence of `a3e3zylp` (0.88 → 0.00) against `z8yoqylh` (1e-4, 0.82 →
-     0.94). That evidence is confounded with host and software, and both runs saw near-blank images
-     (EQUIVARIANCE.md, "What actually changed").
-   - At the design, a zero-initialized residual leaves zero within 4 actor updates with no NaN (checked
-     2026-10-07); `equi_tanh` has gradient 1 at the origin.
-   - The tuned-RLPD actor keeps its default init, since it outputs the whole action, not a correction
-     (Aden).
-   - The disk bound is a stack difference: ARCHITECTURE.md, "The two stacks side by side".
-
-**Updates:** EXPERIMENTS.md, STATUS.md, CLAUDE.md (setup), tests/README.md (the gate check).
+**Kept here because no entry holds them:**
+- **Removing launch worktrees.** Do it only for worktrees that no live process or armed queue uses
+  (`/wrapup` checks), and unlink the symlink first, so nothing can follow it:
+  ```bash
+  cd ~/projects/equi-resrl
+  for w in ~/projects/equi-resrl-*/; do
+      [ -L "$w/artifacts" ] && unlink "$w/artifacts"
+      git worktree remove --force "$w"   # --force: 7dae4925 has an untracked empty tea_debug.log
+  done
+  git worktree prune && git worktree list
+  ```
+- **Why the zero-init arm was added** (Aden's review, 2026-10-07): `a3e3zylp` (0.88 → 0.00) against
+  `z8yoqylh` (1e-4, 0.82 → 0.94). That evidence is confounded with host and software, and both runs saw
+  near-blank images. A zero-initialized residual leaves zero within 4 actor updates, with no NaN. The
+  tuned-RLPD actor keeps its default init, since it outputs the whole action (Aden).
 
 ### B11 — DONE 2026-10-04: the reference with the image fix collapsed, both seeds `[SC]`
 

@@ -9,8 +9,9 @@ is pushed to origin through `4a6ab43`; the commits since are local.
 **Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last run. The long runs (`long-1027`)
 are first in the queue** (EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION): ResFiT's
 own agent and `eee` to 300k at seeds 4 and 5, two at once, from about 22:00 tonight; actor-design's seeds 3
-take the other slots. Then O1, the nut's pose on `eee` and `rrr` (its shape open for Aden; plan
-`docs/plans/2026-10-27-long-O-L-steps.md`, local), then a new task; latency is sidelined. One queue places
+take the other slots. Then O1, approved as a 2×2 on the evening of 10-27 (the nut alone or with the peg,
+on `eee` and `rrr`; plan `docs/plans/2026-10-27-long-O-L-steps.md`, local; being built in tmux `claude-o1`).
+Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
@@ -442,10 +443,12 @@ ours (C4) through its wiring, its free parameters, or its lack of a constraint.
 - **The long runs, first in the queue** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at
   seeds 4 and 5, to see where each levels off; the gap is described. Every run above the base was still
   climbing at 150k. First about 22:00 on 10-27; all four done about 10-31 to 11-01.
-- **Then O1** (TODO B23): the nut's pose to `eee` and `rrr`, aimed at the critic's missing value of online
-  data; about 10-30 to 11-02.
-- **Then a new task, ResFiT against eee:** Square's symmetry under our group is extrinsic (2026-10-27
-  FINDING). Turned Square is Claude's first pick; Stack has no ResFiT result to reuse.
+- **Then O1** (TODO B23, B24 call 5): approved as a 2×2, the nut alone or with the peg, on `eee` and
+  `rrr`, eight runs. It targets the critic's low value of online data. Built from the evening of 10-27;
+  the runs about 10-30 to 11-03.
+- **Then the new task, Stack, `eee` against `rrr`** (TODO B25; planned, not approved to build). Square's
+  symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
+  Turned Square is dropped.
 - **Then latency (sidelined) and the tuning.**
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
