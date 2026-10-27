@@ -17,6 +17,46 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-27 — what goes with beating the base, over 49 runs; the long and tuning plan; Aden's order: the long runs, then object-centric and latency, then more tasks and the tuning
+
+**Done**
+- **The success correlates:** every complete Square residual run with evals at 110k–150k, 49 in all.
+  Each run's lift over its own step 0 is set against its early and late metrics
+  (`outputs/diagnostics/success-correlates/analyze.py`, local; its table `runs.json`).
+- **The long and tuning plan** (`docs/plans/2026-10-27-long-and-tuning.md`, local; TODO B24), and O and L's
+  first wave (TODO B23).
+- **EXPERIMENTS.md, 2026-10-27:** the LAUNCHED entry (actor-design's first two runs, and `iface-window 3`
+  again), the NOTE (`iface-eee 2`) and the DECISION (the order).
+- **Condensed for the doc budget** (each with a pointer to the entry that holds the detail): TODO B15's
+  item 6, and STATUS's summaries of 10-12, 10-13 to 10-16 and 10-19 to 10-20.
+
+**Findings** (correlations across mixed configs; only the speed band and the critic's family rest on
+controlled contrasts)
+- **Two conditions are necessary:**
+  - the early speed inside 0.025–0.045: 0 of the 21 runs outside it beat the base;
+  - a constrained or ResFiT critic: unconstrained 0 of 6, ResFiT's 12 of 12, ours 5 of 10.
+- **The best early signal is training success at 10k–30k** (ρ +0.80). At 0.15 or above, 16 of 22 runs beat
+  the base; below it, 1 of 27.
+- **eee's gap to ResFiT is the critic's:** its value of online data is 0.005 against 0.082 early, and 0.119
+  against 0.184 late. Training success is level.
+- **All 16 runs above the base were still climbing at 150k.**
+- **eee's four runs average 0.599,** with `iface-eee 2` at 0.676. So C4 against them is +0.093, under the
+  bar.
+
+**Decided** (Aden; the 2026-10-27 DECISION)
+- **The order:** the long runs first, then O and L, then more tasks and the tuning. O and L are un-parked;
+  C stays parked.
+- **Claude's other recommendations are on record:** O and L first, with ResFiT's long pair beside them; the
+  plan's own order was the screens first.
+
+**Next** (TODO B24)
+- Aden's calls.
+- The long runs' code, pre-registration and queue, by 10-28.
+- L's code by the evening of 10-28 and O's by the morning of 10-29; their launch on 10-29.
+- actor-design's readout about 10:30 on 10-29.
+
+---
+
 ## 2026-10-24 to 10-26 — the interface arms moved up; `arch-swap-1021` complete and read; the actor's design coded and queued (`actor-design-1026`)
 
 **Done**

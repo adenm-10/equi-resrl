@@ -1,44 +1,54 @@
 # Status
 
-**Last updated:** 2026-10-26 · **Last verified commit:** `0d9fb30`, the actor's design (EXPERIMENTS.md,
+**Last updated:** 2026-10-27 · **Last verified commit:** `0d9fb30`, the actor's design (EXPERIMENTS.md,
 2026-10-26 CODE): its new tests, the sweep-arm tests for its three arms, the regression, config, no-op
 and ablated-family suites pass on the CPU, and its host-sync tests on GPU 0; the rest of Tier 2 runs as
 each launch's gate. `actor-design-1026` launches from `a5b5cc8`, its pre-registration; enc-iface's last jobs from
-`58d55d7`. Main was pushed to origin on 2026-10-24 (Aden); the commits since are not.
+`58d55d7`. Main was pushed to origin through `ef6829d` on 2026-10-26 (Aden); no code has changed since.
 
-**Now: `arch-swap-1021` is finished and read, `enc-iface-1023` is half run, and `actor-design-1026` is
-starting** (Aden, 2026-10-26 DECISION: the actor is where the gap is). One queue places both groups' jobs:
-tmux `order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there),
-which fits each job beside what is on a GPU by memory ("Running now", below).
+**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last runs. The next phase is planned
+in Aden's order** (EXPERIMENTS.md, 2026-10-27 DECISION; TODO B24): the long runs, then the object-centric
+and sampled-latency experiments (TODO B23's O and L), then more tasks and the tuning. **None of it is coded
+or queued.** Aden's calls come first (TODO B24's list). One queue places both running groups' jobs: tmux
+`order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there), which
+fits each job beside what is on a GPU by memory ("Running now", below).
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
   −0.378), the constraint; C4 (`ere` − `eee` +0.152), ResFiT's actor; C6 (`rrr` − `rra` +0.246), ResFiT's
   critic. Not counted: H (−0.066), C3 (−0.074), C5 (+0.088). No run with an unconstrained critic beat its
-  step 0. Every run's early speed was inside the band (0.0285–0.0410). C4 is just past the bar: against
-  all three runs of `eee`'s launch, `arch-wide 2` included, it is +0.119. Aden's calls (TODO B20; the
-  last 2026-10-26 DECISION): the drift readout dropped; a slower dense critic planned first after
-  `actor-design-1026`; C4 read with `iface-eee`'s replicates too.
-- **`actor-design-1026`** (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED): eee's agent
-  with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6; `actor-resfit-shape-wide`,
-  362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's actor unconstrained
-  (`actor-eae`, at 2.5e-7), seeds 2 and 3, against `arch-swap`'s `eee` and `ere`. `actor-resfit-shape 2`
-  took the slot of `iface-window 3`, stopped by hand (Aden). Its smoke passed and its gate passed (953
-  tests), and its trainer started about 13:25 on 10-26. Expected in wandb: `actor-eae 2` about 16:00 on 10-26 and
-  `actor-resfit-shape-wide 2` about 10:00 on 10-27. The readout is about 02:00 on 10-29 (the afternoon
-  DECISION: `iface-wide-all 2` stopped, and Tier 2 skipped on relaunches). Watcher: tmux `ad-watch`.
+  step 0. **C4 against all four runs of eee's launch is +0.093** (their mean 0.599, range 0.516–0.676; the
+  2026-10-27 NOTE), under the bar: reported, not registered. Aden's calls (TODO B20; the last 2026-10-26
+  DECISION): the drift readout dropped; a slower dense critic planned after `actor-design-1026`, its place
+  in the new order open (TODO B24, call 7).
+- **`actor-design-1026`** (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED; the 2026-10-27
+  LAUNCHED). It is eee's agent with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6;
+  `actor-resfit-shape-wide`, 362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's
+  actor unconstrained (`actor-eae`, at 2.5e-7). Seeds 2 and 3, against `arch-swap`'s `eee` and `ere`.
+  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) are running. Both smokes passed, both
+    early speeds are at their predictions (0.0355, 0.0321), and the gross-failure check passed.
+  - `actor-resfit-shape-wide 2` is in its smoke from 08:03 on 10-27.
+  - The readout is about 10:30 on 10-29, since runs take about 33 h with four on the machine. Watcher:
+    tmux `ad-watch`.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
-  the 2026-10-26 LAUNCHED and NOTE). Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`;
-  never above its step 0; its critic leaned on the window, 1.55 times the summary late, and valued online
-  data as the unconstrained critics did), `iface-wide-out` 0.452 (`gcrewpq2`), against `eee 2`'s 0.516.
-  `iface-wide-all 2` (`5shh877a`) was stopped at about 113k (Aden, the afternoon DECISION), a description
-  only. `iface-eee 2` (`mgcifv1y`) reaches 150k about 08:00 on 10-27. Still to run: `iface-window 3` again
-  (from about 15:30 on 10-26), then `iface-wide-out 3` and `iface-eee 3` (from about 10-28; the readout
-  about 04:30 on 10-30). `iface-wide-all 3` is dropped, so I1 is not read. `iface-watch` is its watcher.
-- **Parked:** the observation, latency and chunk experiments (TODO B23), until both groups are read and
-  the actor is settled (Aden).
-- **Disk:** 21 GB free at 14:10 on 10-26, after the cleanup (875 MB of eval videos). About 10 GB when
-  both groups are done; the next `/wrapup`'s eval-video cleanup comes before then.
+  the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE).
+  - Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; never above its step 0; its critic
+    leaned on the window, 1.55 times the summary late, and valued online data as the unconstrained
+    critics did) and `iface-wide-out` 0.452 (`gcrewpq2`). The anchor `iface-eee` scored 0.676
+    (`mgcifv1y`), against `eee 2`'s 0.516.
+  - `iface-wide-all 2` (`5shh877a`) was stopped at about 113k (Aden), a description only.
+  - Still to run: `iface-window 3` (`n94ucnlv`, running, to 150k about 01:30 on 10-28), then
+    `iface-wide-out 3` and `iface-eee 3`, unless Aden has them wait behind the long runs (TODO B24, call 3).
+  - `iface-wide-all 3` is dropped, so I1 is not read. Watcher: tmux `iface-watch`.
+- **What goes with beating the base** (a 49-run analysis, 2026-10-27; `outputs/diagnostics/success-correlates/`;
+  TODO B24). Not yet an EXPERIMENTS.md entry, which is Aden's call.
+  - Two necessary conditions: the early speed band (0 of 21 runs outside it beat the base) and a
+    constrained or ResFiT critic (0 of 6 unconstrained).
+  - The best early signal is training success at 10k–30k (ρ +0.80).
+  - eee's gap to ResFiT is the critic's value of online data: 0.005 early against ResFiT's 0.082.
+  - Every run above the base was still climbing at 150k.
+- **Disk:** 18 GB free at 08:31 on 10-27. About 10 GB when both groups are done; the next `/wrapup`'s
+  eval-video cleanup comes before then, and the long runs need the duplicate best models reclaimed (TODO B24, call 4).
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -48,100 +58,34 @@ This file describes what is true right now. Rewrite it in place; do not append. 
 
 ## Where the project is
 
-**New on 2026-10-19 and 10-20** (EXPERIMENTS.md, the 2026-10-20 LAUNCHED, NOTEs and DECISION):
-- **Every run of the three groups is finished.** Each reached 150k with no stop, its package
-  complete. At 110k–150k, of 250, at seed 2 (the base alone pools to 0.553; ResFiT's anchors scored
-  200 and 157):
+**The actor-speed groups** (2026-10-15 to 10-20; EXPERIMENTS.md, the 2026-10-20 LAUNCHED, NOTEs and
+DECISION) are finished and read, and what they leave is in "What the actor-speed groups leave", below.
+Of their 13 runs at seed 2, `arch-wide` (`h216n857`) scored best: 160 of 250 at 110k–150k (0.640),
+ResFiT's seed-2 level, and the only one above the base (0.553) by more than noise. Every fast arm settled
+by 50k–70k at or below the base. Aden's decision (2026-10-20): the next experiments are architectural, with
+no follow-up of the speed line. Condensed on 2026-10-27; the 13-run table is in the 2026-10-20 NOTEs.
 
-  | Run | Arm | 110k–150k |
-  |---|---|---|
-  | `h216n857` | `arch-wide` | **160 (0.640)** |
-  | `x3xopn1y` | `actorln448` (`arch-wide`'s actor, init0's critic) | 128 |
-  | `rqgb47jo` | `actorln` at lr 3e-6 | 124 |
-  | `762bhig5` | init0 at lr 3e-5 | 115 |
-  | `0jqo4jrx` | init0 at lr 1e-5 | 110 |
-  | `p7rodove` | init0 at lr 1e-4 | 106 |
-  | `8sgfkskv` | `actorln` | 104 |
-  | `7y6cp532` | `actor448` at lr 3e-6 | 97 |
-  | `vnpqtnva` | `actor448` | 93 |
-  | `oav5gk76` | init0, the anchor | 83 |
-  | `xsordrhh` | `actorln448` at lr 1e-5 | 78 |
-  | `5cj1rbpu` | `criticln` | 71 |
-  | `dhhq151o` | `heads` | 56 |
+**The week before** (2026-10-13 to 10-16; EXPERIMENTS.md, those dates' NOTEs; condensed on 2026-10-27):
+- **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.** With the actor's off it
+  scored 0.144 and 0.264 at 110k–150k, against the anchors' 0.714, and its residual was near its limit
+  within 3k steps. The registered 10k–30k bar sat inside seed spread, which is why later groups read
+  110k–150k.
+- **What the equivariant stack carries does not hurt ResFiT's residual:** its action limits, noise and
+  rotation range, and the re-rendered demos (0.716–0.828).
+- **The equivariant baseline** scored 0.272 and 0.216 (`od8u86i1`, `dja2kbb6`), below the base (0.582).
+  init0 (`oav5gk76`) scored 0.332, which is not established.
 
-  `arch-wide` is still the best equivariant residual. It is the only one above the base by more than
-  noise, and by about 2 standard errors at the eval's measured noise. No other arm matches it (139).
-- **`equi-actor-speed-1016`:** every arm is better than init0, and none matches `arch-wide`. For both
-  rate arms the registered reading is "speed is part of it". For `actorln448` it is "the critic parts
-  add something in combination"; its gap to `arch-wide` opens only after 100k.
-- **`equi-speed-matched-1017`:** all four cells of the 2×2 of norm and width reached matched early
-  speed.
-  - **The actor's norm keeps the residual off its limit early.** Both norm cells stay under it at
-    3k–10k. Both no-norm cells pin z and yaw at 0.100.
-  - It also scores more: +0.12 at 10k–30k, and +0.09 at 110k–150k.
-  - The width adds nothing late (−0.02) and costs early (−0.05).
-  - The cheap recipe, `actorln` at a 3× rate, does not match `arch-wide` (124).
-  - Past the matched speed, the norm does not protect: everything stacked (78) is below its parent
-    (128).
-  - init0's learning-rate curve is flat from 1e-5 to 1e-4 (110, 115, 106).
-- **Across the 13 runs** (the 2026-10-20 NOTE, Claude's reading):
-  - **A 50-episode eval is about 1.4 times as noisy as the binomial rules assume.** The base alone
-    scored 0.34–0.68 at step 0 across 15 runs. So `arch-wide`'s 0.82 at 140k is most likely a lucky
-    eval: its training-episode success did not move.
-  - Every fast arm settles by 50k–70k, at or below the base, and stays flat. ResFiT's seed 2 settles
-    the same way (0.628); its seed 1 keeps climbing (0.800).
-  - Late in training, the residual is near its limit in every arm: xy at 0.086–0.099 of 0.1, and tilt
-    at 0.063–0.096.
-  - What holds the plateau is open: the residual's range and seed variation both fit.
-- **Aden's decision (2026-10-20):** the next experiments are architectural, and no follow-up of the
-  speed line is planned. Every run still goes to its full 150k with no automatic stop (2026-10-17),
-  and no seed 3 is run for now.
-
-**The week before** (2026-10-13 to 10-16; EXPERIMENTS.md, those dates' NOTEs):
-- **ResFiT's residual needs its actor's LayerNorm, not its critic's or its ViTs'.**
-  - At two seeds each, 110k–150k: actor's off 0.144 and 0.264; critic's off 0.776 and 0.720; the
-    ViTs' off 0.792 and 0.812; actor's and critic's off (`noln`) 0.032 at both; the anchors 0.714
-    pooled.
-  - Without it the residual is near its limit within 3k steps (0.07 of 0.1, against 0.03), its actor's
-    gradient then falls (0.015 late), and its online value stays near zero.
-  - The registered 10k–30k bar could not separate the critic's or the ViTs' arms. It sits inside seed
-    spread; the late window separates them cleanly. That is why later groups read 110k–150k.
-- **What the equivariant stack carries does not hurt ResFiT's residual:**
-  - its action limits (0.800), noise (0.824) and rotation range (`fk9ayyco` 0.716);
-  - the re-rendered demos (`bue9dupf` 0.828).
-- **The equivariant baseline:** 0.272 and 0.216 at 110k–150k (seeds 2 and 3, `od8u86i1`,
-  `dja2kbb6`), below the base (0.582).
-  - init0 (`oav5gk76`) scored 0.332, ahead of the baseline by about its own seed spread. Not
-    established.
-  - `notilt` scored 0.200, so removing tilt did not help.
-
-**The equivariant residual on Square loses the base policy within 10k steps in every run, and the
-loss looks like a wrist that rolls after the grasp** (EXPERIMENTS.md, 2026-10-12 FINDING and NOTE).
-Three runs on the re-rendered demos, seed 1 each: `6ng62tpm` (the actor's last layer at 1e-4),
-`eaqorqki` (at zero) and `doevaarp` (a 50k critic warm-up).
-- **The shape:** each holds the base at first (0.50–0.62 at step 0), falls to 0–0.02 by 10k, then
-  partly recovers as its residual pulls back (`doevaarp` 0.22 at 30k; `eaqorqki` 0.30 at 80k). The
-  training curve's early peak is the base policy, before the residual has grown.
-- **The behavior:** the approach and the grasp look like the base's; from about step 70 the wrist
-  rolls a little more each step, until the gripper points sideways holding the nut away from the
-  peg. The base never does this. Later (`doevaarp` at 100k) a second mode appears: grasps that
-  never lift the nut.
-- **Tilt is not the whole cause** (EXPERIMENTS.md, 2026-10-12 NOTE, the field test).
-  - At `ls0thn4u`'s 10k checkpoint, zeroing any one field of the residual leaves 0–1 success of
-    100: −tilt 1, against 57 with the whole residual zeroed. Tilt alone scores 22.
-  - `notilt` (`dczf4k7v`), which cannot tilt, scored 0.02, 0.00 and 0.14 at 10k, 20k and 30k.
-  - So the damage is spread over the residual's fields, though tilt alone does real harm.
-- **The two stacks bound tilt differently.** ResFiT's rx cap is 0.036 env units, set by its demos'
-  narrow rx range; the equivariant stack's tilt pair is a disk of radius 0.1, one bound per pair
-  (EQUIVARIANCE.md, "Clipping has to respect the representation"). ResFiT's residual is larger and
-  saturated, and works, so size alone does not explain the collapse.
-- **Ruled out or held:** the 1e-4 start is not the cause (`eaqorqki`), and a better-informed critic
-  did not stop the drift (`doevaarp`). A penalty on the residual's size is held: the weight that
-  would stop the drift (about 1.8, from the per-sample slope of about 0.018) would hold ResFiT's
-  useful residual down too.
-- **Run since** (2026-10-13 to 10-15): ResFiT's residual given the equivariant stack's differences
-  one at a time, and its LayerNorms off one place at a time ("The week before", above); the
-  equivariant residual's anchors to 150k. `notilt` ended at 0.200 at 110k–150k.
+**The equivariant residual on Square lost the base policy within 10k steps in every run of 2026-10-12, and
+the loss looked like a wrist that rolls after the grasp** (EXPERIMENTS.md, 2026-10-12 FINDING and NOTEs;
+condensed on 2026-10-27).
+- Each run held the base at step 0 (0.50–0.62), fell to 0–0.02 by 10k, then partly recovered.
+- No single field of the residual carries it. In the field test, zeroing any one field leaves 0–1
+  successes of 100, against 57 with the whole residual zeroed. `notilt` ended at 0.200 at 110k–150k, so
+  tilt is not the cause.
+- Ruled out: the 1e-4 start (`eaqorqki`) and a better-informed critic (`doevaarp`).
+- A penalty on the residual's size is held, since it would hold ResFiT's useful residual down too.
+- The 10k dip is in every arm since (0.00–0.24 in arch-swap), but arch-swap's `eee` and `ere` now end
+  above the base.
 
 **Every other experiment was cancelled on 2026-10-12** (DEVIATION), Aden judging their lessons in:
 `eaqorqki` was stopped at 80.2k, and `square-trlpd-stab-1010` keeps one seed per arm and no verdict.
@@ -314,15 +258,15 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 13:40 on 2026-10-26:**
+**At 09:00 on 2026-10-27:**
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-eae`'s smoke (from 13:38), then `actor-eae 2` and `iface-window 3`; `iface-wide-all 2` was stopped at about 113k at 13:33 (Aden, the afternoon DECISION) | both about 20:30 on 10-27 |
-| 1 | `iface-eee 2` (`mgcifv1y`, about 59k); `actor-resfit-shape 2`, its trainer started about 13:25 | `iface-eee 2` about 08:00 on 10-27; `actor-resfit-shape 2` about 18:30 on 10-27 |
+| 0 | `actor-eae 2` (`e4220e3z`, about 83k) and `iface-window 3` (`n94ucnlv`, about 77k) | about 22:30–23:30 on 10-27; about 01:30 on 10-28 |
+| 1 | `actor-resfit-shape 2` (`j457zalw`, about 87k); `actor-resfit-shape-wide`'s smoke from 08:03, then its seed 2 | about 22:00–23:00 on 10-27; about 18:30 on 10-28 |
 
-Queued in `order-1026`, in order: `actor-resfit-shape-wide 2` (its smoke first), `actor-resfit-shape 3`, `actor-eae 3`,
-`actor-resfit-shape-wide 3`, `iface-wide-out 3`, `iface-eee 3`. The times are in the afternoon DECISION.
+Queued in `order-1026`, in order: `actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`,
+`iface-wide-out 3`, `iface-eee 3`. `iface-eee 2` (`mgcifv1y`) finished at 07:58 on 10-27.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
@@ -369,9 +313,9 @@ How the runs are launched and followed:
   - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
     stays: the launcher scripts name it.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 14:10 on 10-26:**
+- **tmux, at 09:00 on 10-27:**
   - `order-queue` and `queue-digest`;
-  - `q-actor-resfit-shape-2` and `q-iface-eee-2`, one per running job;
+  - `q-actor-resfit-shape-2`, `q-actor-eae-2` and `q-iface-window-3`, one per running job;
   - the watchers `ad-watch` and `iface-watch`;
   - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
     every 20 s; it logs, and woke a Claude session below 8 GB when one was open).
@@ -518,17 +462,20 @@ How the runs are launched and followed:
 
 ## The plan, and why
 
-**0. Now: `arch-swap-1021`** (TODO B20): which of the equivariant agent's three networks, and
-which property of each (its weight constraint, or ResFiT's design), holds the equivariant residual
-below ResFiT's. Running, to about 03:00 on 10-25; every early speed was inside the band and `rrr 2`
-passed the gross-failure check against `bue9dupf`. Once all twelve are at 150k: `/analyze-experiment`
-against the PRE-REGISTERED rules, the NOTE, the drift readout (TODO B20), then phase 2. The
-actor-speed line closed on its readouts; "What the actor-speed groups leave" has what it found.
+**0. Now: `actor-design-1026`** (TODO B22), read about 10:30 on 10-29: whether ResFiT's actor beats ours
+(C4) through its wiring, its free parameters, or its lack of a constraint. `enc-iface-1023`'s last runs
+beside it (TODO B21).
 
-**1. Read the residual and equivariant history again** once the plan reports: which conclusions
-survive the render fix.
+**1. Next, in Aden's order** (2026-10-27 DECISION; TODO B24 has the to-do list and the calls):
+- **The long runs:** ResFiT's agent and `eee` to 300k, to see whether 150k is too short and whether the gap
+  closes. Every run above the base was still climbing at 150k.
+- **Then O and L** (TODO B23): the nut's pose to the agent, aimed at the critic's missing value of online
+  data, and sampled latency, for robustness.
+- **Then more tasks, and the tuning** aimed at the critic's signals.
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
+
+**3. Read the residual and equivariant history again:** which conclusions survive the render fix.
 
 ## Do not delete
 

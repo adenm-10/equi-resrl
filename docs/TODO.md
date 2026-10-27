@@ -10,18 +10,108 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 ## B — Square and the bimanual task
 
 **Now: the actor's design, `actor-design-1026` (B22), running; the encoder's interface,
-`enc-iface-1023` (B21), half run; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
-2026-10-26).** Then B23 (the observation, latency and chunk ideas), parked until B22 and B21 are read.
+`enc-iface-1023` (B21), its last runs; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
+2026-10-26).** Next, in Aden's order (2026-10-27 DECISION; B24): the long runs, then the object-centric
+and sampled-latency experiments (B23's O and L), then more tasks and the tuning.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
-### B23. The observation, latency and chunk experiments — PARKED until B22 and B21 are read and the actor is settled (Aden, 2026-10-26) `[SC]`
+### B24. The next phase, in Aden's order: the long runs, then object-centric and sampled latency, then more tasks and the tuning — PLANNING 2026-10-27; nothing coded or queued (Aden, 2026-10-27) `[SC]`
 
-Ideas Aden asked for on 2026-10-26, held here until `actor-design-1026` and `enc-iface-1023` are read
-and the actor is figured out. Nothing is coded, planned or queued. Next: a plan in `docs/plans/` for
-Aden's approval, with each arm one change on the anchor B22 leaves (likely `ere`, or a shaped actor),
-two seeds to 150k, and every new field off by default and bit-identical when off (the regression
+The order is Aden's (EXPERIMENTS.md, 2026-10-27 DECISION, with Claude's recommendations against it on
+record). [The plan](plans/2026-10-27-long-and-tuning.md) (local) has the long group's and the tuning
+group's designs, and in its section 5 this to-do list with its timing. O and L's designs are in B23.
+
+**What it rests on:** a 49-run analysis (`outputs/diagnostics/success-correlates/analyze.py`, its table
+`runs.json`; its findings in the 2026-10-27 PROGRESS entry and the plan's section 1). Every one of the 16
+runs above the base was still climbing at 150k, which is the case for the long runs.
+
+**Aden's calls, first** (Claude's recommendation in each):
+1. **Which long runs:** the core pair, ResFiT's own agent (`resfit-residual-square-rerendered`) and
+   `arch-swap-eee`, to 300k at new seeds 4 and 5, checkpoints every 50k. `arch-swap-ere` and the B22 winner
+   are optional tiers.
+2. **How many at once: two.** RAM caps it at three (about 38 GB a run once the buffer fills at 200k).
+   Two leave two slots for O and L from 10-29. Three leave one, about five days for O and L's first wave.
+3. **What waits:** `iface-wide-out 3` and `iface-eee 3` behind the long runs. actor-design's seeds 3 keep
+   their place, so B22 reads about 10:30 on 10-29.
+4. **The reclaim of the duplicate `models/best_model.pt` files,** each byte-identical to its package's
+   `wandb_best/` copy: yes. That is 18 in finished packages (6.9 GB on 10-27), and 3 more as the running
+   runs end. The disk is at 17 GB free; the long core needs about 10 GB, O and L's first wave about 5 GB.
+5. **O and L's design calls** (B23).
+6. **The gate adds a commit to `retry/tier2_passed.txt` itself** once its Tier 2 passes: yes.
+7. **Where the slower dense critic (B20) goes:** with the tuning screens, since it is a critic-rate
+   question.
+8. **The 49-run analysis as an EXPERIMENTS.md NOTE** (offered on 10-27).
+
+**The to-do, before the results** (coarse; the days are targets):
+1. **The long runs (10-27 and 10-28).**
+   - `submit.sh`: the run length per arm (`ARM_STEPS` is fixed at 150000) and `checkpoint_interval=50000`
+     for the long arms; `tests/test_sweep_arms.py` for each. One commit, whose first gate runs Tier 2
+     (about 2 h).
+   - Pre-register: the windows 160k–200k, 210k–250k and 260k–300k; converged (the last two pools within
+     0.05, and 200-episode re-evaluations at 250k and 300k within two standard errors); a collapse (a pool
+     0.2 below an earlier one); the gap to ResFiT per window; the signals against each curve; the spread
+     at 150k.
+   - The queue: a new job list, with the long runs in the first slots the seeds 3 do not take (the first
+     about 18:30 on 10-28) and a RAM rule for long runs at once. Restart it while it only waits. Make the
+     watchers and the digest cover the new names: the digest reads `actor-*` and `iface-*` only, and the
+     watchers write the EVAL lines it reads.
+2. **L, the code by the evening of 10-28.**
+   - An env wrapper with an observation FIFO and an action FIFO, the delay fields 0 by default. A test that
+     delay 0 gives today's rollouts exactly.
+   - An eval at fixed delays 0–3 from a checkpoint. The trainer's own evals stay at delay 0, so the pools
+     stay comparable.
+   - L0, eval only: the base alone and existing best models (`eee`, `ere`, ResFiT's) at fixed delays. It
+     runs where GPU memory allows (four runs leave about 2 GB a GPU), else before O and L's training.
+   - Pre-register L0 and L2.
+3. **O, the code by the morning of 10-29.**
+   - Keep the nut's pose through the wrapper: its position, rotation, and pose relative to the gripper.
+     robosuite computes it every step.
+   - The demos: the same fields from robomimic's states, the buffer caches rebuilt, and a check that demo
+     and online values agree at reset (frame and units).
+   - Equivariance: the xy about the rotation centre as an irrep(1) field, z as trivial, the rotation in
+     the end-effector's 6-D encoding. Tests for each.
+   - Pre-register O1.
+4. **O and L launch (10-29).** One commit, both off by default; its Tier 2 once; the queue's smokes. L2
+   and O1 at seed 2 in the slots the long runs leave, then seeds 3 as slots free. The LAUNCHED entries.
+5. **While they run.**
+   - `tools/residual_field_ablation.py` for ResFiT's agent, for the long runs' 200-episode
+     re-evaluations; it reads the equivariant agent only.
+   - The readout scripts: each long run's curve by window, success against delay, and O1 against `eee`.
+   - B22's readout, which sets the tuning anchor.
+
+**The results, roughly:**
+- ResFiT's long run about 10-30: about 30 h from the evening of 10-28.
+- `eee`'s long run about 11-01: about 64 h.
+- O1 and L2 at seed 2 about the evening of 10-30, their seeds 3 over the weekend.
+
+**Then, after these results:**
+- **More tasks.** Each needs a base policy, re-rendered demos and a render check. Can (`v7`) and
+  BoxCleanup (ACT) have base policies.
+- **The tuning group** (the plan's section 3).
+  - Stage 1: 50k screens at seed 2, each one change from the anchor. They are scored on the online value
+    at 20k–50k, with the speed band as a gate. The arms: critic rate 3e-4 and 3e-5, updates per step 8 and
+    2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
+  - Stage 2: the best 2–3 at 150k, seeds 2–4.
+
+### B23. The observation, latency and chunk experiments — O and L UN-PARKED 2026-10-27, after the long runs (B24); C still parked (Aden, 2026-10-26 and 10-27) `[SC]`
+
+Ideas Aden asked for on 2026-10-26 and parked until B22 and B21 were read. On 10-27 Aden put O and L after
+the long runs (EXPERIMENTS.md, 2026-10-27 DECISION). Their to-do and timing are B24's. C stays parked.
+Nothing is coded or queued. Every new field is off by default, and bit-identical when off (the regression
 fingerprint).
+
+**The first wave** (Claude's, 2026-10-27): L0, eval only; L2 `delay-rand` and O1 `obj-both`, each at two
+seeds to 150k. Then O2 and L3 in a second wave.
+
+**Design calls for Aden** (Claude's recommendation in each):
+- **The anchor:** eee's launch. It has four 150k runs to read against (0.516–0.676), and B22 reads on the
+  morning O and L launch.
+- **Where L's delay applies:** to observations and actions both, as L2 below. The base sees the delayed
+  frames too.
+- **L2's range:** 0–2 steps each, drawn per episode and held, and evaluated at 0, 1, 2 and 3. The policy
+  is not told its delay; L3 tests telling it.
+- **Which networks get O's pose:** both actor and critic in O1, the critic alone in O2.
 
 **Where things stand** (read from the code on 2026-10-26):
 - **The residual sees** two 84×84 cameras, the 9-number proprio state (`robot0_eef_pos`, `_quat`,
@@ -83,13 +173,10 @@ control latency, sampled and held over many steps, were critical to its transfer
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
 
-**Suggested order** (Claude's, 2026-10-26):
-1. L0 and C0 first, eval only, in spare GPU room. They change no recorded run, and show where the
-   effects are large.
-2. The code while the GPUs are busy.
-3. After B22's readout, a first training wave of O2, O1, C2 and L2 (8 runs, about 2.6 days on four slots).
+**The order** (Claude's suggestion of 2026-10-26, L0 and C0 first in spare GPU room, then the code, then a
+wave of O2, O1, C2 and L2) is replaced by B24's and the first wave above.
 
-### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — QUEUED 2026-10-26, `actor-resfit-shape 2` first (Aden, 2026-10-26) `[SC]`
+### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — RUNNING from 2026-10-26; seed 2 of two arms running, the third in its smoke (Aden, 2026-10-26) `[SC]`
 
 C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's
 launch, seeds 2 and 3, read against arch-swap's `eee` and `ere` (EXPERIMENTS.md, 2026-10-26 CODE,
@@ -98,22 +185,24 @@ DECISION and PRE-REGISTERED).
   tests; the three arms in `submit.sh`, the sweep-arm tests and the watcher; the calibration
   (`outputs/diagnostics/actor-design/`: the 128-field arm at 3e-6, the 362-field at 1e-6, `eae` at 2.5e-7);
   `iface-window 3` stopped for the slot (Aden); the queue (`order-1026`) and the watcher (`ad-watch`).
-- **Next, automatic** (times with `iface-wide-all 2` stopped at 13:33 on 10-26, and Tier 2 skipped
-  on relaunches; the 2026-10-26 DECISION, afternoon): `actor-resfit-shape 2` passed its gate (953 tests)
-  and is starting. `actor-eae 2`, after its smoke, and `iface-window 3` (again) take GPU 0 (in wandb
-  about 16:00). `actor-resfit-shape-wide 2`, after its smoke, takes `iface-eee 2`'s slot (about 10-27
-  09:40). Then the seeds 3 from about 10-27 18:30. Every check Claude would make by hand is in tmux
-  `queue-digest`'s page, `outputs/queue/launchers/order-1026/digest.md`: each smoke, each early speed
-  against its prediction (the 128-field arm 0.035 at 3e-6; `eae` about 0.033, the calibration's 0.056
-  over-predicting a dense actor as for `aaa`), and `actor-resfit-shape 2`'s evals to 50k (the
-  gross-failure check; a FLAG in `watch.log` if they fail it). The next session reads it first.
-- **Then:** the LAUNCHED entry; seed 2 at 150k (10-27 evening to 10-28 afternoon), a provisional read;
-  seed 3 at 150k (about 10-29 02:00): `/analyze-experiment` against the rules, the NOTE, the next step from
-  the PRE-REGISTERED entry's readings.
-- **Before the disk reaches 10 GB free** (about 9 GB when both groups are done; 21 GB on 10-26): the next
-  `/wrapup` deletes the finished runs' eval videos (H13).
+- **Now** (09:00 on 10-27; EXPERIMENTS.md, 2026-10-27 LAUNCHED):
+  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) are running, to 150k about 22:00–23:30
+    on 10-27. Both smokes passed, both early speeds are at their predictions (0.0355, 0.0321), and the
+    gross-failure check passed.
+  - `actor-resfit-shape-wide 2`'s smoke is running from 08:03 on 10-27, and its run follows to about
+    18:30 on 10-28.
+  - The seeds 3 follow, to about 08:00–10:30 on 10-29.
+  - `outputs/queue/launchers/order-1026/digest.md` has every run's state, rewritten every 30 minutes.
+- **Then:**
+  - Seed 2 at 150k, a provisional read.
+  - The readout about 10:30 on 10-29, since runs take about 33 h with four on the machine, not 29:
+    `/analyze-experiment` against the rules, then the NOTE. It reports C4 against all four of eee's runs
+    too (the 2026-10-27 NOTE: +0.093).
+  - The next step from the PRE-REGISTERED entry's readings. The readout also sets the tuning anchor (B24).
+- **Before the disk reaches 10 GB free** (18 GB on 10-27), the next `/wrapup` deletes the finished runs'
+  eval videos (H13).
 
-### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 of two arms at 150k (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
+### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 done, `iface-window 3` running (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 
 [The plan](plans/2026-10-23-encoder-interface.md) (local), approved by Aden on 2026-10-23 with Claude's
 recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
@@ -124,14 +213,19 @@ DECISION), the critic-window arm first (2026-10-24 DECISION).
   to share its GPU with a CNN run); seed 2 of `iface-window` (0.236) and `iface-wide-out` (0.452) at
   150k, a description beside `eee 2` (2026-10-26 NOTE: the window's critic leaned on the window, and its
   run never beat its step 0).
-- **Now** (the 2026-10-26 DECISIONs): `iface-eee 2` (`mgcifv1y`, 150k about 08:00 on 10-27) running.
-  `iface-wide-all 2` (`5shh877a`) was stopped at about 113k at 13:33 (Aden; I1 was already unread), so it
-  is a description to 110k only. `iface-window 3` again on GPU 0 from about 15:30 on 10-26, then
-  `iface-wide-out 3` and `iface-eee 3`, starting about 10-28 14:45 and 23:30. `iface-wide-all 3` is
-  dropped. Queue: `order-1026`.
-- **Then:** probe `eee 3`'s encoder (`python -m tools.encoder_probe probe eee3`; it finished on 10-24);
-  wave 2 at 150k (about 10-30 04:30): `/analyze-experiment` against the rules, the NOTE, and the next
-  step from the PRE-REGISTERED entry's outcome table.
+- **Now** (10-27):
+  - `iface-eee 2` (`mgcifv1y`) finished at 0.676 (the 2026-10-27 NOTE). eee's four runs average 0.599, so
+    C4 against them is +0.093.
+  - `iface-window 3` (`n94ucnlv`) is running, to 150k about 01:30 on 10-28.
+  - `iface-wide-out 3` and `iface-eee 3` are next in `order-1026`, unless Aden has them wait behind the long
+    runs (B24, call 3).
+  - `iface-wide-all 2` was stopped at about 113k, so it is a description to 110k only, and
+    `iface-wide-all 3` is dropped.
+- **Then:**
+  - Probe `eee 3`'s encoder: `python -m tools.encoder_probe probe eee3`.
+  - Wave 2 at 150k: `/analyze-experiment` against the rules, the NOTE, and the next step from the
+    PRE-REGISTERED entry's outcome table. Its date waits on B24's call 3: about 10-30 if those two runs
+    keep their place.
 - **The wandb cache cleanup** (tmux `wandb-cache`) keeps running for this group and B22's.
 
 ### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — DONE 2026-10-26: read, its NOTE written; the drift readout dropped (Aden, 2026-10-20 and 10-26) `[SC]`
@@ -286,56 +380,22 @@ upstream's tuned RLPD learns Can in upstream's env (mujoco 3.3.2) but not in our
    render that does not match the demos (`tools/render_check.py`), on Can and Square. Its bar is
    2.5x the within-demo gap, not about 2x: the matching render sits at 2.06x on Can. New:
    `read_buffer_caches=false`, for the baselines' "no cache reads".
-4. **Re-measure B_sq and B_can,** 500 episodes each with `eval_base_policy`, as before.
+4. **DONE 2026-10-07: B_sq and B_can re-measured,** 500 episodes each with `eval_base_policy`
+   (EXPERIMENTS.md, 2026-10-07 LAUNCHED and MEASUREMENT).
 5. **DONE 2026-10-07: the equivariant agent logs `critic_diagnostics`** (same CODE entry), and
    the trainer calls it for both agents.
-6. **The baselines,** each pre-registered before launch. 150k steps, 2 seeds, 50-episode evals
-   every 10k, buffers built in memory with no cache reads:
-
-   | Arm | Task | Config | Overrides |
-   |---|---|---|---|
-   | ResFiT tuned RLPD | Can | `tuned_rlpd_can_config` | none |
-   | Equivariant tuned RLPD | Can | `equi_tuned_rlpd_can_config` | the design below; actor init at its default |
-   | ResFiT residual | Square | `residual_td3_square_config` | `agent.critic.num_q=10` (the paper's and `870ws2c2`'s) |
-   | Equivariant residual | Square | `residual_equi_td3_square_config` | the design below; `agent.actor.actor_last_layer_init_scale=1e-4` |
-   | Equivariant residual, zero init | Square | `residual_equi_td3_square_config` | the design below; `agent.actor.actor_last_layer_init_scale=0.0` |
-
-   - **Aden's review of the arms (2026-10-07):**
-     1. Base policies pinned, `v9` (Square) and `v7` (Can, for B_can), not `latest`.
-     2. wandb where each kind of run has gone: both tuned-RLPD arms in `robomimic-can-final` /
-        `tuned-rlpd` (all 11 earlier tuned-RLPD Can runs; `equi-tuned-rlpd` never held one); ResFiT's
-        Square residual in `robomimic-square-final` / `residual-rl` (all 5 earlier, `870ws2c2`
-        among them; its config's default project was never used); the equivariant ones in
-        `equi-residual-rl`, the config default.
-     3. The disk bound is a stack difference, written up for review: ARCHITECTURE.md, "The two
-        stacks side by side".
-     4. The actor as built; `num_actor_layers` is dead and not set.
-     5. Two seeds.
-     6. The zero-init arm added. The evidence against zero init is `a3e3zylp` (0.88 → 0.00)
-        against `z8yoqylh` (1e-4, 0.82 → 0.94), confounded with host and software, both on
-        near-blank images (EQUIVARIANCE.md, "What actually changed"). At the design, a
-        zero-initialized residual leaves zero within 4 actor updates with no NaN (checked
-        2026-10-07); `equi_tanh` has gradient 1 at the origin.
-   - **The ResFiT tuned-RLPD arm's seed 1 is the validation:** its 20k and 30k evals must score at
-     least 5 of 100, as `zwmk393l` did. Launch the rest only after it has.
-   - **The equivariant design** (Aden, 2026-10-07), on both equivariant arms:
-     `equivariance.residual_squash=true` (equi_tanh, times `action_scale`: 0.1 for the residual,
-     1.0 vanilla; checked equivariant, STATUS); `agent.critic.num_q=10`;
-     `equivariance.num_critic_layers=2`; `equivariance.critic_norm=field_norm`;
-     `equivariance.actor_norm=none`; the actor at 2 layers × 128 regular fields, like the critic
-     (`num_actor_layers=2`, `actor_degree_channel=128`, `critic_degree_channel=128`, the defaults).
-     The tuned-RLPD actor keeps its default init: it outputs the whole action, not a correction,
-     so it need not start small (Aden).
-   - **A 10-minute smoke run of each equivariant arm first,** for speed and RAM: 10 heads and a
-     second critic layer will be slower than the 0.44 s/step of earlier equivariant runs. Measured
-     for the tuned-RLPD arm on 2026-10-07: 0.41 s/step over 800 steps (`rhqmlon0`, CODE, "mujoco
-     3.3.2"), RAM not measured. The residual arm's is still to do.
-   - **Verdicts:** tuned RLPD passes iff the mean of its 110k–150k evals is at least the new B_can;
-     a residual arm passes iff that mean beats the new B_sq by at least 2 standard errors.
-   - **Resources:** about 40 GiB per Square residual run and about 25 GB per tuned-RLPD run at
-     150k, so two at a time, one per GPU. About 8 h per ResFiT arm; 18 h or more per equivariant
-     arm. With no cache read, a Square residual run fills its offline buffer in the run: 26.6 min
-     (`u0itew7i`, the same entry).
+6. **DONE: the baselines** (condensed 2026-10-27). The plan as written then is in EXPERIMENTS.md's
+   2026-10-07 PRE-REGISTERED entry for the fixed-env baselines: the five arms, the shared settings, the
+   equivariant design, the validation, the verdicts and the resources.
+   - **Kept here, from Aden's review of the arms (2026-10-07), because the entry does not hold it:** the
+     zero-init arm was added on the evidence of `a3e3zylp` (0.88 → 0.00) against `z8yoqylh` (1e-4, 0.82 →
+     0.94). That evidence is confounded with host and software, and both runs saw near-blank images
+     (EQUIVARIANCE.md, "What actually changed").
+   - At the design, a zero-initialized residual leaves zero within 4 actor updates with no NaN (checked
+     2026-10-07); `equi_tanh` has gradient 1 at the origin.
+   - The tuned-RLPD actor keeps its default init, since it outputs the whole action, not a correction
+     (Aden).
+   - The disk bound is a stack difference: ARCHITECTURE.md, "The two stacks side by side".
 
 **Updates:** EXPERIMENTS.md, STATUS.md, CLAUDE.md (setup), tests/README.md (the gate check).
 
@@ -574,29 +634,17 @@ lost two runs to wandb deletion and this is the one that matters.
 
 ### H5 — RESOLVED 2026-10-24: EXPERIMENTS.md left out, the budget 350 KB `[HI]`
 
-**Aden, 2026-10-24:** option 1 below, with the ceiling set to what the rewritable docs hold now plus a
+**Aden, 2026-10-24:** the first option below, with the ceiling set to what the rewritable docs hold now plus a
 little room: 350 KB for everything but EXPERIMENTS.md (329 KB that day; the whole set was 999 KB).
 Over budget means condensing the rewritable docs, never trimming EXPERIMENTS.md. CLAUDE.md, the
-session-end skill and the wrapup skill state it with one command. The original item follows.
+session-end skill and the wrapup skill state it with one command.
 
-Needed a decision from Aden. The budget in CLAUDE.md is 150 KB for `CLAUDE.md` + `docs/*.md` +
-skills + `settings.json`. After the run-package session on 2026-09-25 it is **201 KB by the
-`wc -c` check in CLAUDE.md, roughly 34% over**. That session added 11.7 KB, mostly the Run packages
-section in ARCHITECTURE.md and its PROGRESS.md entry; the bimanual session before it added the
-EQUIVARIANCE.md, ARCHITECTURE.md and TODO.md material that work required.
-
-The structural problem: **EXPERIMENTS.md is 40.4 KB, 27% of the budget, and is append-only by
-project rule** — and rule 5.4 requires a pre-registration for every run, plus a correcting entry
-whenever a past claim turns out wrong. It can only grow, so the ceiling will be breached further
-every session that launches anything. This session alone added ~10.6 KB there, all of it mandated.
-
-Three options:
-
-1. **Exclude EXPERIMENTS.md from the budget** and apply the ceiling to the docs that are rewritable.
-   Most consistent with the append-only rule. Recommended.
-2. **Raise the ceiling** to 200 KB and revisit later. Simple, delays the question.
-3. **Keep cutting the rewritable docs.** Not recommended — the remaining content is load-bearing,
-   and the next cuts would trade correctness for size, which the session-end skill forbids.
+**The problem it resolved** (condensed on 2026-10-27): EXPERIMENTS.md is append-only, and rule 5.4 requires
+a pre-registration for every run, so it can only grow. Under the old ceiling (150 KB for `CLAUDE.md`,
+`docs/*.md`, the skills and `settings.json`; 201 KB by 2026-09-25) every session that launched anything
+breached it further. The options were to leave EXPERIMENTS.md out (recommended, and chosen), raise the
+ceiling, or keep cutting the rewritable docs. The last was not recommended, since the next cuts would
+trade correctness for size.
 
 **Updates:** CLAUDE.md.
 

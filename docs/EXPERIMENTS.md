@@ -10245,3 +10245,121 @@ Aden, at about 13:50 on 10-26, took Claude's recommendation on each (TODO B20):
    `58d55d7`, whose agent computes as `aec1bdc`'s bit for bit. That is reported, not a registered
    contrast. More seeds of `eee` and `ere` come only if `actor-design-1026` reads nothing (its readings'
    last row).
+
+---
+
+## 2026-10-27 — LAUNCHED — `actor-design-1026`'s first two runs and `iface-window 3` again: both smokes passed; Tier 2 skipped on the two commits that had passed it; every early speed at its prediction; the gross-failure check passed
+
+Written at about 09:00 on 10-27, from the run packages' manifests, the consoles
+(`outputs/queue/20261026-*_<job>_gpu?.log`), `outputs/queue/launchers/order-1026/order_queue.log` and the
+watchers' `outputs/queue/watch.log`. All three launched through `order-1026/order_queue.sh` (tmux
+`order-queue`, from 09:44 on 10-26; the 2026-10-26 DECISIONs). Each manifest records its worktree's commit,
+clean (`a5b5cc8` for actor-design, `58d55d7` for enc-iface), mujoco 3.3.2, and an argv that is eee's launch
+with its arm's pre-registered changes and nothing else (the 2026-10-26 PRE-REGISTERED entry's table; the
+2026-10-23 one for `iface-window`).
+
+| Job | Took the slot of | Launched | GPU | Gate: Tier 1; Tier 2 | In wandb | 150k (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `actor-resfit-shape` 2 | `iface-window 3`'s first launch (`dwww8nes`, stopped by hand at 09:43 on 10-26), after its smoke | 10-26 11:15 | 1 | 213; 953 (124 min) | 14:17 | about 22:00–23:00 on 10-27 | [**`j457zalw`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/j457zalw) |
+| `actor-eae` 2 | `iface-wide-all 2` (`5shh877a`, stopped by hand at 13:33), after its smoke | 14:25 | 0 | 213; skipped | 15:05 | about 22:30–23:30 on 10-27 | [**`e4220e3z`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/e4220e3z) |
+| `iface-window` 3 | GPU 0's second slot, which nothing could share with `iface-wide-all` | 14:30 | 0 | 233; skipped | 15:17 | about 01:30 on 10-28 | [**`n94ucnlv`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/n94ucnlv) |
+
+- **Tier 2 skipped** on `actor-eae 2` and `iface-window 3` (the 2026-10-26 DECISION, afternoon):
+  `retry/gate_python.sh` found each commit in `retry/tier2_passed.txt` and printed where it passed
+  (`a5b5cc8` in `actor-resfit-shape 2`'s gate at 11:15; `58d55d7` in `iface-window 2`'s on 10-24 and
+  four since). Tiers 1 and 3 ran, about 3 minutes each, and the gate went GO with "Tier 2 skipped" among
+  its warnings. Tier 2 at `a5b5cc8` is 953 tests in 124 minutes, against 886 in 111 at `58d55d7`: the
+  actor-design tests.
+- **The smokes** (`outputs/diagnostics/actor-design/smokes/`; each `<arm>.check`), each in the first slot
+  its arm's job reached, before the job. Each reached 1,000 steps, logged its three evals, `debug/q_data_*`
+  and the 28 `debug/residual_field/*` keys, and saved a best model that reloads into its config's agent
+  (`ResFiTShapedActor`; `AblatedActor`). Each finalized its package (commit `a5b5cc8`, clean). Each PASS.
+
+  | Smoke | Ran | Beside | Package | ms per env step | Trainer's GPU peak (MiB) | RAM peak, trainer and workers (GiB) | Residual at 500, 1,000 |
+  |---|---|---|---|---|---|---|---|
+  | `actor-resfit-shape` | 10-26 09:49–11:15, GPU 1 | `iface-eee 2` | `j4yurxpe` | 730 | 4,720 | 13.87 | 0.0136, 0.0293 |
+  | `actor-eae` | 13:38–14:25, GPU 0 | nothing | `yb77d23k` | 388 | 4,886 | 13.52 | 0.0211, 0.0358 |
+
+  `actor-resfit-shape-wide`'s smoke started at 08:03 on 10-27 on GPU 1, beside `actor-resfit-shape 2`,
+  in `iface-eee 2`'s slot (exited 07:58).
+- **The early speed** (the watchers' `SPEED` lines), each inside 0.025–0.045 and near its prediction:
+  `actor-resfit-shape` 0.0355 (predicted 0.0346); `actor-eae` 0.0321 (about 0.033 expected, `aaa`'s
+  measured; the calibration's 0.0558 over-predicts a dense actor, as registered); `iface-window` 0.0352
+  (0.0367; its first launch, `dwww8nes`, 0.0379).
+- **The gross-failure check passed:** `actor-resfit-shape 2`'s evals at 10k–50k were 0.00, 0.14, 0.52,
+  0.44, 0.62, not all at or below 0.10 (`order-1026/digest.md`). No FLAG since 10-26.
+- **Evals so far, nothing read** (one seed, short of 110k): `actor-resfit-shape 2` 0.64 at step 0, then
+  0.00 0.14 0.52 0.44 0.62 0.66 0.66 0.58 to 80k; `actor-eae 2` 0.58, then 0.04 0.12 0.36 0.56 0.44 0.54
+  0.58 0.60; `iface-window 3` 0.56, then 0.02 0.14 0.36 0.22 0.30 0.20 0.36 to 70k.
+- **RAM** 94 of 125 GB used and **disk** 18 GB free at 08:31 on 10-27, three runs and a smoke.
+- **Still to run** in `order-1026`, in order: `actor-resfit-shape-wide 2` (its smoke now), `actor-resfit-shape
+  3`, `actor-eae 3`, `actor-resfit-shape-wide 3`, `iface-wide-out 3`, `iface-eee 3`. Whether the last two
+  wait behind the long runs is Aden's call (the DECISION below).
+
+---
+
+## 2026-10-27 — NOTE — `iface-eee 2` at 150k: 0.676 (`mgcifv1y`), the fourth run of eee's launch; eee's four runs average 0.599, so C4 against them is +0.093, under the bar. Reported, not a contrast: `iface-eee 3` is still to run
+
+- **Commit** `58d55d7`, clean · **Config** `residual_equi_td3_square_config`, eee's launch (enc-iface's
+  anchor; the 2026-10-23 PRE-REGISTERED entry) · **Task** Square, re-rendered demos · **Seed** 2 ·
+  **Seed group** `enc-iface-1023` · [wandb](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/mgcifv1y)
+  · package `outputs/runs/robomimic-square-final/mgcifv1y` (complete).
+- **Steps** 150,000, exited at 07:58 on 10-27 · **step-0** 0.56 · **best** 0.80 (110k) · **final** 0.66.
+  Evals 0 to 150k: 0.56 0.16 0.26 0.24 0.32 0.50 0.54 0.52 0.72 0.54 0.72 0.80 0.62 0.74 0.56 0.66.
+  110k–150k: **0.676**, 0.116 above its own step 0. Early speed 0.0351 (predicted 0.0367).
+- **Config caveats:** none of the overrides is a no-op (the agent refuses a field off its default that no
+  network of its mix reads; 2026-10-20 CODE). Its agent computes as `aec1bdc`'s bit for bit (the
+  2026-10-26 DECISION, item 3).
+- **Outcome:** the best of eee's launch at 150k. Its four runs, 110k–150k: `arch-wide 2` (`h216n857`,
+  seed 2) 0.640, `eee 2` (`wk45zp27`, seed 2) 0.516, `eee 3` (`jr63pxb9`, seed 3) 0.564, `iface-eee 2`
+  0.676. Mean **0.599**, range 0.160. Three are at seed 2, the same starting weights.
+- **Interpretation:** C4 (`ere` − `eee`, two seeds pooled at the bar of 0.13) was +0.152 in arch-swap's
+  NOTE. Against the mean of all four runs of eee's launch it is 0.692 − 0.599 = **+0.093**, under the bar.
+  So C4's count rests on which of eee's runs it is read against. This is the reading the 2026-10-26
+  DECISION (item 3) asked for at actor-design's readout, reported and not registered. It is not final:
+  `iface-eee 3` is still to run. The same-seed spread (0.516 to 0.676 at seed 2) is above the bar, which
+  is the long group's question 3 (TODO B24): how large the run-to-run spread is at 150k.
+- **Changed vs. previous:** nothing in the agent; the commit (`58d55d7`, enc-iface's) and the week.
+
+---
+
+## 2026-10-27 — DECISION — the order after `actor-design-1026`: the long runs first, then the object-centric and sampled-latency experiments, then more tasks and the tuning (Aden). Nothing is coded or queued yet
+
+**Aden, on the morning of 10-27:** "lets try to queue up some long runs, then test obj centr and latency
+delays, then expand num of envs and hyperparam tuning."
+1. **The long runs** (TODO B24; the plan `docs/plans/2026-10-27-long-and-tuning.md`, local): existing
+   arms to 300k with checkpoints every 50k, at new seeds 4 and 5. A run's first 150k stays comparable
+   with every 150k run, since nothing in the trainer reads the run's length but its loop's end. The core
+   is ResFiT's own agent (`resfit-residual-square-rerendered`) and `arch-swap-eee`.
+2. **Then O and L** (TODO B23): **they are un-parked.** On 10-26 they were parked until
+   `actor-design-1026` and `enc-iface-1023` were read and the actor was settled (the 2026-10-26 DECISION,
+   afternoon). Their first wave goes in the slots the long runs leave. The chunk experiments (C) stay
+   parked.
+3. **Then more tasks and the tuning.** Claude reads "expand num of envs" as new tasks. If it meant more
+   parallel envs per run, that changes the data per update, so it would be a tuning arm.
+
+**Why the long runs:** every one of the 16 runs above the base in the 49-run analysis
+(`outputs/diagnostics/success-correlates/analyze.py`) was still climbing from 60k–100k to 110k–150k, by
++0.02 to +0.19, and 7 had their best eval at 140k or 150k. No residual run on this setup has gone past
+150k. Aden gave no other reason.
+
+**Against Claude's recommendations, on record:**
+- The plan's own order was the tuning screens first, then the long group with the best screen in it.
+- Claude's answer on 10-27 was O and L first, with only ResFiT's long pair in the first free slots, since
+  its config never changes. Then the long runs and the tuning on the setup O, L and actor-design leave.
+  The reasoning: tuning depends on the setup; O1 aims at the same gap the tuning does (the critic's value
+  of online data); and a 64 h long run is worth most on the setup that is kept.
+- Aden chose the long runs first.
+
+**What it costs:** RAM holds three long runs at most (about 38 GB each once the buffer fills at 200k). Two
+long runs at once leave two slots for O and L from about 10-29. Three would leave one, and O and L's
+first wave would take about five days in it.
+
+**Open, for Aden** (TODO B24 lists them with Claude's recommendations):
+- which long runs, and how many at once;
+- whether `iface-wide-out 3` and `iface-eee 3` wait behind them;
+- reclaiming the 21 duplicate best models (8.0 GB);
+- O and L's design calls (TODO B23);
+- where the slower dense critic (the 2026-10-26 DECISION, item 2) goes in this order.
+
+`actor-design-1026`'s seeds 3 keep their place, so its readout (about 10:30 on 10-29) stands.
