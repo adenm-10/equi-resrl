@@ -10403,3 +10403,87 @@ captured before `bue9dupf` launched; its code path has changed since only by two
 
 **Changed vs. previous:** `submit.sh`, three test files, the watcher, `tests/README.md` and the wrapup
 skill (the long runs' `models/step_*.pt` are never deleted). The trainer is untouched.
+
+---
+
+## 2026-10-27 — PRE-REGISTERED — the long runs: ResFiT's own agent and `eee` to 300k with a checkpoint every 50k, at new seeds 4 and 5 (`long-1027`)
+
+**Decided by Aden** (TODO B24, calls 1–3; the 2026-10-27 DECISION; "the long runs are approved, submit
+them now", with the plan `docs/plans/2026-10-27-long-O-L-steps.md`, section 1, local). Code `78575b0`
+(the CODE entry above); **this entry's commit is the launch pin**, run from the worktree
+`equi-resrl-<this commit>`.
+
+**Questions:**
+1. Does each agent keep climbing past 150k, or level off? Every one of the 16 runs above the base in the
+   49-run analysis (`outputs/diagnostics/success-correlates/`) was still climbing at 150k.
+2. The gap to ResFiT by window: does it close, hold or grow? Described, not tested (below).
+3. The run-to-run spread at 150k: `eee` gets its fifth and sixth runs (four so far, 0.516–0.676), ResFiT's
+   re-rendered arm its second and third (`bue9dupf`, 0.828, alone so far).
+4. Do the critic's signals (online value, demo preference, training success) level off when the success
+   rate does?
+
+**The runs** (seed group `long-1027`; wandb `robomimic-square-final`, each its source arm's group):
+
+| Order | Arm | Source arm | Seed | Steps | Expected start, end |
+|---|---|---|---|---|---|
+| 1 | `long-eee` | `arch-swap-eee` (`equi-residual-rl`) | 4 | 300k | about 18:30 on 10-28, about 10-31 morning |
+| 2 | `long-resfit` | `resfit-residual-square-rerendered` (`residual-rl`) | 4 | 300k | about 08:00 on 10-29, about 10-30 afternoon |
+| 3 | `long-eee` | `arch-swap-eee` | 5 | 300k | when 2 ends, about 11-02 morning |
+| 4 | `long-resfit` | `resfit-residual-square-rerendered` | 5 | 300k | when 1 ends, about 11-01 afternoon |
+
+At most two at once, after `actor-design-1026`'s seeds 3; `iface-wide-out 3` and `iface-eee 3` after them
+(Aden). Times assume four runs on the machine (a CNN run about 64 h to 300k, ResFiT's about 30 h).
+
+**What is held fixed:** everything in the source arms' launches but `algo.total_timesteps` and
+`checkpoint_interval`, and the seed. Nothing under `resfit/` reads the run length but the trainer's loop end
+(pinned by `test_only_the_loop_end_reads_the_run_length`); the exploration noise is a constant 0.05; the
+buffer is a fixed 200k; a checkpoint save draws no random number and changes nothing in training (pinned for
+both agents). So **each run's first 150k is its source arm's run at a new seed**, and its 110k–150k pool
+joins the source arm's (the analysis maps `long-eee` to `arch-swap-eee` and `long-resfit` to
+`resfit-residual-square-rerendered`). ResFiT's own agent is pinned by `tests/test_action_bound.py`'s goldens,
+captured before `bue9dupf` launched. `oj5k0jqb` and `s8opblsd` are ResFiT on the original demos, another
+arm, and are not pooled with these.
+
+**The caveat:** from 200k the online buffer drops its oldest transitions, so 210k–300k is not the same
+training continued; a change there may be the eviction.
+
+**Readouts** (pools of five 50-episode evals, 250 episodes, for both arms alike; a window pool's standard
+error is about 0.045 with the measured 1.4 times over-binomial spread, so two pools differ by about 0.064 SD
+from noise alone; the rules below are descriptions at that precision, not tests):
+- **Comparability:** each run's 110k–150k pool, against its source arm's runs.
+- **Each run's curve (primary):** pools at 110k–150k, 160k–200k, 210k–250k and 260k–300k, and the line fitted
+  through the four.
+  - *Still climbing at 150k:* its 160k–200k pool is 0.05 or more above its 110k–150k pool.
+  - *Levelled off:* its last two pools are within 0.05 of each other.
+  - *Collapsed:* any pool 0.2 or more below an earlier one (as `x2w6phzf` collapsed in April).
+- **The gap to ResFiT per window:** reported as a description. With two seeds an arm, its standard error is
+  about 0.09; no claim that it closes or holds rests on it.
+- **The spread at 150k** over each arm's runs (`eee` six, ResFiT's re-rendered arm three).
+- **The signals** (`debug/q_data_online`, `debug/q_data_demo − debug/q_data_online`, training success per
+  10k) by window, against each curve.
+- **Secondary, if the tool is extended to ResFiT's agent while they run:** 200-episode re-evaluations of
+  each run's checkpoints at 150k, 200k, 250k and 300k (standard error about 0.035), for both arms alike.
+
+**Predictions** (Claude's, before launch): `eee` still rising at 150k and levelled by 250k–300k at about
+0.62–0.72; ResFiT rising to about 0.85–0.90 (the February 300k run, `870ws2c2`, reached 0.90 in the
+mismatched env); the gap about 0.15–0.20 at 300k, holding rather than closing.
+
+**Launch:**
+- Each arm's first job runs its smoke in its slot first (`outputs/diagnostics/long/smokes/`): 1,000 steps,
+  evals at 0, 500 and 1,000, offline; it must log its evals, its critic values and the 28 per-field residual
+  keys, write `best_model.pt` and `models/step_0.pt`, and both must load strictly into the agent its config
+  builds. ResFiT's own agent has not run end to end since about 10-15 and its RAM has never been measured;
+  its smoke measures it.
+- The queue `order-1027` (tmux `order-queue`): at most two long runs at once, and a job launches only while
+  MemAvailable, less 23 GB for each launch in the last 3 h, is at least 28 GB. Two long runs past 200k
+  (about 38 GB each) and two 150k runs (up to 34 GB) come to about 144 GB against 125 GB of RAM and 225 GB
+  of swap; some swap is expected late.
+- The first launch from this commit runs the full gate, Tier 2 included (about 2 h), and adds the commit to
+  `retry/tier2_passed.txt` itself.
+- Watcher: tmux `long-watch` (`tools/square_rerendered_watch.py --group long-1027`, from the pinned
+  worktree), watch-only. The digest (`outputs/queue/launchers/order-1027/digest.md`) shows each long run's
+  four pools and its checkpoints.
+
+**Disk:** seven checkpoints a run (0, 50k, …, 300k): about 1.56 GB for each ResFiT run and 0.61 GB for each
+`eee` run, about 4.3 GB in all, beside the packages and videos. Every `models/step_*.pt` of these runs is
+kept (the wrapup skill says so). 23 GB free on 10-27.

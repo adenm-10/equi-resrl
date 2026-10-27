@@ -16,7 +16,7 @@ and sampled-latency experiments (B23's O and L), then more tasks and the tuning.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
-### B24. The next phase, in Aden's order: the long runs, then object-centric and sampled latency, then more tasks and the tuning — PLANNING 2026-10-27; nothing coded or queued (Aden, 2026-10-27) `[SC]`
+### B24. The next phase, in Aden's order: the long runs, then object-centric and sampled latency, then more tasks and the tuning — the long runs QUEUED 2026-10-27; O and L planned (Aden, 2026-10-27) `[SC]`
 
 The order is Aden's (EXPERIMENTS.md, 2026-10-27 DECISION, with Claude's recommendations against it on
 record). [The plan](plans/2026-10-27-long-and-tuning.md) (local) has the long group's and the tuning
@@ -26,26 +26,20 @@ group's designs, and in its section 5 this to-do list with its timing. O and L's
 `runs.json`; its findings in the 2026-10-27 PROGRESS entry and the plan's section 1). Every one of the 16
 runs above the base was still climbing at 150k, which is the case for the long runs.
 
-**Aden's calls, first** (Claude's recommendation in each):
-1. **Which long runs:** the core pair, ResFiT's own agent (`resfit-residual-square-rerendered`) and
-   `arch-swap-eee`, to 300k at new seeds 4 and 5, checkpoints every 50k. `arch-swap-ere` and the B22 winner
-   are optional tiers.
-2. **How many at once: two.** RAM caps it at three (about 38 GB a run once the buffer fills at 200k).
-   Two leave two slots for O and L from 10-29. Three leave one, about five days for O and L's first wave.
-3. **What waits:** `iface-wide-out 3` and `iface-eee 3` behind the long runs. actor-design's seeds 3 keep
-   their place, so B22 reads about 10:30 on 10-29.
-4. **The reclaim of the duplicate `models/best_model.pt` files,** each byte-identical to its package's
-   `wandb_best/` copy: **DONE 2026-10-27** for the 18 in finished packages (6.9 GB; Aden), and 3 more as
-   the running runs end. The disk is at 24 GB free; the long core needs about 10 GB, O and L's first wave
-   about 5 GB.
-5. **O and L's design calls** (B23).
-6. **The gate adds a commit to `retry/tier2_passed.txt` itself** once its Tier 2 passes: yes.
-7. **Where the slower dense critic (B20) goes:** with the tuning screens, since it is a critic-rate
-   question.
-8. **The 49-run analysis as an EXPERIMENTS.md NOTE** (offered on 10-27).
+**Aden's calls** (2026-10-27):
+1–3. **Decided and done:** the core pair, `long-resfit` and `long-eee` (ResFiT's own agent and
+   `arch-swap-eee` run on), to 300k at seeds 4 and 5 with checkpoints every 50k; two at once; the iface pair
+   behind them, actor-design's seeds 3 keeping their place (EXPERIMENTS.md, 2026-10-27 CODE and
+   PRE-REGISTERED; the queue `order-1027`).
+4. **DONE:** the duplicate best-model reclaim (6.9 GB).
+5. **O and L's design calls:** B23's as recommended (Aden), and L0 decides whether L2 runs. Open: the plan's
+   calls 2a–2c and 3a–3d (`docs/plans/2026-10-27-long-O-L-steps.md`, local).
+6. **DONE:** the gate adds a commit to `retry/tier2_passed.txt` itself once a full gate passes.
+7. **The slower dense critic (B20):** with the tuning screens (Claude's recommendation, not objected to).
+8. **The 49-run analysis as an EXPERIMENTS.md NOTE:** to write (Claude's recommendation, not objected to).
 
 **The to-do, before the results** (coarse; the days are targets):
-1. **The long runs (10-27 and 10-28).**
+1. **The long runs: DONE 2026-10-27 but the launches** (the first about 18:30 on 10-28).
    - `submit.sh`: the run length per arm (`ARM_STEPS` is fixed at 150000) and `checkpoint_interval=50000`
      for the long arms; `tests/test_sweep_arms.py` for each. One commit, whose first gate runs Tier 2
      (about 2 h).

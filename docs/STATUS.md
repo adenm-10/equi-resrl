@@ -1,17 +1,18 @@
 # Status
 
-**Last updated:** 2026-10-27 · **Last verified commit:** `0d9fb30`, the actor's design (EXPERIMENTS.md,
-2026-10-26 CODE): its new tests, the sweep-arm tests for its three arms, the regression, config, no-op
-and ablated-family suites pass on the CPU, and its host-sync tests on GPU 0; the rest of Tier 2 runs as
-each launch's gate. `actor-design-1026` launches from `a5b5cc8`, its pre-registration; enc-iface's last jobs from
-`58d55d7`. Main is pushed to origin through the 2026-10-27 doc commits (Aden); no code has changed since `ef6829d`.
+**Last updated:** 2026-10-27 · **Last verified commit:** `78575b0`, the long runs' two arms (EXPERIMENTS.md,
+2026-10-27 CODE): the sweep-arm, watcher and run-package tests pass on the CPU; the GPU part runs in the
+first long launch's full gate. Nothing under `resfit/` has changed since `0d9fb30`. `long-1027` launches from
+its pre-registration commit, `actor-design-1026` from `a5b5cc8`, enc-iface's last jobs from `58d55d7`. Main
+is pushed to origin through `4a6ab43`; the long runs' two commits are local.
 
-**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last runs. The next phase is planned
-in Aden's order** (EXPERIMENTS.md, 2026-10-27 DECISION; TODO B24): the long runs, then the object-centric
-and sampled-latency experiments (TODO B23's O and L), then more tasks and the tuning. **None of it is coded
-or queued.** Aden's calls come first (TODO B24's list). One queue places both running groups' jobs: tmux
-`order-queue`, `outputs/queue/launchers/order-1026/order_queue.sh` (log `order_queue.log` there), which
-fits each job beside what is on a GPU by memory ("Running now", below).
+**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last runs. The long runs (`long-1027`)
+are coded, pre-registered and queued** (EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED): ResFiT's own
+agent and `eee` to 300k at seeds 4 and 5, two at once, after actor-design's seeds 3; the first launches
+about 18:30 on 10-28. Then the object-centric and sampled-latency experiments (TODO B23's O and L; their
+step-by-step plan is `docs/plans/2026-10-27-long-O-L-steps.md`, local, for Aden's approval), then more tasks
+and the tuning. One queue places every job: tmux `order-queue`,
+`outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
@@ -131,57 +132,23 @@ frames up to the GPU's own residue (1 level on a few edge pixels of about 1–2%
 frames; 2026-10-09 CODE). Every Square run since 2026-10-09 trains on them. Aden skipped the
 planned validation run on Can (2026-10-09).
 
-**Our conda env rendered the scene differently from the demos, and tuned RLPD learns once it does
-not** (EXPERIMENTS.md, 2026-10-07 FINDING and RESULTS, `upstream-clean-1007`). **From 2026-10-07 the
-env is pinned to mujoco 3.3.2, whose render matches the demos, and the gate checks it** (CODE,
-"mujoco 3.3.2").
-- **The mismatch.** mujoco 3.8.1, in the `residual` env from 2026-05-21 to 2026-10-07, renders
-  robosuite's floor as darker brownish planks. The demos show light grey tiles, and so does mujoco
-  3.3.2. Both load robosuite at the same commit (`77a47512`) with identical scene and texture files.
-  Rendering the same seeded scene in both, every pixel off the floor is identical.
-- **Its size,** as the gate's render check measures it (`tools/render_check.py`): the mean absolute
-  pixel difference between the average of 40 demo first frames and of 40 env reset frames, front
-  camera. The check fails above 2.5x the gap between the even and the odd demos:
-
-  | Task | Within demos | Bar | mujoco 3.8.1 | mujoco 3.3.2 (pinned) |
-  |---|---|---|---|---|
-  | Can | 0.0050 | 0.0125 | 0.0977 | 0.0103 ± 0.0003 |
-  | Square | 0.0052 | 0.0130 | 0.0166 ± 0.0007 (the floor is a thin strip) | 0.0086 ± 0.0005 |
-
-  Even the matching render sits at about 2x the within-demo gap (an even colour offset; the demos
-  are stored as video), which is why the bar is 2.5x. The wrist camera matches on both tasks.
-  Figures, frames and scripts: `outputs/diagnostics/` (outside git).
-- **Upstream's tuned RLPD, unmodified, in upstream's env learns Can:** 0 at 10k, 0.88 at 20k, 0.80
-  at 30k (`zwmk393l`). The same code, config and seed in our env scored 0 at every eval
-  (`rdoj0ex8`). Its critic loss sat about 30× ours and its actor's gradients about 10× ours; its
-  actor left the Tanh bound; by 10k its rollouts followed the demos' reach-then-bin sequence.
-- **The reading:** in our env the critic can tell every demo frame from every online frame by the
-  floor. "Demo floor, high value; env floor, zero" then fits all of its data without the action.
-  That accounts for the signature every tuned-RLPD run here showed:
-  - an action-blind critic (`dQ_da` about 6e-6) and an actor at its bound;
-  - Q on online transitions at exactly 0, and on demos at 0.65–0.85;
-  - Q about 0 from the first frame of every eval episode.
-- **Not yet separated** from upstream's env's other differences (torch 2.7.1, torchrl 0.9.2,
-  tensordict 0.9.1, against our 2.6.0, 0.7.0, 0.7.0). Only mujoco changes what the agent sees.
-  B15's validation run, our trainer in our env with mujoco alone changed, separates them.
-- **Every run of the project so far saw the mismatch,** residual and equivariant included:
-  strongly on Can, mildly on Square. So every tuned-RLPD result from 2026-10-04 to 2026-10-07 (the
-  screen, τ, the BC term, BC-encoder `44enq26h`, no warm-up `hi8t2hps`) says nothing about its
-  change in a matching env. What the mismatch did to the residual and equivariant runs is open.
-
-**Aden's plan (2026-10-07), TODO B15:** consolidate the worktrees into main; pin mujoco 3.3.2
-and put the render on each run's record; validate on Can; re-measure the base rates. Then new
-baselines: ResFiT and equivariant tuned RLPD on Can, ResFiT and equivariant residual on Square,
-with the equivariant design Aden set (B15).
-- **Done 2026-10-07:** every record in main, the queue runner fixed, mujoco pinned and on the
-  gate and the record, `read_buffer_caches` for runs that must not read a cache, and the
-  equivariant agent's critic diagnostics (EXPERIMENTS.md, the three CODE entries of that day).
-- **Pre-registered 2026-10-07, after Aden's review:** five arms, ten runs, 150k steps
-  (EXPERIMENTS.md, PRE-REGISTERED, "the fixed-env baselines"; seed-group
-  `fixed-env-baselines-1007`). Aden added the fifth, the equivariant residual with its last layer
-  initialized to zero. The validation run goes first; the other nine follow only if it scores 5
-  of 100 at 20k and 30k. The two stacks' differences, the disk bound among them, are in
-  ARCHITECTURE.md, "The two stacks side by side", for Aden's review.
+**Our conda env rendered the scene differently from the demos until 2026-10-07; from then the env is pinned
+to mujoco 3.3.2, whose render matches them, and the gate checks it** (EXPERIMENTS.md, 2026-10-07 FINDING,
+RESULTS and CODE, "mujoco 3.3.2"; condensed on 2026-10-27, the detail is there).
+- **The mismatch:** mujoco 3.8.1 (in `residual` from 2026-05-21 to 10-07) renders robosuite's floor as dark
+  planks; the demos and 3.3.2 show light grey tiles. Every pixel off the floor is identical.
+- **Its size** (`tools/render_check.py`: mean absolute pixel difference between 40 demo first frames and 40
+  env reset frames, front camera; the bar is 2.5 times the even-odd demo gap): Can 0.0977 under 3.8.1 and
+  0.0103 under 3.3.2 (bar 0.0125); Square 0.0166 and 0.0086 (bar 0.0130). The wrist camera matches on both.
+- **What it did:** the critic could tell every demo frame from every online frame by the floor, which fits
+  tuned RLPD's failure signature (an action-blind critic, online Q at exactly 0). Upstream's tuned RLPD,
+  unmodified, learns Can in upstream's env (`zwmk393l`: 0.88 at 20k) and not in ours (`rdoj0ex8`). Not yet
+  separated from upstream's newer torch, torchrl and tensordict; only mujoco changes what the agent sees.
+- **Every run before 10-07 saw it,** strongly on Can, mildly on Square; tuned-RLPD results of 10-04 to 10-07
+  say nothing about their change in a matching env.
+- **Aden's plan of 10-07 (TODO B15)** followed: worktrees into main, the pin on the gate and the record, the
+  base rates again, and the fixed-env baselines (2026-10-07 PRE-REGISTERED; ARCHITECTURE.md, "The two
+  stacks side by side").
 
 **Earlier bugs, still true of the old runs:** every equivariant run before `e15d36c` acted on
 near-blank images, and every one before `93a8ad4` trained against a frozen target critic
@@ -273,10 +240,13 @@ which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run
 needs it. New groups go in the watcher's watch-only set.
 
 How the runs are launched and followed:
-- **The queue:** `outputs/queue/launchers/order-1026/order_queue.sh`, in tmux `order-queue`, started at
-  09:44 on 10-26 with `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8`. Its log is `order_queue.log`
-  beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants and where each job
-  would fit.
+- **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
+  `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree. It
+  is `order-1026`'s queue (stopped while it waited) with the long runs added, at most two at once
+  (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
+  last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
+  `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,
+  where each job would fit, the memory and the long count.
   - At each slot free for 300 s (two per GPU), the first job in its list that fits that GPU's memory
     launches there through `retry/run_job.sh`, in tmux `q-<arm>-<seed>`. The run's gate goes first; a
     launch its gate stops is tried again, up to 3 tries 600 s apart.
@@ -292,16 +262,18 @@ How the runs are launched and followed:
   - **The gate skips Tier 2 on a commit that already passed it** (Aden, 2026-10-26 DECISION, afternoon).
     `run_job.sh` sets `PYTHON` to `retry/gate_python.sh`, which adds `--skip-tier2` to `preflight.py` for
     a commit listed in `retry/tier2_passed.txt` (`58d55d7`, `a5b5cc8`), and is plain python otherwise.
-    Tiers 1 and 3 still run. A new commit's first launch runs the full gate: add the commit to the list
-    once its Tier 2 passes.
+    Tiers 1 and 3 still run. A new commit's first launch runs the full gate, and from 10-27 a full gate that
+    passes, on a clean tree with CUDA visible, adds its commit to the list itself (TODO B24, call 6; the
+    old wrapper is `gate_python.sh.before-20261027`).
   - The gate prints nothing until each tier ends, so its console is blank for its first minutes, or
     about two hours with Tier 2 (953 tests, 124 minutes at `a5b5cc8`).
   - The render-guard test (`test_every_guard_passes_on_cans_first_demos`) still fails now and then in
     a gate that starts within minutes of a run exiting; the retry has passed it every time. Its failing
     assertion is still not recorded.
   - The scripts are in `outputs/queue/launchers/`, which is gitignored (TODO: move them into `tools/`).
-- **The digest** (tmux `queue-digest`; `order-1026/digest.py` every 30 minutes, by `run_digest.sh`). It
-  rewrites `outputs/queue/launchers/order-1026/digest.md`: each run's state, step and evals, its early
+- **The digest** (tmux `queue-digest`; `order-1027/digest.py` every 30 minutes, by `run_digest.sh`). It
+  rewrites `outputs/queue/launchers/order-1027/digest.md`: each long run's four windows and checkpoints,
+  MemAvailable, swap and each trainer's resident memory, and each run's state, step and evals, its early
   speed against the band and its arm's prediction, the gross-failure check of `actor-resfit-shape 2`
   (a FLAG line in `watch.log` once, if every eval at 10k–50k is at or below 0.10), the queue's smokes,
   launches and drops, every FLAG, and the GPUs, RAM and disk. It changes nothing about any run, and stops
@@ -310,6 +282,7 @@ How the runs are launched and followed:
   the group's pinned worktree), each watch-only: logged, FLAGged and finalized, never signalled.
   - `ad-watch` (`actor-design-1026`, from `equi-resrl-a5b5cc8`);
   - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
+  - `long-watch` (`long-1027`, from its pinned worktree);
   - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
     stays: the launcher scripts name it.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
@@ -468,8 +441,9 @@ How the runs are launched and followed:
 beside it (TODO B21).
 
 **1. Next, in Aden's order** (2026-10-27 DECISION; TODO B24 has the to-do list and the calls):
-- **The long runs:** ResFiT's agent and `eee` to 300k, to see whether 150k is too short and whether the gap
-  closes. Every run above the base was still climbing at 150k.
+- **The long runs, queued** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at seeds 4 and 5,
+  to see where each levels off; the gap is described. Every run above the base was still climbing at 150k.
+  First about 18:30 on 10-28; all four done about 11-02.
 - **Then O and L** (TODO B23): the nut's pose to the agent, aimed at the critic's missing value of online
   data, and sampled latency, for robustness.
 - **Then more tasks, and the tuning** aimed at the critic's signals.
