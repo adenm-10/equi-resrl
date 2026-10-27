@@ -296,3 +296,19 @@ def test_the_long_runs_are_never_stopped_and_log_their_early_speed():
             for i in range(1, len(rates) + 1):
                 for passed in (False, True):
                     assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+
+def test_the_object_arms_are_never_stopped_and_log_their_early_speed():
+    """obj-1027 (2026-10-27 PRE-REGISTERED, O1): the four arms to their own 150k with no automatic stop
+    of any kind (watch-only), through 16 evals and a runaway critic, each with its early speed logged."""
+    from square_rerendered_watch import FIXED_LENGTH_ARMS, OBJ, RESIDUAL_ARMS, SPEED_ARMS, WATCH_ONLY_ARMS
+
+    assert GROUPS["obj-1027"] == OBJ == ("obj-nut-eee", "obj-nut-rrr", "obj-peg-eee", "obj-peg-rrr")
+    assert set(OBJ) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    assert not set(OBJ) & FIXED_LENGTH_ARMS
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in OBJ:
+        for rates in (KYV7CLFC, OJ5K0JQB, [0.58] * 16, [0.0] * 16):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)

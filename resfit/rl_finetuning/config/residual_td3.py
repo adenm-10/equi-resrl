@@ -261,6 +261,12 @@ class ResidualTD3DexmgConfig(RLPDDexmgConfig):
     # the renderer's frames as they are.
     encode_env_frames_like_demos: bool = False
 
+    # The task objects' poses as an input to the residual's actor and critic, in the object-centric
+    # paper's shape (resfit/dexmg/environments/object_obs.py): "none", as every run before O1
+    # (2026-10-27); "nut", Square's nut; "nut+peg", the nut and its peg. On, the env and the demos
+    # store observation.object (both objects), and the encoder reads the objects named.
+    object_obs: str = "none"
+
     # Equivariant agent or not
     equivariance: EquivarianceConfig | None = None
 

@@ -45,6 +45,7 @@ from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
 
 import wandb
 from resfit.dexmg.environments.dexmg import create_vectorized_env
+from resfit.dexmg.environments.object_obs import OBJECT_KEY, check_object_obs, objects_read
 from resfit.lerobot.policies.act.configuration_act import ACTConfig
 from resfit.lerobot.policies.act.modeling_act import ACTPolicy
 from resfit.lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
@@ -262,6 +263,7 @@ def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action
     before. ResFiT's agent reads action_scaler, the run's, under agent.actor.action_bound=equivariant
     alone."""
     residual_run = cfg.base_policy is not None
+    objects = objects_read(cfg.object_obs)
     agent = None
     if cfg.equivariance is None:
         from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
@@ -285,6 +287,7 @@ def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
             residual_actor=residual_run,
+            objects=objects,
         )
 
         # Both arms are centred on the same point, so the group acts linearly
@@ -304,6 +307,7 @@ def build_agent(cfg: ResidualTD3DexmgConfig, *, obs_shape, prop_dim: int, action
             n_arms=cfg.equivariance.n_arms,
             gripper_dim=cfg.equivariance.gripper_dim,
             hand_dof=cfg.equivariance.hand_dof,
+            objects=objects,
         )
         agent.enc.set_normalizer(normalizer, robot_base_xy=rotation_center)
 
@@ -400,6 +404,11 @@ def main(cfg: ResidualTD3DexmgConfig):
     if cfg.write_buffer_caches and not cfg.read_buffer_caches:
         # A run that does not read the cache at its key would write over it.
         raise ValueError("read_buffer_caches=false needs write_buffer_caches=false")
+    # The task objects' poses (object_obs.py): the objects the networks read; on, the envs return
+    # observation.object, and both buffers store it.
+    objects = check_object_obs(cfg.object_obs, task=cfg.task, equivariant=equivariant_run, residual=residual_run,
+                               n_arms=cfg.equivariance.n_arms if equivariant_run else 1,
+                               dataset_features=dataset.meta.features)
     if not equivariant_run:
         state_standardizer = StateStandardizer.from_dataset_stats(
             state_stats=dataset.meta.stats["observation.state"],
@@ -445,6 +454,7 @@ def main(cfg: ResidualTD3DexmgConfig):
             video_key=video_key,
             debug=debug,
             encode_frames_like_demos=cfg.encode_env_frames_like_demos,
+            object_obs=bool(objects),
         )
 
         if not residual_run:
@@ -539,6 +549,8 @@ def main(cfg: ResidualTD3DexmgConfig):
     action_dim = env.action_space.shape[1]
 
     lowdim_keys = ["observation.state", "observation.base_action"] if residual_run else ["observation.state"]
+    if objects:
+        lowdim_keys.append(OBJECT_KEY)
 
     # ---------------------------------------------------------------------
     # Networks ------------------------------------------------------------
@@ -641,6 +653,9 @@ def main(cfg: ResidualTD3DexmgConfig):
     # Frames through the demos' codec are other frames; a key without the field stays as it was.
     if cfg.encode_env_frames_like_demos:
         online_cache_meta["encode_env_frames_like_demos"] = True
+    # A buffer with the objects' poses holds another key; both objects are stored whichever are read.
+    if objects:
+        online_cache_meta["object_obs"] = True
 
     pprint.pprint(online_cache_meta)
     _online_meta_str = json.dumps(online_cache_meta, sort_keys=True)
@@ -792,6 +807,8 @@ def main(cfg: ResidualTD3DexmgConfig):
             }
             if residual_run:
                 curr_obs["observation.base_action"] = base_action_scaled
+            if objects:
+                curr_obs[OBJECT_KEY] = sample[OBJECT_KEY].float().squeeze(0)
             # print(f"curr_obs shape: {curr_obs.shape}")
             # print(f"curr_obs: {curr_obs}")
             # assert False
@@ -873,6 +890,8 @@ def main(cfg: ResidualTD3DexmgConfig):
         offline_cache_meta["priority_beta"] = cfg.algo.priority_beta
     if not residual_run:
         offline_cache_meta.update(vanilla_cache_fields)
+    if objects:
+        offline_cache_meta["object_obs"] = True
 
     pprint.pprint(offline_cache_meta)
 

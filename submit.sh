@@ -6,10 +6,11 @@
 #   DRY_RUN=1 ./submit.sh resfit-residual-square-noln 1           # run the gate for that arm, then stop
 #   SKIP_PREFLIGHT=1 ./submit.sh ...                             # escape hatch, discouraged
 #
-# Currently configured for: the long runs (seed-group long-1027), ResFiT's own agent and arch-swap-eee's
-# to 300k with a checkpoint every 50k, pre-registered in docs/EXPERIMENTS.md, "2026-10-27 —
-# PRE-REGISTERED — the long runs (long-1027)". The groups before it stay in this table, each as it
-# launched: actor-design-1026 ("2026-10-26 — PRE-REGISTERED — the actor's design"; from a5b5cc8),
+# Currently configured for: the object-centric observation, O1 (seed-group obj-1027): the nut's pose, or
+# the nut's and the peg's, given to arch-swap-eee's agent and to arch-swap-rrr's, pre-registered in
+# docs/EXPERIMENTS.md, "2026-10-27 — PRE-REGISTERED — O1, the objects' poses (obj-1027)". The groups
+# before it stay in this table, each as it launched: long-1027 ("2026-10-27 — PRE-REGISTERED — the long
+# runs (long-1027)"; from e2fdb27), actor-design-1026 ("2026-10-26 — PRE-REGISTERED — the actor's design"; from a5b5cc8),
 # enc-iface-1023 ("2026-10-23 — PRE-REGISTERED — the encoder's interface"; from 58d55d7),
 # arch-swap-1021 ("2026-10-20 —
 # PRE-REGISTERED — the architecture swap"; from aec1bdc), equi-speed-matched-1017 ("2026-10-17 — PRE-REGISTERED — the
@@ -181,6 +182,17 @@
 #   long-resfit   resfit-residual-square-rerendered: ResFiT's own agent on the re-rendered demos.
 #   long-eee      arch-swap-eee: the all-equivariant agent at arch-wide's launch.
 #
+# obj-1027: two arms of arch-swap-1021 given the task objects' poses (object_obs; the object-centric
+# paper's shape: each object's position and quaternion, resfit/dexmg/environments/object_obs.py), on
+# the re-rendered demos with the poses added (local/robomimic-mh-square-rerendered-object, every other
+# column the re-rendered demos', byte for byte), for 150k steps at seeds 2 and 3. A 2x2: the nut alone
+# or the nut and its peg, on the all-equivariant agent or on ResFiT's networks in this agent. Every rate
+# is its source arm's. wandb robomimic-square-final / equi-residual-rl.
+#   obj-nut-eee   arch-swap-eee, the nut's pose (object_obs=nut).
+#   obj-peg-eee   arch-swap-eee, the nut's and the peg's (object_obs=nut+peg).
+#   obj-nut-rrr   arch-swap-rrr, the nut's pose.
+#   obj-peg-rrr   arch-swap-rrr, the nut's and the peg's.
+#
 # Every arm here runs to its full length (150k; the long group's 300k). From 2026-10-17 (DEVIATION) no
 # automatic stop of any kind applies, the divergence stop included: Aden stops a run by hand.
 
@@ -231,10 +243,28 @@ SWAP_HEADS=(equivariance.critic_norm=layer_norm agent.critic.num_q=10 equivarian
 IFACE_ANCHOR=("${EQUI_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448)
 # The long group's checkpoints. Its run length is ARM_STEPS, set in its arms below.
 LONG_RUN=(checkpoint_interval=50000)
+# The object group's demos, and EQUI_ANCHOR on them: its demos swapped, nothing else.
+OBJ_DEMOS=offline_data.name=local/robomimic-mh-square-rerendered-object
+OBJ_ANCHOR=()
+for o in "${EQUI_ANCHOR[@]}"; do
+    [[ "$o" == "$RERENDERED" ]] && o=$OBJ_DEMOS
+    OBJ_ANCHOR+=("$o")
+done
+# arch-swap-rrr's families and heads.
+RRR=(agent.critic.num_q=10 equivariance.encoder_family=resfit equivariance.actor_family=resfit
+     equivariance.critic_family=resfit)
 
 # Every arm's length but the long group's.
 ARM_STEPS=150000
 case "$ARM" in
+    obj-nut-eee)
+        ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 object_obs=nut) ;;
+    obj-peg-eee)
+        ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 object_obs=nut+peg) ;;
+    obj-nut-rrr)
+        ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RRR[@]}" object_obs=nut) ;;
+    obj-peg-rrr)
+        ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RRR[@]}" object_obs=nut+peg) ;;
     long-resfit)
         ARM_OVERRIDES=("${RESFIT_ANCHOR[@]}" "$RERENDERED" "${LONG_RUN[@]}") ARM_STEPS=300000 ;;
     long-eee)
@@ -267,8 +297,7 @@ case "$ARM" in
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${SWAP_HEADS[@]}" equivariance.encoder_family=ablated
                        equivariance.actor_family=resfit equivariance.critic_family=ablated) ;;
     arch-swap-rrr)
-        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" agent.critic.num_q=10 equivariance.encoder_family=resfit
-                       equivariance.actor_family=resfit equivariance.critic_family=resfit) ;;
+        ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${RRR[@]}") ;;
     arch-swap-rra)
         ARM_OVERRIDES=("${EQUI_ANCHOR[@]}" "${SWAP_HEADS[@]}" equivariance.encoder_family=resfit
                        equivariance.actor_family=resfit equivariance.critic_family=ablated) ;;
@@ -332,6 +361,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    obj-*)
+        SEED_GROUP=obj-1027 PROJECT=robomimic-square-final GROUP=equi-residual-rl
+        GATE=(--task Square --method residual --stack equi) ;;
     long-resfit)
         SEED_GROUP=long-1027 PROJECT=robomimic-square-final GROUP=residual-rl
         GATE=(--task Square --method residual --stack resfit) ;;

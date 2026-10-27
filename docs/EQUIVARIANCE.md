@@ -77,6 +77,40 @@ This regrouping is what the interleaved slicing at
 [obs_encoder.py:275-280](../resfit/rl_finetuning/equi_off_policy/networks/obs_encoder.py#L275)
 is doing. It looks like index gymnastics; it is the representation theory.
 
+### The task objects' poses (O1, `object_obs`): 9 dimensions per object
+
+With `object_obs` on (`"nut"`, or `"nut+peg"`), the encoder also reads `observation.object`
+([object_obs.py](../resfit/dexmg/environments/object_obs.py)). It stores 14 numbers: the nut's world
+position and quaternion (robosuite's `SquareNut_pos` and `SquareNut_quat`), then the square peg's body
+pose, in the same x y z w convention. That is the object-centric paper's shape, 7 numbers an object.
+Each object it reads is encoded exactly as the gripper is:
+
+| Slice (per object) | Content | Representation |
+|---|---|---|
+| 0:2 | object xy, minus robot base xy | `irrep(1)` |
+| 2:8 | object rotation, as 3 xy column pairs | 3 × `irrep(1)` |
+| 8:9 | object z | `trivial` |
+
+The raw quaternion is not a representation of C8. A turn of the scene by θ turns the quaternion's
+components by θ/2, and a full turn flips its sign. So the network reads it as the 6D rotation, for both
+the equivariant and the ResFiT networks.
+
+The objects follow the proprioception, and every network reads the two as one block, `lowdim_type`:
+- the critic reads `[images | window | proprioception | objects]`;
+- the actor reads `[images | proprioception | objects | base action]`.
+
+Off, `lowdim_type` is `prop_type` itself.
+
+On Square, the peg never moves. For `rrr` it is a constant input. For `eee` it is a fixed direction
+in the world (the 2026-10-27 FINDING), which C8 layers cannot otherwise produce. A scene turned with
+its peg is a true symmetry of that input.
+
+[test_object_obs.py](../tests/test_object_obs.py) checks the encoding from the physics. It turns a
+raw observation by each of the eight elements: positions about the base, every quaternion
+left-multiplied by the turn, and the base action's xy and tilt. The encoder's low-dimensional blocks
+must then equal the declared representation applied to the original's. The test runs with the objects
+off too, so it is the first check of the gripper's own encoding against the physics.
+
 ### Action — 6 + H dimensions per arm
 
 Delta end-effector pose in an OSC_POSE controller, plus the gripper or hand. Slices below are
@@ -242,6 +276,12 @@ Field names carry an arm index, so arm 0's is `pos_xy_0`. `ResObsEnc` and
 | `action_rx_ry` | identity | `irrep(1)`; identity is trivially isotropic |
 | `action_rz` | identity | `trivial` |
 | `action_hand` | plain range | `trivial` |
+| `obj_pos_xy_<object>` | symmetric, shifted by the rotation center | `irrep(1)`, as `pos_xy` |
+| `obj_pos_z_<object>` | plain range | `trivial` (the peg's is a constant, mapped to 0) |
+| `obj_rot_<object>` | identity | as `ee_rot` |
+
+Each object is normalized on its own statistics. So the nut's numbers are the same whether or not the
+peg is read, and the peg arms differ from the nut arms only by the appended block.
 
 This is all correct as written. It is also why the equivariant path sets the outer
 `StateStandardizer` and `ActionScaler` to identity and normalizes inside the encoder instead.

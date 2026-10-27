@@ -257,6 +257,23 @@ and the offline cache key records the name; the env and the codec switch are unt
 (EXPERIMENTS.md, 2026-10-08 CODE, "re-rendered demos"). Provenance: each dataset's
 `meta/rerender.json`.
 
+**The task objects' poses** (`object_obs`, top level, from 2026-10-27, default `"none"`; O1).
+- **The values:** `"nut"` or `"nut+peg"`. The run is refused outside Square, on ResFiT's own agent,
+  in vanilla RL, on two arms, and on demos without the key (`check_object_obs`).
+- **The env:** `RobosuiteGymWrapper` adds `observation.object`, declared unbounded in its observation
+  space, which AsyncVectorEnv needs, through `get_envs` to both envs. It stores 14 numbers, the nut's
+  position and quaternion then the peg's (`resfit/dexmg/environments/object_obs.py`, the one
+  definition).
+- **The buffers:** both store the key, and both cache keys gain `object_obs: true` only when on.
+- **The demos:** `local/robomimic-mh-square-rerendered-object`, built by `tools/add_object_obs.py`
+  (provenance in its `meta/object_obs.json`). It is the re-rendered Square demos file for file, with
+  the column added.
+- **The networks:** the encoder reads the objects named, after the proprioception (`ResObsEnc.objects`,
+  `obj_type`). Every family's networks take `lowdim_type` / `lowdim_dim` (proprioception and objects)
+  where they took `prop_type` / `prop_dim`. EQUIVARIANCE.md has the representations; off, they are
+  `prop_type` itself.
+- **Off:** every earlier run, bit for bit.
+
 The equivariant agent reads `agent.actor.action_scale` and `actor_last_layer_init_scale` in every
 family; ResFiT's actor reads the rest of `agent.actor`, and ResFiT's critic `agent.critic`. The
 equivariant and ablated critics read `agent.critic.num_q`, `min_q_heads` and `policy_gradient_type`
@@ -458,6 +475,7 @@ TODO P3.4.
 | `utils/checkpoint.py`, `utils/evaluate_dexmg.py`, `utils/rb_transforms.py`, `utils/dtype.py` | Checkpointing, evaluation rollouts, replay-buffer transforms, dtype helpers. From 2026-10-12 each eval also logs the gripper's tilt (`eval/tilt_max_deg_mean`, `eval/tilt_over_30deg_frac`: per episode, the largest angle between arm 0's gripper axis and its axis at the start), and scores Q at the base action plus the residual on both stacks (before, the equivariant residual's Q was scored at the residual alone; EXPERIMENTS.md, 2026-10-12 CORRECTION). |
 | `utils/field_metrics.py` | From 2026-10-12: the residual and the critic's per-sample slope per action field, on the logged update's online and demo rows (`debug/residual_field/*`, `debug/dQ_da_field/*`), both stacks. |
 | `dexmg/environments/dexmg.py` | `create_vectorized_env` — robosuite/mimicgen env construction. |
+| `dexmg/environments/object_obs.py` | From 2026-10-27 (O1): `observation.object`, the task objects' poses, defined once for the env and the demo builder (`tools/add_object_obs.py`); `object_obs`'s values and its startup refusals. |
 
 ## How a training step flows
 

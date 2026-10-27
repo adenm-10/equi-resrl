@@ -156,11 +156,11 @@ def render_device() -> int:
     return (visible_gpus() or [1])[0]
 
 
-def make_env(task: str, gpu: int):
+def make_env(task: str, gpu: int, object_obs: bool = False):
     os.environ["MUJOCO_GL"] = "egl"  # as the trainer sets it, before robosuite is imported
     from resfit.dexmg.environments.dexmg import RobosuiteGymWrapper
 
-    return RobosuiteGymWrapper(env_name=task, render_gpu_device_id=gpu)
+    return RobosuiteGymWrapper(env_name=task, render_gpu_device_id=gpu, object_obs=object_obs)
 
 
 def cameras(w) -> list[str]:

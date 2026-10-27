@@ -209,7 +209,7 @@ def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
 
 
 def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STATE_DIM,
-                action_dim: int = ACTION_DIM, base_action: bool = True) -> TensorDict:
+                action_dim: int = ACTION_DIM, base_action: bool = True, objects: bool = False) -> TensorDict:
     """A replay batch shaped like the trainer's, rebuilt identically per call.
 
     Rebuild it for every use: QAgent.update writes features into the obs dicts.
@@ -218,7 +218,8 @@ def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STAT
     its weighted branch, as in training. The fingerprint predates them.
     The layout defaults to Square's; tests/test_sync_free.py also builds a
     two-arm batch. base_action=False is a vanilla RL batch, whose observations
-    have no base action.
+    have no base action. objects=True adds the task objects' poses (object_obs.py),
+    drawn after everything else, so the rest of the batch is the one without them.
     """
     g = torch.Generator().manual_seed(1)
 
@@ -247,6 +248,11 @@ def fixed_batch(weights: bool = False, *, cameras=CAMERAS, state_dim: int = STAT
     )
     if weights:
         batch["_weight"] = torch.ones(BATCH)
+    if objects:
+        from resfit.dexmg.environments.object_obs import OBJECT_DIM, OBJECT_KEY  # not in older trees
+
+        for key in ("obs", ("next", "obs")):
+            batch[key][OBJECT_KEY] = torch.randn(BATCH, OBJECT_DIM, generator=g)
     return batch
 
 

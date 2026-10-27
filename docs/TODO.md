@@ -47,7 +47,11 @@ runs above the base was still climbing at 150k, which is the case for the long r
 **The to-do** (coarse; the days are targets):
 1. **The long runs: DONE but the launches** (the first about 22:00 on 10-27, its smoke and the full gate
    first). The watchers and the digest cover them.
-2. **O1, approved; the build started on the evening of 10-27** (the steps plan's section 2):
+2. **O1: BUILT 10-27** (the CODE entry). The rest:
+   - the `eee` arms pre-registered and queued;
+   - the `rrr` arms wait for Aden's call on their rate (STATUS).
+
+   The steps, as planned (the steps plan's section 2):
    - the pose through the wrapper;
    - the demos' column from robomimic's states;
    - its field types and tests: with the switch off, everything is today's bit for bit, and a turned raw
@@ -112,55 +116,31 @@ reference.
 **In all, about 1–1.5 weeks,** mostly waiting on the GPU. Steps 1–3 and 5 need no training slot, so they
 can run while O1 trains. The detailed copy is `docs/plans/2026-10-27-long-O-L-steps.md`, section 4 (local).
 
-### B23. The observation, latency and chunk experiments — O1 next, after the long runs (B24); L SIDELINED and C parked (Aden, 2026-10-26 and 10-27) `[SC]`
+### B23. The observation, latency and chunk experiments — O1 BUILT 2026-10-27 (B24); L SIDELINED and C parked (Aden, 2026-10-26 and 10-27) `[SC]`
 
-Ideas Aden asked for on 2026-10-26 and parked until B22 and B21 were read. On 10-27 Aden put O and L after
-the long runs, then sidelined L (EXPERIMENTS.md, the 2026-10-27 DECISIONs). O1's to-do is B24's.
-Nothing is coded or queued. Every new field is off by default, and bit-identical when off (the regression
-fingerprint).
-
-**The first wave:** O1 on `eee` and `rrr` at two seeds (B24, call 5). L0, L2 and the second wave wait.
-
-**Design calls for Aden** (Claude's recommendation in each):
-- **The anchor:** eee's launch. It has four 150k runs to read against (0.516–0.676), and B22 reads on the
-  morning O and L launch.
-- **Where L's delay applies:** to observations and actions both, as L2 below. The base sees the delayed
-  frames too.
-- **L2's range:** 0–2 steps each, drawn per episode and held, and evaluated at 0, 1, 2 and 3. The policy
-  is not told its delay; L3 tests telling it.
-- **Which networks get O's pose:** both actor and critic in O1, the critic alone in O2.
+Ideas Aden asked for on 2026-10-26. O1 is built and pre-registered (B24, call 5). L is sidelined until the
+long runs, O1 and a new task have results; its design calls stand as recommended: eee as the anchor, a
+delay on observations and actions with the base seeing the delayed frames, 0–2 steps drawn per episode and
+held, and the policy not told its delay. The steps plan's section 3 (local) has L's build. Every new field
+is off by default, and identical when off.
 
 **Where things stand** (read from the code on 2026-10-26):
-- **The residual sees** two 84×84 cameras, the 9-number proprio state (`robot0_eef_pos`, `_quat`,
-  `robot0_gripper_qpos`; `dexmg.py`'s `_get_expected_low_dim_keys`) and this step's base action.
-- **The nut's pose is dropped.** robosuite computes it every step, and our wrapper keeps only the keys
-  above. The demos' sim states (robomimic's `demo_v15.hdf5`, the path `tools/rerender_demos.py` uses) give
-  it for the demo half of the buffer.
-- **No latency.** The env runs at 20 Hz (`control_freq`), and the action from observation t is applied
-  at t.
-- **The base plans in chunks.** The Square base (`3hzs5bz1` v9) is a diffusion policy (DDPM, 100
-  denoising steps, fresh noise each plan). It plans `horizon` 16 steps from 2 observations and runs 15 of
-  them open-loop (`n_action_steps` 20, clipped to what the plan holds), so it re-plans every 0.75 s.
-- **The residual (`residual_env_wrapper.py`)** acts every step on `observation.base_action`, this step's
-  base action alone. It does not see where it is in the chunk or the rest of the plan. So between re-plans
-  it is the only closed-loop part, and its problem is partly hidden: the base's next action comes from a
-  plan it cannot see.
+- **No latency.** The env runs at 20 Hz, and the action from observation t is applied at t.
+- **The base plans in chunks.** The Square base (`3hzs5bz1` v9) is a diffusion policy (DDPM, 100 steps,
+  fresh noise each plan). It plans 16 steps from 2 observations and runs 15 of them open-loop, so it
+  re-plans every 0.75 s.
+- **The residual acts every step** on this step's base action alone. It does not see where it is in the
+  chunk, or the rest of the plan.
 
 **O. Object-centric observation** (after `docs/papers/obj_cent_resrl.pdf`: residual RL on 6-DoF object
 poses plus proprio plus the base action, with pose noise and dropout for sim-to-real).
-- O1 (`obj-eee`, `obj-rrr`): the nut's pose in the paper's shape to actor and critic, images kept
-  (B24, call 5). Does handing over what the encoder loses (the 2026-10-23 probe: the nut's xy
-  relative to the gripper) raise the level?
+- O1: **built 2026-10-27**, as a 2×2: the nut alone, or the nut with the peg (the old O4), on `eee` and
+  `rrr` (the CODE and PRE-REGISTERED entries of that date).
 - O2 `obj-critic`: the pose to the critic alone. Is the critic's view the bottleneck (arch-swap: the
   critic is where the constraint mattered)? The actor stays deployable without a pose estimator.
 - O3 `obj-only`: pose, proprio and base action, no images (the paper's recipe). Do images matter to the
   residual? Likely several times faster per run (unmeasured).
-- O4 `obj+peg`: O1 and the fixed peg's position. The peg breaks the scene's rotation symmetry. As an
-  input (an irrep(1) field), the equivariant network can use it and stay exactly equivariant. Tests
-  whether the scene's asymmetry is what the actor's constraint costs (if B22's D3 counts).
 - Later: the paper's noise and dropout (5 mm, 0.1 rad), for sim-to-real.
-- Equivariance: the nut's xy about the rotation centre is an irrep(1) field and z a trivial one; its
-  rotation takes the end-effector's 6-D encoding. So these are more fields of types the agent has.
 
 **L. Sampled latency and control delay** (after `docs/papers/steadyTray.pdf`: observation delay and
 control latency, sampled and held over many steps, were critical to its transfer).
@@ -189,9 +169,6 @@ control latency, sampled and held over many steps, were critical to its transfer
 - Later: a residual over the whole chunk at each re-plan (Policy Decorator's, which ResFiT contrasts
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
-
-**The order** (Claude's suggestion of 2026-10-26, L0 and C0 first in spare GPU room, then the code, then a
-wave of O2, O1, C2 and L2) is replaced by B24's and the first wave above.
 
 ### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — RUNNING from 2026-10-26; seed 2 of two arms running, the third in its smoke (Aden, 2026-10-26) `[SC]`
 

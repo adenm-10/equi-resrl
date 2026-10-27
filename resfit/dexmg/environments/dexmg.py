@@ -21,6 +21,7 @@ from robosuite import load_composite_controller_config, macros  # noqa: E402
 from robosuite.environments.manipulation.manipulation_env import ManipulationEnv  # noqa: E402
 
 from resfit.dexmg.environments.demo_codec import encode_like_demos  # noqa: E402
+from resfit.dexmg.environments.object_obs import OBJECT_KEY, square_object_obs  # noqa: E402
 
 macros.IMAGE_CONVENTION = "opencv"
 
@@ -93,6 +94,7 @@ class RobosuiteGymWrapper:
         render_size: tuple[int, int] | int | None = None,
         env_id: int = 0,
         encode_frames_like_demos: bool = False,
+        object_obs: bool = False,
     ):
         # ------------------------------------------------------------------
         # Allow common aliases used in the Robomimic literature.
@@ -127,6 +129,11 @@ class RobosuiteGymWrapper:
         self.env_id = env_id
         # True passes each camera frame through the demos' video codec (demo_codec.py).
         self.encode_frames_like_demos = encode_frames_like_demos
+        # True adds the task objects' poses, OBJECT_KEY (object_obs.py); Square only. The peg is read
+        # through robosuite's own peg1_body_id, which it resets with every new simulator.
+        if object_obs and env_name != "NutAssemblySquare":
+            raise ValueError(f"object_obs is defined for Square only, not {env_name}")
+        self.object_obs = object_obs
 
         # ------------------------------------------------------------------
         # Episode horizon -- override for some long-running DexMimicGen tasks.
@@ -240,11 +247,14 @@ class RobosuiteGymWrapper:
         sample_obs = self._process_obs_for_space_inference(sample_obs_raw)
 
         # Setup observation space based on actual observation shapes
+        # The images are in [0, 1]; the state and the objects' poses are unbounded. A key the space
+        # leaves out is dropped by AsyncVectorEnv, with no error.
         obs_spaces = {}
         for key, value in sample_obs.items():
+            unbounded = "state" in key or key == OBJECT_KEY
             obs_spaces[key] = gym.spaces.Box(
-                low=-np.inf if "state" in key else 0.0,
-                high=np.inf if "state" in key else 1.0,
+                low=-np.inf if unbounded else 0.0,
+                high=np.inf if unbounded else 1.0,
                 shape=value.shape,
                 dtype=value.dtype,
             )
@@ -282,6 +292,9 @@ class RobosuiteGymWrapper:
 
                 clean_key = img_key.replace("_image", "")
                 processed_obs[f"observation.images.{clean_key}"] = img
+
+        if self.object_obs:
+            processed_obs[OBJECT_KEY] = square_object_obs(obs, self.env.sim, self.env.peg1_body_id)
 
         return processed_obs
 
@@ -373,6 +386,9 @@ class RobosuiteGymWrapper:
                 # Use the same naming convention as dataset conversion: observation.images.{clean_key}
                 clean_key = img_key.replace("_image", "")
                 processed_obs[f"observation.images.{clean_key}"] = img
+
+        if self.object_obs:
+            processed_obs[OBJECT_KEY] = square_object_obs(obs, self.env.sim, self.env.peg1_body_id)
 
         # Store last obs for video recording (convert back to torch tensors on device)
         self._last_obs = {}
@@ -551,6 +567,7 @@ def make_dexmimicgen_env(
     render_gpu_device_id: int = 0,
     env_id: int = 0,
     encode_frames_like_demos: bool = False,
+    object_obs: bool = False,
 ):
     """Factory function to create a DexMimicGen environment for vectorization."""
 
@@ -563,6 +580,7 @@ def make_dexmimicgen_env(
             render_size=render_size,
             env_id=env_id,
             encode_frames_like_demos=encode_frames_like_demos,
+            object_obs=object_obs,
         )
 
     return _make
@@ -639,11 +657,13 @@ def create_vectorized_env(
     debug: bool = False,
     video_key: str = "observation.images.agentview",
     encode_frames_like_demos: bool = False,
+    object_obs: bool = False,
 ) -> VectorizedEnvWrapper:
     """Create vectorized environment using Gymnasium's vector environments.
 
     `encode_frames_like_demos` passes every camera frame the envs return through the demos' video
-    codec (demo_codec.py). The video renders (`render()`) are not passed through it.
+    codec (demo_codec.py). The video renders (`render()`) are not passed through it. `object_obs`
+    adds the task objects' poses (object_obs.py).
     """
 
     # Create list of environment factory functions
@@ -667,7 +687,7 @@ def create_vectorized_env(
         else:
             render_gpu_device_id = visible_device_ids[0] if visible_device_ids else 0
         env_fns.append(make_dexmimicgen_env(env_name, camera_size, render_size, render_gpu_device_id, env_id,
-                                            encode_frames_like_demos))
+                                            encode_frames_like_demos, object_obs))
 
     if debug:
         # Use synchronous vectorized environment for debugging

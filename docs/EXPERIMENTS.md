@@ -10606,3 +10606,131 @@ rrr on it"; then "submit the stack plan to docs".
    - the risk of no headroom, if the base succeeds above about 0.85.
 
    Nothing is built until Aden approves it.
+
+---
+
+## 2026-10-27 — CODE — O1, the task objects' poses (`object_obs`): the nut's, or the nut's and the peg's, in the object-centric paper's shape, to every network family; off, every earlier run bit for bit
+
+**What it adds** (the plan: `docs/plans/2026-10-27-long-O-L-steps.md`, section 2, approved by Aden as written;
+the evening DECISION):
+- **`object_obs`** (top level, default `"none"`): `"nut"` or `"nut+peg"`, read by the networks. At startup the
+  run is refused outside Square, on ResFiT's own agent, in vanilla RL, on two arms, and on demos without the
+  key (`check_object_obs`).
+- **`observation.object`, defined once** (`resfit/dexmg/environments/object_obs.py`). It holds 14 numbers:
+  - the nut's world position and quaternion, robosuite's own `SquareNut_pos` and `SquareNut_quat`, from the
+    same observation pass as `observation.state`;
+  - the square peg's body pose (`peg1`, through robosuite's `peg1_body_id`), in the same x y z w convention.
+
+  The env and the demos store both objects whichever are read: that is the paper's shape, 7 numbers an
+  object. robosuite's relative pose (`SquareNut_to_robot0_eef_*`) is not used.
+- **The env** (`RobosuiteGymWrapper`, `object_obs=True`) adds the key in `_process_obs` and in the space
+  inference, declared unbounded, through `get_envs` to the training and eval envs alike. The base policy
+  ignores the key (its normalizer and queues read only their own features).
+- **The demos:** `local/robomimic-mh-square-rerendered-object`, built by the new `tools/add_object_obs.py`.
+  - It is the re-rendered Square demos **file for file**, images included, with the column added in each
+    parquet (after `observation.state`, in the table and in its Hugging Face features), in `info.json`,
+    and in `episodes_stats.jsonl` (LeRobot's own statistics).
+  - The column is observed from robomimic's states as the re-render observed them: the first frame as
+    `reset()` leaves the state, every later one as `step()` does, through `_process_obs` with the switch
+    on.
+  - **Its guards** (the tool's docstring), all passed on the 300 demos (80,731 frames): the re-observed
+    `observation.state` is the source's exactly; an env driven only through `reset()` and `step()` returns
+    exactly the observed key, over 93 observations; every quaternion has unit length; each first nut pose
+    is a pure turn inside robosuite's placement range (x −0.1150 to −0.1100, y 0.1108 to 0.2246); the peg
+    is constant at (0.23, 0.10, 0.85), unturned; every copied file is byte for byte the source's, every
+    source column equal; and LeRobot loads it with the source's statistics for every other feature.
+  - Provenance: its `meta/object_obs.json` (`meta/rerender.json` is the source's). It is rebuilt from this
+    entry's commit, so that file names a clean commit.
+- **The buffers:** both store the key, and both cache keys gain `object_obs: true` only when on, the same
+  for either object set. Mirrored in `preflight.cache_hashes`; `tier1_compose` reads the field.
+- **The normalizer:** each object it reads gets its own fields (`obj_pos_xy_<object>`, `obj_pos_z_`,
+  `obj_rot_`), set as a gripper's are: xy symmetric about the robot base, z by range, rotation identity.
+  - **Deviation from the plan's step 6, Claude's:** the plan had one scale shared by every world position.
+    With a scale per object, the nut's numbers are the same in the nut and nut+peg arms, so the peg arms
+    differ from the nut arms only by the appended block.
+  - The peg's constant height normalizes to 0.
+- **The encoder** (`ResObsEnc(objects=...)`) encodes each object as the gripper is encoded: xy less the
+  base, the quaternion as 3 xy column pairs of its rotation, then z. That is 4 × `irrep(1)` + 1 × `trivial`
+  (`obj_type`), placed after the proprioception.
+  - Every network reads the proprioception and the objects as one block, `lowdim_type` / `lowdim_dim`
+    (11 + 9 per object), in place of `prop_type` / `prop_dim`. That covers the equivariant, ablated,
+    ResFiT-shaped and ResFiT networks. Off, `lowdim_type` is `prop_type` itself, so nothing new is built
+    and no random number is drawn.
+  - With objects, the networks' first layers are wider, so their weights at a seed differ from the source
+    arm's (call 2a).
+- **The agent:** `QAgent(objects=...)`; `critic_diagnostics` reads the key. Without it, a run would crash at
+  its first log step.
+- **The arms** (`submit.sh`, seed group `obj-1027`):
+  - `obj-nut-eee` and `obj-peg-eee` are `arch-swap-eee`'s launch;
+  - `obj-nut-rrr` and `obj-peg-rrr` are `arch-swap-rrr`'s (its overrides now in `RRR`, unchanged);
+  - each with the object demos in place of the re-rendered ones and `object_obs=nut` or `nut+peg`.
+  - The watcher runs them watch-only, with their early speed logged.
+
+**What is checked:**
+- **Off is today, bit for bit:** the regression goldens (`test_regression_agent.py`,
+  `test_regression_single_arm.py`, `test_action_bound.py`), the config and import tests, 124 pass (12
+  skipped, GPU). The rest of Tier 1 passes on the CPU (93 tests). `test_demo_codec.py`'s bare wrapper gains
+  `object_obs = False`.
+- **New, `tests/test_object_obs.py` (Tier 2):**
+  - **The turn test, from the physics.** A raw observation turned by each of C8's eight elements: the
+    gripper's and the objects' positions about the base, every quaternion left-multiplied by the turn, and
+    the base action's xy and tilt turned. The encoder's low-dimensional blocks (critic: proprioception and
+    objects; actor: those and the base action) must equal the declared representation applied to the
+    original's, to 2e-5. It runs for the equivariant and ResFiT encoders, with the objects off and with
+    both sets on. Off, this is the first check of the gripper's own encoding against the physics:
+    the rotation centre, the quaternion convention, the column pairing. It passes.
+  - The key's content and convention.
+  - The refusals.
+  - The per-object normalizer: the nut's fields are identical with or without the peg, and off adds none.
+  - The object block's representation matrices against `tests/group_action.py`'s new `object_layout`.
+  - The actor equivariant and the critic invariant with the objects in.
+  - `eee`, `aaa`, `ere` and `rrr` build, act, log and update with them.
+  - The cache keys.
+  - The trainer's threading.
+  - The env and the vector env carrying the key (GPU, slow).
+  - 72 pass on the CPU; the env test runs in the gate.
+- **New, `tests/test_add_object_obs.py` (Tier 1):** the tool's writers.
+- **`tests/test_sweep_arms.py`:** each object arm is its source arm but for `offline_data.name` and
+  `object_obs`. Every anchor and arm composes `object_obs: none`. The object dataset is built. On the GPU
+  tier, each arm builds and updates on batches with the key, and every input moves its critic and actor.
+- **`tests/test_square_rerendered_watch.py`:** the four arms are watch-only (17 pass; run by hand).
+- **The GPU tier, run on the CPU** (`pytest --gpu` without CUDA: the GPUs are full with four runs). Across
+  the layout, equivariance, no-op, interface, actor-design, ablated, ResFiT-head, critic-diagnostics,
+  obs-format, BC-term and object files, 539 pass. The 13 that fail need CUDA itself: ResFiT's own agent,
+  whose ViT calls `torch.cuda.synchronize`, which nothing here touches. The object arms' sweep tests, 36,
+  pass. The gate's Tier 2 runs on the GPU at O1's first launch, the env test with it.
+
+**The early speed** (`outputs/diagnostics/obj/calibrate.py`, actor-design's method, 50 CPU actor steps at
+seed 2). Each arm is predicted as its source arm's measured 0–3k at seed 2 (`wk45zp27` 0.0353, `w1g1d1tf`
+0.0286) times its 50-step residual over its source's. Both sources reproduce their arch-swap calibrations
+exactly (1.168e-3 and 1.827e-3), a second check of the off path.
+
+| Arm | Reference batch (the method) | Real demo frames and statistics |
+|---|---|---|
+| `obj-nut-eee` | 0.992× → 0.0350 | 0.980× → 0.0346 |
+| `obj-peg-eee` | 1.018× → 0.0359 | 1.019× → 0.0360 |
+| `obj-nut-rrr` | 0.938× → 0.0268 | 0.870× → **0.0249** (below 0.025) |
+| `obj-peg-rrr` | 0.762× → **0.0218** (below 0.025) | 0.953× → 0.0272 |
+
+- The `eee` arms are inside the band, 0.025–0.045, either way.
+- The two `rrr` arms sit at its lower edge, as `rrr` itself does: both its runs measured 0.0285–0.0286,
+  and they scored 0.684 and 0.612.
+- **The second column was added after the first** put `obj-peg-rrr` below the band. The reference batch
+  draws the peg at random, where in every real frame it is a constant.
+- **No rate is changed.** The two `rrr` arms' rate is Aden's call (STATUS), and they are queued only once Aden
+  has made it.
+
+**Config caveats:** none new; `object_obs` branches at runtime (env, buffers, cache keys, normalizer,
+encoder).
+
+**Changed vs. previous:**
+- `resfit/`: the config, `dexmg.py`, the new `object_obs.py`, `equi_normalizer.py`, `obs_encoder.py`,
+  `q_agent.py`, `train_residual_td3.py`;
+- `preflight.py` (the cache keys; the two new test files in Tiers 1 and 2);
+- tools: `tools/rerender_demos.py` (`make_env`'s switch), the new `tools/add_object_obs.py`,
+  `tools/agent_fingerprint.py` (`fixed_batch(objects=True)`, drawn after everything else),
+  `tools/square_rerendered_watch.py`;
+- `submit.sh`;
+- tests: `tests/group_action.py`, `tests/test_sweep_arms.py`, `tests/test_square_rerendered_watch.py`,
+  `tests/test_demo_codec.py`, `tests/README.md`;
+- docs: EQUIVARIANCE.md and ARCHITECTURE.md.

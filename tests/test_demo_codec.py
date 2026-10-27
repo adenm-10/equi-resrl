@@ -95,6 +95,7 @@ def _wrapper(encode: bool):
     w.env_name = "PickPlaceCan"
     w.expected_image_keys = ["agentview_image", "robot0_eye_in_hand_image"]
     w.encode_frames_like_demos = encode
+    w.object_obs = False  # the objects' poses (2026-10-27): off, as every run before O1
     return w
 
 

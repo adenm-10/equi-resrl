@@ -5,12 +5,14 @@ from escnn import gspaces, nn as enn
 from escnn.group import CyclicGroup
 
 import resfit.rl_finetuning.equi_off_policy.common_utils.crop_randomizer as dmvc
+from resfit.dexmg.environments.object_obs import OBJECT_KEY, OBJECT_STRIDE, OBJECTS
 from resfit.rl_finetuning.config.rlpd import VitEncoderConfig
 from resfit.rl_finetuning.equi_off_policy.common_utils.module_attr_mixin import ModuleAttrMixin
 from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
 from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import ResEncoder76InHand
 from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
     ACTION_FIELDS,
+    OBJECT_FIELDS,
     PROP_FIELDS,
     LinearNormalizer,
     arm_key,
@@ -117,6 +119,15 @@ class ResObsEnc(ModuleAttrMixin):
     outputs join the critic's features alone, [images | window | proprioception]; the actor's stay
     [images | proprioception | base action]. They are built with the random state forked, so every
     other weight at a seed is the one built without them.
+
+    ``objects`` are the task objects whose poses the encoder reads from ``observation.object``
+    (object_obs.py, the run's object_obs; EXPERIMENTS.md, O1's CODE entry), in every family. Each is
+    encoded as a gripper's position and rotation are: its xy less robot_base_xy, its quaternion as the
+    3 xy column pairs of its rotation, then its height, 4 irrep(1) and 1 trivial field (obj_type),
+    normalized per object. They follow the proprioception, and the networks read the two as one block,
+    lowdim_type (lowdim_dim wide): the critic's [images | window | proprioception | objects], the
+    actor's [images | proprioception | objects | base action]. Without objects lowdim_type is prop_type
+    itself and nothing new is built.
     """
 
     def __init__(
@@ -145,6 +156,7 @@ class ResObsEnc(ModuleAttrMixin):
         enc_out_channel: int | None = None,
         critic_window: int = 0,
         critic_window_ih: int = 0,
+        objects: tuple[str, ...] = (),
     ):
         super().__init__()
 
@@ -155,6 +167,10 @@ class ResObsEnc(ModuleAttrMixin):
         if encoder == "resfit" and (enc_out_channel is not None or critic_window or critic_window_ih):
             raise ValueError("enc_out_channel and the critic's window configure the equivariant and ablated "
                              "encoders: the ResFiT encoder has no 9x9 map or last conv of its own")
+
+        objects = tuple(objects)
+        if objects != OBJECTS[:len(objects)]:
+            raise ValueError(f"objects={objects}: the encoder reads a prefix of {OBJECTS}, in that order")
 
         wrist_keys = tuple(wrist_keys)
         if len(wrist_keys) != n_arms:
@@ -210,6 +226,19 @@ class ResObsEnc(ModuleAttrMixin):
         self.action_type = enn.FieldType(self.group, self.action_shape)
         self.action_layout = build_action_layout(self.action_shape, self.group)
 
+        # The task objects' poses, after the proprioception: one block per object
+        self.objects = objects
+        self.obj_type = None
+        self.lowdim_type = self.prop_type
+        if objects:
+            obj_shape = len(objects) * (
+                4 * [self.group.irrep(1)]   # pos_xy + 3 rotation column pairs
+                + [self.group.trivial_repr]  # pos_z
+            )
+            self.obj_type = enn.FieldType(self.group, obj_shape)
+            self.lowdim_type = self.prop_type + self.obj_type
+        self.lowdim_dim = self.lowdim_type.size
+
         if encoder == "resfit":
             # ResFiT's _build_encoders: a ViT per camera, agentview then the wrists, as rl_cameras
             # orders them, and its augmentation (off_policy/rl/q_agent.py).
@@ -259,11 +288,12 @@ class ResObsEnc(ModuleAttrMixin):
             self.enc_obs = enc_obs if encoder == "equivariant" else plain(enc_obs.conv)
             self._build_window(enc_obs, ih_channels[-1], critic_window, critic_window_ih, initialize)
 
-        # The critic's [images | window | proprioception], and the actor's [images | proprioception |
-        # base action]; vanilla RL's has no base action, so without a window it is the critic's.
-        self.enc_out_type_critic = (self.vis_ih_type + self.prop_type if self.window_type is None
-                                    else self.vis_ih_type + self.window_type + self.prop_type)
-        self.enc_out_type_actor = self.vis_ih_type + self.prop_type
+        # The critic's [images | window | proprioception | objects], and the actor's [images |
+        # proprioception | objects | base action]; vanilla RL's has no base action, so without a
+        # window it is the critic's.
+        self.enc_out_type_critic = (self.vis_ih_type + self.lowdim_type if self.window_type is None
+                                    else self.vis_ih_type + self.window_type + self.lowdim_type)
+        self.enc_out_type_actor = self.vis_ih_type + self.lowdim_type
         if base_action_input:
             self.enc_out_type_actor = self.enc_out_type_actor + self.action_type
         self.enc_out_dim_critic = self.enc_out_type_critic.size
@@ -337,17 +367,17 @@ class ResObsEnc(ModuleAttrMixin):
 
         self._normalizers_ready = True
 
-        for arm in range(self.n_arms):
-            for field in PROP_FIELDS + ACTION_FIELDS:
-                name = arm_key(field, arm)
-                params = self.normalizer[name].params_dict
-                s = params["scale"]
-                o = params["offset"]
-                print(f"{name}: scale={s.detach().cpu().numpy()}, offset={o.detach().cpu().numpy()}")
-                if verbose and "input_stats" in params:
-                    inp = params["input_stats"]
-                    print(f"  input_stats: min={inp['min'].detach().cpu().numpy()}, "
-                          f"max={inp['max'].detach().cpu().numpy()}")
+        names = [arm_key(field, arm) for arm in range(self.n_arms) for field in PROP_FIELDS + ACTION_FIELDS]
+        names += [arm_key(field, obj) for obj in self.objects for field in OBJECT_FIELDS]
+        for name in names:
+            params = self.normalizer[name].params_dict
+            s = params["scale"]
+            o = params["offset"]
+            print(f"{name}: scale={s.detach().cpu().numpy()}, offset={o.detach().cpu().numpy()}")
+            if verbose and "input_stats" in params:
+                inp = params["input_stats"]
+                print(f"  input_stats: min={inp['min'].detach().cpu().numpy()}, "
+                      f"max={inp['max'].detach().cpu().numpy()}")
 
     def forward(self, nobs):
         assert self._normalizers_ready, "Call set_normalizer() before forward()"
@@ -418,6 +448,20 @@ class ResObsEnc(ModuleAttrMixin):
                 self.normalizer[arm_key("action_rz", arm)].normalize(a[:, 5:6]),
                 self.normalizer[arm_key("action_hand", arm)].normalize(a[:, 6:self.action_stride]),
             ]
+
+        # ---- The task objects' poses, one block per object, encoded as the gripper's ----
+        if self.objects:
+            objects = nobs[OBJECT_KEY]
+            for k, name in enumerate(self.objects):
+                o = objects[:, k * OBJECT_STRIDE : (k + 1) * OBJECT_STRIDE]
+                rot = self.normalizer[arm_key("obj_rot", name)].normalize(self.get6DRotation(o[:, 3:7]))
+                prop += [
+                    self.normalizer[arm_key("obj_pos_xy", name)].normalize(o[:, 0:2] - self.robot_base_xy),
+                    rot[:, 0:1], rot[:, 3:4],  # col 0: (R00, R10)
+                    rot[:, 1:2], rot[:, 4:5],  # col 1: (R01, R11)
+                    rot[:, 2:3], rot[:, 5:6],  # col 2: (R02, R12)
+                    self.normalizer[arm_key("obj_pos_z", name)].normalize(o[:, 2:3]),
+                ]
 
         # ----- Concatenate feature vectors; vanilla RL's actor, without a window, has the critic's -----
         critic_features = torch.cat([*images, *window, *prop], dim=1)

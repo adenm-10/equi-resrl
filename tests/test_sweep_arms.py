@@ -70,7 +70,10 @@ arch-swap-eee's launch with its actor wired as ResFiT's (actor_design, at two wi
 seed 2 (tests/test_actor_design.py checks what the wiring builds); and 2026-10-27 PRE-REGISTERED, "the
 long runs": long-1027's two arms are resfit-residual-square-rerendered's and arch-swap-eee's launches
 run to 300k with a checkpoint every 50k, each its source arm but for those two fields, and only the
-trainer's loop end reads the run length.
+trainer's loop end reads the run length; and 2026-10-27 PRE-REGISTERED, "O1, the objects' poses": obj-1027's
+four arms are arch-swap-eee's and arch-swap-rrr's launches with the objects' poses (object_obs) on the
+re-rendered demos with the poses added, each its source arm but for those two fields
+(tests/test_object_obs.py checks what the poses build).
 """
 
 from __future__ import annotations
@@ -259,6 +262,16 @@ LONGRUN_VALUES = {"algo.total_timesteps": 300_000, "checkpoint_interval": 50_000
 LAUNCHED.update({arm: (LAUNCHED[source] - {"algo.total_timesteps=150000"})
                  | {"algo.total_timesteps=300000", "checkpoint_interval=50000"}
                  for arm, source in LONGRUN_SOURCES.items()})
+# obj-1027 (2026-10-27 PRE-REGISTERED, O1): arch-swap-eee's and arch-swap-rrr's launches given the task
+# objects' poses, on the re-rendered demos with the poses added, each its source arm but for those two.
+OBJ_GROUP = "obj-1027"
+OBJ_DEMOS = "local/robomimic-mh-square-rerendered-object"
+OBJ_SOURCES = {"obj-nut-eee": SWAP_EEE, "obj-peg-eee": SWAP_EEE, "obj-nut-rrr": SWAP_RRR, "obj-peg-rrr": SWAP_RRR}
+OBJ_SETS = {"obj-nut-eee": "nut", "obj-peg-eee": "nut+peg", "obj-nut-rrr": "nut", "obj-peg-rrr": "nut+peg"}
+OBJ_ARMS = tuple(OBJ_SOURCES)
+LAUNCHED.update({arm: (LAUNCHED[source] - {f"offline_data.name={RERENDERED_DEMOS}"})
+                 | {f"offline_data.name={OBJ_DEMOS}", f"object_obs={OBJ_SETS[arm]}"}
+                 for arm, source in OBJ_SOURCES.items()})
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -304,6 +317,8 @@ FROM_ANCHOR[AD_RESFIT] = LAYOUT_PATHS | {"equivariance.actor_design", "agent.act
 FROM_ANCHOR[AD_WIDE] = LAYOUT_PATHS | {"equivariance.actor_design", "equivariance.actor_degree_channel"}
 FROM_ANCHOR[AD_EAE] = FROM_ANCHOR[SWAP_EEE] | set(AD_CHANGES[AD_EAE])
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(LONGRUN_VALUES) for arm, source in LONGRUN_SOURCES.items()})
+FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | {"offline_data.name", "object_obs"}
+                    for arm, source in OBJ_SOURCES.items()})
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -347,6 +362,8 @@ ARM_VALUES.update({
 ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in IFACE_CHANGES.items()})
 ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in AD_CHANGES.items()})
 ARM_VALUES.update({arm: {**ARM_VALUES[source], **LONGRUN_VALUES} for arm, source in LONGRUN_SOURCES.items()})
+ARM_VALUES.update({arm: {**ARM_VALUES[source], "offline_data.name": OBJ_DEMOS, "object_obs": OBJ_SETS[arm]}
+                   for arm, source in OBJ_SOURCES.items()})
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -356,7 +373,7 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
              **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS),
              **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS), **dict.fromkeys(AD_ARMS, RERENDERED_DEMOS),
-             **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS)}
+             **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS), **dict.fromkeys(OBJ_ARMS, OBJ_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -375,7 +392,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          MATCHED_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          SWAP_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          IFACE_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         AD_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         AD_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         OBJ_GROUP: ("robomimic-square-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -393,7 +411,7 @@ TRAINING = {
     "algo.use_base_policy_for_warmup": True, "algo.actor_lr_warmup_steps": 0, "agent.bc_loss_coef": 0.0,
     "agent.critic.min_q_heads": 2, "agent.critic.policy_gradient_type": "ensemble_mean",
     "agent.critic_grad_clip_norm": 1.0, "agent.actor.action_bound": "box",
-    "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True,
+    "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True, "object_obs": "none",
 }
 # The encoder's interface (2026-10-23 CODE), at the defaults that build every earlier run's encoder.
 EQUI_INTERFACE = {"equivariance.ih_channels": [16, 32, 64, 128], "equivariance.enc_out_channel": None,
@@ -429,14 +447,15 @@ ANCHORS = {
                    "agent.actor.actor_last_layer_init_scale": 0.0, "agent.critic.num_layers": 2,
                    "agent.actor.use_layer_norm": True, "agent.critic.use_layer_norm": True},
         "added": {"encode_env_frames_like_demos": False, "agent.actor.action_bound": "box",
-                  "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True},
+                  "agent.actor.noise_units": "scaled", "agent.vit.use_layer_norm": True, "object_obs": "none"},
         "removed": {},
     },
     "eaqorqki": {
         "launch": EQUI_ANCHOR, "steps": 300_000,
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 0.0},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
-                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN},
+                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN,
+                  "object_obs": "none"},
         "removed": EQUI_REMOVED,
     },
     "6ng62tpm": {
@@ -444,7 +463,7 @@ ANCHORS = {
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 1e-4},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
                   "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none",
-                  **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN},
+                  **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN, "object_obs": "none"},
         "removed": EQUI_REMOVED,
     },
 }
@@ -467,6 +486,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in OBJ_SOURCES:
+        return OBJ_GROUP
     if arm in LONGRUN_SOURCES:
         return LONGRUN_GROUP
     if arm in AD_CHANGES:
@@ -489,7 +510,7 @@ def group_of(arm: str) -> str:
 
 
 def anchor_of(arm: str) -> str:
-    arm = LONGRUN_SOURCES.get(arm, arm)
+    arm = OBJ_SOURCES.get(arm, LONGRUN_SOURCES.get(arm, arm))
     if arm in RESFIT_ARMS:
         return "oj5k0jqb"
     return "6ng62tpm" if arm == LONG else "eaqorqki"
@@ -689,6 +710,19 @@ def test_each_long_arm_is_its_source_arm_run_longer(arm, tmp_path):
     assert theirs["checkpoint_interval"] == -1
 
 
+@pytest.mark.parametrize("arm", OBJ_ARMS)
+def test_each_object_arm_is_its_source_arm_with_the_objects(arm, tmp_path):
+    """obj-1027 (2026-10-27 PRE-REGISTERED, O1): each arm launches its source arm's overrides with the
+    demos that carry the objects' poses and object_obs on, and composes to its source arm's config but
+    for those two."""
+    ours, theirs = _overrides(arm, tmp_path), _overrides(OBJ_SOURCES[arm], tmp_path)
+    assert _unnamed(ours) == (_unnamed(theirs) - {f"offline_data.name={RERENDERED_DEMOS}"}) | {
+        f"offline_data.name={OBJ_DEMOS}", f"object_obs={OBJ_SETS[arm]}"}
+    ours, theirs = _flat(_compose(ours)), _flat(_compose(theirs))
+    assert _differing(ours, theirs) == {"offline_data.name", "object_obs"}
+    assert (theirs["object_obs"], ours["object_obs"]) == ("none", OBJ_SETS[arm])
+
+
 def test_only_the_loop_end_reads_the_run_length():
     """A long run's first 150k is its source arm's run at a new seed only if nothing in the trainer reads
     the run length but its loop's end: no schedule, buffer or eval scales with it. The configs declare it,
@@ -729,8 +763,11 @@ def test_the_dataset_each_arm_loads_is_built(arm):
     """A dataset the trainer cannot find is a launch that dies at startup."""
     root = LEROBOT_HOME / ARM_DEMOS[arm]
     assert (root / "meta/info.json").exists() and (root / "meta/episodes_stats.jsonl").exists(), root
-    if ARM_DEMOS[arm] == RERENDERED_DEMOS:
+    if ARM_DEMOS[arm] in (RERENDERED_DEMOS, OBJ_DEMOS):
         assert (root / "meta/rerender.json").exists(), root
+    if ARM_DEMOS[arm] == OBJ_DEMOS:  # tools/add_object_obs.py's, whose guards passed
+        assert (root / "meta/object_obs.json").exists(), root
+        assert "observation.object" in json.loads((root / "meta/info.json").read_text())["features"]
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -787,14 +824,17 @@ def _agent(cfg, device):
             min_range_per_dim=cfg.offline_data.min_action_range, device=device,
             clamp_unscaled=cfg.agent.actor.action_bound == "box")
         return QAgent(cfg=cfg.agent, action_scaler=scaler, **shapes)
+    from resfit.dexmg.environments.object_obs import OBJECT_DIM, OBJECT_KEY, objects_read
     from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import build_equivariant_normalizer
     from resfit.rl_finetuning.equi_off_policy.rl.q_agent import QAgent
 
-    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, **shapes)
-    normalizer = build_equivariant_normalizer(
-        stats={"observation.state": _stats(STATE_DIM), "action": _stats(ACTION_DIM)},
-        robot_base_xy=torch.tensor(ROTATION_CENTRE),
-    )
+    objects = objects_read(cfg.object_obs)
+    agent = QAgent(agent_cfg=cfg.agent, equi_cfg=cfg.equivariance, objects=objects, **shapes)
+    stats = {"observation.state": _stats(STATE_DIM), "action": _stats(ACTION_DIM)}
+    if objects:
+        stats[OBJECT_KEY] = _stats(OBJECT_DIM)
+    normalizer = build_equivariant_normalizer(stats=stats, robot_base_xy=torch.tensor(ROTATION_CENTRE),
+                                              objects=objects)
     agent.enc.set_normalizer(normalizer, robot_base_xy=list(ROTATION_CENTRE))
     return agent.to(device)
 
@@ -808,16 +848,18 @@ def test_arm_builds_and_updates(arm, tmp_path, device):
     from tools.agent_fingerprint import ACTION_DIM, BATCH, STDDEV, fixed_batch
 
     cfg = _compose(_overrides(arm, tmp_path))
-    residual = cfg.base_policy is not None
+    residual, objects = cfg.base_policy is not None, cfg.object_obs != "none"
     agent = _agent(cfg, device)
     agent.train(True)
-    metrics = agent.update(fixed_batch(base_action=residual).to(device), stddev=STDDEV, update_actor=True)
+    metrics = agent.update(fixed_batch(base_action=residual, objects=objects).to(device), stddev=STDDEV,
+                           update_actor=True)
     for key in ("train/critic_loss", "train/actor_loss_base"):
         assert math.isfinite(metrics[key]), f"{arm}: {key} = {metrics[key]}"
 
     agent.train(False)
     with torch.no_grad():
-        action = agent.act(fixed_batch(base_action=residual)["obs"].to(device), eval_mode=True, cpu=False)
+        action = agent.act(fixed_batch(base_action=residual, objects=objects)["obs"].to(device), eval_mode=True,
+                           cpu=False)
     assert action.shape == (BATCH, ACTION_DIM)
     assert torch.isfinite(action).all(), f"{arm}: non-finite eval action"
 
@@ -930,7 +972,7 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
 
     from tools.agent_fingerprint import fixed_batch
 
-    residual = cfg.base_policy is not None
+    residual, objects = cfg.base_policy is not None, cfg.object_obs != "none"
     with open_dict(cfg):
         cfg.agent.actor.actor_last_layer_init_scale = None
         cfg.agent.actor.action_scale = 1.0
@@ -940,7 +982,7 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
     agent.train(False)  # QAgent.train returns None
 
     def outputs(change=None):
-        batch = fixed_batch(base_action=residual).to(device)
+        batch = fixed_batch(base_action=residual, objects=objects).to(device)
         obs = {k: v.clone() for k, v in batch["obs"].items()}
         act = batch["action"].clone()
         if change is not None:
@@ -960,7 +1002,7 @@ def _output_changes(cfg, device) -> dict[str, tuple[float, float]]:
 
 @pytest.mark.gpu
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", [*EQUI_ARMS, *(arm for arm in SWAP_ARMS if arm not in EQUI_ARMS), AD_EAE])
+@pytest.mark.parametrize("arm", [*EQUI_ARMS, *(arm for arm in SWAP_ARMS if arm not in EQUI_ARMS), AD_EAE, *OBJ_ARMS])
 def test_every_input_can_move_the_critic_and_the_actor(arm, tmp_path, device):
     """Invariance tests pass on a network that ignores an input, so this checks what they cannot."""
     changes = _output_changes(_compose(_overrides(arm, tmp_path)), device)

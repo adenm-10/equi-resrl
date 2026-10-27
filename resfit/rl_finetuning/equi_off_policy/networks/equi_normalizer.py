@@ -13,6 +13,7 @@ import zarr
 import unittest
 from typing import Union, Dict
 
+from resfit.dexmg.environments.object_obs import OBJECT_KEY, OBJECT_STRIDE, OBJECTS
 from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import dict_apply, DictOfTensorMixin
 
 #################################
@@ -23,6 +24,8 @@ from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import dict_apply, Di
 # keys from these, so the encoder and the normalizer cannot drift apart.
 PROP_FIELDS = ("pos_xy", "pos_z", "ee_rot", "ee_q")
 ACTION_FIELDS = ("action_xy", "action_z", "action_rx_ry", "action_rz", "action_hand")
+# One set per task object the encoder reads (object_obs.py), keyed by the object's name.
+OBJECT_FIELDS = ("obj_pos_xy", "obj_pos_z", "obj_rot")
 
 
 def arm_key(field: str, arm: int) -> str:
@@ -407,6 +410,7 @@ def build_equivariant_normalizer(
     n_arms: int = 1,
     gripper_dim: int = 2,
     hand_dof: int = 1,
+    objects: tuple[str, ...] = (),
 ) -> LinearNormalizer:
     """
     Build a LinearNormalizer with per-field equivariant-safe normalization.
@@ -424,6 +428,12 @@ def build_equivariant_normalizer(
         Per-arm layout, matching ResObsEnc. State blocks are
         ``[eef_pos 3, eef_quat 4, gripper_qpos G]`` and action blocks are
         ``[delta_pose 6, hand H]``.
+    objects : the task objects the encoder reads (object_obs.py), each normalized on its own
+        statistics in ``stats["observation.object"]``, as a gripper's position and rotation are: its
+        xy symmetric about robot_base_xy (one scale for both axes, so a turn about the base commutes
+        with it), its height by range, its rotation left as it is. Each object has its own scale, so
+        an object's numbers do not depend on which others are read. Empty, as in every run before O1,
+        adds nothing.
 
     Reference: https://huggingface.co/datasets/ankile/robomimic-mh-can-image
     """
@@ -499,6 +509,21 @@ def build_equivariant_normalizer(
         normalizer[arm_key("action_rz", arm)] = get_identity_normalizer_from_stat(_dummy_stat(1))
         normalizer[arm_key("action_hand", arm)] = get_range_normalizer_from_stat(
             _slice_stat(action_stat, slice(a0 + 6, a0 + action_stride)))
+
+    if objects:
+        assert objects == OBJECTS[:len(objects)], objects
+        object_stat = {k: (v.cpu().numpy().astype(np.float32) if isinstance(v, torch.Tensor)
+                           else np.array(v, dtype=np.float32))
+                       for k, v in stats[OBJECT_KEY].items()}
+        for k, name in enumerate(objects):
+            o0 = k * OBJECT_STRIDE
+            xy_stat = _slice_stat(object_stat, slice(o0, o0 + 2))
+            if base_xy_np is not None:
+                xy_stat = _shift_stat(xy_stat, base_xy_np)
+            normalizer[arm_key("obj_pos_xy", name)] = get_range_symmetric_normalizer_from_stat(xy_stat)
+            normalizer[arm_key("obj_pos_z", name)] = get_range_normalizer_from_stat(
+                _slice_stat(object_stat, slice(o0 + 2, o0 + 3)))
+            normalizer[arm_key("obj_rot", name)] = get_identity_normalizer_from_stat(_dummy_stat(6))
 
     return normalizer
 

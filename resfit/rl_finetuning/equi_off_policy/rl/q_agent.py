@@ -11,6 +11,7 @@ import torch
 from escnn import gspaces, nn
 from escnn.group import CyclicGroup
 
+from resfit.dexmg.environments.object_obs import OBJECT_KEY
 from resfit.rl_finetuning.config.rlpd import QAgentConfig
 from resfit.rl_finetuning.config.residual_td3 import EquivarianceConfig
 from resfit.rl_finetuning.off_policy import common_utils
@@ -88,9 +89,9 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
 
 
 def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equi_cfg: EquivarianceConfig,
-                  residual_actor: bool) -> ResObsEnc:
+                  residual_actor: bool, objects: tuple[str, ...] = ()) -> ResObsEnc:
     """The agent's observation encoder, as QAgent builds it, on the CPU. tools/encoder_probe.py builds
-    a run's encoder alone through here."""
+    a run's encoder alone through here. `objects` are the task objects it reads (object_obs.py)."""
     return ResObsEnc(                              # was: EquivariantResObsEnc
         obs_shape=obs_shape,
         N=equi_cfg.N,
@@ -115,6 +116,7 @@ def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equ
         enc_out_channel=equi_cfg.enc_out_channel,
         critic_window=equi_cfg.critic_window,
         critic_window_ih=equi_cfg.critic_window_ih,
+        objects=objects,
     )
 
 
@@ -128,6 +130,7 @@ class QAgent(torch.nn.Module):
         agent_cfg: QAgentConfig,
         equi_cfg: EquivarianceConfig,
         residual_actor: bool = False,
+        objects: tuple[str, ...] = (),
     ):
         """Initialize the Q-agent.
 
@@ -148,6 +151,9 @@ class QAgent(torch.nn.Module):
             critic_family), and the equivariant and ablated networks' sizes and options.
         residual_actor : bool
             Whether the actor outputs a residual on top of a base action.
+        objects : tuple[str, ...]
+            The task objects whose poses the encoder reads (object_obs.py, the run's object_obs).
+            Every network reads them with the proprioception, as one block (ResObsEnc.lowdim_type).
 
         Every family is trained and bounded alike: the trainer, the normalizer, the action's bound
         and noise, the optimizers and the critic's targets are the same whatever the networks. The
@@ -191,19 +197,20 @@ class QAgent(torch.nn.Module):
         actor_dropout = self.agent_cfg.actor.dropout
         last_layer_scale = self.agent_cfg.actor.actor_last_layer_init_scale
 
-        self.enc = build_encoder(obs_shape, rl_cameras, agent_cfg, equi_cfg, residual_actor).to(self.agent_cfg.device)
+        self.enc = build_encoder(obs_shape, rl_cameras, agent_cfg, equi_cfg, residual_actor,
+                                 objects).to(self.agent_cfg.device)
         # The group is built in every family: the action layout, which bounds every actor, is its.
         self.group = self.enc.group
 
         # The critic, then the actor: the equivariant network, or it exported (ablated), or ResFiT's.
         if self.equi_cfg.critic_family == "resfit":
-            self.critic = ResFiTCritic(self.enc.num_patch, self.enc.patch_dim, self.enc.prop_dim,
+            self.critic = ResFiTCritic(self.enc.num_patch, self.enc.patch_dim, self.enc.lowdim_dim,
                                        self.enc.action_dim, self.agent_cfg.critic)
         else:
             critic = EquiCritic(
                 group=self.group,
                 vis_ih_type=self.enc.vis_ih_type,
-                prop_type=self.enc.prop_type,
+                prop_type=self.enc.lowdim_type,
                 action_type=self.enc.action_type,
                 hidden_dim=critic_hidden_dim,
                 num_layers=critic_num_layers,
@@ -224,14 +231,14 @@ class QAgent(torch.nn.Module):
         if self.equi_cfg.actor_family == "resfit":  # check_families: then actor_design is "ours"
             bound = field_bounds(self.enc.action_type.size, action_scale, self.equi_cfg.residual_field_bound,
                                  self.enc.action_layout, self.enc.action_fields, residual_actor)
-            self.actor = ResFiTActor(self.enc.vis_ih_type.size, self.enc.prop_dim, self.enc.action_dim,
+            self.actor = ResFiTActor(self.enc.vis_ih_type.size, self.enc.lowdim_dim, self.enc.action_dim,
                                      self.agent_cfg.actor, action_layout=self.enc.action_layout, bound=bound,
                                      residual_squash=self.equi_cfg.residual_squash)
         elif self.equi_cfg.actor_design == "resfit":  # the equivariant family (check_families)
             self.actor = ResFiTShapedActor(
                 group=self.group,
                 vis_ih_type=self.enc.vis_ih_type,
-                prop_type=self.enc.prop_type,
+                prop_type=self.enc.lowdim_type,
                 action_type=self.enc.action_type,
                 action_layout=self.enc.action_layout,
                 feature_fields=self.equi_cfg.actor_feature_fields,
@@ -249,7 +256,7 @@ class QAgent(torch.nn.Module):
             actor = EquiActor(
                 group=self.group,
                 vis_ih_type=self.enc.vis_ih_type,
-                prop_type=self.enc.prop_type,
+                prop_type=self.enc.lowdim_type,
                 action_type=self.enc.action_type,
                 action_layout=self.enc.action_layout,
                 hidden_dim=actor_hidden_dim,
@@ -865,6 +872,8 @@ class QAgent(torch.nn.Module):
         keys = [*self.rl_cameras, "observation.state"]
         if self.residual_actor:
             keys.append("observation.base_action")
+        if self.enc.objects:
+            keys.append(OBJECT_KEY)
         obs = {k: batch["obs"][k] for k in keys}
         obs["actor_feat"], obs["critic_feat"] = self.enc(obs)
 

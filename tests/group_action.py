@@ -83,6 +83,17 @@ def prop_layout(n_arms: int = 1, gripper_dim: int = 2) -> list[tuple[str, int]]:
     return arm * n_arms
 
 
+def object_layout(n_objects: int) -> list[tuple[str, int]]:
+    """The task objects' poses (object_obs.py), one block per object, as a gripper's position and
+    rotation: its xy less the rotation center, its rotation's 3 xy column pairs, its height."""
+    obj = [
+        ("irrep1", 1),   # object xy, minus the rotation center
+        ("irrep1", 3),   # 3 xy column pairs of its rotation
+        ("trivial", 1),  # object z
+    ]
+    return obj * n_objects
+
+
 def vis_ih_layout(n_hidden: int, ih_out: int, n_arms: int = 1) -> list[tuple[str, int]]:
     """Visual features: one regular agentview block, one trivial block per wrist."""
     return [("regular", n_hidden), ("trivial", ih_out * n_arms)]
@@ -96,15 +107,16 @@ def window_layout(fields: int, channels: int, n_arms: int = 1) -> list[tuple[str
 
 def enc_out_layout_critic(
     n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2, window: tuple[int, int] = (0, 0),
+    n_objects: int = 0,
 ) -> list[tuple[str, int]]:
     return (vis_ih_layout(n_hidden, ih_out, n_arms) + window_layout(*window, n_arms)
-            + prop_layout(n_arms, gripper_dim))
+            + prop_layout(n_arms, gripper_dim) + object_layout(n_objects))
 
 
 def enc_out_layout_actor(
-    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2, hand_dof: int = 1,
+    n_hidden: int, ih_out: int, n_arms: int = 1, gripper_dim: int = 2, hand_dof: int = 1, n_objects: int = 0,
 ) -> list[tuple[str, int]]:
-    return (enc_out_layout_critic(n_hidden, ih_out, n_arms, gripper_dim)
+    return (enc_out_layout_critic(n_hidden, ih_out, n_arms, gripper_dim, n_objects=n_objects)
             + action_layout(n_arms, hand_dof))
 
 
