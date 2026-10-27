@@ -35,8 +35,9 @@ runs above the base was still climbing at 150k, which is the case for the long r
 3. **What waits:** `iface-wide-out 3` and `iface-eee 3` behind the long runs. actor-design's seeds 3 keep
    their place, so B22 reads about 10:30 on 10-29.
 4. **The reclaim of the duplicate `models/best_model.pt` files,** each byte-identical to its package's
-   `wandb_best/` copy: yes. That is 18 in finished packages (6.9 GB on 10-27), and 3 more as the running
-   runs end. The disk is at 17 GB free; the long core needs about 10 GB, O and L's first wave about 5 GB.
+   `wandb_best/` copy: **DONE 2026-10-27** for the 18 in finished packages (6.9 GB; Aden), and 3 more as
+   the running runs end. The disk is at 24 GB free; the long core needs about 10 GB, O and L's first wave
+   about 5 GB.
 5. **O and L's design calls** (B23).
 6. **The gate adds a commit to `retry/tier2_passed.txt` itself** once its Tier 2 passes: yes.
 7. **Where the slower dense critic (B20) goes:** with the tuning screens, since it is a critic-rate
@@ -199,7 +200,7 @@ DECISION and PRE-REGISTERED).
     `/analyze-experiment` against the rules, then the NOTE. It reports C4 against all four of eee's runs
     too (the 2026-10-27 NOTE: +0.093).
   - The next step from the PRE-REGISTERED entry's readings. The readout also sets the tuning anchor (B24).
-- **Before the disk reaches 10 GB free** (18 GB on 10-27), the next `/wrapup` deletes the finished runs'
+- **Before the disk reaches 10 GB free** (24 GB on 10-27), the next `/wrapup` deletes the finished runs'
   eval videos (H13).
 
 ### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 done, `iface-window 3` running (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`

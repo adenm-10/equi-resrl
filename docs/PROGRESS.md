@@ -29,6 +29,10 @@ other four docs, with a pointer from here.
   again), the NOTE (`iface-eee 2`) and the DECISION (the order).
 - **Condensed for the doc budget** (each with a pointer to the entry that holds the detail): TODO B15's
   item 6, and STATUS's summaries of 10-12, 10-13 to 10-16 and 10-19 to 10-20.
+- **Cleanup** (`/wrapup`, Aden's answers; the lists are in `outputs/cleanup-20261027/`): the 18 duplicate
+  `models/best_model.pt` of finished packages (6.9 GB, each byte-identical to its `wandb_best/` copy), 9
+  cache folders, the actor-eae smoke's 2 non-best eval videos, and tmux `q-iface-eee-2`, its scrollback
+  saved. The disk went from 17.6 to 24.5 GB free. No tracked file was removed.
 
 **Findings** (correlations across mixed configs; only the speed band and the critic's family rest on
 controlled contrasts)

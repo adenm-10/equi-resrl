@@ -47,8 +47,8 @@ fits each job beside what is on a GPU by memory ("Running now", below).
   - The best early signal is training success at 10k–30k (ρ +0.80).
   - eee's gap to ResFiT is the critic's value of online data: 0.005 early against ResFiT's 0.082.
   - Every run above the base was still climbing at 150k.
-- **Disk:** 18 GB free at 08:31 on 10-27. About 10 GB when both groups are done; the next `/wrapup`'s
-  eval-video cleanup comes before then, and the long runs need the duplicate best models reclaimed (TODO B24, call 4).
+- **Disk:** 24 GB free at 08:55 on 10-27, after the cleanup reclaimed 6.9 GB of duplicate best models
+  (`outputs/cleanup-20261027/`); the running runs' 3 go when they end. The long core needs about 10 GB.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -321,7 +321,8 @@ How the runs are launched and followed:
     every 20 s; it logs, and woke a Claude session below 8 GB when one was open).
 
   The 10-26 cleanup closed the 10 idle sessions and `swap-watch`; their scrollback is in
-  `outputs/cleanup-20261026/tmux_scrollback/`, as the 10-24 cleanup's is in `outputs/cleanup-20261024/`.
+  `outputs/cleanup-20261026/tmux_scrollback/`, as the 10-24 cleanup's is in `outputs/cleanup-20261024/`,
+  and `q-iface-eee-2`'s (closed 10-27) in `outputs/cleanup-20261027/`.
   The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**
@@ -337,7 +338,7 @@ How the runs are launched and followed:
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 21 GB free on 2026-10-26** ("Disk", above). The wandb cache is cleared to 2 GB every
+  - **The disk had 24 GB free on 2026-10-27** ("Disk", above). The wandb cache is cleared to 2 GB every
     12 h by tmux `wandb-cache` (`outputs/queue/launchers/wandb_cache_cleanup.sh`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
