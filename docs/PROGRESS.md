@@ -17,6 +17,27 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-27 (later) — the long runs coded, pre-registered and first in the queue; Square's symmetry found extrinsic; Aden's revised order
+
+**Done**
+- **The long runs** (`long-1027`): code `78575b0`, pre-registration and launch pin `e2fdb27`, smokes in
+  `outputs/diagnostics/long/smokes/`, the queue `order-1027` (at most two long runs, a 28 GB memory floor),
+  the digest and the watcher `long-watch`; the gate records a passed full gate itself. The queue was
+  restarted at 13:19 with the long runs first and actor-design's seeds 3 behind them (Aden).
+- **EXPERIMENTS.md:** the CODE and PRE-REGISTERED entries; the FINDING (Square's symmetry under our group
+  is extrinsic; the turned-demo replays; the MimicGen layouts; scripts in `outputs/diagnostics/symmetry/`);
+  the afternoon DECISION (the order; the iface pair dropped; O1 on `eee` and `rrr`; latency sidelined).
+- **EQUIVARIANCE.md:** its "real C8 symmetry" line for Can and Square corrected.
+- **The steps plan** (`docs/plans/2026-10-27-long-O-L-steps.md`, local): O1 revised to the nut on `eee`
+  and `rrr`; L marked sidelined.
+
+**Decided** (Aden): the long runs as above; O1 in the object-centric paper's shape (7 numbers an object),
+the peg open; latency after the long runs, O1 and a new task; the new task chosen later (ResFiT has no
+Stack results to reuse).
+
+**Next:** Aden's call on O1's shape, then O1's code from 10-28; the first long launch about 22:00 (its
+smoke verdict, the full gate, the LAUNCHED entry).
+
 ## 2026-10-27 — what goes with beating the base, over 49 runs; the long and tuning plan; Aden's order: the long runs, then object-centric and latency, then more tasks and the tuning
 
 **Done**

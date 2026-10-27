@@ -10,17 +10,18 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 ## B — Square and the bimanual task
 
 **Now: the actor's design, `actor-design-1026` (B22), running; the encoder's interface,
-`enc-iface-1023` (B21), its last runs; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
-2026-10-26).** Next, in Aden's order (2026-10-27 DECISION; B24): the long runs, then the object-centric
-and sampled-latency experiments (B23's O and L), then more tasks and the tuning.
+`enc-iface-1023` (B21), its last run; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
+2026-10-26).** Next, in Aden's order (the 2026-10-27 DECISIONs; B24): the long runs, then O1 (B23), then a
+new task; latency and the tuning after.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
-### B24. The next phase, in Aden's order: the long runs, then object-centric and sampled latency, then more tasks and the tuning — the long runs QUEUED 2026-10-27; O and L planned (Aden, 2026-10-27) `[SC]`
+### B24. The next phase, in Aden's order: the long runs, then O1, then a new task; latency and the tuning after — the long runs first in the queue 2026-10-27; O1 planned (Aden, 2026-10-27) `[SC]`
 
-The order is Aden's (EXPERIMENTS.md, 2026-10-27 DECISION, with Claude's recommendations against it on
-record). [The plan](plans/2026-10-27-long-and-tuning.md) (local) has the long group's and the tuning
-group's designs, and in its section 5 this to-do list with its timing. O and L's designs are in B23.
+The order is Aden's (EXPERIMENTS.md, the 2026-10-27 DECISIONs, morning and afternoon; Claude's
+recommendations against the morning one on record). [The plan](plans/2026-10-27-long-and-tuning.md)
+(local) has the long and tuning groups' designs, [the steps plan](plans/2026-10-27-long-O-L-steps.md)
+(local) O1's.
 
 **What it rests on:** a 49-run analysis (`outputs/diagnostics/success-correlates/analyze.py`, its table
 `runs.json`; its findings in the 2026-10-27 PROGRESS entry and the plan's section 1). Every one of the 16
@@ -28,76 +29,53 @@ runs above the base was still climbing at 150k, which is the case for the long r
 
 **Aden's calls** (2026-10-27):
 1–3. **Decided and done:** the core pair, `long-resfit` and `long-eee` (ResFiT's own agent and
-   `arch-swap-eee` run on), to 300k at seeds 4 and 5 with checkpoints every 50k; two at once; the iface pair
-   behind them, actor-design's seeds 3 keeping their place (EXPERIMENTS.md, 2026-10-27 CODE and
-   PRE-REGISTERED; the queue `order-1027`).
+   `arch-swap-eee` run on), to 300k at seeds 4 and 5 with checkpoints every 50k, two at once (the CODE and
+   PRE-REGISTERED entries). Since the afternoon they are first in the queue `order-1027`, actor-design's
+   seeds 3 behind them; the iface pair is dropped (the afternoon DECISION).
 4. **DONE:** the duplicate best-model reclaim (6.9 GB).
-5. **O and L's design calls:** B23's as recommended (Aden), and L0 decides whether L2 runs. Open: the plan's
-   calls 2a–2c and 3a–3d (`docs/plans/2026-10-27-long-O-L-steps.md`, local).
+5. **O1:** the nut's pose on `eee` and `rrr`, seeds 2 and 3, 150k, after actor-design's seeds 3, in the
+   object-centric paper's shape (7 numbers an object: position and quaternion). **Open:** whether the peg
+   goes in (the paper includes targets), and the steps plan's calls 2a–2c.
 6. **DONE:** the gate adds a commit to `retry/tier2_passed.txt` itself once a full gate passes.
 7. **The slower dense critic (B20):** with the tuning screens (Claude's recommendation, not objected to).
 8. **The 49-run analysis as an EXPERIMENTS.md NOTE:** to write (Claude's recommendation, not objected to).
+9. **Latency (L) is sidelined** until the long runs, O1 and a new task have results; B23 keeps its design.
+10. **The new task:** chosen later. Turned Square is Claude's first pick (the 2026-10-27 FINDING); ResFiT
+    reported no Stack results, so Stack would be trained from scratch.
 
-**The to-do, before the results** (coarse; the days are targets):
-1. **The long runs: DONE 2026-10-27 but the launches** (the first about 18:30 on 10-28).
-   - `submit.sh`: the run length per arm (`ARM_STEPS` is fixed at 150000) and `checkpoint_interval=50000`
-     for the long arms; `tests/test_sweep_arms.py` for each. One commit, whose first gate runs Tier 2
-     (about 2 h).
-   - Pre-register: the windows 160k–200k, 210k–250k and 260k–300k; converged (the last two pools within
-     0.05, and 200-episode re-evaluations at 250k and 300k within two standard errors); a collapse (a pool
-     0.2 below an earlier one); the gap to ResFiT per window; the signals against each curve; the spread
-     at 150k.
-   - The queue: a new job list, with the long runs in the first slots the seeds 3 do not take (the first
-     about 18:30 on 10-28) and a RAM rule for long runs at once. Restart it while it only waits. Make the
-     watchers and the digest cover the new names: the digest reads `actor-*` and `iface-*` only, and the
-     watchers write the EVAL lines it reads.
-2. **L, the code by the evening of 10-28.**
-   - An env wrapper with an observation FIFO and an action FIFO, the delay fields 0 by default. A test that
-     delay 0 gives today's rollouts exactly.
-   - An eval at fixed delays 0–3 from a checkpoint. The trainer's own evals stay at delay 0, so the pools
-     stay comparable.
-   - L0, eval only: the base alone and existing best models (`eee`, `ere`, ResFiT's) at fixed delays. It
-     runs where GPU memory allows (four runs leave about 2 GB a GPU), else before O and L's training.
-   - Pre-register L0 and L2.
-3. **O, the code by the morning of 10-29.**
-   - Keep the nut's pose through the wrapper: its position, rotation, and pose relative to the gripper.
-     robosuite computes it every step.
-   - The demos: the same fields from robomimic's states, the buffer caches rebuilt, and a check that demo
-     and online values agree at reset (frame and units).
-   - Equivariance: the xy about the rotation centre as an irrep(1) field, z as trivial, the rotation in
-     the end-effector's 6-D encoding. Tests for each.
-   - Pre-register O1.
-4. **O and L launch (10-29).** One commit, both off by default; its Tier 2 once; the queue's smokes. L2
-   and O1 at seed 2 in the slots the long runs leave, then seeds 3 as slots free. The LAUNCHED entries.
-5. **While they run.**
+**The to-do** (coarse; the days are targets):
+1. **The long runs: DONE but the launches** (the first about 22:00 on 10-27, its smoke and the full gate
+   first). The watchers and the digest cover them.
+2. **O1, the code from 10-28** (the steps plan's section 2, once Aden settles its shape): the pose through
+   the wrapper; the demos' column from robomimic's states; its field types and tests (off is today bit for
+   bit; a turned raw observation gives the declared representation); both arms' early speeds; the smokes;
+   the pre-registration; the four jobs in the queue. Launch about 10-30.
+3. **While they run.**
    - `tools/residual_field_ablation.py` for ResFiT's agent, for the long runs' 200-episode
      re-evaluations; it reads the equivariant agent only.
-   - The readout scripts: each long run's curve by window, success against delay, and O1 against `eee`.
+   - The readout scripts: each long run's curve by window, and O1 against `eee` and `rrr`.
    - B22's readout, which sets the tuning anchor.
 
-**The results, roughly:**
-- ResFiT's long run about 10-30: about 30 h from the evening of 10-28.
-- `eee`'s long run about 11-01: about 64 h.
-- O1 and L2 at seed 2 about the evening of 10-30, their seeds 3 over the weekend.
+**The results, roughly:** ResFiT's long runs about 10-29 midday and 10-31 night; `eee`'s about 10-30
+afternoon and 11-01; O1 about 11-02.
 
 **Then, after these results:**
-- **More tasks.** Each needs a base policy, re-rendered demos and a render check. Can (`v7`) and
-  BoxCleanup (ACT) have base policies.
+- **A new task** (call 10). Each needs a base policy, re-rendered demos and a render check. Can (`v7`) and
+  BoxCleanup (ACT) have base policies; neither has the symmetry.
 - **The tuning group** (the plan's section 3).
   - Stage 1: 50k screens at seed 2, each one change from the anchor. They are scored on the online value
     at 20k–50k, with the speed band as a gate. The arms: critic rate 3e-4 and 3e-5, updates per step 8 and
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
 
-### B23. The observation, latency and chunk experiments — O and L UN-PARKED 2026-10-27, after the long runs (B24); C still parked (Aden, 2026-10-26 and 10-27) `[SC]`
+### B23. The observation, latency and chunk experiments — O1 next, after the long runs (B24); L SIDELINED and C parked (Aden, 2026-10-26 and 10-27) `[SC]`
 
 Ideas Aden asked for on 2026-10-26 and parked until B22 and B21 were read. On 10-27 Aden put O and L after
-the long runs (EXPERIMENTS.md, 2026-10-27 DECISION). Their to-do and timing are B24's. C stays parked.
+the long runs, then sidelined L (EXPERIMENTS.md, the 2026-10-27 DECISIONs). O1's to-do is B24's.
 Nothing is coded or queued. Every new field is off by default, and bit-identical when off (the regression
 fingerprint).
 
-**The first wave** (Claude's, 2026-10-27): L0, eval only; L2 `delay-rand` and O1 `obj-both`, each at two
-seeds to 150k. Then O2 and L3 in a second wave.
+**The first wave:** O1 on `eee` and `rrr` at two seeds (B24, call 5). L0, L2 and the second wave wait.
 
 **Design calls for Aden** (Claude's recommendation in each):
 - **The anchor:** eee's launch. It has four 150k runs to read against (0.516–0.676), and B22 reads on the
@@ -126,8 +104,8 @@ seeds to 150k. Then O2 and L3 in a second wave.
 
 **O. Object-centric observation** (after `docs/papers/obj_cent_resrl.pdf`: residual RL on 6-DoF object
 poses plus proprio plus the base action, with pose noise and dropout for sim-to-real).
-- O1 `obj-both`: the nut's pose (position, 6-D rotation, and relative to the gripper) to actor and
-  critic; images kept. Does handing over what the encoder loses (the 2026-10-23 probe: the nut's xy
+- O1 (`obj-eee`, `obj-rrr`): the nut's pose in the paper's shape to actor and critic, images kept
+  (B24, call 5). Does handing over what the encoder loses (the 2026-10-23 probe: the nut's xy
   relative to the gripper) raise the level?
 - O2 `obj-critic`: the pose to the critic alone. Is the critic's view the bottleneck (arch-swap: the
   critic is where the constraint mattered)? The actor stays deployable without a pose estimator.

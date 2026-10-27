@@ -10487,3 +10487,88 @@ mismatched env); the gap about 0.15–0.20 at 300k, holding rather than closing.
 **Disk:** seven checkpoints a run (0, 50k, …, 300k): about 1.56 GB for each ResFiT run and 0.61 GB for each
 `eee` run, about 4.3 GB in all, beside the packages and videos. Every `models/step_*.pt` of these runs is
 kept (the wrapup skill says so). 23 GB free on 10-27.
+
+## 2026-10-27 — FINDING — Square's symmetry under our group is extrinsic: no turned Square scene is one the task produces. Recorded, nothing tested (Aden: "record it for now")
+
+**The facts.** The network turns scenes about the robot base, (−0.56, 0). Square's peg is fixed at
+(0.23, 0.10), 0.80 m from the base; the nut starts on a 5 mm × 11.5 cm strip with uniform yaw. A 45° turn
+about the base moves the peg about 0.61 m and turns it, which the task never does, so none of the seven
+non-trivial turns of a Square scene is a Square scene: 0 of 200,000 sampled layouts
+(`outputs/diagnostics/symmetry/layouts.py`). The layout spans only 7°–27° of heading about the base. Can's
+bins are fixed in the same way. EQUIVARIANCE.md said "Single-arm Can and Square have a real C8 symmetry",
+reasoning from the nut's uniform yaw alone; that line is corrected in this commit.
+
+**In the terms of the equivariance literature** (Wang et al., ICLR 2023 and NeurIPS 2023, cited from
+memory, not in `docs/papers/`): a symmetry is correct when the task's distribution is closed under it,
+incorrect when the task contradicts it, and extrinsic when it maps the task's inputs outside the
+distribution. Square under base-centred C8 is extrinsic: the constraint contradicts no data, but it shares
+nothing either.
+
+**How it could cost performance** (Claude's reading for Aden, untested):
+1. **Lost sharing.** Equivariance pays by applying what is learned in one scene to its turned copies. No
+   turned copy is ever seen, so the benefit is zero, and the constraint and its smaller hypothesis space
+   remain.
+2. **No constant term on turning outputs.** escnn's Linear into irrep(1) has no bias (a constant input maps
+   to zero), so the actor's xy correction cannot hold a fixed world direction, such as "towards the peg".
+   It must compute one from inputs that carry it: on Square, the agentview image (approximately) and the
+   base action.
+3. **The invariant critic sees the scene only up to a turn.** Where the peg is in the world reaches it only
+   through features the 45° period does not hide, or by comparing the image with the base action.
+4. **Capacity.** A regular field has one eighth of the free parameters of a plain channel of its width.
+
+**Variants that widen the layout** (MimicGen's Square D1 and D2; MimicGen 1.0 does not import under
+robosuite 1.5.1, so they would need porting). A 45° turn about the base gives a real layout for 0% (D1)
+and 2% (D2) of layouts. About the table's centre: D1 0% at 45° and 25% at 90°; D2 69% at 45° and 100% at
+90°.
+
+**A turned scene is physically real** (`outputs/diagnostics/symmetry/turned_replay.py`, CPU, no
+rendering): 20 demos' first state and their actions turned rigidly about the base (robot joint 1, the nut,
+both pegs and the table, the nullspace posture, the controller's goal reset), then replayed open-loop.
+Successes: untouched 17/20; ±0.01° 17/20; +5° 15/20; +20° 11/20, −20° 15/20; ±45° 12/20 each, the same 12
+demos both ways. The likely leak is robosuite's per-axis clip of the action to ±1: 3.4% of demo steps sit
+at it, and a turned action spills over it. This is the basis of the "Turned Square" candidate task: the
+whole scene turned about the base at each reset, which makes the network's symmetry correct.
+
+Nothing about past runs changes. eee's gap to ResFiT on Square gains a candidate explanation, not a test.
+
+## 2026-10-27 — DECISION — the order for the next phase, revised (Aden, afternoon): the long runs first in the queue, then actor-design's seeds 3; the iface pair dropped; O1 is the nut's pose on `eee` and `rrr`, queued after them; latency sidelined; a new task chosen later
+
+**Aden:** "keep the four runs that you recommend training and queue up the long runs behind them as you
+recommend"; "queue two runs of the obj-centric obs space on 2 seeds of eee and rrr after that"; "lets
+sideline latency sampling until after obj centr, long runs, and a different env have been tested"; and
+on O's input, "lets try to match the shape that the paper used".
+
+1. **The four running runs finish** (`actor-resfit-shape 2`, `actor-eae 2`, `iface-window 3`,
+   `actor-resfit-shape-wide 2`). Asked why not stop them for the long runs: none had reached its
+   110k–150k readout (they were at 3k–103k), so stopping would have kept no readout from about 20 GPU-hours
+   each and saved 10–14 h a slot, and only 12 GB of RAM was free against the queue's 28 GB floor.
+2. **The queue** (`order-1027`, restarted 13:19): `long-eee 4`, `long-resfit 4`, `long-eee 5`,
+   `long-resfit 5` first, then `actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`, which
+   take the slots the two-long limit leaves. Expected: `long-eee 4` from about 22:00 tonight (its smoke
+   and the full gate first), `long-resfit 4` about 01:30–04:00 when memory allows, all four done about
+   10-31 to 11-01 instead of about 11-02 morning. The long runs' pre-registered start times change; their
+   readouts are by step, so nothing to be read changes. actor-design's readout moves from about 10:30 on
+   10-29 to about the evening of 10-30.
+3. **`iface-wide-out 3` and `iface-eee 3` are dropped.** `iface-eee 3` would have added a run of eee's
+   launch at 150k; `long-eee 4` and `5` give two, on the same code (nothing under `resfit/` has changed
+   since `0d9fb30`), and their first 150k are fresh-seed copies of eee by the long runs' tests.
+   `iface-wide-out` (0.452 at seed 2) is not on the new path. So `enc-iface-1023` is read on what ran:
+   `iface-window` at seeds 2 and 3, `iface-wide-out` and `iface-eee` at seed 2; I1 was already not read.
+4. **O1, the nut's pose, on `eee` and `rrr`,** seeds 2 and 3, 150k, queued after actor-design's seeds 3.
+   `rrr` is `arch-swap-rrr`: ResFiT's ViTs, actor and critic in this agent, which scored level with
+   ResFiT's own agent (0.648 against 0.714). Both read the same low-dimensional block, so one code path
+   feeds both. The pose takes the object-centric paper's shape (`docs/papers/obj_cent_resrl.pdf`, eq. 2 and
+   4): each task-relevant object's position and orientation, a quaternion, 7 numbers an object,
+   concatenated, with no gripper-relative pose. The tracked object is the nut, the only one that moves;
+   robosuite's own object observation for Square is the nut alone. Whether the peg also goes in, as the
+   paper's rule would have it (it includes targets: Stack's target cube, Pick-and-Place's bowl), is open
+   for Aden. Not coded; its plan is `docs/plans/2026-10-27-long-O-L-steps.md`, section 2 (local).
+5. **Latency (L) is sidelined** until the long runs, O1 and a new task have results. Nothing is built.
+6. **A new task, ResFiT against eee, is chosen later.** ResFiT reported Can, Square, BoxCleanup, CanSort
+   and Coffee (`docs/papers/resfit.pdf`), not Stack, so Stack would be trained from scratch: demos, a base
+   policy, a render check. A published number would not be comparable in any case (another base policy,
+   demos and evaluation). The candidates on record: Turned Square (Claude's first pick: the network's
+   symmetry made correct, everything else held), Stack, Square D2, BulletArm (the FINDING above).
+
+**The order now:** the long runs; O1; a new task; then latency and the tuning. The slower dense critic
+(the 2026-10-26 DECISION, item 2) has no place in it yet.

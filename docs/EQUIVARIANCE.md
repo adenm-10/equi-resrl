@@ -278,10 +278,12 @@ share an orientation.
 
 ### Bimanual: TwoArmBoxCleanup is a prior, not a symmetry
 
-Single-arm Can and Square have a real C8 symmetry: object yaw is drawn from `rotation=None`, i.e.
-uniform over `[0, 2*pi)`, so a rotated scene is a scene the task actually produces.
+**Corrected 2026-10-27: single-arm Can and Square are not symmetric under our group either.** Their
+object yaw is uniform, but the targets are fixed: Square's peg sits 0.80 m from the base, so a 45° turn
+about the base moves it 0.61 m, and no turned scene is one the task produces (0 of 200,000 layouts). The
+symmetry is extrinsic: it contradicts no data and shares nothing (EXPERIMENTS.md, 2026-10-27 FINDING).
 
-BoxCleanup is not like that, and the record should say so plainly before any result is read:
+BoxCleanup is further off, and the record should say so plainly before any result is read:
 
 - **The two robots are chiral.** `robot0` is `PandaDexRH` with an `InspireRightHand`; `robot1`
   carries an `InspireLeftHand`. A rotation preserves chirality, so no rotation maps the scene onto

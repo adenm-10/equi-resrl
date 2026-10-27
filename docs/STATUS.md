@@ -4,14 +4,14 @@
 2026-10-27 CODE): the sweep-arm, watcher and run-package tests pass on the CPU; the GPU part runs in the
 first long launch's full gate. Nothing under `resfit/` has changed since `0d9fb30`. `long-1027` launches from
 its pre-registration commit, `actor-design-1026` from `a5b5cc8`, enc-iface's last jobs from `58d55d7`. Main
-is pushed to origin through `4a6ab43`; the long runs' two commits are local.
+is pushed to origin through `4a6ab43`; the commits since are local.
 
-**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last runs. The long runs (`long-1027`)
-are coded, pre-registered and queued** (EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED): ResFiT's own
-agent and `eee` to 300k at seeds 4 and 5, two at once, after actor-design's seeds 3; the first launches
-about 18:30 on 10-28. Then the object-centric and sampled-latency experiments (TODO B23's O and L; their
-step-by-step plan is `docs/plans/2026-10-27-long-O-L-steps.md`, local, for Aden's approval), then more tasks
-and the tuning. One queue places every job: tmux `order-queue`,
+**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last run. The long runs (`long-1027`)
+are first in the queue** (EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION): ResFiT's
+own agent and `eee` to 300k at seeds 4 and 5, two at once, from about 22:00 tonight; actor-design's seeds 3
+take the other slots. Then O1, the nut's pose on `eee` and `rrr` (its shape open for Aden; plan
+`docs/plans/2026-10-27-long-O-L-steps.md`, local), then a new task; latency is sidelined. One queue places
+every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
@@ -28,9 +28,9 @@ and the tuning. One queue places every job: tmux `order-queue`,
   actor unconstrained (`actor-eae`, at 2.5e-7). Seeds 2 and 3, against `arch-swap`'s `eee` and `ere`.
   - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) are running. Both smokes passed, both
     early speeds are at their predictions (0.0355, 0.0321), and the gross-failure check passed.
-  - `actor-resfit-shape-wide 2` is in its smoke from 08:03 on 10-27.
-  - The readout is about 10:30 on 10-29, since runs take about 33 h with four on the machine. Watcher:
-    tmux `ad-watch`.
+  - `actor-resfit-shape-wide 2` (`160x34lf`) runs from 09:29 on 10-27.
+  - The readout is about the evening of 10-30 (runs take about 33 h with four on the machine), its seeds 3
+    behind the long runs. Watcher: tmux `ad-watch`.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
   the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE).
   - Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; never above its step 0; its critic
@@ -38,9 +38,8 @@ and the tuning. One queue places every job: tmux `order-queue`,
     critics did) and `iface-wide-out` 0.452 (`gcrewpq2`). The anchor `iface-eee` scored 0.676
     (`mgcifv1y`), against `eee 2`'s 0.516.
   - `iface-wide-all 2` (`5shh877a`) was stopped at about 113k (Aden), a description only.
-  - Still to run: `iface-window 3` (`n94ucnlv`, running, to 150k about 01:30 on 10-28), then
-    `iface-wide-out 3` and `iface-eee 3`, unless Aden has them wait behind the long runs (TODO B24, call 3).
-  - `iface-wide-all 3` is dropped, so I1 is not read. Watcher: tmux `iface-watch`.
+  - `iface-window 3` (`n94ucnlv`) runs to 150k about 01:30 on 10-28. `iface-wide-out 3`, `iface-eee 3` (the
+    afternoon DECISION) and `iface-wide-all 3` are dropped, so I1 is not read. Watcher: tmux `iface-watch`.
 - **What goes with beating the base** (a 49-run analysis, 2026-10-27; `outputs/diagnostics/success-correlates/`;
   TODO B24). Not yet an EXPERIMENTS.md entry, which is Aden's call.
   - Two necessary conditions: the early speed band (0 of 21 runs outside it beat the base) and a
@@ -225,15 +224,15 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 09:00 on 2026-10-27:**
+**At 13:20 on 2026-10-27:**
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-eae 2` (`e4220e3z`, about 83k) and `iface-window 3` (`n94ucnlv`, about 77k) | about 22:30–23:30 on 10-27; about 01:30 on 10-28 |
-| 1 | `actor-resfit-shape 2` (`j457zalw`, about 87k); `actor-resfit-shape-wide`'s smoke from 08:03, then its seed 2 | about 22:00–23:00 on 10-27; about 18:30 on 10-28 |
+| 0 | `actor-eae 2` (`e4220e3z`, about 97k) and `iface-window 3` (`n94ucnlv`, about 90k) | about 23:30 on 10-27; about 01:30 on 10-28 |
+| 1 | `actor-resfit-shape 2` (`j457zalw`, about 103k) and `actor-resfit-shape-wide 2` (`160x34lf`, about 3k) | about 22:00 on 10-27; about 18:30 on 10-28 |
 
-Queued in `order-1026`, in order: `actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`,
-`iface-wide-out 3`, `iface-eee 3`. `iface-eee 2` (`mgcifv1y`) finished at 07:58 on 10-27.
+Queued in `order-1027`, in order: `long-eee 4`, `long-resfit 4`, `long-eee 5`, `long-resfit 5`,
+`actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
@@ -241,8 +240,8 @@ needs it. New groups go in the watcher's watch-only set.
 
 How the runs are launched and followed:
 - **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
-  `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree. It
-  is `order-1026`'s queue (stopped while it waited) with the long runs added, at most two at once
+  `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree;
+  restarted 13:19 with the long runs first. It is `order-1026`'s queue with the long runs added, at most two at once
   (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
   last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
   `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,
@@ -436,17 +435,18 @@ How the runs are launched and followed:
 
 ## The plan, and why
 
-**0. Now: `actor-design-1026`** (TODO B22), read about 10:30 on 10-29: whether ResFiT's actor beats ours
-(C4) through its wiring, its free parameters, or its lack of a constraint. `enc-iface-1023`'s last runs
-beside it (TODO B21).
+**0. Now: `actor-design-1026`** (TODO B22), read about the evening of 10-30: whether ResFiT's actor beats
+ours (C4) through its wiring, its free parameters, or its lack of a constraint.
 
-**1. Next, in Aden's order** (2026-10-27 DECISION; TODO B24 has the to-do list and the calls):
-- **The long runs, queued** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at seeds 4 and 5,
-  to see where each levels off; the gap is described. Every run above the base was still climbing at 150k.
-  First about 18:30 on 10-28; all four done about 11-02.
-- **Then O and L** (TODO B23): the nut's pose to the agent, aimed at the critic's missing value of online
-  data, and sampled latency, for robustness.
-- **Then more tasks, and the tuning** aimed at the critic's signals.
+**1. Next, in Aden's order** (the 2026-10-27 DECISIONs; TODO B24 has the to-do list and the calls):
+- **The long runs, first in the queue** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at
+  seeds 4 and 5, to see where each levels off; the gap is described. Every run above the base was still
+  climbing at 150k. First about 22:00 on 10-27; all four done about 10-31 to 11-01.
+- **Then O1** (TODO B23): the nut's pose to `eee` and `rrr`, aimed at the critic's missing value of online
+  data; about 10-30 to 11-02.
+- **Then a new task, ResFiT against eee:** Square's symmetry under our group is extrinsic (2026-10-27
+  FINDING). Turned Square is Claude's first pick; Stack has no ResFiT result to reuse.
+- **Then latency (sidelined) and the tuning.**
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
 
