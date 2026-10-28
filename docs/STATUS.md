@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-28, 17:45 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-28, 18:05 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -61,6 +61,11 @@ and the `rrr` arms are queued after actor-design's seeds 3.
 Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
+- **`long-1027`'s first 150k readout** (EXPERIMENTS.md, the 2026-10-28 NOTE on `long-resfit 4`):
+  `long-resfit 4` (`3ctaaap1`) pooled 0.848 at 110k–150k, beside `bue9dupf`'s 0.828, so it is comparable
+  with its source arm (ResFiT's re-rendered arm, two runs, mean 0.838). It was still climbing at 150k.
+  Both long runs' early speeds are inside the band (`long-eee 4` 0.0396, `long-resfit 4` 0.0277).
+  `long-eee 4` gets the same readout about 10:00 on 10-29, against eee's four runs (0.599).
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
@@ -264,7 +269,7 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.84 at 140k) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35, 0.62 at 110k) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
+| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.848 at 110k–150k) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35, 0.62 at 110k) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
 | 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.70 at 70k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.0376 early) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
 `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28, its package complete.

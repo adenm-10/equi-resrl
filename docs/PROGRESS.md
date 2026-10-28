@@ -31,11 +31,15 @@ other four docs, with a pointer from here.
   - September's wandb folders were checked on the server: 14 qualify, 3.2 GB, now in
     `delete_by_hand_2.sh`.
   - Directories need `rm -rf`, so everything past the duplicate best models waits for Aden.
-- Two September PROGRESS entries condensed for the doc budget.
+- Three September PROGRESS entries condensed for the doc budget (09-16, 09-25, 09-29).
 - **The 49-run analysis's NOTE** (TODO B24, call 8; EXPERIMENTS.md, 2026-10-28). Every number in it comes from
   `success-correlates/note_1028.py`, which reads the saved 10-27 table.
   - It corrects 16 to 17 runs above the base, and adds that 15 of the 32 below were climbing too.
   - `eee`'s launch climbed at +0.08 per 100k over 50k–150k, against ResFiT's +0.27.
+- **`long-resfit 4` at 150k** (its NOTE): 0.848, beside `bue9dupf`'s 0.828, so comparable. A running run's
+  windows are read from wandb's server by `outputs/diagnostics/long/read_window.py` (new, local), which
+  reproduces the 49-run table for `bue9dupf`. The long runs' early speeds, missing from their LAUNCHED
+  entry, are in the NOTE.
 
 ## 2026-10-28 (morning) — Aden's calls: O1's `rrr` arms at 1e-6 and queued; the disk reclaim (A–C) run as far as the settings allow; Claude to act on its own recommendations
 
@@ -1396,72 +1400,34 @@ those sessions.)
 
 ## 2026-09-29 — The target critic never updated; the Square sweep launched
 
-**Done**
+Condensed 2026-10-28; the runs' details are in EXPERIMENTS.md (2026-09-29 CORRECTION and RESULTS).
 
-- **Every equivariant run's target critic was frozen at initialization.**
-  - escnn layers in eval mode compute with weights expanded at `.train(False)`, and the target critic
-    sat in eval mode from construction.
-  - Fixed in `93a8ad4`: it now runs in train mode, as the actor target does.
-    `equivariance.frozen_target_critic=True` reproduces the bug.
-  - A test copies the critic into the target with tau=1 and checks both behaviours.
-  - Warm-up confirms it: the frozen reference's mean TD target stayed at −0.150 to −0.164 over
-    10k critic updates, while `target-fix`'s moved from −0.138 to −0.005.
-  - EXPERIMENTS.md, 2026-09-29 CORRECTION.
-- **Records:**
-  - both `equi-square-v1` seeds' RESULTS (L10 0.52 and 0.39);
-  - the `num_q` 10 → 2 default change (CORRECTION);
-  - a note on `rj70yeid`;
-  - the Square base rate, **B_sq = 0.508 ± 0.022** over 500 episodes, about 2.5 SE below the pooled
-    step-0 of 0.60, with no systematic cause found.
-- **The sweep's code** (`718de4d`):
-  - per-network norm fields, with a new `RegularLayerNorm` (ResFiT's LayerNorm, made equivariant);
-  - critic and encoder orth init, and the critic's last-layer scale;
-  - `use_visual_proj`, and `residual_squash` with `equi_tanh`;
-  - `ih_out_channel`, and `num_critic_layers` wired (default 2 → 1, what ran).
-  - The agent fingerprint is unchanged at the defaults. Tier 2 grew from 154 to 285 tests: every
-    option's symmetry in both modes, and every arm built and updated.
-- **Launch tooling** (`93a8ad4`):
-  - `submit.sh <arm> <seed> [gpu]`;
-  - `tools/gpu_queue.sh`, with a per-GPU queue of `<commit> <arm> <seed>`, each launched from a
-    worktree pinned to its commit (`~/projects/equi-resrl-<commit>`);
-  - `write_buffer_caches`;
-  - the gate looks under `CACHE_DIR`, and `--require-caches` makes a miss block.
-- **Launched:**
-  - `target-fix` (`0rehtuoq`, GPU 0, `ce96bb5`, 17:58), queued behind the base-rate eval;
-  - the BoxCleanup smoke run (`f6n0jtv9`, GPU 1, `ce96bb5`), after which GPU 1's queue starts.
-  - Its robot-base probe matched the env, bases (−0.56, ∓0.25), and is committed (`1e33b8f`).
-- **The BoxCleanup smoke run passed as a tooling check.** It ran 3k steps at the paper's settings:
-  `num_q=10`, `action_scale` 0.2, actor LR 5e-6, init 1e-4, `write_buffer_caches=false`.
-  - The ACT reset path survived real successes, with no `NameError`.
-  - 229,712 offline transitions were labelled in about 20 min, and no cache was written.
-  - **Memory: 59.8 GiB** (PSS) with the online buffer at 10k of 200k: main 35.1, and 9 workers at
-    about 2.75 each. A full run projects to about 82 GiB, so it can't share the machine with a
-    Square run.
-  - **Speed: about 0.69 s/step,** plus about 3.5 min per 50-episode eval. So 500k steps is about
-    4 days, not the 9–10 estimated earlier.
-  - Evals: 0.72 at step 0, then 0.08, 0.72 and 0.62 at 1k, 2k and 3k. `residual_l1` rose 0.30 → 0.56,
-    well past `action_scale` 0.2, since the residual is unbounded. A tooling check, not a result,
-    but a reason to settle `residual_squash` before the pilot.
-  - wandb `f6n0jtv9` in `equi-resrl-smoke`, left in place; its package is
-    `outputs/runs/equi-resrl-smoke/f6n0jtv9/`.
+**Done**
+- **Every equivariant run's target critic was frozen at initialization:** escnn layers in eval mode use
+  weights expanded at `.train(False)`, and the target sat in eval mode. Fixed in `93a8ad4` (train mode, as
+  the actor target); `equivariance.frozen_target_critic=True` reproduces the bug, and a tau=1 test checks
+  both. In warm-up the frozen target's mean TD target stayed at about −0.15, the fixed one's moved to −0.005.
+- **Records:** `equi-square-v1`'s two RESULTS (L10 0.52, 0.39); `num_q` 10 → 2 (CORRECTION); the Square
+  base rate **B_sq = 0.508 ± 0.022** over 500 episodes, about 2.5 SE under the pooled step 0 of 0.60.
+- **The sweep's code** (`718de4d`): per-network norms with `RegularLayerNorm` (ResFiT's LayerNorm, made
+  equivariant), orth inits, the critic's last-layer scale, `use_visual_proj`, `residual_squash`,
+  `ih_out_channel`, `num_critic_layers` wired. The agent fingerprint is unchanged at the defaults; Tier 2
+  grew from 154 to 285 tests.
+- **Launch tooling** (`93a8ad4`): `submit.sh <arm> <seed> [gpu]`; `tools/gpu_queue.sh`, each job from a
+  worktree pinned to its commit (`~/projects/equi-resrl-<commit>`); `write_buffer_caches`; `--require-caches`.
+- **Launched:** `target-fix` (`0rehtuoq`), and the BoxCleanup smoke (`f6n0jtv9`, package
+  `outputs/runs/equi-resrl-smoke/f6n0jtv9/`), a tooling check that passed: the ACT reset path survived real
+  successes; 59.8 GiB of RAM at 10k of 200k (a full run about 82 GiB, so never beside a Square run); about
+  0.69 s a step, so 500k steps is about 4 days; the residual rose past `action_scale`, unbounded, a reason
+  to settle `residual_squash` first.
 
 **Decided**
-
-- **Aden:** the normalization arms first, finished by 2026-10-02; the rest on Claude's judgement. No
-  `c4`, no dropout or weight-decay arm, no actor-LR arm.
-- **Every sweep arm carries the target-critic fix.** `target-fix`, the fix alone, is both the first
-  arm and the reference for the rest.
-- **The LayerNorm arms use `RegularLayerNorm`, not `FieldNorm`.** Recorded as an amendment before
-  either launched.
-- **B_sq stays 0.508, as pre-registered,** which makes the screen looser than its calibration.
-- **Worktrees are pinned per commit, never moved.** A running trainer can spawn processes that
-  import from its tree, so moving a tree under it could mix commits in one run.
-- **From the 2026-09-29 non-sweep plan:**
-  - A2: the BoxCleanup pair runs one arm at a time, after the sweep or scheduled against it, once
-    the smoke run has measured RAM;
-  - A3: env seeding stays off;
-  - A4: `docs/plans/` stays untracked;
-  - A1, the doc budget, is still Aden's (TODO H5).
+- **Aden:** the normalization arms first; no `c4`, dropout, weight-decay or actor-LR arm.
+- Every sweep arm carries the target fix, with `target-fix` the reference; the LayerNorm arms use
+  `RegularLayerNorm` (an amendment before launch); B_sq stays 0.508 as pre-registered.
+- **Worktrees are pinned per commit, never moved:** a running trainer can spawn processes that import from
+  its tree.
+- The BoxCleanup pair runs one arm at a time; env seeding stays off; `docs/plans/` stays untracked.
 
 ## 2026-09-27 — Pinning the whole agent, and BoxCleanup prep
 

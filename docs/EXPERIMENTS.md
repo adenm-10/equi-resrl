@@ -11148,3 +11148,48 @@ and the watchers' `outputs/queue/watch.log`. Launched through `order-1027/order_
   - GPU 1: `long-eee 4` (`rkks1a9p`, 0.70 at 70k) and `actor-eae 3`.
 - **Next in `order-1027`:** `actor-resfit-shape-wide 3` when `xhz9iwoo` ends, about 08:00 on 10-29;
   `long-eee 5` when `3ctaaap1` reaches 300k, about 09:00 on 10-29; then `long-resfit 5` and O1.
+
+---
+
+## 2026-10-28 — NOTE — `long-resfit 4` at 150k: 0.848 (`3ctaaap1`), beside `bue9dupf`'s 0.828, so its first 150k is comparable with its source arm's run; ResFiT's re-rendered arm now averages 0.838 over two runs. The long runs' early speeds, not logged at their launch: 0.0396 and 0.0277, both inside the band
+
+Written by Claude at about 18:00 on 10-28 (the morning's DECISION: each long run's 150k readout). The
+long runs' PRE-REGISTERED entry (2026-10-27) reads **comparability** at 150k: each run's 110k–150k pool
+against its source arm's runs. The run continues to 300k; its curve is read at the later windows.
+
+**How:** `outputs/diagnostics/long/read_window.py` (local) reads a running run's history from wandb's
+server, since the package's `metrics.jsonl` is written only at the end. It computes the 49-run analysis's
+signals over the same windows (output in `read_window_1028.txt`). For `bue9dupf` it reproduces the
+analysis's table (`success-correlates/runs.json`) to 0.001, and the early speed to 0.0006.
+
+| | `long-resfit 4` (`3ctaaap1`) | `bue9dupf` (`resfit-residual-square-rerendered`) |
+|---|---|---|
+| Step 0 (the base alone) | 0.62 | 0.60 |
+| Evals 10k–150k | 0.36 0.34 0.58 0.58 0.78 0.80 0.66 0.76 0.70 0.82 0.88 0.78 0.86 0.84 0.88 | 0.16 0.48 0.60 0.70 0.58 0.62 0.64 0.76 0.88 0.74 0.74 0.74 0.90 0.88 0.88 |
+| **Pool 110k–150k** | **0.848** | **0.828** |
+| Early speed, 1–3k | 0.0282 (the watcher's 0.0277) | 0.0360 |
+| Training success, 10k–30k; 100k–150k | 0.415; 0.801 | 0.346; 0.782 |
+| Critic's online value, 10k–30k; 100k–150k | +0.065; +0.210 | +0.094; +0.233 |
+| Demo preference, 10k–30k; 100k–150k | +0.325; +0.207 | +0.281; +0.186 |
+| Eval slope over 50k–150k, per 100k | +0.135 | +0.285 |
+
+- **Comparable:** the pools differ by +0.020, about a third of the 0.064 standard deviation that noise
+  alone gives the difference of two pools. Every signal but the slope is within about 0.07 of
+  `bue9dupf`'s. So the checkpoint saves and the 300k schedule's first 150k
+  match the source arm, as the PRE-REGISTERED entry argued they must.
+- **ResFiT's re-rendered arm now has two runs:** 0.828 and 0.848, mean **0.838**. `long-resfit 5` adds the
+  third, as the spread at 150k is to be read over three.
+- **The 49-run analysis's two conditions hold** (its NOTE, "Next"): the early speed is inside 0.025–0.045,
+  and the critic is ResFiT's. The training success at 10k–30k (0.415) is above the 0.15 split. The run is
+  0.307 above the pooled base of the re-rendered demos (0.541).
+- **Still climbing at 150k by the 49-run NOTE's definition:** its pool rose from 0.748 at 60k–100k to
+  0.848, and its slope is positive, though at half of `bue9dupf`'s. The PRE-REGISTERED entry's own
+  "still climbing" rule reads its 160k–200k pool, at about 23:00 on 10-28.
+- **Against the prediction** (ResFiT rising to about 0.85–0.90 by 300k): at 0.848 by 150k, it starts at
+  the prediction's lower end.
+- **Its checkpoints** at 0, 50k, 100k and 150k are 223 MB each, as registered.
+- **The long runs' early speeds**, logged after their LAUNCHED entry was written: `long-eee 4`
+  (`rkks1a9p`) 0.0396 and `long-resfit 4` 0.0277, both inside 0.025–0.045. Their source runs: `eee`'s
+  launch 0.0348–0.0367, `bue9dupf` 0.0354 (the analysis's table). Each is within 1.5 times its source.
+- **Next:** `long-eee 4` reaches 150k about 10:00 on 10-29, and gets the same readout against `eee`'s four
+  runs (mean 0.599).

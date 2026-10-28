@@ -47,7 +47,8 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
 
 **The to-do** (coarse; the days are targets):
 1. **The long runs: seeds 4 launched 10-28** (the LAUNCHED entry); seeds 5 follow. The watchers and the
-   digest cover them.
+   digest cover them. `long-resfit 4`'s 150k readout DONE 10-28 (0.848, comparable; its NOTE);
+   `long-eee 4`'s about 10:00 on 10-29, with `outputs/diagnostics/long/read_window.py`.
 2. **O1: BUILT 10-27** (the CODE entry). The rest:
    - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
 
