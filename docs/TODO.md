@@ -45,11 +45,10 @@ runs above the base was still climbing at 150k, which is the case for the long r
     dropped (Aden).
 
 **The to-do** (coarse; the days are targets):
-1. **The long runs: DONE but the launches** (the first about 22:00 on 10-27, its smoke and the full gate
-   first). The watchers and the digest cover them.
+1. **The long runs: seeds 4 launched 10-28** (the LAUNCHED entry); seeds 5 follow. The watchers and the
+   digest cover them.
 2. **O1: BUILT 10-27** (the CODE entry). The rest:
-   - the `eee` arms pre-registered and queued;
-   - the `rrr` arms wait for Aden's call on their rate (STATUS).
+   - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
 
    The steps, as planned (the steps plan's section 2):
    - the pose through the wrapper;
@@ -189,8 +188,7 @@ DECISION and PRE-REGISTERED).
 - **Then:** the readout about the evening of 10-30: `/analyze-experiment` against the rules, then the NOTE.
   It reports C4 against all four of eee's runs too (+0.093). The next step comes from the PRE-REGISTERED
   entry's readings, and the readout also sets the tuning anchor (B24).
-- **The disk** (13.8 GB on 10-28) is Aden's call (STATUS). By H13's standing decision, `/wrapup` deletes
-  the finished runs' eval videos.
+- **The disk** (15.8 GB on 10-28): each finished run's duplicate best model is reclaimed (STATUS).
 
 ### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — DONE 2026-10-28 as cut by the 2026-10-26 and 10-27 DECISIONs (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 

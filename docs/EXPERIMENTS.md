@@ -10951,3 +10951,52 @@ Read at 03:00 on 10-28 from the finished package (`outputs/runs/robomimic-square
   I1, I2 and I4 have one seed on a side and are not read. I3 is read only as the description above, since
   its anchor `iface-eee` has one run.
 - `iface-watch` has nothing left to watch; it stays until a cleanup closes it.
+
+---
+
+## 2026-10-28 — DECISION — O1's two `rrr` arms at the source rate, 1e-6, as pre-registered; the disk reclaim approved (three kinds); Claude to act on its own recommendations from here (Aden)
+
+Aden's answers on the morning of 10-28, relayed by the VSCode session, verbatim: "1. A / 1e-6, match default
+config for resfit in this repo  2. A, B, and C  act autonmously and at your reocmmendation".
+
+1. **`obj-nut-rrr` and `obj-peg-rrr` run at 1e-6.** That is Claude's recommendation (the 2026-10-27 CODE
+   entry's early speed; STATUS) and this repo's default: `ResidualTD3DexmgConfig` sets `actor_lr=1e-6`, and
+   neither arm, nor its source `arch-swap-rrr`, overrides it. This was checked by `submit.sh`'s dry run at
+   `e7710f4`, the launch pin: each arm is `arch-swap-rrr`'s argv with the object demos and `object_obs`,
+   nothing else. So the two arms launch exactly as pre-registered, and no AMENDMENT is needed.
+   - Their predicted early speeds (0.0268 and 0.0218 on the reference batch; 0.0249 and 0.0272 on real
+     frames) stay readouts, read against `rrr`'s 0.0285–0.0286.
+   - **Queued** in `order-1027` on the morning of 10-28, in the PRE-REGISTERED entry's order: `obj-nut-eee
+     2`, `obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same four at seed 3.
+   - The relayed message listed the seeds 2 as `nut-eee`, `peg-eee`, `nut-rrr`, `peg-rrr`. Claude followed
+     the registered table: it is the durable record, the message asked for "the pre-registered order", and
+     both orders launch the same eight runs, the order setting only which starts first.
+   - The queue places the `rrr` arms as ViT runs (`kind()`). Each arm's smoke runs in its first slot.
+2. **The disk reclaim, A, B and C** (the 2026-10-28 LAUNCHED entry: 13.8 GB free against about 17–19 GB of
+   queued writes):
+   - **A:** the duplicate `models/best_model.pt` of six finished packages, each checked byte-identical to
+     its `wandb_best/` copy just before deletion; O1's first dataset build and its stale LeRobot cache; and
+     the two long smokes' `models/step_0.pt`.
+   - **B:** the older smoke packages. Never a smoke of a group running or queued (`long-1027`,
+     `actor-design-1026`, `obj-1027`), nor a package cited in EXPERIMENTS.md, STATUS or TODO as evidence.
+   - **C:** the local wandb folders of April and May 2026, each verified on wandb's server (the run exists
+     there with its history). Never `run-20260522_083555-z8yoqylh`, the only copy (TODO H4); never an
+     `offline-run-*`; never a run not found on the server.
+   - Every path is listed first in `outputs/cleanup-20261028/`, with its size and why it qualifies, and only
+     those paths are deleted. A deletion a permission check blocks is recorded as left, not worked around.
+     More of the same three kinds may be reclaimed if the disk runs short again, recorded each time.
+3. **Autonomy:** from here Claude takes its own recommended option at each call and records the call and
+   why: in EXPERIMENTS.md where it touches a run, otherwise in STATUS or PROGRESS. That covers:
+   - the launches and the LAUNCHED entries;
+   - the gross-failure checks;
+   - `actor-design-1026`'s readout (`/analyze-experiment`, then the NOTE);
+   - each long run's 150k readout and the `long-1027` NOTE;
+   - O1's readout;
+   - condensing the docs to stay under their budget.
+
+   **These still wait for Aden:**
+   - anything that would change a pre-registered design;
+   - any deletion not covered above;
+   - anything new beyond the approved plans: Stack (TODO B25) stays unbuilt.
+
+   No run is stopped or signalled, nothing is pushed, and EXPERIMENTS.md stays append-only.

@@ -17,6 +17,23 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-28 (morning) — Aden's calls: O1's `rrr` arms at 1e-6 and queued; the disk reclaim (A–C) run as far as the settings allow; Claude to act on its own recommendations
+
+**Decided** (Aden, relayed by the VSCode session; EXPERIMENTS.md, the 2026-10-28 DECISION):
+- the `rrr` arms at the repo's default 1e-6, as pre-registered;
+- the reclaim's three kinds;
+- autonomy from here, every call recorded with its reason.
+
+**Done** (`claude-o1`)
+- **The queue:** `order-1027` restarted at 09:42 while sleeping, after `--check`, with the scrollback
+  saved. It now has all eight O1 jobs in the registered order (`order_queue.sh.before-rrr` is the old copy).
+- **The reclaim** (`outputs/cleanup-20261028/`):
+  - Done: 8 files, 2.67 GB.
+  - Left, because `rm -rf` is denied in the settings: 7 directories, 2.5 GB. They are listed in
+    `blocked_directories.txt`, and `delete_by_hand.sh` removes exactly those.
+  - 196 of the 199 April–May wandb folders are runs wandb no longer has, so they are kept.
+- **Claude's call:** as each run finishes, its duplicate best model is reclaimed (STATUS, "The disk").
+
 ## 2026-10-27 (evening) — O1 approved as a 2×2 and its build started; Stack planned as the new task
 
 **Done**

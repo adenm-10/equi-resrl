@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-28, 03:00 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-28, 10:00 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -10,31 +10,40 @@ The full gate's GPU tier runs at O1's first launch. Where each group launches fr
 
 Main is pushed to origin through `4a6ab43`; the commits since are local.
 
-**Waiting on Aden: the rate of O1's two `rrr` arms** (the CODE entry's early speed). Their predicted 0–3k
-speed sits at the band's lower edge, as `rrr`'s own does (0.0285–0.0286):
-- `obj-nut-rrr`: 0.0268, or 0.0249 on real demo frames;
-- `obj-peg-rrr`: 0.0218, or 0.0272 on real frames.
+**Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
+DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
+reason. Waiting for Aden: any change to a pre-registered design, any deletion not covered by the DECISION,
+anything new (Stack, TODO B25, stays unbuilt). **O1's `rrr` arms run at 1e-6, as pre-registered**, and
+are queued.
 
-Claude's recommendation is the source rate, 1e-6, so each arm differs from `rrr` only in its input. They
-are not queued until Aden answers. The `eee` arms are queued.
+**Waiting on Aden, by hand: `bash outputs/cleanup-20261028/delete_by_hand.sh`** (2.5 GB). The reclaim (the
+2026-10-28 DECISION, A–C) deleted the eight approved files at 10:00 on 10-28 (2.67 GB): six duplicate
+`models/best_model.pt`, each checked byte-identical to its `wandb_best/` copy, and the two long smokes'
+`step_0.pt`. Its seven approved directories are left, because `rm -rf` is denied in the settings:
+- O1's first build and its LeRobot cache;
+- three uncited smoke packages;
+- two April–May wandb folders found on the server.
 
-**Waiting on Aden: the disk** (EXPERIMENTS.md, 2026-10-28 LAUNCHED). 13.8 GB free at 02:52 on 10-28, and
-the queued jobs will write about 17–19 GB: `eee`'s checkpoints are 444 MB, not the 87 MB the long runs'
-estimate used. The shortfall falls about 10-31. Claude asks to reclaim about 4.6 GB:
-- the duplicate `models/best_model.pt` of six finished packages (2.0 GB), as on 10-23 and 10-27;
-- O1's first dataset build and its stale LeRobot cache (1.9 GB);
-- the two long smokes' `step_0.pt` (0.64 GB).
+The script removes exactly those. What else was checked:
+- Of the 199 April–May wandb folders, 196 are runs wandb no longer has, so they are the only copies left
+  and are kept (`wandb_folders.tsv`).
+- Every other smoke package is cited in EXPERIMENTS.md, is a running group's, or is BoxCleanup's only one
+  (`kept_smoke_packages.txt`).
 
-That still leaves it tight. Larger sources are Aden's to pick: `wandb/` holds 340 local run folders
-(8.6 GB, back to May), and the older smoke packages hold about 3.7 GB. The disk watcher logs the free
-space every 20 s; it stops no run.
+**The disk:** 15.8 GB free at 10:00 on 10-28. The queued jobs, now with the `rrr` arms, will write about
+18–20 GB (`eee`'s checkpoints are 444 MB; the 2026-10-28 LAUNCHED entry).
+- **Claude's call:** as each run finishes, its package's `models/best_model.pt` is deleted once checked
+  byte-identical to `wandb_best/`, and listed in the cleanup folder. That is the DECISION's first kind,
+  about 6 GB over the queue.
+- That should keep the free space above about 2–4 GB at its lowest, about 11-01. Claude is woken below
+  9 GB.
 
 **Now: the long runs (`long-1027`) run their seeds 4, and `actor-design-1026` its seeds 2 and 3**
 (EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION; the 2026-10-28 LAUNCHED). ResFiT's
 own agent and `eee` go to 300k at seeds 4 and 5, two at once; actor-design's seeds 3 take the other
 slots. Then O1 (`obj-1027`; EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED), built and
 pre-registered on the evening of 10-27: the nut alone or with the peg, on `eee` and `rrr`. The `eee` arms
-are queued after actor-design's seeds 3; the `rrr` arms wait for Aden (above).
+and the `rrr` arms are queued after actor-design's seeds 3.
 Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
@@ -67,7 +76,7 @@ every job: tmux `order-queue`,
     arm's two seeds average 0.298, against eee's 0.599 (the 2026-10-28 NOTE). `iface-wide-out 3`,
     `iface-eee 3` and `iface-wide-all 3` were dropped, so only descriptions remain.
 - **What goes with beating the base** (a 49-run analysis, 2026-10-27; `outputs/diagnostics/success-correlates/`;
-  TODO B24). Not yet an EXPERIMENTS.md entry, which is Aden's call.
+  TODO B24). Not yet an EXPERIMENTS.md NOTE; Claude's to write (B24, call 8).
   - Two necessary conditions: the early speed band (0 of 21 runs outside it beat the base) and a
     constrained or ResFiT critic (0 of 6 unconstrained).
   - The best early signal is training success at 10k–30k (ρ +0.80).
@@ -111,38 +120,25 @@ condensed on 2026-10-27).
 - The 10k dip is in every arm since (0.00–0.24 in arch-swap), but arch-swap's `eee` and `ere` now end
   above the base.
 
-**Every other experiment was cancelled on 2026-10-12** (DEVIATION), Aden judging their lessons in:
-`eaqorqki` was stopped at 80.2k, and `square-trlpd-stab-1010` keeps one seed per arm and no verdict.
-- **Equivariant tuned RLPD learned Square, the first tuned RLPD to do so in our trainer** (`vc5o977f`:
-  0.50 at 80k), **then its critic ran away** from about 92k (demo value 212 at peak; a target here
-  cannot exceed 1, 2026-10-10 MEASUREMENT) and every eval from 100k was 0. Gradient clipping at 1.0
-  was on throughout.
-- **In `square-trlpd-stab-1010` no critic diverged,** nor did the anchor's seed 2 (`6yh4l5mq`), so
-  "no divergence" in an arm is weak evidence. All four passed their learning check. `clipq`
-  converged at 230k (0.628) and `ln` at 160k (0.17–0.24). `10x2` and the seed 2s were dropped.
-- **The fixed-env baselines' ResFiT residual arm passes** (`oj5k0jqb` 0.800 and `s8opblsd` 0.628
-  over 110k–150k, pooled 0.714 against B_sq = 0.582), but the seeds differ by about 4 SE.
-  Earlier, every other run was cancelled on 2026-10-10 (DEVIATION), leaving
-  `critic-norm-can-1008`'s democodec arm and the fixed-env baselines' ResFiT Can arm without
-  verdicts.
+**Every other experiment was cancelled on 2026-10-12** (DEVIATION; condensed on 2026-10-28, and the
+2026-10-10 to 10-12 entries hold the detail):
+- **Equivariant tuned RLPD learned Square** (`vc5o977f`: 0.50 at 80k), the first tuned RLPD to do so in
+  our trainer. **Then its critic ran away** from about 92k, and every eval from 100k was 0.
+- `square-trlpd-stab-1010` keeps one seed per arm and no verdict. No critic in it diverged.
+- **The fixed-env baselines' ResFiT residual arm passes** (`oj5k0jqb` 0.800, `s8opblsd` 0.628 at
+  110k–150k, against B_sq's 0.582). Its two seeds are about 4 SE apart.
 
-**The equivariant critic at the fixed-env baselines' design (`critic_norm=field_norm`) cannot see
-the wrist camera, the arm's height or the gripper opening, nor score the z, yaw or gripper actions**
-(EXPERIMENTS.md, 2026-10-08 FINDING): `FieldNorm` erases every trivial-type input. That accounts for
-both equivariant arms' failure in the matching render. `eyyi99q4` was stopped and the four remaining
-field-norm runs held (DEVIATION of that date); equivariant tuned RLPD on Can now runs with
-`critic_norm=none` and `layer_norm` (PRE-REGISTERED, `critic-norm-can-1008`). Neither has
-escaped so far: both settle at zero online value, `layer_norm` by 5k (cut at 16.4k, DEVIATION) and
-`none` by 10k. **With the env's frames through the demos' video codec, the `none` arm learns Can:
-0.94 at 10k** (`gkck6eqp`, one seed; NOTE of 2026-10-08), where the same arm uncoded (`xm9cuo92`)
-scored 0 at every eval to 30k. **The working account,** which that result supports: with no reward online, a critic's online
-value is held up only by what it carries over from similar demo states. ResFiT's `d047it6c` carried
-over about 0.3 for 13.6k steps before its first success; the failing critics carry over nothing.
-Of the two tests that followed, the codec learned (`gkck6eqp`, above) and RegularLayerNorm with the
-critic's start matched to ResFiT's did not (`496bq48s`, 0 at every eval to 100k). ResFiT's stack
-without LayerNorm (`9phsy6sf`) was stopped: its actor saturated in its first 200 updates and never
-had a gradient again. `xm9cuo92`'s critic, with no norm and stuck at zero, diverged from 54k
-(2026-10-09 NOTE); `gkck6eqp`'s, the same critic learning, stayed bounded.
+**The equivariant critic with `critic_norm=field_norm` cannot see the wrist camera, the arm's height or the
+gripper opening, nor score the z, yaw or gripper actions** (EXPERIMENTS.md, 2026-10-08 FINDING). `FieldNorm`
+erases every trivial-type input, which accounts for both equivariant arms' failure in the matching render.
+
+On Can, tuned RLPD with `critic_norm=none` learned only with the env's frames passed through the demos'
+video codec (`gkck6eqp`: 0.94 at 10k, one seed). Without the codec (`xm9cuo92`) it scored 0 at every eval
+to 30k. The 2026-10-08 and 10-09 NOTEs hold the rest; this was condensed on 2026-10-28.
+
+**The working account:** with no reward online, a critic's online value is held up only by what it carries
+over from similar demo states. ResFiT's `d047it6c` carried over about 0.3 for 13.6k steps before its first
+success; the failing critics carried over nothing.
 
 **The demos are now rendered by our env** (TODO B16; CODE, 2026-10-08, "re-rendered demos"):
 `local/robomimic-mh-{can,square}-rerendered`, the robomimic demos' states rendered by our env and
@@ -257,9 +253,9 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 `e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests) and is listed, so later long
 launches skip it. Queued in `order-1027`, in order: `long-eee 5`, `long-resfit 5` (each when a long run
-ends), `actor-eae 3`, `actor-resfit-shape-wide 3`, then O1's `obj-nut-eee 2`,
-`obj-peg-eee 2`, `obj-nut-eee 3`, `obj-peg-eee 3` (from the evening restart; `OBJ_WORKTREE`, O1's pinned
-worktree). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
+ends), `actor-eae 3`, `actor-resfit-shape-wide 3`, then O1's eight in the registered order: `obj-nut-eee 2`,
+`obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same at seed 3. The queue was restarted at
+09:42 on 10-28 with the `rrr` arms (`OBJ_WORKTREE`, O1's pinned worktree). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
@@ -268,7 +264,7 @@ needs it. New groups go in the watcher's watch-only set.
 How the runs are launched and followed:
 - **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
   `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree;
-  restarted 13:19 with the long runs first, and 16:28 with O1's `eee` jobs added (`OBJ_WORKTREE` `equi-resrl-e7710f4`). It is `order-1026`'s queue with the long runs added, at most two at once
+  restarted 13:19 with the long runs first, 16:28 with O1's `eee` jobs, and 09:42 on 10-28 with its `rrr` jobs (`OBJ_WORKTREE` `equi-resrl-e7710f4`). It is `order-1026`'s queue with the long runs added, at most two at once
   (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
   last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
   `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,
@@ -339,7 +335,7 @@ How the runs are launched and followed:
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 13.8 GB free on 2026-10-28** (Aden's call, at the top). The wandb cache is cleared to 2 GB every
+  - **The disk had 15.8 GB free on 2026-10-28** (at the top). The wandb cache is cleared to 2 GB every
     12 h by tmux `wandb-cache` (`outputs/queue/launchers/wandb_cache_cleanup.sh`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
@@ -469,12 +465,12 @@ How the runs are launched and followed:
 ours (C4) through its wiring, its free parameters, or its lack of a constraint.
 
 **1. Next, in Aden's order** (the 2026-10-27 DECISIONs; TODO B24 has the to-do list and the calls):
-- **The long runs, first in the queue** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at
-  seeds 4 and 5, to see where each levels off; the gap is described. Every run above the base was still
-  climbing at 150k. First about 22:00 on 10-27; all four done about 10-31 to 11-01.
+- **The long runs** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at seeds 4 and 5, to
+  see where each levels off. Every run above the base was still climbing at 150k. Seeds 4 run from 10-28;
+  all four are done about 11-01.
 - **Then O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
-  with the peg, on `eee` and `rrr`, eight runs. It targets the critic's low value of online data. The
-  `eee` arms are queued; the `rrr` arms wait for Aden's call on their rate. The runs about 10-30 to 11-03.
+  with the peg, on `eee` and `rrr`, eight runs, all queued. It targets the critic's low value of online
+  data. The runs are about 10-30 to 11-03.
 - **Then the new task, Stack, `eee` against `rrr`** (TODO B25; planned, not approved to build). Square's
   symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
   Turned Square is dropped.
