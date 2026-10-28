@@ -22,8 +22,8 @@ other four docs, with a pointer from here.
 **Done** (`claude-o1`, Claude's calls under the morning's DECISION):
 - `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14. Its duplicate best model was reclaimed
   (0.26 GB, byte-identical).
-- `actor-eae 3` launched at 15:19 (gate GO, Tier 2 skipped as listed). Its LAUNCHED entry follows its
-  start.
+- `actor-eae 3` launched at 15:19 (`xymahaba`; gate GO, Tier 2 skipped as listed; early speed 0.0376, inside
+  the band). Its LAUNCHED entry records the queue's disk floor too.
 - **The disk, re-projected** from the source arms' packages and the trimmed wandb cache: the queue ends
   near 0–2 GB free without the by-hand scripts (STATUS, "The disk").
   - So `order-1027` got an 8 GB free-disk floor and was restarted at 15:28, while sleeping, after

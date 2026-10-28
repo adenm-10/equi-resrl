@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-28, 15:30 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-28, 17:45 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -34,7 +34,7 @@ April–May wandb folders, runs wandb no longer has, so the only copies (`wandb_
 smoke package, cited in EXPERIMENTS.md, a running group's, or BoxCleanup's only one
 (`kept_smoke_packages.txt`).
 
-**The disk:** 12.6 GB free at 15:25 on 10-28, with wandb's artifact cache at 4.1 GB. tmux `wandb-cache`
+**The disk:** 11.3 GB free at 17:33 on 10-28 (12.6 GB at 15:25), with wandb's artifact cache at 4.9 GB. tmux `wandb-cache`
 trims it to about 2 GB at 07:35 and 19:35, and each launch adds the 1 GB BC policy, so free space swings
 by about 2 GB between trims.
 - **What the queue still writes**, by its source arms' packages and the checkpoints, net of the rolling
@@ -77,7 +77,7 @@ every job: tmux `order-queue`,
   - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k on 10-27. Their early
     speeds were at their predictions, and the gross-failure check passed.
   - `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28. `actor-resfit-shape 3`
-    (`xhz9iwoo`, 0.0346 early) runs to about 08:00 on 10-29, `actor-eae 3` (queued 15:19 on 10-28) to
+    (`xhz9iwoo`, 0.0346 early) runs to about 08:00 on 10-29, `actor-eae 3` (`xymahaba`, 0.0376 early) to
     about 23:00 on 10-29, and `actor-resfit-shape-wide 3` follows `xhz9iwoo`.
   - The readout follows the last seed 3, about the afternoon of 10-30. Watcher: tmux `ad-watch`.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
@@ -260,12 +260,12 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 15:30 on 2026-10-28** (the 2026-10-28 LAUNCHED entries):
+**At 17:35 on 2026-10-28** (the 2026-10-28 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, about 125k) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35, 100k) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
-| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, about 62k) and `actor-eae 3` (queued 15:19, gate GO, filling its buffer) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.84 at 140k) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35, 0.62 at 110k) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
+| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.70 at 70k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.0376 early) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
 `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28, its package complete.
 

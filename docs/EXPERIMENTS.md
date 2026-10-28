@@ -11095,3 +11095,56 @@ slope of a straight line fitted to its evals over 50k–150k is positive.
 **Next:** at `actor-design-1026`'s readout (about 10-30), Claude checks both conditions against every Square
 run that has finished since the table: the early speed band, and the critic's family. Each readout after that
 does the same.
+
+---
+
+## 2026-10-28 — LAUNCHED — `actor-eae 3` (`xymahaba`): Tier 2 skipped at `a5b5cc8`, gate GO; early speed 0.0376, inside the band; `actor-resfit-shape-wide 2` finished; the queue now waits for 8 GB of free disk before any launch (Claude's call)
+
+Written at about 17:40 on 10-28, from the run package's manifest, the console
+(`outputs/queue/20261028-151904_actor-eae-3_gpu1.log`), `outputs/queue/launchers/order-1027/order_queue.log`
+and the watchers' `outputs/queue/watch.log`. Launched through `order-1027/order_queue.sh` (tmux
+`order-queue`). The manifest records commit `a5b5cc8`, clean, and mujoco 3.3.2. Its argv is `actor-eae 2`'s
+(`e4220e3z`) but for `seed=3`, `wandb.name` and `wandb.notes`, as pre-registered (the 2026-10-26 entry).
+
+| Job | Took the slot of | Queue launched; trainer started | GPU | Gate: Tier 1; Tier 2 | In wandb | End (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `actor-eae` 3 | `actor-resfit-shape-wide 2` (`160x34lf`, finished 15:14) | 15:19; after its gate, about 5 min | 1 | 212; skipped | 16:22 | 150k about 23:00 on 10-29 | [**`xymahaba`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/xymahaba) |
+
+- **The gate:** Tier 2 skipped, as `a5b5cc8` is listed in `retry/tier2_passed.txt` (`actor-resfit-shape 2`'s
+  gate, 10-26, 953 passed). GO with three warnings: Tier 2 skipped, the BC policy's 1 GB download, and the
+  disk (14 GB free). The render check passed on both cameras (0.0097 and 0.0093, bars 0.0125 and 0.0129).
+- **No smoke:** `actor-eae`'s ran on 10-27 (`yb77d23k`, the 2026-10-27 LAUNCHED entry).
+- **The early speed:** 0.0376, inside 0.025–0.045. Expected about 0.033 (`aaa`'s measured); its seed 2 was
+  0.0321. Its step-0 eval, the base alone, is 0.50.
+- **The gross-failure check** (`actor-design-1026`'s: evals near 0 through 50k) reads at 50k, about 03:00 on
+  10-29.
+- **`actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14**, package complete. Its evals at
+  110k–150k are 0.58 0.54 0.58 0.66 0.56, a pool of 0.584 (step 0 0.48). Reported, not a contrast: the arm
+  is read with its seed 3, at actor-design's readout.
+- **Its duplicate best model was deleted at 15:21** (258 MB). `models/best_model.pt` was checked
+  byte-identical to `wandb_best/best_model.pt` (sha256 `71c764fc…`, in
+  `outputs/cleanup-20261028/deleted_best_models.txt`). This is the DECISION's first kind, as a rolling
+  reclaim: each run's duplicate goes when the run finishes.
+- **Claude's call: a disk floor on the queue.** Re-projected at 15:25, the queue's remaining jobs write
+  about 14–15 GB, net of the rolling reclaim, against 12.6 GB free. The morning's figure left out O1's
+  smokes, the object demos' LeRobot cache and the wandb artifact cache's 2 GB swing between trims. Without
+  Aden's two by-hand scripts (5.7 GB, STATUS) the queue ends, about 11-03, near 0–2 GB free.
+  - **What changed:** `order_queue.sh` launches a job only while the disk has at least 8 GB free
+    (`DISK_FLOOR_GB=8`), checked before the settle and again after it. Below that, the job waits and the
+    log says so once. The script before the change is `order_queue.sh.before-disk`.
+  - **Why:** a launch's first hour writes about 1.5–2 GB (the BC policy's download, the wandb folder, the
+    package's step-0 checkpoint). Starting one near a full disk risks every running run's next checkpoint.
+    Waiting costs only time, and no run is stopped.
+  - **The restart:** at 15:28:04, during the queue's 60 s sleep, after `--check`. The order is unchanged:
+    `long-eee 5`, `long-resfit 5`, `actor-resfit-shape-wide 3`, then O1's eight jobs. The restart dropped
+    `actor-eae 3`'s 3 h memory reservation. That changed nothing, since all four slots were full.
+  - Claude's background wait wakes below 9 GB free.
+- **The disk:** 11.3 GB free at 17:33, with wandb's artifact cache at 4.9 GB; the 19:35 trim takes it to
+  about 2 GB.
+- **RAM:** 12 GB available at 17:33, with four runs.
+- **Running now:**
+  - GPU 0: `long-resfit 4` (`3ctaaap1`, 0.84 at 140k) and `actor-resfit-shape 3` (`xhz9iwoo`, 0.62 at
+    110k);
+  - GPU 1: `long-eee 4` (`rkks1a9p`, 0.70 at 70k) and `actor-eae 3`.
+- **Next in `order-1027`:** `actor-resfit-shape-wide 3` when `xhz9iwoo` ends, about 08:00 on 10-29;
+  `long-eee 5` when `3ctaaap1` reaches 300k, about 09:00 on 10-29; then `long-resfit 5` and O1.
