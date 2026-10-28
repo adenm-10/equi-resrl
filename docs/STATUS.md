@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-27, evening · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-28, 03:00 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -18,10 +18,21 @@ speed sits at the band's lower edge, as `rrr`'s own does (0.0285–0.0286):
 Claude's recommendation is the source rate, 1e-6, so each arm differs from `rrr` only in its input. They
 are not queued until Aden answers. The `eee` arms are queued.
 
-**Now: `actor-design-1026` runs its seed 2, and `enc-iface-1023` its last run. The long runs (`long-1027`)
-are first in the queue** (EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION): ResFiT's
-own agent and `eee` to 300k at seeds 4 and 5, two at once, from about 22:00 tonight; actor-design's seeds 3
-take the other slots. Then O1 (`obj-1027`; EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED), built and
+**Waiting on Aden: the disk** (EXPERIMENTS.md, 2026-10-28 LAUNCHED). 13.8 GB free at 02:52 on 10-28, and
+the queued jobs will write about 17–19 GB: `eee`'s checkpoints are 444 MB, not the 87 MB the long runs'
+estimate used. The shortfall falls about 10-31. Claude asks to reclaim about 4.6 GB:
+- the duplicate `models/best_model.pt` of six finished packages (2.0 GB), as on 10-23 and 10-27;
+- O1's first dataset build and its stale LeRobot cache (1.9 GB);
+- the two long smokes' `step_0.pt` (0.64 GB).
+
+That still leaves it tight. Larger sources are Aden's to pick: `wandb/` holds 340 local run folders
+(8.6 GB, back to May), and the older smoke packages hold about 3.7 GB. The disk watcher logs the free
+space every 20 s; it stops no run.
+
+**Now: the long runs (`long-1027`) run their seeds 4, and `actor-design-1026` its seeds 2 and 3**
+(EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION; the 2026-10-28 LAUNCHED). ResFiT's
+own agent and `eee` go to 300k at seeds 4 and 5, two at once; actor-design's seeds 3 take the other
+slots. Then O1 (`obj-1027`; EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED), built and
 pre-registered on the evening of 10-27: the nut alone or with the peg, on `eee` and `rrr`. The `eee` arms
 are queued after actor-design's seeds 3; the `rrr` arms wait for Aden (above).
 Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
@@ -40,11 +51,11 @@ every job: tmux `order-queue`,
   LAUNCHED). It is eee's agent with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6;
   `actor-resfit-shape-wide`, 362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's
   actor unconstrained (`actor-eae`, at 2.5e-7). Seeds 2 and 3, against `arch-swap`'s `eee` and `ere`.
-  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) are running. Both smokes passed, both
-    early speeds are at their predictions (0.0355, 0.0321), and the gross-failure check passed.
-  - `actor-resfit-shape-wide 2` (`160x34lf`) runs from 09:29 on 10-27.
-  - The readout is about the evening of 10-30 (runs take about 33 h with four on the machine), its seeds 3
-    behind the long runs. Watcher: tmux `ad-watch`.
+  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k on 10-27. Their early
+    speeds were at their predictions, and the gross-failure check passed.
+  - `actor-resfit-shape-wide 2` (`160x34lf`) runs to about 18:30 on 10-28, and `actor-resfit-shape 3`
+    (`xhz9iwoo`, 0.0346 early) to about 08:00 on 10-29.
+  - The readout follows the last seed 3, about the evening of 10-30. Watcher: tmux `ad-watch`.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
   the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE).
   - Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; never above its step 0; its critic
@@ -52,8 +63,9 @@ every job: tmux `order-queue`,
     critics did) and `iface-wide-out` 0.452 (`gcrewpq2`). The anchor `iface-eee` scored 0.676
     (`mgcifv1y`), against `eee 2`'s 0.516.
   - `iface-wide-all 2` (`5shh877a`) was stopped at about 113k (Aden), a description only.
-  - `iface-window 3` (`n94ucnlv`) runs to 150k about 01:30 on 10-28. `iface-wide-out 3`, `iface-eee 3` (the
-    afternoon DECISION) and `iface-wide-all 3` are dropped, so I1 is not read. Watcher: tmux `iface-watch`.
+  - **Complete as cut:** `iface-window 3` (`n94ucnlv`) reached 150k at 0.360, under its step 0 throughout. The
+    arm's two seeds average 0.298, against eee's 0.599 (the 2026-10-28 NOTE). `iface-wide-out 3`,
+    `iface-eee 3` and `iface-wide-all 3` were dropped, so only descriptions remain.
 - **What goes with beating the base** (a 49-run analysis, 2026-10-27; `outputs/diagnostics/success-correlates/`;
   TODO B24). Not yet an EXPERIMENTS.md entry, which is Aden's call.
   - Two necessary conditions: the early speed band (0 of 21 runs outside it beat the base) and a
@@ -61,8 +73,6 @@ every job: tmux `order-queue`,
   - The best early signal is training success at 10k–30k (ρ +0.80).
   - eee's gap to ResFiT is the critic's value of online data: 0.005 early against ResFiT's 0.082.
   - Every run above the base was still climbing at 150k.
-- **Disk:** 24 GB free at 08:55 on 10-27, after the cleanup reclaimed 6.9 GB of duplicate best models
-  (`outputs/cleanup-20261027/`); the running runs' 3 go when they end. The long core needs about 10 GB.
 
 The actor-speed line is closed on its readouts; what it leaves is in "What the actor-speed groups
 leave", below.
@@ -238,15 +248,16 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 13:20 on 2026-10-27:**
+**At 03:00 on 2026-10-28** (the 2026-10-28 LAUNCHED entry):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-eae 2` (`e4220e3z`, about 97k) and `iface-window 3` (`n94ucnlv`, about 90k) | about 23:30 on 10-27; about 01:30 on 10-28 |
-| 1 | `actor-resfit-shape 2` (`j457zalw`, about 103k) and `actor-resfit-shape-wide 2` (`160x34lf`, about 3k) | about 22:00 on 10-27; about 18:30 on 10-28 |
+| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
+| 1 | `long-eee 4` (`rkks1a9p`, from 01:50) and `actor-resfit-shape-wide 2` (`160x34lf`, about 75k) | 300k about 18:00 on 10-30; about 18:30 on 10-28 |
 
-Queued in `order-1027`, in order: `long-eee 4`, `long-resfit 4`, `long-eee 5`, `long-resfit 5`,
-`actor-resfit-shape 3`, `actor-eae 3`, `actor-resfit-shape-wide 3`, then O1's `obj-nut-eee 2`,
+`e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests) and is listed, so later long
+launches skip it. Queued in `order-1027`, in order: `long-eee 5`, `long-resfit 5` (each when a long run
+ends), `actor-eae 3`, `actor-resfit-shape-wide 3`, then O1's `obj-nut-eee 2`,
 `obj-peg-eee 2`, `obj-nut-eee 3`, `obj-peg-eee 3` (from the evening restart; `OBJ_WORKTREE`, O1's pinned
 worktree). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
 
@@ -302,10 +313,11 @@ How the runs are launched and followed:
   - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
     stays: the launcher scripts name it.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 09:00 on 10-27:**
+- **tmux, at 03:00 on 10-28:**
   - `order-queue` and `queue-digest`;
-  - `q-actor-resfit-shape-2`, `q-actor-eae-2` and `q-iface-window-3`, one per running job;
-  - the watchers `ad-watch` and `iface-watch`;
+  - `q-<arm>-<seed>`, one per launched job; the three of 10-26 are idle, their runs ended;
+  - the watchers `ad-watch`, `long-watch`, `obj-watch`, and `iface-watch` (nothing left to watch);
+  - `claude-o1`, this session;
   - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
     every 20 s; it logs, and woke a Claude session below 8 GB when one was open).
 
@@ -327,13 +339,14 @@ How the runs are launched and followed:
   lost and no slowdown. Four at 150k come to about 136 GB. At 10:40 on 2026-10-17, with four runs at
   80k–90k: 121 GB in use and 3 GB in swap. About 9.9 GB of GPU memory per run: two runs peak at
   21–23 GB of a 24.5 GB GPU.
-  - **The disk had 24 GB free on 2026-10-27** ("Disk", above). The wandb cache is cleared to 2 GB every
+  - **The disk had 13.8 GB free on 2026-10-28** (Aden's call, at the top). The wandb cache is cleared to 2 GB every
     12 h by tmux `wandb-cache` (`outputs/queue/launchers/wandb_cache_cleanup.sh`).
   - The cache keeps a copy of every best upload, including those wandb has since deleted, and it
     grew 18 GB in the two days before. Clear it again with `wandb artifact cache cleanup 2GB` when
     the disk falls below about 15 GB. Each run's current best is also in its run package's
     `wandb_best/`.
-  - A worktree is about 4 MB. Equivariant checkpoints are 87 MB each and ResFiT's 223 MB. Each
+  - A worktree is about 4 MB. `eee`'s checkpoints are 444 MB each (escnn's expanded weight matrices,
+    saved in eval mode; the 2026-10-28 LAUNCHED entry) and ResFiT's 223 MB. Each
     run's eval videos come to about 110 MB (TODO H13).
 - **How to follow them:** wandb `robomimic-square-final`, groups `residual-rl` (ResFiT) and
   `equi-residual-rl`, notes starting with the seed group. `outputs/queue/watch.log` has every

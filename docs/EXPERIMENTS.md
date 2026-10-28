@@ -10829,3 +10829,125 @@ runs):
 - No buffer caches: both buffers are filled in the run, as for the source arms.
 - The disk: about 1 GB for the object demos, about 1 GB for the cache LeRobot builds of them, and the run
   packages (about 0.3 GB each).
+
+---
+
+## 2026-10-28 — LAUNCHED — the long runs' first two (`long-eee 4`, `long-resfit 4`) and `actor-resfit-shape 3`: both smokes passed; the full gate ran Tier 2 at `e2fdb27` and listed it; `eee`'s checkpoints are 444 MB, not the 87 MB registered, so the long runs' checkpoints need about 9.3 GB, not 4.3
+
+Written at about 03:00 on 10-28, from the run packages' manifests, the consoles
+(`outputs/queue/20261027-*_<job>_gpu?.log`), `outputs/queue/launchers/order-1027/order_queue.log` and the
+watchers' `outputs/queue/watch.log`. All three launched through `order-1027/order_queue.sh` (tmux
+`order-queue`, restarted 16:28 on 10-27). Each manifest records its worktree's commit, clean (`e2fdb27` for
+`long-1027`, `a5b5cc8` for actor-design), and mujoco 3.3.2. Each argv is its source arm's launch with its
+pre-registered changes and nothing else: for the long runs `checkpoint_interval=50000
+algo.total_timesteps=300000` and seed 4 (the 2026-10-27 PRE-REGISTERED entry); for `actor-resfit-shape` seed
+3 (the 2026-10-26 one).
+
+| Job | Took the slot of | Queue launched; trainer started | GPU | Gate: Tier 1; Tier 2 | In wandb | End (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `long-eee` 4 | `actor-resfit-shape 2` (`j457zalw`, finished 20:59 on 10-27), after its smoke | 22:34; 00:51 on 10-28 | 1 | 214; 970 (133 min) | 01:50 | 300k about 18:00 on 10-30 | [**`rkks1a9p`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/rkks1a9p) |
+| `long-resfit` 4 | `actor-eae 2` (`e4220e3z`, finished 22:06), after its smoke | 23:44; about 02:00 | 0 | 214; 970 (128 min) | 02:52 | 300k about 09:00 on 10-29 | [**`3ctaaap1`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/3ctaaap1) |
+| `actor-resfit-shape` 3 | `iface-window 3` (`n94ucnlv`, finished 23:54) | 23:59; about 00:06 | 0 | 212; skipped | 00:35 | 150k about 08:00 on 10-29 | [**`xhz9iwoo`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/xhz9iwoo) |
+
+- **The full gate at `e2fdb27`, twice.**
+  - `long-resfit 4`'s gate started at 23:44, before `long-eee 4`'s had listed the commit, so it ran Tier
+    2 too. Both passed 970 tests; at `a5b5cc8` it was 953, the difference being the long runs' tests.
+  - After the first, `retry/gate_python.sh` added the commit to `retry/tier2_passed.txt` ("long-eee-4's
+    gate, 2026-10-28 00:51 (full gate GO, 137 min; added by gate_python.sh)"). It was the wrapper's first
+    use of that path (TODO B24, call 6). Later `e2fdb27` launches skip Tier 2.
+  - Each gate went GO with two warnings: the BC policy's 1 GB download, which every gate has shown, and
+    the disk (17 and 16 GB free).
+  - `actor-resfit-shape 3`'s gate skipped Tier 2 (`a5b5cc8` is listed) and went GO with a third warning,
+    "Tier 2 skipped".
+- **The smokes** (`outputs/diagnostics/long/smokes/`; each `<arm>.check`), each in the first slot its arm's
+  job reached, before the job.
+  - Each reached 1,000 steps and logged its three evals, `debug/q_data_*` and the 28
+    `debug/residual_field/*` keys.
+  - Each wrote `best_model.pt` and `models/step_0.pt`. Both reload strictly into the agent its config
+    builds: `eee`'s `Actor` and `Critic`, and ResFiT's own.
+  - Each finalized its package (commit `e2fdb27`, clean). Each PASS.
+
+  | Smoke | Ran | Beside | Package | ms per env step | Trainer's GPU peak (MiB) | RAM peak, trainer and workers (GiB) | Residual at 500, 1,000 | `step_0.pt` |
+  |---|---|---|---|---|---|---|---|---|
+  | `long-eee` | 10-27 21:04–22:34, GPU 1 | `actor-resfit-shape-wide 2` | `v2u87syn` | 738 | 5,006 | 14.93 | 0.0139, 0.0348 | 444 MB |
+  | `long-resfit` | 22:39–23:44, GPU 0 | `iface-window 3` | `e35es7os` | 342 | 3,026 | 14.52 | 0.0131, 0.0240 | 223 MB |
+
+  ResFiT's own agent's RAM, never measured before (the PRE-REGISTERED entry), is `eee`'s at 1,000 steps.
+- **The early speed:** `actor-resfit-shape 3` 0.0346, inside 0.025–0.045 (its seed 2 0.0355, predicted
+  0.0346). The long runs' are not yet logged.
+- **Correction to the long runs' CODE and PRE-REGISTERED entries:** `eee`'s checkpoint is 444 MB (the
+  smoke's `step_0.pt`, 444,254,079 bytes), not 87 MB. The 87 MB is STATUS's figure for equivariant
+  checkpoints, which the estimate took, and it no longer holds at `eee`'s launch.
+  - **Why:** in eval mode, escnn's layers keep each layer's expanded weight matrix as a buffer, and the
+    state dict saves those buffers. The actor's target copy is saved with them too. The actor's two
+    49 MB matrices (`input_proj.0.matrix`, `policy.0.matrix`) and their target copies are 197 MB of the
+    file; the actor and its target are about 270 MiB of its 424 MiB.
+  - ResFiT's checkpoint is 223 MB, as registered.
+  - **So seven checkpoints a run come to about 3.1 GB for each `eee` run** and 1.56 GB for each ResFiT
+    run: about 9.3 GB for the four runs, against the registered 4.3 GB. Each package also holds its best
+    model twice (`models/` and `wandb_best/`).
+  - Nothing about any run changes.
+- **The disk, reported to Aden, nothing deleted.**
+  - There were 13.8 GB free at 02:52 on 10-28, down from 19.0 GB at 15:43 on 10-27 over three launches
+    and two smokes (`/dev/shm/df.log`).
+  - What the queued jobs will still write, by the sizes of their source arms' packages and the
+    checkpoints above, is about 17–19 GB:
+    - the four long runs about 12 GB;
+    - actor-design's other three runs about 2 GB;
+    - O1's four `eee` runs and their two smokes about 4 GB;
+    - the runs' wandb folders about 0.6 GB.
+  - Each launch also downloads the 1 GB BC policy into wandb's cache, which tmux `wandb-cache` trims to
+    2 GB every 12 h.
+  - That does not fit. The shortfall falls around 10-31, when `long-eee 5` and O1's first runs are writing.
+  - What could be reclaimed, about 4.6 GB, each needing Aden's yes (STATUS):
+    - the duplicate `models/best_model.pt` of six finished packages, each byte-identical to its
+      `wandb_best/` copy (2.0 GB: `j457zalw`, `e4220e3z`, `n94ucnlv` and the smokes `v2u87syn`, `e35es7os`,
+      `m2hxm4n3`), as on 10-23 and 10-27;
+    - O1's first dataset build (`outputs/diagnostics/obj/dataset-built-before-commit`, 0.97 GB);
+    - its stale LeRobot cache (`~/.cache/huggingface/datasets/parquet/default-f9731f15a2d25c36`, 0.97
+      GB);
+    - the two long smokes' `models/step_0.pt` (0.64 GB).
+- **RAM:** 13 GB available at 02:52, with four runs and two of them filling their buffers. Swap was 10 GB
+  at 22:13.
+- **Next in `order-1027`:**
+  - `actor-eae 3` takes the first slot that frees while two long runs are alive (`actor-resfit-shape-wide 2`
+    ends about 18:30 on 10-28), then `actor-resfit-shape-wide 3`;
+  - `long-eee 5` takes the first slot after `long-resfit 4` ends, then `long-resfit 5` after `long-eee 4`;
+  - O1's `eee` arms behind them.
+
+---
+
+## 2026-10-28 — NOTE — `iface-window 3` at 150k: 0.360 (`n94ucnlv`), under its step 0 (0.56) throughout; `iface-window`'s two seeds average 0.298 against `eee`'s launch's 0.599. `enc-iface-1023` is complete as cut by the 2026-10-27 DECISION; I1 is not read
+
+Read at 03:00 on 10-28 from the finished package (`outputs/runs/robomimic-square-final/n94ucnlv/`, finished
+23:54 on 10-27). It is the relaunch of `iface-window 3` (the first, `dwww8nes`, was stopped by hand at 15.6k on
+10-26; the 2026-10-26 LAUNCHED entry), from `58d55d7`, clean.
+
+| Run | Arm, seed | step-0 | best | final | Evals 0, 10k, … | 110k–150k | Training successes, 100k–150k |
+|---|---|---|---|---|---|---|---|
+| `n94ucnlv` | `iface-window` 3 | 0.56 | **0.56 (step 0)** | 0.36 | 0.56 0.02 0.14 0.36 0.22 0.30 0.20 0.36 0.22 0.30 0.30 0.36 0.36 0.36 0.36 0.36 | **90 (0.360)** | 71/195 |
+| `od14pmu3` | `iface-window` 2 | 0.50 | 0.50 (step 0) | 0.26 | (the 2026-10-26 NOTE) | 59 (0.236) | 71/194 |
+
+- **Neither `iface-window` run beat its step 0.** Pooled over both seeds, 110k–150k: 149 of 500 (0.298).
+  `eee`'s four runs of its launch average 0.599 (0.516–0.676; the 2026-10-27 NOTE), and
+  `iface-eee`, the group's own anchor, has one run (`mgcifv1y`, 0.676).
+  - **Prediction 1 of the 2026-10-23 PRE-REGISTERED entry failed** ("I3 counts the window way"). The
+    window arm is 0.378 below `iface-eee`'s one run and 0.301 below `eee`'s four, the other way and by
+    more than twice the 0.13 bar.
+  - As a contrast, I3 is not read: its anchor has one run.
+- **Its five evals at 110k–150k were identical**, 18 of 50 each. Recorded as observed; not looked into.
+- **Its critic, late (110k–150k means):**
+  - the value slope `dQ_da_mean_abs` was 3.9e-5 (seed 2 3.6e-5, against `eee`'s 4.8–5.4e-5);
+  - its value of online data `debug/q_data_online` was 0.071 (seed 2 0.049, against `eee`'s 0.090–0.131);
+  - its value of demo data was 0.385 (seed 2 0.381).
+
+  Both seeds sit at the flat end that every unconstrained critic reached in arch-swap.
+- **What `enc-iface-1023` leaves**, as the 2026-10-26 and 10-27 DECISIONs cut it:
+  - `iface-window` two seeds (0.298);
+  - `iface-wide-out` one (0.452, `gcrewpq2`);
+  - `iface-wide-all` one, stopped at 113k (`5shh877a`);
+  - `iface-eee` one (0.676).
+
+  I1, I2 and I4 have one seed on a side and are not read. I3 is read only as the description above, since
+  its anchor `iface-eee` has one run.
+- `iface-watch` has nothing left to watch; it stays until a cleanup closes it.

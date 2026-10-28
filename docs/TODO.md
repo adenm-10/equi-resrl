@@ -31,7 +31,7 @@ runs above the base was still climbing at 150k, which is the case for the long r
 1–3. **Decided and done:** the core pair, `long-resfit` and `long-eee` (ResFiT's own agent and
    `arch-swap-eee` run on), to 300k at seeds 4 and 5 with checkpoints every 50k, two at once (the CODE and
    PRE-REGISTERED entries). Since the afternoon they are first in the queue `order-1027`, actor-design's
-   seeds 3 behind them; the iface pair is dropped (the afternoon DECISION).
+   seeds 3 behind them; the iface pair is dropped (the afternoon DECISION). Seeds 4 run from 10-28 (`rkks1a9p`, `3ctaaap1`).
 4. **DONE:** the duplicate best-model reclaim (6.9 GB).
 5. **O1: APPROVED as a 2×2** (the 2026-10-27 evening DECISION): the nut alone or the nut and the peg, on
    `eee` and `rrr`, seeds 2 and 3, 150k, after actor-design's seeds 3. Each object takes the object-centric
@@ -170,7 +170,7 @@ control latency, sampled and held over many steps, were critical to its transfer
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
 
-### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — RUNNING from 2026-10-26; seed 2 of two arms running, the third in its smoke (Aden, 2026-10-26) `[SC]`
+### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — RUNNING from 2026-10-26; seed 2 done but for the wide arm, seeds 3 running and queued (Aden, 2026-10-26) `[SC]`
 
 C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's
 launch, seeds 2 and 3, read against arch-swap's `eee` and `ere` (EXPERIMENTS.md, 2026-10-26 CODE,
@@ -179,48 +179,32 @@ DECISION and PRE-REGISTERED).
   tests; the three arms in `submit.sh`, the sweep-arm tests and the watcher; the calibration
   (`outputs/diagnostics/actor-design/`: the 128-field arm at 3e-6, the 362-field at 1e-6, `eae` at 2.5e-7);
   `iface-window 3` stopped for the slot (Aden); the queue (`order-1026`) and the watcher (`ad-watch`).
-- **Now** (09:00 on 10-27; EXPERIMENTS.md, 2026-10-27 LAUNCHED):
-  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) are running, to 150k about 22:00–23:30
-    on 10-27. Both smokes passed, both early speeds are at their predictions (0.0355, 0.0321), and the
-    gross-failure check passed.
-  - `actor-resfit-shape-wide 2`'s smoke is running from 08:03 on 10-27, and its run follows to about
-    18:30 on 10-28.
-  - The seeds 3 follow, to about 08:00–10:30 on 10-29.
-  - `outputs/queue/launchers/order-1026/digest.md` has every run's state, rewritten every 30 minutes.
-- **Then:**
-  - Seed 2 at 150k, a provisional read.
-  - The readout about 10:30 on 10-29, since runs take about 33 h with four on the machine, not 29:
-    `/analyze-experiment` against the rules, then the NOTE. It reports C4 against all four of eee's runs
-    too (the 2026-10-27 NOTE: +0.093).
-  - The next step from the PRE-REGISTERED entry's readings. The readout also sets the tuning anchor (B24).
-- **Before the disk reaches 10 GB free** (24 GB on 10-27), the next `/wrapup` deletes the finished runs'
-  eval videos (H13).
+- **Now** (03:00 on 10-28; EXPERIMENTS.md, 2026-10-27 and 10-28 LAUNCHED):
+  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k; the gross-failure check
+    passed.
+  - `actor-resfit-shape-wide 2` (`160x34lf`) runs to about 18:30 on 10-28.
+  - `actor-resfit-shape 3` (`xhz9iwoo`) runs to about 08:00 on 10-29.
+  - `actor-eae 3` and `actor-resfit-shape-wide 3` are queued behind the long runs' slots.
+  - `order-1027/digest.md` has every run's state.
+- **Then:** the readout about the evening of 10-30: `/analyze-experiment` against the rules, then the NOTE.
+  It reports C4 against all four of eee's runs too (+0.093). The next step comes from the PRE-REGISTERED
+  entry's readings, and the readout also sets the tuning anchor (B24).
+- **The disk** (13.8 GB on 10-28) is Aden's call (STATUS). By H13's standing decision, `/wrapup` deletes
+  the finished runs' eval videos.
 
-### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — RUNNING from 2026-10-24; seed 2 done, `iface-window 3` running (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
+### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — DONE 2026-10-28 as cut by the 2026-10-26 and 10-27 DECISIONs (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 
-[The plan](plans/2026-10-23-encoder-interface.md) (local), approved by Aden on 2026-10-23 with Claude's
-recommendations on its questions; launched as soon as a slot frees, ahead of B20's readout (2026-10-23
-DECISION), the critic-window arm first (2026-10-24 DECISION).
-- **Done:** the code and the probe (EXPERIMENTS.md, 2026-10-23 CODE and MEASUREMENT); the calibration
-  (every arm at 1e-6); the PRE-REGISTERED entry; the disk reclaim (12.1 GB); the three smokes, each PASS;
-  the first five launches (2026-10-26 LAUNCHED: every early speed in the band; `iface-wide-all` too big
-  to share its GPU with a CNN run); seed 2 of `iface-window` (0.236) and `iface-wide-out` (0.452) at
-  150k, a description beside `eee 2` (2026-10-26 NOTE: the window's critic leaned on the window, and its
-  run never beat its step 0).
-- **Now** (10-27):
-  - `iface-eee 2` (`mgcifv1y`) finished at 0.676 (the 2026-10-27 NOTE). eee's four runs average 0.599, so
-    C4 against them is +0.093.
-  - `iface-window 3` (`n94ucnlv`) is running, to 150k about 01:30 on 10-28.
-  - `iface-wide-out 3` and `iface-eee 3` are next in `order-1026`, unless Aden has them wait behind the long
-    runs (B24, call 3).
-  - `iface-wide-all 2` was stopped at about 113k, so it is a description to 110k only, and
-    `iface-wide-all 3` is dropped.
-- **Then:**
-  - Probe `eee 3`'s encoder: `python -m tools.encoder_probe probe eee3`.
-  - Wave 2 at 150k: `/analyze-experiment` against the rules, the NOTE, and the next step from the
-    PRE-REGISTERED entry's outcome table. Its date waits on B24's call 3: about 10-30 if those two runs
-    keep their place.
-- **The wandb cache cleanup** (tmux `wandb-cache`) keeps running for this group and B22's.
+[The plan](plans/2026-10-23-encoder-interface.md) (local). Its record is EXPERIMENTS.md: the 2026-10-23
+CODE, MEASUREMENT and PRE-REGISTERED entries; the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE; and
+the 2026-10-28 NOTE.
+- **Results:**
+  - `iface-window` two seeds 0.298, never above step 0; Prediction 1 failed.
+  - `iface-wide-out 2` 0.452.
+  - `iface-wide-all 2` stopped at 113k.
+  - `iface-eee 2` 0.676, making eee's four runs average 0.599.
+- **Not read:** I1, I2 and I4, which have one seed on a side, and I3 as a contrast, since its anchor has
+  one run.
+- **Left, optional:** probe `eee 3`'s encoder (`python -m tools.encoder_probe probe eee3`).
 
 ### B20. The architecture swap: each network of the equivariant agent ablated or ResFiT's (`arch-swap-1021`) — DONE 2026-10-26: read, its NOTE written; the drift readout dropped (Aden, 2026-10-20 and 10-26) `[SC]`
 

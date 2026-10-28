@@ -37,13 +37,14 @@ planned, not approved to build.
 - **The early speeds:** the `eee` arms are in the band; the `rrr` arms are at its edge, their rate Aden's call.
 - **Pre-registered** as `obj-1027`, the launch pin; the `eee` arms queued.
 
-**Next:**
-- Aden's call on the `rrr` arms' rate.
-- The first long launch, about 22:00 or later, under the memory floor: its smoke verdict, the full gate,
-  the LAUNCHED entry.
-- O1's first launch, about 10-30.
-- For deletion by hand: the first build, `outputs/diagnostics/obj/dataset-built-before-commit` (1 GB), and
-  its Hugging Face cache, `~/.cache/huggingface/datasets/parquet/default-f9731f15a2d25c36` (1 GB).
+**Overnight:**
+- `long-eee 4` (`rkks1a9p`), `long-resfit 4` (`3ctaaap1`) and `actor-resfit-shape 3` (`xhz9iwoo`) launched.
+  Both long smokes passed, and `e2fdb27` passed Tier 2 and is listed.
+- `iface-window 3` finished at 0.360. The 2026-10-28 LAUNCHED and NOTE entries record both.
+- `eee`'s checkpoints turned out to be 444 MB, not 87, so the disk is short about 10-31. That is Aden's
+  call (STATUS).
+
+**Next:** Aden's calls on the `rrr` rate and the disk; O1's first launch, about 10-30.
 
 ## 2026-10-27 (later) — the long runs coded, pre-registered and first in the queue; Square's symmetry found extrinsic; Aden's revised order
 
