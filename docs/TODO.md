@@ -24,8 +24,8 @@ recommendations against the morning one on record). [The plan](plans/2026-10-27-
 (local) O1's.
 
 **What it rests on:** a 49-run analysis (`outputs/diagnostics/success-correlates/analyze.py`, its table
-`runs.json`; its findings in the 2026-10-27 PROGRESS entry and the plan's section 1). Every one of the 16
-runs above the base was still climbing at 150k, which is the case for the long runs.
+`runs.json`; EXPERIMENTS.md, the 2026-10-28 NOTE). Every one of the 17 runs above the base was still
+climbing at 150k, which is the case for the long runs; so were 15 of the 32 below.
 
 **Aden's calls** (2026-10-27):
 1–3. **Decided and done:** the core pair, `long-resfit` and `long-eee` (ResFiT's own agent and
@@ -39,7 +39,8 @@ runs above the base was still climbing at 150k, which is the case for the long r
    The build started on the evening of 10-27 in tmux `claude-o1`.
 6. **DONE:** the gate adds a commit to `retry/tier2_passed.txt` itself once a full gate passes.
 7. **The slower dense critic (B20):** with the tuning screens (Claude's recommendation, not objected to).
-8. **The 49-run analysis as an EXPERIMENTS.md NOTE:** to write (Claude's recommendation, not objected to).
+8. **DONE 2026-10-28:** the 49-run analysis as an EXPERIMENTS.md NOTE. It corrects 16 to 17 runs above
+   the base. Each readout from actor-design's on checks the two conditions against the runs since.
 9. **Latency (L) is sidelined** until the long runs, O1 and a new task have results; B23 keeps its design.
 10. **The new task: Stack, `eee` against `rrr`, planned (B25), not approved to build.** Turned Square is
     dropped (Aden).
@@ -188,7 +189,9 @@ DECISION and PRE-REGISTERED).
 - **Then:** the readout about the evening of 10-30: `/analyze-experiment` against the rules, then the NOTE.
   It reports C4 against all four of eee's runs too (+0.093). The next step comes from the PRE-REGISTERED
   entry's readings, and the readout also sets the tuning anchor (B24).
-- **The disk** (15.8 GB on 10-28): each finished run's duplicate best model is reclaimed (STATUS).
+- **The disk** (12.6 GB on the afternoon of 10-28; short near the queue's end): each finished run's
+  duplicate best model is reclaimed, the queue holds launches under 8 GB free, and Aden's two by-hand
+  scripts free 5.7 GB (STATUS).
 
 ### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — DONE 2026-10-28 as cut by the 2026-10-26 and 10-27 DECISIONs (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 

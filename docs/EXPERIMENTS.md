@@ -11000,3 +11000,98 @@ config for resfit in this repo  2. A, B, and C  act autonmously and at your reoc
    - anything new beyond the approved plans: Stack (TODO B25) stays unbuilt.
 
    No run is stopped or signalled, nothing is pushed, and EXPERIMENTS.md stays append-only.
+
+---
+
+## 2026-10-28 — NOTE — What goes with beating the base, over the 49 complete Square residual runs of 10-27: no run outside the early speed band beat it, nor any with an unconstrained critic; the evals and the training success at 10k–30k are the strongest early signals (ρ +0.86 and +0.80); `eee`'s gap to ResFiT's agent is in its critic's value of online data. All 17 runs above the base were still climbing at 150k, and so were 15 of the 32 below
+
+Written by Claude on 10-28 (TODO B24, call 8: Claude's recommendation, not objected to). The analysis was done
+on the morning of 10-27, and the 10-27 DECISIONs, `long-1027` and O1 rest on it (the plan
+`docs/plans/2026-10-27-long-and-tuning.md`, section 1, local; the 10-27 PROGRESS entry). This entry puts it in
+the run record. No run was launched for it.
+
+**What it is:**
+- **The table:** `outputs/diagnostics/success-correlates/runs.json`, written by `analyze.py` beside it at 08:02
+  on 10-27. It takes every package in `outputs/runs/robomimic-square-final/` that is complete, is not tuned
+  RLPD, and has an eval at step 0 and at every 10k of 110k–150k. That gives 49 runs, ResFiT's own agent and
+  ours: 32 on the re-rendered demos and 17 on the original.
+- **Every number below** comes from `note_1028.py` beside it (its output in `note_1028.txt`), which reads that
+  table and, for the climb, the runs' packages. `analyze.py` rewrites `runs.json` from whatever has finished, so
+  it is not rerun. Runs that finished after 08:02 on 10-27 are not in the table.
+- **The outcome:** a run's 110k–150k pool (five 50-episode evals) less the pooled base on its demos. The base
+  is 0.541 on the re-rendered demos (32 step-0 evals, standard deviation 0.078) and 0.519 on the original (17,
+  0.087). "Above the base" means an outcome above 0. This sorts runs; it is not a contrast, so the 0.13 bar
+  does not apply.
+- **Two corrections to the 10-27 summaries** (the PROGRESS entry, STATUS, TODO B24):
+  - 17 runs are above the base, not 16. The 16 is the count above it among the 22 runs whose training success
+    at 10k–30k was 0.15 or more.
+  - Training success at 10k–30k was called the best early signal. By ρ the evals at 10k–30k are as strong or
+    stronger (+0.86 against +0.80); training success gives the clean split at 0.15.
+- **Cautions:**
+  - These are correlations across mixed configs: different arms, rates, demos and seeds. Only two findings
+    rest on controlled contrasts: the speed band (the 10-17 to 10-20 speed groups) and the critic's family
+    (arch-swap's C1 and C2).
+  - The four runs of `eee`'s launch, three of them at one seed, pool at 0.516 to 0.676. That same-seed spread
+    is above the 0.13 bar.
+
+**Two necessary conditions**, each set by a run's config:
+
+| Condition | Runs above the base | Mean outcome |
+|---|---|---|
+| Early speed (`train/residual_l1_magnitude` over steps 1–3k) inside 0.025–0.045 | 17 of 28 | |
+| ... outside it | **0 of 21** (the best −0.081) | |
+| In the band, the critic unconstrained (`A`) | **0 of 6** | −0.173 |
+| In the band, ResFiT's critic (ResFiT's agent, and `rrr`) | 12 of 12 | +0.225 |
+| In the band, our equivariant critic | 5 of 10 | +0.006 |
+
+**Early signals** (by 30k): Spearman's ρ with the outcome, over all runs | the equivariant-critic runs only.
+`analyze.py`'s own lift (less the run's own step 0) gives the same signs at similar sizes, except for step 0
+itself, which enters it with a minus sign.
+- **Training-episode success at 10k–30k: +0.80 | +0.70.** At or above 0.15, 16 of 22 runs end above the base;
+  below it, 1 of 27.
+- **Evals at 10k–30k: +0.86 | +0.73.**
+- The critic's value of online data (`debug/q_data_online`) at 10k–30k: +0.60 | +0.49. Its mean is 0.058 in
+  the runs above the base and 0.001 in those below.
+- The early speed: +0.03 over all runs, since the band is a condition, not a gradient; +0.55 among the
+  equivariant-critic runs.
+- **Not predictive:**
+  - the step-0 eval (+0.01): the base alone's 50-episode eval varies at about the binomial noise;
+  - the value slope `debug/dQ_da_mean_abs` (+0.08 | −0.52, inconsistent);
+  - the critic loss (−0.48 | −0.19);
+  - the residual's size (+0.16 | +0.16).
+
+**Late, descriptive** (100k–150k):
+- the critic's online value: +0.95 | +0.87;
+- its demo preference (`q_data_demo − q_data_online`): −0.76 | −0.90. A losing critic keeps rating the demos
+  above the agent's own experience.
+
+**What separates `eee` from ResFiT's agent** (group means):
+
+| Group (runs) | Pool 110k–150k | Training success 10k–30k | Online value 10k–30k | Online value late | Value slope 10k–30k | Demo value 10k–30k | Eval slope 50k–150k, per 100k |
+|---|---|---|---|---|---|---|---|
+| ResFiT's own agent (`bue9dupf`, `oj5k0jqb`, `s8opblsd`) | 0.752 | 0.292 | **0.082** | **0.184** | 9.0e-5 | 0.392 | +0.274 |
+| `rrr`, ResFiT's networks in our agent (`w1g1d1tf`, `1u5xnikc`) | 0.648 | 0.374 | 0.059 | 0.165 | 8.3e-5 | 0.368 | +0.217 |
+| `ere`, ResFiT's actor on our encoder and critic (`6xh63lfb`, `ifpm32n9`) | 0.692 | 0.313 | −0.014 | 0.112 | 6.8e-5 | 0.328 | +0.128 |
+| `eee`'s launch (`h216n857`, `wk45zp27`, `jr63pxb9`, `mgcifv1y`) | 0.599 | 0.305 | 0.005 | 0.119 | 6.4e-5 | 0.336 | +0.079 |
+| The unconstrained critics (`aaa`, `ara`, `rra`, two each) | 0.368 | 0.094 | 0.014 | 0.069 | 5.2e-5 | 0.397 | |
+
+- **`eee` clears the training-success bar early** (0.305, against ResFiT's 0.292). Its gap is in the critic:
+  - its value of online data is about 0 at 10k–30k, where ResFiT's is 0.08, and 0.119 against 0.184 late;
+  - its value slope is flatter, in the same action units as `rrr`'s, since the two share our agent.
+- **`ere` is not explained by it.** Its critic values online data no higher than `eee`'s early (−0.014), yet it
+  pools 0.692. C4 against `eee`'s four runs is +0.093, under the bar (the 2026-10-27 NOTE).
+
+**The climb at 150k.** A run counts as climbing when its eval pool rises from 60k–100k to 110k–150k and the
+slope of a straight line fitted to its evals over 50k–150k is positive.
+- **All 17 runs above the base were climbing**, and the training success of each rose from 50k–100k to
+  100k–150k.
+- **So were 15 of the 32 below it.** A climb at 150k is therefore not specific to the runs above the base.
+- **The rates differ by agent:** ResFiT's own agent +0.24 to +0.30 per 100k; `eee`'s launch +0.14 to +0.15 in
+  its three runs above the base, and −0.115 in `wk45zp27`.
+  - If those rates held past 150k, the gap would widen, not close.
+  - A fitted slope is a description, not a forecast. Whether `eee` closes on ResFiT past 150k is what
+    `long-1027` reads, at its pre-registered checkpoints.
+
+**Next:** at `actor-design-1026`'s readout (about 10-30), Claude checks both conditions against every Square
+run that has finished since the table: the early speed band, and the critic's family. Each readout after that
+does the same.

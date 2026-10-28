@@ -17,6 +17,26 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-28 (afternoon) — `actor-eae 3` launched; the disk re-projected short, a disk floor on the queue, a second by-hand list
+
+**Done** (`claude-o1`, Claude's calls under the morning's DECISION):
+- `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14. Its duplicate best model was reclaimed
+  (0.26 GB, byte-identical).
+- `actor-eae 3` launched at 15:19 (gate GO, Tier 2 skipped as listed). Its LAUNCHED entry follows its
+  start.
+- **The disk, re-projected** from the source arms' packages and the trimmed wandb cache: the queue ends
+  near 0–2 GB free without the by-hand scripts (STATUS, "The disk").
+  - So `order-1027` got an 8 GB free-disk floor and was restarted at 15:28, while sleeping, after
+    `--check` (`order_queue.sh.before-disk`).
+  - September's wandb folders were checked on the server: 14 qualify, 3.2 GB, now in
+    `delete_by_hand_2.sh`.
+  - Directories need `rm -rf`, so everything past the duplicate best models waits for Aden.
+- Two September PROGRESS entries condensed for the doc budget.
+- **The 49-run analysis's NOTE** (TODO B24, call 8; EXPERIMENTS.md, 2026-10-28). Every number in it comes from
+  `success-correlates/note_1028.py`, which reads the saved 10-27 table.
+  - It corrects 16 to 17 runs above the base, and adds that 15 of the 32 below were climbing too.
+  - `eee`'s launch climbed at +0.08 per 100k over 50k–150k, against ResFiT's +0.27.
+
 ## 2026-10-28 (morning) — Aden's calls: O1's `rrr` arms at 1e-6 and queued; the disk reclaim (A–C) run as far as the settings allow; Claude to act on its own recommendations
 
 **Decided** (Aden, relayed by the VSCode session; EXPERIMENTS.md, the 2026-10-28 DECISION):
@@ -106,11 +126,13 @@ controlled contrasts)
 - **Two conditions are necessary:**
   - the early speed inside 0.025–0.045: 0 of the 21 runs outside it beat the base;
   - a constrained or ResFiT critic: unconstrained 0 of 6, ResFiT's 12 of 12, ours 5 of 10.
-- **The best early signal is training success at 10k–30k** (ρ +0.80). At 0.15 or above, 16 of 22 runs beat
+- **The best early signal is training success at 10k–30k** (ρ +0.80; the evals at 10k–30k are +0.86, the
+  2026-10-28 NOTE). At 0.15 or above, 16 of 22 runs beat
   the base; below it, 1 of 27.
 - **eee's gap to ResFiT is the critic's:** its value of online data is 0.005 against 0.082 early, and 0.119
   against 0.184 late. Training success is level.
-- **All 16 runs above the base were still climbing at 150k.**
+- **All 17 runs above the base were still climbing at 150k** (16 until the 2026-10-28 NOTE corrected it;
+  15 of the 32 below were climbing too).
 - **eee's four runs average 0.599,** with `iface-eee 2` at 0.676. So C4 against them is +0.093, under the
   bar.
 
@@ -1456,70 +1478,33 @@ those sessions.)
 
 ## 2026-09-25 — Run packages: keep everything locally, upload only the best
 
-Closed Aden's "stop sending giant files to wandb" item. No training-path change.
+Closed Aden's "stop sending giant files to wandb" item; no training-path change. Condensed on 2026-10-28
+(the doc budget): the design and its gotchas are in ARCHITECTURE.md, "Run packages", and STANDARDS.md
+rule 6.4.
 
-**Done**
+**Done:**
+- Run packages (`503a9a3`): both trainers keep `outputs/runs/<project>/<run_id>/`. The run uploads only
+  `run_<id>_best`, replaced in place.
+- The residual trainer saves its best weights for the first time (`utils/checkpoint.py`).
+- The BC trainer's dead `--output_dir` flag removed; `tests/test_run_package.py` in Tier 1 (231 → 244).
+- Two smokes in `equi-resrl-smoke` passed every check: `8ocaetgn` (BC) and `rr5ytsrc` (residual). Their
+  wandb runs and weights were then deleted, leaving 15 MB of packages.
+- 8.9 GB freed, mostly the wandb artifact cache's copies of the BoxCleanup BC run's uploads.
 
-- **Run packages** (`503a9a3`). Both trainers write into `outputs/runs/<project>/<run_id>/` and keep
-  it: the existing local saves, `wandb_best/` (an exact copy of the one upload), `wandb_logs/`
-  (wandb's files, the `.wandb` record, `metrics.jsonl`) and a `manifest.json` with the commit and
-  uncommitted files. Each run uploads only `run_<id>_best`, the best model plus its eval video,
-  replaced in place; the best video goes to the existing panel once at the end. Helpers in
-  `load_policy.py`; ARCHITECTURE.md "Run packages", STANDARDS.md rule 6.4.
-- **The residual trainer saves its best weights** for the first time (`save_residual_model` /
-  `load_residual_model` in `utils/checkpoint.py`). Weights and config only, for re-evaluation.
-- **Removed the BC trainer's dead `--output_dir` flag.**
-- **`tests/test_run_package.py`**, 13 tests against a fake wandb plus a residual save/load round
-  trip, wired into Tier 1. Suite 231 → 244.
-- **Two smoke runs in the throwaway project `equi-resrl-smoke`**, launched from the branch, both
-  passing every check: `8ocaetgn` (BC, Can ACT, 3k steps, bests 0.65 → 0.85) and `rr5ytsrc`
-  (residual, Square equi, 1.5k steps, bests 0.40 → 0.60). One surviving upload each, byte-identical
-  to `wandb_best/`; one captioned panel video; `metrics.jsonl` matching the record row for row;
-  metric names identical to `xg0w2r0z` and `j04yoeui`; the BC upload loads through the unchanged
-  `download_policy_from_wandb`, and the residual upload reloads strictly. Tooling checks, so not in
-  EXPERIMENTS.md. Afterwards both runs and their uploads were deleted from wandb (the project
-  `equi-resrl-smoke` is left empty), and their weights were removed locally. Their packages in
-  `outputs/runs/equi-resrl-smoke/` keep the manifest, `wandb_logs/` with the `.wandb` record, and the
-  videos, 15 MB.
-- **Cleanup, 8.9 GB freed, 67 GB now free.** Trimmed the wandb artifact cache to 1 GB (7.1 GB, mostly
-  copies of the BoxCleanup BC run's uploads, which stay on wandb). Moved the dead `0prso90n` run's folder from the repo root to
-  `outputs/runs/robomimic-square-final/0prso90n/`, and removed the empty BoxCleanup diffusion
-  `bc_run_*` folder. The live Square run's `run_2026-09-25_11-45-19_*` folder is untouched; its old
-  code deletes it when the run completes.
+**Decided:**
+- Overwrite, then delete: a new best is committed before the old versions go, so no run is left without
+  a best.
+- Keep the package rather than delete the run folder: the project has lost runs to wandb deletion.
+- Leave every other panel alone.
 
-**Decided**
-
-- **Overwrite, then delete.** wandb artifacts are immutable, so a new best version is uploaded and
-  committed before the older ones are deleted; a failed upload never leaves a run without a best.
-- **Persist the package instead of deleting the run folder.** The old end-of-run delete removed the
-  only local copy of models and videos from every run that completed, and the project has lost runs
-  to wandb deletion before. The kept `.wandb` record restores a run with `wandb sync`.
-- **Leave every other panel alone**, so dashboards and metric names stay comparable.
-- **One new test file, no new source files.** The helpers live in `load_policy.py`, which both
-  trainers already import.
-
-**Found**
-
-- **wandb's `Run.scan_history()` drops the final history row**, which holds the last eval and the
-  panel video. `metrics.jsonl` is parsed from the local `.wandb` record instead.
-- **escnn saves different state dicts in train and eval mode**; its cached basis buffers exist only
-  in eval mode. Residual weights are saved and loaded in eval mode.
-- **`load_residual_model` has to map tensors to the agent's device**, because the normalizer
-  rebuilds its parameters from the loaded tensors instead of copying into existing ones. Caught by
-  the round-trip test.
-- **The ACT reset in the residual env wrapper references an undefined name** and would crash
-  BoxCleanup on its first success. Also, the base policy is reset only on success, not timeout, and
-  diffusion's reset clears every env's queue. TODO B3, ARCHITECTURE.md rough edges.
-- **The BoxCleanup BC run finished lower than it looked at 31k.** Ten-eval averages 0.61 → 0.54 →
-  0.51, final 0.53; the "≈0.65" in the previous entry does not hold. STATUS.md.
-- **The Can buffer caches are gone** (TODO H7), and `docs/papers/SO2ERL.pdf` is missing, although
-  the session-start skill points to it.
-
-**Next**
-
-1. Fix the ACT reset crash (TODO B3), back up `run_xg0w2r0z_best`, then wire its id in.
-2. When Square finishes: free its caches, pre-register both BoxCleanup arms, launch them together.
-3. Independent of both: write up the five undocumented successful runs (TODO B2).
+**Found:**
+- `Run.scan_history()` drops the final history row, so `metrics.jsonl` is parsed from the `.wandb`
+  record.
+- escnn's state dicts differ between train and eval mode; weights are saved and loaded in eval mode.
+- `load_residual_model` must map tensors to the agent's device.
+- The ACT reset in the residual env wrapper would crash BoxCleanup (TODO B3).
+- The BoxCleanup BC run finished at 0.53, lower than it looked at 31k.
+- The Can buffer caches are gone (TODO H7).
 
 ## 2026-09-25 — The encoder goes bimanual, and Square restarts
 
@@ -1769,56 +1754,32 @@ config, fix run naming, then the smoke gate and 3 seeds. The commit was wrong; s
 
 ## 2026-09-16 — Phase 0: documentation from scratch
 
-First session of the documentation effort. No code changes to the training pipeline.
+First session of the documentation effort; no change to the training pipeline. Condensed on 2026-10-28
+(the doc budget); each decision lives in the doc that owns it.
 
-**Done**
+**Done:**
+- The doc set: CLAUDE.md, ARCHITECTURE.md, EQUIVARIANCE.md, EXPERIMENTS.md, STATUS.md, TODO.md,
+  PROGRESS.md, a STANDARDS.md stub.
+- EXPERIMENTS.md backfilled from all 220 local wandb run directories. Success rates were recomputed from
+  each run's `output.log`, so they are reproducible from disk.
+- The config-field provenance table (ARCHITECTURE.md), read from HEAD line by line.
+- Papers to `docs/papers/`; 24 root `run_2026-*` dirs to `local_runs/`.
 
-- Created this doc set: CLAUDE.md, ARCHITECTURE.md, EQUIVARIANCE.md, EXPERIMENTS.md, STATUS.md,
-  TODO.md, PROGRESS.md, and a STANDARDS.md stub.
-- Backfilled EXPERIMENTS.md from all 220 local wandb run directories. 23 runs got past ~1000 steps;
-  5 reached the full 300k. Success rates recomputed from the `✓`/`✗` markers in each run's
-  `output.log` rather than read off wandb, so they are reproducible from disk.
-- Built the config-field provenance table in ARCHITECTURE.md by reading HEAD line by line.
-- Housekeeping: papers → `docs/papers/` (gitignored, 18 MB); 24 root `run_2026-*` dirs →
-  `local_runs/`; `.gitignore` extended.
+**Findings that changed the plan:**
+1. Six `EquivarianceConfig` fields were silent no-ops at `caf83f3`, accepted and logged but ignored. So
+   past runs' recorded hyperparameters misdescribed their networks; hence the freeze and the bit-identity
+   tests.
+2. The critic's group pooling is present at HEAD.
+3. Every local equivariant run collapsed the same way, the residual saturating at `action_scale`
+   (`x2w6phzf`: 0.44 → 0.72 → 0.00), which points at stability rather than capacity.
+4. 43 of 197 failed runs died with escnn types in the traceback, which motivated layout assertions at
+   construction.
+5. The agentview camera is tilted 44.9°, so vision equivariance is approximate (EQUIVARIANCE.md,
+   assumption 1).
+6. Can is a weak task for the core question (base 0.92); Square (0.52) discriminates far better.
 
-**Findings that changed the plan**
-
-1. **Six `EquivarianceConfig` fields are silently no-ops** at `caf83f3` — `num_actor_layers`,
-   `num_critic_layers`, both `dropout`s, and the critic's `use_norms` / `use_orth_init`. They are
-   accepted, logged to wandb, and ignored. So every past run's recorded hyperparameters misdescribe
-   the network that trained: `a3e3zylp` was launched with `num_actor_layers=3` and that did nothing.
-   This is why the reproduction freeze exists and why the cleanup is gated behind bit-identity
-   tests. Full table in ARCHITECTURE.md.
-2. **Critic group pooling is present at HEAD** ([critic.py:35-37](../resfit/rl_finetuning/equi_off_policy/rl/critic.py#L35)).
-   Confirms Aden's recollection — the reproduction can proceed from `caf83f3` without recovering
-   code from the other machine.
-3. **Every equivariant run that exists locally collapses.** 14 runs, 5 commits, one failure mode:
-   the residual saturates at `action_scale` and success falls to zero. `x2w6phzf` is the
-   informative one — Square, 0.44 → 0.72 → 0.00 — which rules out a representational-capacity
-   explanation and points at stability.
-4. **43 of 197 failed runs died with escnn types in the traceback.** Field-type mismatches were
-   being found by launching training runs. Motivated moving construction-time layout assertions to
-   the front of Phase 2.
-5. **The agentview camera is tilted 44.9°**, so vision equivariance is approximate, not exact.
-   Reviewed and accepted the same day — see decisions below.
-6. **Can is a weak task for the core question.** Base policy at 0.92, ceiling at 1.00. Square
-   starts at 0.52 and discriminates far better. Can is still right for the reproduction because
-   that is what the lost run used.
-
-**Decisions** — each now lives in the doc that owns it; pointers only, to avoid drift.
-
-- **Reproduction freeze** on `resfit/rl_finetuning/equi_off_policy/` — priority 1 over priority 2,
-  so a reproduction failure cannot be confused with a change we made. Still in force, with an
-  updated reason; see STATUS.md.
-- **Tilted camera accepted** as a useful approximation — EQUIVARIANCE.md assumption 1.
-- **`rl_utils.py` deleted**, and **`note.txt` / `log.txt` untracked** — TODO H1/H3. The notes files
-  are recoverable via `git show 8442ba2^:note.txt`.
-- **BC retraining is not needed.** Policies for Can, Square and TwoArmCoffee are cached under
-  `artifacts/`. Can and Square use **Diffusion** policies, not ACT — verified from the cached
-  `policy/config.json`, and worth knowing because the README example and the upstream paper use ACT.
-
-**Next**
-
-R1–R3 in TODO.md: tag the reproduction baseline, reconstruct the lost config with assumptions
-written down, and fix the run-naming convention before launching 3 seeds.
+**Decided:**
+- The reproduction freeze (STATUS.md).
+- The tilted camera accepted.
+- `rl_utils.py` deleted; `note.txt` and `log.txt` untracked (TODO H1, H3).
+- No BC retraining: the cached Can and Square policies are Diffusion, not ACT.
