@@ -28,6 +28,9 @@ other four docs, with a pointer from here.
   long runs' rule, described in the same entry and read at 300k.
 - Claude's wait script now checks the newest launch's console for a gate failure, not the newest-written
   log.
+- `actor-eae 3`'s gross-failure check passed at 50k (03:19). At 07:32 RAM was at 3 GB available, and
+  Claude Code stopped Claude's background wait; it stays stopped until Aden says otherwise (STATUS; the
+  2026-10-29 NOTE).
 
 ## 2026-10-28 (afternoon) — `actor-eae 3` launched; the disk re-projected short, a disk floor on the queue, a second by-hand list
 

@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-29, 00:40 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-29, 07:40 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -15,6 +15,12 @@ DECISION): launches, gross-failure checks, the readouts and the doc budget, each
 reason. Waiting for Aden: any change to a pre-registered design, any deletion not covered by the DECISION,
 anything new (Stack, TODO B25, stays unbuilt). **O1's `rrr` arms run at 1e-6, as pre-registered**, and
 are queued.
+
+**Claude's watching is paused (07:32 on 10-29):** with 3 GB of RAM available and four runs, Claude
+Code stopped Claude's background wait, and its note says not to restart it unasked (EXPERIMENTS.md, the
+2026-10-29 NOTE). The runs, the queue and the watchers are unaffected. Until Aden says to resume, no
+LAUNCHED entry, readout or rolling reclaim is written. Next by the queue alone: `long-eee 5` after
+`long-resfit 4` ends (about 08:00), once RAM clears the memory floor.
 
 **Waiting on Aden, by hand, before about 10-31: the two scripts in `outputs/cleanup-20261028/`** (5.7 GB in
 all; `rm -rf` is denied to Claude, so every directory waits for them):

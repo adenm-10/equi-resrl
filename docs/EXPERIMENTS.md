@@ -11238,3 +11238,30 @@ Written at about 00:35 on 10-29, from the run package's manifest, the console
   - when `actor-eae 3` ends (about 23:00 on 10-29), `long-resfit 5` cannot take its slot while two long
     runs are alive, so `obj-nut-eee 2` takes it. Its smoke runs first, and its gate runs Tier 2 at
     `e7710f4`.
+
+---
+
+## 2026-10-29 — NOTE — `actor-eae 3`'s gross-failure check passed; RAM at 3 GB available with four runs, so Claude's background wait was stopped by Claude Code and is not restarted without Aden
+
+Written by Claude at about 07:40 on 10-29.
+- **The gross-failure check passed** (`actor-design-1026`'s: evals near 0 through 50k). `actor-eae 3`
+  (`xymahaba`) logged 0.02, 0.24, 0.24, 0.30 and 0.52 at 10k–50k, then 0.62 and 0.60 at 60k and 70k. It
+  recovers as the arm's seed 2 did (0.04 at 10k, 0.56 by 40k).
+- **RAM:** at 07:32, 3 GB available and 19 GB in swap (206 GB of swap free), with four runs:
+  - the trainers' resident sizes, without their workers: `long-eee 4` 21.9 GB, `long-resfit 4` 23.0 GB,
+    `actor-eae 3` 16.5 GB, `actor-resfit-shape-wide 3` 14.6 GB;
+  - all four trainers alive, and no kernel OOM line found;
+  - tmux `order-queue`, the watchers and `wandb-cache` still up.
+- **What it stopped:** Claude Code stopped Claude's background wait, the scratchpad script that wakes
+  Claude for queue, watcher and gate events, because the system was critically low on memory. Its note
+  says not to restart it on Claude's own.
+  - Nothing about the runs or the queue depends on it.
+  - Until Aden restarts the session's watching, LAUNCHED entries, readouts and the rolling reclaim wait.
+- **What the queue does next, by itself:**
+  - `long-resfit 4` (`3ctaaap1`, 0.92 at 290k) ends at 300k about 08:00.
+  - `long-eee 5` then launches only once MemAvailable, less 23 GB for each launch in the last 3 h, is at
+    least 28 GB (the memory floor), and at least 8 GB of disk are free (10.3 GB at 07:32).
+  - With pages in swap, the memory floor may hold it until RAM frees. That is the floor's job, and no run
+    is stopped.
+- **`long-eee 4` (`rkks1a9p`) is at 0.50 at 140k.** Its 150k readout, against `eee`'s four runs, waits with
+  the rest.
