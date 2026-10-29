@@ -11426,3 +11426,56 @@ one physics substep late).
   decodes them, equal fresh renders bit for bit.
 - **Noted:** in 43 of the 1,000 demos, `dones` differs from `rewards == 1`. `dones` is used, as for Square.
 - **A test:** in `tests/test_stack.py`, the replay guard reads a quaternion up to sign. 3 pass.
+
+---
+
+### 2026-10-29 — PRE-REGISTERED — Stack's base policy (`stack-base`, TODO B25 step 4): v9's recipe on the Stack_D0 demos, and the headroom rule
+
+This commit is its launch pin; it runs from its own worktree at this commit.
+
+**The recipe: v9's** (`robomimic-square-bc/3hzs5bz1`; its command, in `outputs/claude-o1/v9_wandb_copies/`):
+`resfit/lerobot/scripts/train_bc_dexmg.py`, a diffusion policy, batch 256, 50,000 steps, AdamW at a constant
+1e-4. Evals run every 1,000 steps: 100 episodes on 8 envs, at horizon 300. At each new best eval the policy
+is uploaded as a version of `run_<id>_best`, with its step and eval. The launcher is
+`outputs/queue/launchers/stack/launch_base.sh`. Three things differ from v9:
+- **The data:** `local/mimicgen-stack-d0-rerendered` (1,000 demos, 107,590 frames; the step-3 CODE entry),
+  in PNG rendered by our env. v9 trained on AV1 video.
+- **Seed 1.** v9 was unseeded.
+- **`--save_freq 50000` instead of 1,000.** A full checkpoint is saved only at the end. v9's setting would
+  write about 17 GB of 341 MB model copies here, against 19 GB free. Saving draws no random number, so the
+  trained policy is the same. Each new best is still saved locally (`best_step_<n>`) and uploaded.
+- It runs from a committed tree; v9 ran from an uncommitted one.
+
+wandb project `robomimic-stack-bc`. A 40-step trial at batch 8, offline, ran end to end on the dataset at
+09:24: dataset, update, Stack evals, checkpoint.
+
+**The headroom rule, fixed before training.** The base must leave room for a residual, as Square's (0.58)
+does. MimicGen's BC reaches nearly 100% on Stack D0 from 1,000 demos, so this run likely will too.
+- **If the run's final best eval is 0.85 or less:** the base is the final best version, as v9 was.
+- **Otherwise:** the base is the uploaded version whose eval is closest to 0.60, among those at or below
+  0.85. On a tie, the earlier one.
+- **The chosen version is then measured** by `resfit.rl_finetuning.scripts.eval_base_policy`, `--num-evals 10`
+  (500 episodes, as B_sq on 2026-10-07): that is B_stack.
+  - If B_stack is above 0.85, take the version before it and measure again.
+  - If it is below 0.30, take the version after it.
+  - B_stack is the bar every Stack residual run is read against.
+- **Why a checkpoint of one run, not fewer demos:**
+  - it takes one training run instead of one a rung;
+  - the base and the RL runs' demo buffer stay the same 1,000 demos, as on Square, where the base and the
+    buffer share the 300 MH demos.
+  - **The cost:** an under-trained policy is imperfect differently from a fully trained one on less data.
+    That is recorded as a caveat on every Stack result.
+
+**Predictions:**
+- the final best is 0.90 or more, so the rule fires;
+- the version picked comes from the first 10k steps;
+- B_stack falls between 0.4 and 0.75.
+
+**Slots and timing (Claude's call, recorded here; Aden asked for Stack and O1 "asap"):**
+- `stack-base` takes the queue's first free slot, ahead of O1's not-yet-launched runs. That is
+  `actor-eae 3`'s slot, at about 23:00 on 10-29.
+- Stack's whole path waits on this run. O1's next run then waits one slot, about 5 h; O1's last result
+  moves about half a day.
+- The run takes about 9–12 h beside an RL run on an RTX 4090. The trial's eval ran at about 20 fps on 2
+  envs; v9 took 15.8 h on a 3090.
+- Disk: about 6 GB (best versions of 341 MB each, the best and final states at about 1 GB each).
