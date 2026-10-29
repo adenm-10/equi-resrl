@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-29, 08:50 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-29, 08:45 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -12,51 +12,38 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 
 **Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
-reason. Waiting for Aden: any change to a pre-registered design, any deletion not covered by the DECISION,
-anything else new. **Stack (TODO B25) is approved to build now** (Aden, 10-29; the 2026-10-29 DEVIATION),
-in `claude-o1`: O1's seeds 2 run first, and Stack's base-policy training takes the first slot after its
-dataset is built, ahead of O1's seeds 3. **O1's `rrr` arms run at 1e-6, as pre-registered**, and are
-queued.
+reason. Waiting for Aden: any change to a pre-registered design, and any deletion the DECISION does not
+cover.
+- **Stack (TODO B25) is being built** (approved 10-29; the 2026-10-29 DEVIATION). O1's seeds 2 run first,
+  and Stack's base-policy training takes the first slot after its dataset is built, ahead of O1's seeds 3.
+- **O1's `rrr` arms run at 1e-6**, as pre-registered.
 
-**`long-1027`'s seeds 5 are cancelled** (Aden, 10-29; the DEVIATION): `long-eee 5` was stopped before
-training, with no wandb run, and the queue holds O1's eight jobs only. Each long arm has one run.
-Claude's watching resumed at 08:23 on 10-29, after a pause from 07:32 for low RAM (the 2026-10-29 NOTE).
+**The work is back in the VSCode session from about 08:45 on 10-29** (Aden: so they can watch it there).
+tmux `claude-o1` is closed; its handoff is `outputs/claude-o1/handoff.md`. **`long-1027`'s seeds 5 are
+cancelled** (the DEVIATION): each long arm has one run, and the queue holds O1's eight jobs.
 
-**Waiting on Aden, by hand, before about 10-31: the two scripts in `outputs/cleanup-20261028/`** (5.7 GB in
-all; `rm -rf` is denied to Claude, so every directory waits for them):
-- `bash outputs/cleanup-20261028/delete_by_hand.sh` (2.5 GB): the seven directories the reclaim (the
-  2026-10-28 DECISION, A–C) approved: O1's first build and its LeRobot cache, three uncited smoke packages,
-  two April–May wandb folders found on the server.
-- `bash outputs/cleanup-20261028/delete_by_hand_2.sh` (3.2 GB): September's 14 wandb folders that are on
-  the server with their history (`wandb_folders_sep.tsv`; kind C, listed on the afternoon of 10-28). One is
-  the BoxCleanup BC run `xg0w2r0z`, whose folder holds 1.8 GB of eval videos; its 50 videos are on the
-  server and its best model is backed up (Do not delete).
-- **Not covered, Aden's call:** 7.2 GB of old Claude session scratchpads in `/tmp/claude-1003/` (three
-  sessions of 10-02, 10-04 and 10-12), on the same disk.
+**Cleaned up on 10-29 (Aden's go):**
+- **Aden ran two deletions by hand:** `outputs/cleanup-20261028/delete_by_hand.sh` (2.5 GB, the seven
+  directories the 2026-10-28 DECISION approved), and the three old Claude scratchpads in `/tmp/claude-1003/`
+  (7.2 GB). `delete_by_hand_2.sh` (September's 14 wandb folders, 3.2 GB) is not run, and stays Aden's call.
+- **The finished groups' worktrees are removed:** `equi-resrl-58d55d7` (enc-iface) and `equi-resrl-aec1bdc`
+  (arch-swap). With them went the enc-iface watcher and the finished runs' idle tmux sessions; their
+  scrollbacks are in `outputs/cleanup-20261029/scrollback/`.
+- **The other three worktrees go as their groups end:** `a5b5cc8` after actor-design (about 04:00 on
+  10-30), `e2fdb27` after `long-eee 4` (about 18:00 on 10-30), and `e7710f4` after O1.
+- **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
+- **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
+  199 April–May wandb folders are the only copies, and stay.
 
-What the reclaim deleted (10:00 on 10-28, 2.67 GB): six duplicate `models/best_model.pt`, each checked
-byte-identical to its `wandb_best/` copy, and the two long smokes' `step_0.pt`. Kept: 196 of the 199
-April–May wandb folders, runs wandb no longer has, so the only copies (`wandb_folders.tsv`); every other
-smoke package, cited in EXPERIMENTS.md, a running group's, or BoxCleanup's only one
-(`kept_smoke_packages.txt`).
-
-**The disk:** 11.3 GB free at 17:33 on 10-28 (12.6 GB at 15:25), with wandb's artifact cache at 4.9 GB. tmux `wandb-cache`
-trims it to about 2 GB at 07:35 and 19:35, and each launch adds the 1 GB BC policy, so free space swings
-by about 2 GB between trims.
-- **What the queue still writes**, by its source arms' packages and the checkpoints, net of the rolling
-  reclaim below: about 14–15 GB. That covers:
-  - the long runs' remaining checkpoints, about 8 GB;
-  - actor-design's two runs, about 1 GB;
-  - O1's eight runs and four smokes, about 4.5 GB, and the LeRobot cache of the object demos;
-  - the runs' wandb folders.
-  So the queue ends, about 11-03, near 0–2 GB free without the two scripts, and near 6–8 GB with them.
-- **Claude's calls:**
-  - As each run finishes, its package's `models/best_model.pt` is deleted once checked byte-identical to
-    `wandb_best/`, and listed in `deleted_best_models.txt` (the DECISION's first kind; `160x34lf` at
-    15:21).
-  - From 15:28 the queue launches a job only while at least 8 GB is free (`DISK_FLOOR_GB`), so a launch
-    never takes the disk near full; a job waits, and no run is stopped.
-  - Claude is woken below 9 GB.
+**The disk:** 20.8 GB free at 08:31 on 10-29.
+- tmux `wandb-cache` trims wandb's artifact cache to about 2 GB at 07:35 and 19:35, and each launch adds the
+  1 GB BC policy.
+- **What the queue still writes:** about 8 GB, net of the rolling reclaim. That is O1's eight runs and
+  smokes (about 4.5 GB), `long-eee 4`'s last four checkpoints (1.8 GB), and packages and wandb folders.
+- **Stack adds:** its demos (1.1 GB, downloaded), its dataset and its base policy.
+- **The rules:** the queue launches only while 8 GB is free (`DISK_FLOOR_GB`). Each finished run's duplicate
+  `models/best_model.pt` is deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`).
+  Claude is woken below 9 GB.
 
 **Now: O1 (`obj-1027`) starts, `long-eee 4` runs to 300k, and actor-design's seeds 3 finish; Stack is
 being built** (EXPERIMENTS.md, the 2026-10-27 PRE-REGISTERED entries, the 2026-10-29 DEVIATION). O1 is the
@@ -272,7 +259,7 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 08:50 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
+**At 08:25 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
@@ -338,20 +325,19 @@ How the runs are launched and followed:
   - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
   - `long-watch` (`long-1027`, from its pinned worktree);
   - `obj-watch` (`obj-1027`, from `equi-resrl-e7710f4`);
-  - `swap-watch` (`arch-swap-1021`) was stopped on 10-26, all its runs exited. `equi-resrl-aec1bdc`
-    stays: the launcher scripts name it.
+  - `swap-watch` and `iface-watch` are stopped (on 10-26 and 10-29), with all their groups' runs exited.
+    Their worktrees are removed. `order_queue.sh` still names them in its start line (`SWAP`, `IFACE`):
+    drop that at the next restart.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 03:00 on 10-28:**
+- **tmux, at 08:45 on 10-29:**
   - `order-queue` and `queue-digest`;
-  - `q-<arm>-<seed>`, one per launched job; the three of 10-26 are idle, their runs ended;
-  - the watchers `ad-watch`, `long-watch`, `obj-watch`, and `iface-watch` (nothing left to watch);
-  - `claude-o1`, this session;
+  - `q-<arm>-<seed>`, one per running job (finished runs' idle sessions are closed);
+  - the watchers `ad-watch`, `long-watch` and `obj-watch`;
   - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
-    every 20 s; it logs, and woke a Claude session below 8 GB when one was open).
+    every 20 s; it logs, and wakes a Claude session below 8 GB when one is open).
 
-  The 10-26 cleanup closed the 10 idle sessions and `swap-watch`; their scrollback is in
-  `outputs/cleanup-20261026/tmux_scrollback/`, as the 10-24 cleanup's is in `outputs/cleanup-20261024/`,
-  and `q-iface-eee-2`'s (closed 10-27) in `outputs/cleanup-20261027/`.
+  Earlier cleanups' scrollback: `outputs/cleanup-20261024/`, `-20261026/tmux_scrollback/`, `-20261027/` and
+  `-20261029/scrollback/`.
   The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**

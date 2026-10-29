@@ -11338,3 +11338,18 @@ only run, so this is its whole curve. The `long-1027` NOTE follows `long-eee 4`'
 - **The package:** seven checkpoints, 0 to 300k, 223 MB each (1.56 GB, as registered). The duplicate
   `models/best_model.pt` was deleted at 08:40, byte-identical to `wandb_best/` (sha256 `b34dcdd3…`;
   `deleted_best_models.txt`).
+
+---
+
+### 2026-10-29 — CORRECTION — two times in the 10-29 NOTEs, and the work moved back to the VSCode session
+
+- **The two NOTEs' times were estimated, not read from the clock** (found by `claude-o1` at its handoff,
+  `outputs/claude-o1/handoff.md`).
+  - The NOTE on `long-resfit 4` at 300k (in `a80e60c`) says "written at about 08:45" and "deleted at 08:40".
+    It was written at about 08:24, and the duplicate best model was deleted at 08:23.
+  - The NOTE on `actor-eae 3`'s gross-failure check (in `6dea45a`) says "about 07:40". It was committed at
+    07:32.
+  - No number or reading in either changes.
+- **The work moved back to the VSCode session at about 08:45** (Aden: so they can watch it there). tmux
+  `claude-o1` was closed after its 1,000-demo Stack replay check finished. Its watching, records and the
+  Stack build continue here.

@@ -36,7 +36,7 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
 5. **O1: APPROVED as a 2×2** (the 2026-10-27 evening DECISION): the nut alone or the nut and the peg, on
    `eee` and `rrr`, seeds 2 and 3, 150k, after actor-design's seeds 3. Each object takes the object-centric
    paper's shape (7 numbers: position and quaternion). The steps plan's calls 2a–2c are as recommended.
-   The build started on the evening of 10-27 in tmux `claude-o1`.
+   Built on the evening of 10-27 (`6e74a1e`, pre-registered at `e7710f4`).
 6. **DONE:** the gate adds a commit to `retry/tier2_passed.txt` itself once a full gate passes.
 7. **The slower dense critic (B20):** with the tuning screens (Claude's recommendation, not objected to).
 8. **DONE 2026-10-28:** the 49-run analysis as an EXPERIMENTS.md NOTE. It corrects 16 to 17 runs above
