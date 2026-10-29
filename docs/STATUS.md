@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-28, 18:05 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-29, 00:40 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -81,10 +81,11 @@ every job: tmux `order-queue`,
   actor unconstrained (`actor-eae`, at 2.5e-7). Seeds 2 and 3, against `arch-swap`'s `eee` and `ere`.
   - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k on 10-27. Their early
     speeds were at their predictions, and the gross-failure check passed.
-  - `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28. `actor-resfit-shape 3`
-    (`xhz9iwoo`, 0.0346 early) runs to about 08:00 on 10-29, `actor-eae 3` (`xymahaba`, 0.0376 early) to
-    about 23:00 on 10-29, and `actor-resfit-shape-wide 3` follows `xhz9iwoo`.
-  - The readout follows the last seed 3, about the afternoon of 10-30. Watcher: tmux `ad-watch`.
+  - `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28, and `actor-resfit-shape 3`
+    (`xhz9iwoo`) at 22:52 (0.616 at 110k–150k, reported only; the 2026-10-29 LAUNCHED entry).
+    `actor-eae 3` (`xymahaba`, 0.0376 early) runs to about 23:00 on 10-29, `actor-resfit-shape-wide 3`
+    (`jfdajea9`, 0.0290 early) to about 04:00 on 10-30.
+  - The readout follows the last seed 3, about the morning of 10-30. Watcher: tmux `ad-watch`.
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
   the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE).
   - Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; never above its step 0; its critic
@@ -265,18 +266,19 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 17:35 on 2026-10-28** (the 2026-10-28 LAUNCHED entries):
+**At 00:30 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.848 at 110k–150k) and `actor-resfit-shape 3` (`xhz9iwoo`, from 00:35, 0.62 at 110k) | 300k about 09:00 on 10-29; 150k about 08:00 on 10-29 |
-| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.70 at 70k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.0376 early) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.848 at 110k–150k, 0.820 at 160k–200k) and `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38, 0.0290 early) | 300k about 07:00 on 10-29; 150k about 04:00 on 10-30 |
+| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.58 at 100k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.24 at 30k) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
-`actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28, its package complete.
+`actor-resfit-shape-wide 2` (`160x34lf`) and `actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28,
+their packages complete.
 
 `e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests) and is listed, so later long
 launches skip it. Queued in `order-1027`, in order: `long-eee 5`, `long-resfit 5` (each when a long run
-ends), `actor-resfit-shape-wide 3`, then O1's eight in the registered order: `obj-nut-eee 2`,
+ends), then O1's eight in the registered order: `obj-nut-eee 2`,
 `obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same at seed 3. The queue was restarted at
 09:42 on 10-28 with the `rrr` arms (`OBJ_WORKTREE`, O1's pinned worktree), and at 15:28 with the disk floor. O1's smokes are in `outputs/diagnostics/obj/smokes/`.
 

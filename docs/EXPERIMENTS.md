@@ -11193,3 +11193,48 @@ analysis's table (`success-correlates/runs.json`) to 0.001, and the early speed 
   launch 0.0348–0.0367, `bue9dupf` 0.0354 (the analysis's table). Each is within 1.5 times its source.
 - **Next:** `long-eee 4` reaches 150k about 10:00 on 10-29, and gets the same readout against `eee`'s four
   runs (mean 0.599).
+
+---
+
+## 2026-10-29 — LAUNCHED — `actor-resfit-shape-wide 3` (`jfdajea9`): Tier 2 skipped at `a5b5cc8`, gate GO; early speed 0.0290, inside the band; `actor-resfit-shape 3` finished at 0.616
+
+Written at about 00:35 on 10-29, from the run package's manifest, the console
+(`outputs/queue/20261028-225750_actor-resfit-shape-wide-3_gpu0.log`), `order-1027/order_queue.log` and
+`outputs/queue/watch.log`. Launched through `order-1027/order_queue.sh`. The manifest records commit
+`a5b5cc8`, clean, and mujoco 3.3.2. Its argv is `actor-resfit-shape-wide 2`'s (`160x34lf`) but for `seed=3`,
+`wandb.name` and `wandb.notes`, as pre-registered (the 2026-10-26 entry).
+
+| Job | Took the slot of | Queue launched; trainer started | GPU | Gate: Tier 1; Tier 2 | In wandb | End (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `actor-resfit-shape-wide` 3 | `actor-resfit-shape 3` (`xhz9iwoo`, finished 22:52 on 10-28) | 22:57; after its gate, about 5 min | 0 | 212; skipped | 23:38 | 150k about 04:00 on 10-30 | [**`jfdajea9`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/jfdajea9) |
+
+- **The gate:** Tier 2 skipped, as `a5b5cc8` is listed. GO with three warnings: Tier 2 skipped, the BC
+  policy's 1 GB download, and the disk (14 GB free). The render check passed on both cameras (0.0105 and
+  0.0080, bars 0.0125 and 0.0129). The queue launched with 36 GB of RAM available and 13.8 GB of disk,
+  over both floors.
+- **No smoke:** the arm's ran on 10-27 (the 2026-10-27 LAUNCHED entry).
+- **The early speed:** 0.0290, inside 0.025–0.045. Expected 0.0330 (the calibration); its seed 2 was 0.0363.
+  Its step-0 eval, the base alone, is 0.54.
+- **`actor-resfit-shape 3` (`xhz9iwoo`) reached 150k at 22:52 on 10-28**, package complete. It finished about 9 h
+  before STATUS's estimate (about 08:00 on 10-29).
+  - Its evals at 110k–150k are 0.62 0.60 0.74 0.52 0.60, a pool of 0.616 (step 0 0.54). Its seed 2
+    (`j457zalw`) pooled 0.552, so the arm's two seeds average 0.584.
+  - Reported, not a contrast: actor-design is read after its last run.
+  - Its duplicate best model was deleted at 22:53 (173 MB). It was byte-identical to `wandb_best/` (sha256
+    `291f8ee9…`), and is listed in `deleted_best_models.txt` (the rolling reclaim).
+- **`long-resfit 4`'s 160k–200k pool, described:** 0.82 0.92 0.70 0.86 0.80, a pool of 0.820, against
+  0.848 at 110k–150k. By the long runs' PRE-REGISTERED rule it is not "still climbing at 150k", which needs
+  a rise of 0.05 or more. The two pools are within 0.05, the rule's "levelled off" if the last two hold it.
+  This is read with the whole curve at 300k. From 200k the buffer drops its oldest transitions (the
+  caveat).
+- **`actor-eae 3` (`xymahaba`):** evals 0.02, 0.24 and 0.24 at 10k–30k. Its gross-failure check reads at
+  50k, about 03:30.
+- **The disk:** 12.6 GB free at 00:29. **RAM:** 10 GB available, with four runs.
+- **Running now:**
+  - GPU 0: `long-resfit 4` (`3ctaaap1`, 0.76 at 220k) and `actor-resfit-shape-wide 3`;
+  - GPU 1: `long-eee 4` (`rkks1a9p`, 0.58 at 100k) and `actor-eae 3`.
+- **Next in `order-1027`:**
+  - `long-eee 5` when `3ctaaap1` reaches 300k, about 07:00 on 10-29;
+  - when `actor-eae 3` ends (about 23:00 on 10-29), `long-resfit 5` cannot take its slot while two long
+    runs are alive, so `obj-nut-eee 2` takes it. Its smoke runs first, and its gate runs Tier 2 at
+    `e7710f4`.

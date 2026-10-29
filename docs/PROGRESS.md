@@ -17,6 +17,18 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-28 (night) — `actor-resfit-shape 3` at 150k; `actor-resfit-shape-wide 3` launched
+
+**Done** (`claude-o1`, Claude's calls under the morning's DECISION):
+- `actor-resfit-shape 3` (`xhz9iwoo`) reached 150k at 22:52, about 9 h early (0.616, reported only). Its
+  duplicate best model was reclaimed (173 MB, byte-identical).
+- `actor-resfit-shape-wide 3` launched at 22:57 (`jfdajea9`; gate GO, Tier 2 skipped as listed; early speed
+  0.0290, inside the band; the 2026-10-29 LAUNCHED entry).
+- `long-resfit 4`'s 160k–200k pool is 0.820, against 0.848 at 110k–150k: not "still climbing" by the
+  long runs' rule, described in the same entry and read at 300k.
+- Claude's wait script now checks the newest launch's console for a gate failure, not the newest-written
+  log.
+
 ## 2026-10-28 (afternoon) — `actor-eae 3` launched; the disk re-projected short, a disk floor on the queue, a second by-hand list
 
 **Done** (`claude-o1`, Claude's calls under the morning's DECISION):
