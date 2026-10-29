@@ -11479,3 +11479,29 @@ does. MimicGen's BC reaches nearly 100% on Stack D0 from 1,000 demos, so this ru
 - The run takes about 9–12 h beside an RL run on an RTX 4090. The trial's eval ran at about 20 fps on 2
   envs; v9 took 15.8 h on a 3090.
 - Disk: about 6 GB (best versions of 341 MB each, the best and final states at about 1 GB each).
+
+---
+
+### 2026-10-29 — NOTE — `long-eee 4` (`rkks1a9p`) at 150k: a fresh-seed copy of eee, as the long runs' plan reads it
+
+Read at 10:18 with `outputs/diagnostics/long/read_window.py` (wandb's server) against eee's four 150k runs.
+Output: `outputs/diagnostics/long/read_window_1029_eee.txt`.
+
+| Run | 110k–150k pool | early speed | train success 10–30k / 100–150k | online value 10–30k / 100–150k | demo preference 10–30k / 100–150k |
+|---|---|---|---|---|---|
+| `rkks1a9p` (`long-eee 4`) | **0.648** | 0.0403 | 0.233 / **0.706** | +0.004 / **+0.163** | +0.351 / +0.224 |
+| `h216n857` | 0.640 | 0.0373 | 0.307 / 0.611 | +0.011 / +0.131 | +0.331 / +0.245 |
+| `wk45zp27` | 0.516 | 0.0360 | 0.219 / 0.526 | −0.012 / +0.090 | +0.355 / +0.282 |
+| `jr63pxb9` | 0.564 | 0.0354 | 0.418 / 0.651 | +0.019 / +0.131 | +0.303 / +0.237 |
+| `mgcifv1y` | 0.676 | 0.0356 | 0.276 / 0.686 | +0.002 / +0.123 | +0.337 / +0.244 |
+
+- **Comparable.** Its pool is 0.049 above the four's mean (0.599) and inside their range (0.516–0.676). Its
+  early speed (0.0403, predicted 0.0367) is inside the 0.025–0.045 band. Every early signal is inside the
+  four's range.
+- So by the long runs' plan its first 150k joins eee's pool: **eee now has five runs at 150k, mean 0.609**
+  (0.516–0.676).
+- **Its late signals are the highest of the five:** training success 0.706, and the critic's value of online
+  data at +0.163 against 0.090–0.131. Its demo preference is the lowest, at +0.224. One run, so this is a
+  description, not a finding.
+- It continues to 300k (about 18:00 on 10-30). "Still climbing at 150k" is read on its 160k–200k pool, by
+  the plan's rule; `long-resfit 4` was not climbing by that rule (the 300k NOTE).
