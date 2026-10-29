@@ -11303,3 +11303,38 @@ equivariance) task and the object-centric obs asap". Done by the VSCode session 
    - Claude's recommendation on the slots: O1's seeds 2 first, as queued. Stack's base-policy training
      takes the first slot after its dataset is built, ahead of O1's seeds 3.
    - That leaves O1's design unchanged; only when its last four runs start moves.
+
+---
+
+## 2026-10-29 — NOTE — `long-resfit 4` at 300k (`3ctaaap1`): levelled off at about 0.88 by 210k–300k, never collapsed, not still climbing at 150k; inside its prediction (0.85–0.90). The arm's one run, under the 2026-10-29 DEVIATION
+
+Written by Claude at about 08:45 on 10-29, from the complete package (commit `e2fdb27`, clean). The long
+runs' PRE-REGISTERED entry (2026-10-27) reads each run's curve; under the DEVIATION `long-resfit 4` is the arm's
+only run, so this is its whole curve. The `long-1027` NOTE follows `long-eee 4`'s 300k (about 18:00 on 10-30).
+
+| Window | 110k–150k | 160k–200k | 210k–250k | 260k–300k |
+|---|---|---|---|---|
+| Evals | 0.88 0.78 0.86 0.84 0.88 | 0.82 0.92 0.70 0.86 0.80 | 0.88 0.76 0.94 0.86 0.94 | 0.90 0.76 0.88 0.92 0.94 |
+| **Pool** | **0.848** | **0.820** | **0.876** | **0.880** |
+| Training success | 0.802 | 0.868 | 0.819 | 0.877 |
+| Critic's online value (`debug/q_data_online`) | 0.214 | 0.257 | 0.316 | 0.356 |
+| Demo value (`debug/q_data_demo`) | 0.417 | 0.422 | 0.430 | 0.433 |
+| Demo preference | 0.203 | 0.165 | 0.114 | 0.077 |
+
+- **The registered readings** (descriptions at a window pool's standard error of about 0.045):
+  - *Still climbing at 150k:* **no.** The 160k–200k pool is 0.028 below the 110k–150k pool, where the rule
+    needs 0.05 or more above it.
+  - *Levelled off:* **yes.** The last two pools are 0.004 apart, under 0.05.
+  - *Collapsed:* **no.** No pool is 0.2 or more below an earlier one; the lowest single eval is 0.70 at 180k.
+  - The line through the four pools rises +0.03 per 100k.
+- **Against the prediction** (ResFiT rising to about 0.85–0.90 by 300k): **inside it**, at 0.880 over
+  260k–300k. The best eval is 0.94 (230k, 250k and 300k); the best model is 230k's.
+- **The critic kept learning after the evals levelled:** its value of online data rose from 0.21 to 0.36,
+  while its value of the demos stayed near 0.42. Its preference for the demos over its own experience
+  fell from 0.20 to 0.08. That is the direction the 49-run analysis tied to winning runs. From 200k the
+  buffer drops its oldest transitions (the registered caveat), so 210k–300k is not the same training
+  continued.
+- **Not read here:** the gap to ResFiT per window and the spread at 150k, which need `long-eee 4`.
+- **The package:** seven checkpoints, 0 to 300k, 223 MB each (1.56 GB, as registered). The duplicate
+  `models/best_model.pt` was deleted at 08:40, byte-identical to `wandb_best/` (sha256 `b34dcdd3…`;
+  `deleted_best_models.txt`).

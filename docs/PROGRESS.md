@@ -17,6 +17,20 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-29 (morning) — `long-1027`'s seeds 5 cancelled (Aden); `long-resfit 4` at 300k; Stack approved and started
+
+**Decided** (Aden, relayed by the VSCode session; EXPERIMENTS.md, the 2026-10-29 DEVIATION): "can we cancel
+second long run seed? I want to test the alternate (better for equivariance) task and the object-centric
+obs asap". The VSCode session stopped `long-eee 5` before training and restarted the queue with O1's eight
+jobs; Stack (TODO B25) is approved, built in `claude-o1`.
+
+**Done** (`claude-o1`)
+- Watching resumed at 08:23, RAM back at 41 GB available.
+- **`long-resfit 4` at 300k** (its NOTE): pools 0.848, 0.820, 0.876, 0.880; levelled off, inside its
+  prediction. Its duplicate best model reclaimed (223 MB).
+- STATUS and TODO rewritten for one long run per arm and for Stack; the 09-25 and 10-07 PROGRESS entries
+  condensed for the doc budget.
+
 ## 2026-10-28 (night) — `actor-resfit-shape 3` at 150k; `actor-resfit-shape-wide 3` launched
 
 **Done** (`claude-o1`, Claude's calls under the morning's DECISION):
@@ -1035,66 +1049,26 @@ those sessions.)
 
 ## 2026-10-07 — τ and BC did not fix tuned RLPD; upstream's code set up out of the box
 
+Condensed 2026-10-29; the runs are in EXPERIMENTS.md (the 10-07 RESULTS, CODE and PRE-REGISTERED entries).
+
 **Done**
+- **The τ 0.005 and BC arms:** all three at 0. Training return was 0 throughout, so there was no learning
+  signal. The demos are not at fault (all 300 succeed, BC learns 0.89 from them in this env). What is
+  missing is contrast at a state, which only a rollout that sometimes succeeds gives; a critic warm-up
+  cannot.
+- **Our fork against upstream's `66262b06`:** the RLPD path does upstream's math. Upstream was cloned and
+  built from its README (`~/projects/resfit-upstream`, env `resfit-upstream`), and two runs pre-registered
+  in it. Its trainer uploads buffers to Hugging Face only when `HF_*_BUFFER_REPO` is set; it is not.
+- **The two warm-ups** (Aden's question): the buffer warm-up (`learning_starts`, random actions) and the
+  critic warm-up (`critic_warmup_steps`) are separate; upstream's RLPD never reads the second. In ResFiT
+  both run on the BC policy, which mostly succeeds; without a base policy neither has a succeeding policy.
+  The working analog is BC pretraining or a BC term.
+- **Why the encoder learns from the critic only:** the actor's loss could raise Q through the features
+  rather than the action (as in SAC-AE and DrQ). `bc_backprop_encoder` adds the BC gradient only.
+- **Training with no warm-up** made possible (updates wait for one online batch), and that arm and the
+  BC-encoder arm pre-registered and launched.
 
-- **Recorded the τ/BC arms** (EXPERIMENTS.md, RESULTS, "τ 0.005 and a BC term"): all three at 0,
-  τ as predicted. The BC term held the actor near the demos, coarsely, with no successes.
-- **Aden's reading:** the training return is 0 throughout, so there is no learning signal; are
-  the demos bad, or the exploration seeding wrong? The demos are not bad: all 300 succeed, BC
-  learns 0.89 from them in this env, and the RL action path matches the residual one. The critic
-  does see their reward. What is missing is contrast, two actions with different outcomes at one
-  state, which only a rollout that sometimes succeeds supplies. A critic warm-up was tested
-  (screen) and cannot supply it.
-- **Diffed our fork against upstream's `66262b06`:** the RLPD path does upstream's math. The
-  untested difference is the package environment (torchrl 0.7.0 vs 0.9.2, mujoco 3.8.1 vs
-  3.3.2).
-- **Cloned upstream fresh and built its env from its README** (`~/projects/resfit-upstream`, env
-  `resfit-upstream`), and pre-registered two runs in it (EXPERIMENTS.md, PRE-REGISTERED,
-  "upstream's code, out of the box").
-- **Checked upstream's trainer for uploads:** it creates public Hugging Face datasets and uploads
-  its buffer caches only when `HF_OFFLINE_BUFFER_REPO` / `HF_ONLINE_BUFFER_REPO` are set. They are
-  not, here.
-
-- **The two warm-ups, and what is faithful,** asked by Aden:
-  - **The buffer warm-up** (`learning_starts`, 10k env steps, no learning) and **the critic
-    warm-up** (`critic_warmup_steps`, critic-only updates) are separate. Upstream's RLPD trainer
-    has the first, with U(±1) actions, and never reads the second's field.
-  - **Faithful to the released code** is what we run, field for field. **Faithful to the paper's
-    text**, Algorithm 1 without its base policy, would make the warm-up actions U(±0.2) around the
-    midpoint, plus the code's 10k critic warm-up. Algorithm 1 itself shows no critic-only phase.
-  - **What they do in ResFiT:** both run on the BC policy. Its warm-up rollouts stay near the
-    demos and mostly succeed, so the buffer holds near-demo states with different outcomes. The
-    zero-initialized residual makes the frozen actor output exactly the BC action, so the critic
-    warm-up evaluates the BC policy, with no extrapolation. Without a base policy, neither phase
-    has a succeeding policy to work on: the frozen actor is a random network, and its warm-up
-    targets query actions no data covers (the 0.74–0.80 demo values before the actor moved).
-  - **Their working analog without a base policy** is a policy trained from the demos: BC
-    pretraining, or a BC term. That departs from the paper's Tuned RLPD as written.
-- **Why the encoder learns from the critic only,** asked by Aden: upstream, like SAC-AE and DrQ,
-  detaches the actor's features, because the actor's loss −Q(s, π(s)) could raise Q by changing
-  the features the critic sees rather than the action. A BC loss has fixed targets and cannot
-  exploit the critic; its costs are interference in the shared encoder and AdamW, and features
-  that move under the critic's targets. `bc_backprop_encoder` adds the BC gradient only; the Q
-  term stays detached.
-- **Made training possible with no warm-up** (EXPERIMENTS.md, CODE, "training can start with no
-  warm-up"): updates wait for one online batch. Pre-registered and launched a no-warm-up arm
-  (PRE-REGISTERED, "with no warm-up"), Aden's request: demos in the buffer, no random steps.
-- **Warm-up alternatives, for later:**
-  - a shorter random warm-up;
-  - demos only in each batch until the online buffer fills;
-  - warm-up rollouts from a BC-pretrained actor;
-  - episodes started from demo states.
-
-  Only the last two put successes in the online half; the third is what ResFiT's warm-ups do,
-  with the BC policy as the actor's start.
-- **Pre-registered and launched the BC-encoder arm** (EXPERIMENTS.md, PRE-REGISTERED, "the BC
-  term trains the encoder"), with a test that the flag does what it says.
-
-**Open**
-
-- **The clean-env runs wait on disk:** 17 GB free, 21 GB needed. `local_runs/upstream-rlpd/`
-  (21 GB) is approved for deletion; the session's permissions block `rm -rf`, so Aden deletes it.
-- The doc budget is far over its 150 KB (about 370 KB, mostly EXPERIMENTS.md), as it was before.
+**Open then:** the clean-env runs waited on 21 GB of disk; `local_runs/upstream-rlpd/` was approved for deletion and is gone.
 
 ---
 
@@ -1489,75 +1463,35 @@ rule 6.4.
 
 ## 2026-09-25 — The encoder goes bimanual, and Square restarts
 
-The `caf83f3` replication reported (both seeds reproduced, first n=2 in the project). Work moved to
-a second single-arm task and the first two-arm task.
+Condensed 2026-10-29. The `caf83f3` replication reported (both seeds reproduced). Work moved to a second
+single-arm task and the first two-arm task.
 
 **Done**
-
-- **Pinned the single-arm encoder before touching it** (`2611adb`). `tests/test_regression_single_arm.py`
-  fingerprints the actor and critic features with a sum plus a seeded random projection; the
-  projection is what catches a field reordering the sum would miss. Wired into the Tier 1 gate.
-- **Generalised `ResObsEnc` to `n_arms`.** Per arm the state is `[eef_pos 3, eef_quat 4,
-  gripper_qpos G]` and the action `[delta_pose 6, hand H]`. `enc_ih` became a `ModuleList`, one per
-  wrist camera. The regression fingerprint stayed bit-identical throughout, so Can and Square runs
-  before and after remain comparable. `actor.py` and `critic.py` needed no changes — they already
-  derive every offset from `FieldType.size`.
-- **Normalizer, probe and agent followed.** Per-arm normalizer keys sharing one rotation centre;
-  `detect_robot_base_xy` → `detect_robot_bases`, which returns *every* base rather than silently
-  taking the first; `QAgent` now asserts encoder dims against the env instead of ignoring them.
-- **Tests parameterised over arm count.** The `obs_enc` fixture yields both layouts, so all of Tier 2
-  runs twice. Suite 74 → 231 passing.
-- **`preflight.py` generalised.** `image_keys` and `num_episodes` moved into `TASKS`; added
-  `TwoArmBoxCleanup`; cache sizes are now estimated per task and the disk check blocks on the
-  estimate rather than a fixed 40 GB.
-- **Launched Square** (`equi-square-v1` seed 1), and **relaunched it** after the original died.
-- **Started the BoxCleanup ACT BC run**, best 0.64 at 21k.
+- **The single-arm encoder pinned first** (`2611adb`): `tests/test_regression_single_arm.py` fingerprints the
+  actor's and critic's features with a sum and a seeded random projection (which catches a field
+  reordering), in the Tier 1 gate.
+- **`ResObsEnc` generalised to `n_arms`**: per arm `[eef_pos 3, eef_quat 4, gripper_qpos G]` and
+  `[delta_pose 6, hand H]`; one `enc_ih` per wrist camera. The fingerprint stayed bit-identical, so Can and
+  Square runs before and after are comparable. The normalizer, the base probe (`detect_robot_bases`, every
+  base) and `QAgent`'s dimension asserts followed. Tests run over both layouts (74 → 231).
+- **`preflight.py` generalised:** `image_keys` and `num_episodes` in `TASKS`, `TwoArmBoxCleanup`, a disk
+  check on each task's estimated cache sizes.
+- **Launched Square** (`equi-square-v1` seed 1, relaunched after it died) and the BoxCleanup ACT BC run.
 
 **Decided**
-
-- **TwoArmBoxCleanup, C8 about the midpoint of the two bases** — as a geometric prior, not an exact
-  symmetry. The task fixes object yaw, and the hands are chiral, so six of the eight group elements
-  are not physical symmetries. Recorded in EQUIVARIANCE.md so no later reader mistakes it for the
-  Can/Square case.
-- **`num_episodes=1000` and `total_timesteps=500_000`** for BoxCleanup, to match the paper and stay
-  consistent with the other runs.
-- **ACT, not diffusion, for the BoxCleanup base policy**, matching the ResFiT authors' own
-  simulation launchers.
-- **Wait for Square before launching BoxCleanup.** It finishes around 2026-09-29 and frees 22.4 GB,
-  which is what BoxCleanup's caches need, plus the second GPU. That lets the baseline and
-  equivariant arms run concurrently under identical wall-clock conditions rather than weeks apart,
-  and they share caches anyway. Cost is ~3.5 days of an idle GPU 1; the alternative was launching
-  into a ~6 GB disk margin and re-running later for pairing. Resolves TODO B5.
+- **TwoArmBoxCleanup: C8 about the midpoint of the two bases, as a geometric prior, not an exact
+  symmetry** (the task fixes object yaw and the hands are chiral; EQUIVARIANCE.md).
+- BoxCleanup at `num_episodes=1000`, 500k steps, an ACT base (as ResFiT's own launchers); it waits for
+  Square to finish, so its two arms run side by side.
 
 **Found**
-
-- **`action_scale` does not bound the residual.** The squash after the actor's final Linear is
-  commented out, so `|mu|` is not ≤ 1 (1.27x measured on two arms). The old
-  `test_actor_respects_action_scale` asserted a bound that held only by luck of initialisation
-  magnitude. The real bound is `equi_clip(..., bound=1.0)`.
-- **`pytest tests/` was a trap on this machine.** escnn caches basis tensors per representation, so
-  once a GPU module exists a later CPU build dies on a device mismatch — and alphabetical collection
-  put the CPU regression module last. Preflight never saw it because it runs Tier 1 in a separate
-  subprocess. `conftest.py` now orders that module first.
-- **The two BoxCleanup arms share their buffer caches.** The cache key has no equivariance term, so
-  the equivariant run costs no extra disk.
-- **`ablate_equi_obs_encoder.py` is imported by nothing** and still references a normalizer key that
-  no longer exists. Left under the freeze; queued for P3.5.
-- **The BoxCleanup BC policy's evaluation is unstable, and it matters.** 31 evals of 100 episodes
-  each: a clear climb from 0.26 to roughly 0.65, but oscillating +/-0.15 the whole way. The last six
-  are 0.68 0.53 0.67 0.66 0.69 0.53. The recorded peak of **0.74 at step 24k is an outlier draw**,
-  not the policy's true rate. `base_policy.wt_type="best"` selects on exactly this noisy signal, so
-  the saved checkpoint is biased high — which means the residual run's step-0 will look lower than
-  the BC "best" for reasons that are not a pipeline bug. Read step-0 as the base rate, and put the
-  whole sequence in the pre-registration.
-
-**Next**
-
-1. When BC finishes: verify the artifact, set `base_policy.wandb_id` in both the config and
-   `preflight.TASKS`, and back the checkpoint up.
-2. When Square finishes: free its caches, pre-register both BoxCleanup arms, and launch them
-   together.
-3. Independent of both: write up the five undocumented successful runs (TODO B2).
+- **`action_scale` did not bound the residual** (the squash was commented out); the real bound is
+  `equi_clip(..., bound=1.0)`.
+- **`pytest tests/` was order-dependent:** escnn caches bases per device, so `conftest.py` runs the CPU
+  regression module first.
+- **The BoxCleanup BC eval is noisy** (±0.15 over 31 evals of 100 episodes); its recorded 0.74 peak is an
+  outlier, so "best" checkpoints are biased high and a residual's step 0 reads lower. Read step 0 as the
+  base rate.
 
 ## 2026-09-16 — The lost run was not lost, and the target was wrong
 

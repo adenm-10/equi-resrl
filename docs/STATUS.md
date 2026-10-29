@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-29, 07:40 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
+**Last updated:** 2026-10-29, 08:50 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
 2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
 goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
 The full gate's GPU tier runs at O1's first launch. Where each group launches from:
@@ -13,14 +13,14 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 **Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, any deletion not covered by the DECISION,
-anything else new. **Stack (TODO B25) is approved to build now** (2026-10-29 DEVIATION). **O1's `rrr` arms run at 1e-6, as pre-registered**, and
-are queued.
+anything else new. **Stack (TODO B25) is approved to build now** (Aden, 10-29; the 2026-10-29 DEVIATION),
+in `claude-o1`: O1's seeds 2 run first, and Stack's base-policy training takes the first slot after its
+dataset is built, ahead of O1's seeds 3. **O1's `rrr` arms run at 1e-6, as pre-registered**, and are
+queued.
 
-**Claude's watching is paused (07:32 on 10-29):** with 3 GB of RAM available and four runs, Claude
-Code stopped Claude's background wait, and its note says not to restart it unasked (EXPERIMENTS.md, the
-2026-10-29 NOTE). The runs, the queue and the watchers are unaffected. Until Aden says to resume, no
-LAUNCHED entry, readout or rolling reclaim is written. **`long-1027`'s seeds 5 are cancelled** (Aden,
-10-29: `long-eee 5` stopped before training, no wandb run); the queue holds O1's eight jobs only.
+**`long-1027`'s seeds 5 are cancelled** (Aden, 10-29; the DEVIATION): `long-eee 5` was stopped before
+training, with no wandb run, and the queue holds O1's eight jobs only. Each long arm has one run.
+Claude's watching resumed at 08:23 on 10-29, after a pause from 07:32 for low RAM (the 2026-10-29 NOTE).
 
 **Waiting on Aden, by hand, before about 10-31: the two scripts in `outputs/cleanup-20261028/`** (5.7 GB in
 all; `rm -rf` is denied to Claude, so every directory waits for them):
@@ -58,20 +58,20 @@ by about 2 GB between trims.
     never takes the disk near full; a job waits, and no run is stopped.
   - Claude is woken below 9 GB.
 
-**Now: the long runs (`long-1027`) run their seeds 4, and `actor-design-1026` its seeds 2 and 3**
-(EXPERIMENTS.md, 2026-10-27 PRE-REGISTERED and the afternoon DECISION; the 2026-10-28 LAUNCHED). ResFiT's
-own agent and `eee` go to 300k at seeds 4 and 5, two at once; actor-design's seeds 3 take the other
-slots. Then O1 (`obj-1027`; EXPERIMENTS.md, 2026-10-27 CODE and PRE-REGISTERED), built and
-pre-registered on the evening of 10-27: the nut alone or with the peg, on `eee` and `rrr`. The `eee` arms
-and the `rrr` arms are queued after actor-design's seeds 3.
-Then the new task, Stack, `eee` against `rrr` (TODO B25, not approved to build); latency is sidelined. One queue places
+**Now: O1 (`obj-1027`) starts, `long-eee 4` runs to 300k, and actor-design's seeds 3 finish; Stack is
+being built** (EXPERIMENTS.md, the 2026-10-27 PRE-REGISTERED entries, the 2026-10-29 DEVIATION). O1 is the
+nut's pose alone or with the peg's, on `eee` and `rrr`, eight runs from 10-29. `long-1027` has one run per
+arm: `long-resfit 4` is done, `long-eee 4` ends about 18:00 on 10-30. Stack, `eee` against `rrr` (TODO
+B25), is approved and being built; latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
-- **`long-1027`'s first 150k readout** (EXPERIMENTS.md, the 2026-10-28 NOTE on `long-resfit 4`):
-  `long-resfit 4` (`3ctaaap1`) pooled 0.848 at 110k–150k, beside `bue9dupf`'s 0.828, so it is comparable
-  with its source arm (ResFiT's re-rendered arm, two runs, mean 0.838). It was still climbing at 150k.
-  Both long runs' early speeds are inside the band (`long-eee 4` 0.0396, `long-resfit 4` 0.0277).
-  `long-eee 4` gets the same readout about 10:00 on 10-29, against eee's four runs (0.599).
+- **`long-resfit 4` (`3ctaaap1`) is complete at 300k** (EXPERIMENTS.md, the 2026-10-28 and 2026-10-29
+  NOTEs). Its pools by window: 0.848, 0.820, 0.876, 0.880. At 150k it matched `bue9dupf`'s 0.828, so
+  ResFiT's re-rendered arm is 0.838 over two runs. It was not still climbing at 150k by the registered
+  rule, levelled off by 210k–300k, never collapsed, and ended inside its prediction (0.85–0.90). Its
+  critic's online value kept rising (0.21 to 0.36).
+- **`long-eee 4` (`rkks1a9p`)**, the `eee` arm's one run: 0.50 at 140k, early speed 0.0396. Its 150k
+  readout, against eee's four runs (0.599), about 10:00 on 10-29; the `long-1027` NOTE after its 300k.
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
@@ -272,21 +272,22 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 00:30 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
+**At 08:50 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `long-resfit 4` (`3ctaaap1`, from 02:52, 0.848 at 110k–150k, 0.820 at 160k–200k) and `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38, 0.0290 early) | 300k about 07:00 on 10-29; 150k about 04:00 on 10-30 |
-| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.58 at 100k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.24 at 30k) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38, 0.62 at 50k) and O1's first slot (`obj-nut-eee 2`, its smoke first) | 150k about 04:00 on 10-30 |
+| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.50 at 140k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.60 at 70k) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
-`actor-resfit-shape-wide 2` (`160x34lf`) and `actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28,
-their packages complete.
+`long-resfit 4` (`3ctaaap1`) reached 300k at 07:52 on 10-29; `actor-resfit-shape-wide 2` (`160x34lf`) and
+`actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28. Their packages are complete.
 
 `e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests) and is listed, so later long
-launches skip it. Queued in `order-1027`, in order: `long-eee 5`, `long-resfit 5` (each when a long run
-ends), then O1's eight in the registered order: `obj-nut-eee 2`,
-`obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same at seed 3. The queue was restarted at
-09:42 on 10-28 with the `rrr` arms (`OBJ_WORKTREE`, O1's pinned worktree), and at 15:28 with the disk floor. O1's smokes are in `outputs/diagnostics/obj/smokes/`.
+launches skip it. Queued in `order-1027`, in the registered order: O1's `obj-nut-eee 2`,
+`obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same at seed 3; Stack's base-policy training
+goes ahead of the seeds 3 once its dataset is built. The queue was restarted at
+09:42 on 10-28 with the `rrr` arms (`OBJ_WORKTREE`, O1's pinned worktree), at 15:28 with the disk floor,
+and at 08:20 on 10-29 with O1's eight jobs only (the DEVIATION; `order_queue.sh.before-20261029`). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
@@ -496,13 +497,12 @@ How the runs are launched and followed:
 ours (C4) through its wiring, its free parameters, or its lack of a constraint.
 
 **1. Next, in Aden's order** (the 2026-10-27 DECISIONs; TODO B24 has the to-do list and the calls):
-- **The long runs** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k at seeds 4 and 5, to
-  see where each levels off. Every run above the base was still climbing at 150k. Seeds 4 run from 10-28;
-  all four are done about 11-01.
-- **Then O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
-  with the peg, on `eee` and `rrr`, eight runs, all queued. It targets the critic's low value of online
-  data. The runs are about 10-30 to 11-03.
-- **Then the new task, Stack, `eee` against `rrr`** (TODO B25; planned, not approved to build). Square's
+- **The long runs** (2026-10-27 PRE-REGISTERED): ResFiT's agent and `eee` to 300k, to see where each
+  levels off. Seeds 5 were cancelled on 10-29 (Aden), so one run per arm; `long-eee 4` ends about 10-30.
+- **O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
+  with the peg, on `eee` and `rrr`, eight runs, all queued, from 10-29. It targets the critic's low value
+  of online data.
+- **The new task, Stack, `eee` against `rrr`** (TODO B25; approved and being built from 10-29). Square's
   symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
   Turned Square is dropped.
 - **Then latency (sidelined) and the tuning.**

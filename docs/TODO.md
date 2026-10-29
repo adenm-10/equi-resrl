@@ -42,13 +42,14 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
 8. **DONE 2026-10-28:** the 49-run analysis as an EXPERIMENTS.md NOTE. It corrects 16 to 17 runs above
    the base. Each readout from actor-design's on checks the two conditions against the runs since.
 9. **Latency (L) is sidelined** until the long runs, O1 and a new task have results; B23 keeps its design.
-10. **The new task: Stack, `eee` against `rrr`, planned (B25), not approved to build.** Turned Square is
+10. **The new task: Stack, `eee` against `rrr` (B25), APPROVED 10-29 and being built.** Turned Square is
     dropped (Aden).
 
 **The to-do** (coarse; the days are targets):
-1. **The long runs: seeds 4 launched 10-28** (the LAUNCHED entry); seeds 5 follow. The watchers and the
-   digest cover them. `long-resfit 4`'s 150k readout DONE 10-28 (0.848, comparable; its NOTE);
-   `long-eee 4`'s about 10:00 on 10-29, with `outputs/diagnostics/long/read_window.py`.
+1. **The long runs: seeds 4 launched 10-28; seeds 5 CANCELLED 10-29** (Aden; the DEVIATION), one run per
+   arm. `long-resfit 4` DONE at 300k (levelled at 0.88; the 2026-10-28 and 10-29 NOTEs). `long-eee 4`'s
+   150k readout about 10:00 on 10-29 (`outputs/diagnostics/long/read_window.py`), its 300k about 18:00 on
+   10-30, then the `long-1027` NOTE.
 2. **O1: BUILT 10-27** (the CODE entry). The rest:
    - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
 
@@ -78,7 +79,7 @@ afternoon and 11-01; O1 about 11-02.
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
 
-### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, not approved to build `[SC]`
+### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), being built `[SC]`
 
 The plan of record for the new task (the 2026-10-27 evening DECISION, item 4). Stack is robosuite's own
 task, MimicGen's Stack D0: two cubes within ±8 cm of the table's middle, at any yaw. Every cube-to-cube
