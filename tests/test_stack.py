@@ -64,3 +64,18 @@ def test_the_stack_env_observes_places_and_succeeds_as_square_does():
         assert reward == 1.0 and terminated and not truncated and info["success"]
     finally:
         w.close()
+
+
+def test_the_demo_builders_replay_gap_reads_a_quaternion_up_to_sign():
+    """tools/build_stack_demos.py's replay guard: q and -q are one rotation; a moved gripper is a gap."""
+    from tools.build_stack_demos import replay_gap
+
+    ours = np.array([[0.1, 0.2, 0.9, 0.0, 0.0, 0.6, 0.8, 0.02, -0.02]], dtype=np.float32)
+    flipped = ours.copy()
+    flipped[:, 3:7] *= -1
+    assert replay_gap(ours, flipped) == (0.0, 0.0, 0.0)
+    moved = ours.copy()
+    moved[:, 0] += 0.003
+    moved[:, 7] += 0.001
+    pos, quat, grip = replay_gap(ours, moved)
+    assert pos == pytest.approx(0.003, abs=1e-7) and quat == 0.0 and grip == pytest.approx(0.001, abs=1e-7)

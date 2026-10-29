@@ -11393,3 +11393,36 @@ only run, so this is its whole curve. The `long-1027` NOTE follows `long-eee 4`'
 
   2 pass. With it, `test_env_wrapper.py`, `test_imports.py` and `test_object_obs.py` (its CPU and env
   parts) pass: 133.
+
+---
+
+### 2026-10-29 — CODE — Stack, step 3 (TODO B25): the Stack_D0 demos rendered in our env, `local/mimicgen-stack-d0-rerendered`
+
+New `tools/build_stack_demos.py`. Stack has no LeRobot source to copy columns from, so every column is
+built from MimicGen's hdf5 and from our env. The rendering is `tools/rerender_demos.py`'s, as Square's
+re-rendered demos were made (each episode's first frame from its state, every later one as `step()` observes,
+one physics substep late).
+
+- **The columns:**
+  - `action`: the demo's actions, as float32.
+  - `next.done`: the demo's `dones`, MimicGen's success flags at its last 1–5 steps. This follows robomimic's
+    `dones` for Square, and the trainer labels a demo transition's reward with it.
+  - `observation.state`: the stepped state our env renders.
+  - Both 84 px cameras, as PNG.
+- **The build** (09:19, 1,606 s, from the tool at sha256 `d1f68ec9…` on `d2d4f4c`): 1,000 episodes,
+  107,590 frames, 1.2 GB. Its provenance is in the dataset's `meta/rerender.json`. The tool was not yet
+  committed when it ran; it is committed in this commit, unchanged since.
+- **Every guard passed:**
+  - **identity:** frames and state rendered from a state equal our env's step path, bit for bit (3 resets,
+    90 steps; no pixel differs).
+  - **layout:** the demos' 11 joints are ours, but for the gripper's rename.
+  - **pairing:** states, actions and dones are one per step.
+  - **placement:** every first state is inside D0 (largest |x| or |y| 0.0800 m).
+  - **replay:** the state our env computes from each demo state is the demo's own recorded observation, to
+    0 m, 1.7e-7 and 0 rad (limit 1e-6). MimicGen recorded its observations from the states, with no substep
+    lag, so the stepped state stored here differs from them by exactly the lag: at most 1.04 mm and 0.0022.
+  - **columns:** every written column is the one built, and the action statistics are the actions'.
+- **The verify:** five episodes spread through the dataset (0, 249, 499, 749, 999), decoded as the trainer
+  decodes them, equal fresh renders bit for bit.
+- **Noted:** in 43 of the 1,000 demos, `dones` differs from `rewards == 1`. `dones` is used, as for Square.
+- **A test:** in `tests/test_stack.py`, the replay guard reads a quaternion up to sign. 3 pass.
