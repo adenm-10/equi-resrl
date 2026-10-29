@@ -11505,3 +11505,33 @@ Output: `outputs/diagnostics/long/read_window_1029_eee.txt`.
   description, not a finding.
 - It continues to 300k (about 18:00 on 10-30). "Still climbing at 150k" is read on its 160k–200k pool, by
   the plan's rule; `long-resfit 4` was not climbing by that rule (the 300k NOTE).
+
+## 2026-10-29 — LAUNCHED — `obj-nut-eee 2` (`ifsnjb9f`), O1's first run: smoke PASS, the full gate ran Tier 2 at `e7710f4` and listed it; early speed 0.0360 against 0.0350 predicted, inside the band
+
+Written at about 14:20 on 10-29, from the run package's manifest, the console
+(`outputs/queue/20261029-095347_obj-nut-eee-2_gpu0.log`), the queue's scrollback
+(`order-1027/scrollback-20261029-0954.txt`), the smoke's check (`outputs/diagnostics/obj/smokes/`) and
+`outputs/queue/watch.log`. Launched through `order-1027/order_queue.sh`, under O1's pre-registration
+(2026-10-27, "O1, the objects' poses"). The manifest records commit `e7710f4`, clean, and mujoco 3.3.2. Its argv
+is `arch-swap-eee 2`'s (`wk45zp27`) but for `offline_data.name=local/robomimic-mh-square-rerendered-object`,
+`object_obs=nut`, `wandb.name` and `wandb.notes`, as pre-registered.
+
+| Job | Took the slot of | Queue launched; trainer started | GPU | Gate: Tier 1; Tier 2 | In wandb | End (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `obj-nut-eee` 2 | `long-resfit 4` (`3ctaaap1`, 300k at 07:52), after its smoke | 09:53; about 12:08 | 0 | 218; 1,078 (130 min) | 13:03 | 150k about 20:00 on 10-30 | [**`ifsnjb9f`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/ifsnjb9f) |
+
+- **The smoke passed** (08:25–09:53, package `f7dwvvz4`, commit `e7710f4`): 1,000 steps; both buffers' cache
+  keys carry `object_obs`; the objects' normalizer has its 3 fields, finite; the critic loss finite over 10
+  logs; `best_model.pt` reloads strictly with the encoder reading the nut (20 low-dim numbers). Peak GPU
+  4,980 MiB; peak RAM 14.8 GiB (PSS, trainer and workers).
+- **The gate:** the full gate, as the first launch at `e7710f4`. Tier 1 218 passed (3 skipped); Tier 2 1,078
+  passed in 130 min, slow beside four runs, and `e7710f4` was added to `tier2_passed.txt`, so the group's
+  later launches skip it. GO with two warnings: the BC policy's 1 GB download, and the disk (17 GB free, no
+  cache to write). The render check passed on both cameras (0.0102 and 0.0086, bars 0.0125 and 0.0129). The
+  queue launched with 39 GB of RAM available.
+- **The offline buffer took 44.6 min to fill** (80,731 frames, with the base policy labelling each), slow on
+  the shared CPUs; the warm-up then took about 10 min.
+- **The early speed:** 0.0360, inside 0.025–0.045. Predicted 0.0350 (the pre-registration's, by actor-design's
+  method). Its source arm's seed 2 (`wk45zp27`) was 0.0360 too. Its step-0 eval, the base alone, is 0.58.
+- **Next check:** the gross-failure check (every eval at 10k–50k at or below 0.10), reported to Aden and not
+  acted on, at 50k, about 23:00 on 10-29.

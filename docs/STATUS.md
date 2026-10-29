@@ -57,8 +57,9 @@ every job: tmux `order-queue`,
   ResFiT's re-rendered arm is 0.838 over two runs. It was not still climbing at 150k by the registered
   rule, levelled off by 210k–300k, never collapsed, and ended inside its prediction (0.85–0.90). Its
   critic's online value kept rising (0.21 to 0.36).
-- **`long-eee 4` (`rkks1a9p`)**, the `eee` arm's one run: 0.50 at 140k, early speed 0.0396. Its 150k
-  readout, against eee's four runs (0.599), about 10:00 on 10-29; the `long-1027` NOTE after its 300k.
+- **`long-eee 4` (`rkks1a9p`)**, the `eee` arm's one run: pooled 0.648 at 110k–150k, inside eee's four runs'
+  range (mean 0.599), every signal comparable, so **eee has five runs at 150k, mean 0.609** (the 2026-10-29
+  NOTE). 0.80 at 160k and 170k. The `long-1027` NOTE after its 300k, about 18:00 on 10-30.
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
@@ -259,12 +260,12 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 10:00 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
+**At 14:20 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38) and `obj-nut-eee 2` (O1's first; smoke PASS 09:53, then its full gate with Tier 2 at `e7710f4`) | 150k about 04:00 on 10-30; about 16:00 on 10-30 |
-| 1 | `long-eee 4` (`rkks1a9p`, 0.66 at 150k) and `actor-eae 3` (`xymahaba`, from 16:22) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38) and `obj-nut-eee 2` (`ifsnjb9f`, O1's first, from 13:03; early speed 0.0360, predicted 0.0350) | 150k about 04:00 on 10-30; about 20:00 on 10-30 |
+| 1 | `long-eee 4` (`rkks1a9p`, 0.80 at 170k) and `actor-eae 3` (`xymahaba`, from 16:22) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
 `long-resfit 4` (`3ctaaap1`) reached 300k at 07:52 on 10-29. `actor-resfit-shape-wide 2` (`160x34lf`) and
 `actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28. Their packages are complete.
