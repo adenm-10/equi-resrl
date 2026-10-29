@@ -697,6 +697,7 @@ def main(cfg: argparse.Namespace):
         ]
         mimicgen_envs = [
             "Threading",  # Single-arm threading task from MimicGen
+            "Stack",  # robosuite's own, the scene of MimicGen's Stack_D0
         ]
 
         envs = dexmimicgen_envs + robomimic_envs + mimicgen_envs

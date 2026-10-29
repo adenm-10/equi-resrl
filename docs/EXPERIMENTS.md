@@ -11353,3 +11353,43 @@ only run, so this is its whole curve. The `long-1027` NOTE follows `long-eee 4`'
 - **The work moved back to the VSCode session at about 08:45** (Aden: so they can watch it there). tmux
   `claude-o1` was closed after its 1,000-demo Stack replay check finished. Its watching, records and the
   Stack build continue here.
+
+---
+
+### 2026-10-29 — CODE — Stack, steps 1 and 2 (TODO B25): MimicGen's Stack_D0 demos replay in our robosuite; `Stack` added to the env
+
+**Step 1, the demos** (`outputs/diagnostics/stack/replay_check.py`, local; result `replay_check.json`).
+- **Source:** MimicGen's `core/stack_d0.hdf5` from Hugging Face `amandlek/mimicgen_datasets`, snapshot
+  `33016f8a`. 1,138,107,058 bytes, sha256 `3b687047…68f3`, equal to the LFS hash.
+- **Contents:** 1,000 demos, recorded under robosuite 1.4.1 with OSC_POSE. They are 80–136 steps long
+  (mean 107.6), and the states are 45 wide.
+- **robosuite 1.5.1's own `Stack` is Stack_D0's scene:**
+  - the same cubes (0.02 m and 0.025 m half-sizes);
+  - the same placement: ±0.08 m about the table's middle, uniform yaw, a 0.01 m z offset;
+  - the same success rule: cube A 0.04 m above the table, not grasped, touching cube B.
+  - D0 adds only an `agentview_full` camera, which no observation uses.
+  - The `mimicgen` package does not import under 1.5.1, and is not needed.
+- **The layout:** the same 11 joints in the same order. Only the gripper joints are renamed
+  (`gripper0_finger_*` became `gripper0_right_finger_*`). nq is 23 and nv is 21, so each demo state is set
+  into our scene directly, without the demos' XML.
+- **The check, on all 1,000 demos (772 s on the CPU):**
+  - every first placement is inside D0 (largest |x| or |y| 0.0800 m);
+  - 824 demos reach a success state one state after their reward first reaches 1;
+  - 175 reach reward 1 only at their last action, so the file holds no success state;
+  - stepped through our controller from the first state, **954 of 1,000 demos' actions reach a success**;
+  - the median end-effector drift is 2.0 mm at most and 1.6 mm at the end, and cube A ends 7.3 mm from the
+    demo.
+  - **Read:** the demos are usable here; their states set into our scene are what the re-render needs.
+
+**Step 2, the env** (this commit). No Square run's path changes; the goldens and Square's env tests pass.
+- `dexmg.py`: `Stack` in `ENV_ROBOTS` as a single-arm Panda task, with a 300-step horizon, as Square has. That
+  is about 2.2 times the longest demo. MimicGen evaluates Stack at 400; that call is Claude's, recorded here.
+  `stack` joins the single-arm camera and low-dim key sets.
+- `train_bc_dexmg.py`: `Stack` added to its eval-env list.
+- New `tests/test_stack.py` (Tier 2; GPU, slow). It checks:
+  - the single-arm observation layout and the horizon;
+  - the placement: D0's ±0.08 m, any yaw, about the table's middle;
+  - that cube A set on cube B ends the episode with reward 1 and `success`.
+
+  2 pass. With it, `test_env_wrapper.py`, `test_imports.py` and `test_object_obs.py` (its CPU and env
+  parts) pass: 133.

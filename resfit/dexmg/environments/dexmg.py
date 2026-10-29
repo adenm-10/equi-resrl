@@ -56,6 +56,8 @@ ENV_ROBOTS = {
     "PickPlaceCan": ["Panda"],
     # Square task -- implemented in robosuite as `NutAssemblySquare`
     "NutAssemblySquare": ["Panda"],
+    # Stack task -- robosuite's own, the scene of MimicGen's Stack_D0 (TODO B25)
+    "Stack": ["Panda"],
 }
 # Create a named logger
 logger = logging.getLogger(__name__)
@@ -143,6 +145,7 @@ class RobosuiteGymWrapper:
             "Lift": 100,
             "PickPlaceCan": 200,
             "NutAssemblySquare": 300,
+            "Stack": 300,
             "Threading": 500,
             "TwoArmTransport": 800,
             "TwoArmBoxCleanup": 300,
@@ -455,8 +458,8 @@ class RobosuiteGymWrapper:
         if any(task in env_lower for task in ["pouring", "coffee"]):
             return humanoid_image_keys
 
-        # Single-arm Panda tasks (Lift, Can, Square, Threading, etc.) --------
-        if env_lower in {"lift", "can", "pickplacecan", "square", "nutassemblysquare", "threading"}:
+        # Single-arm Panda tasks (Lift, Can, Square, Stack, Threading, etc.) --
+        if env_lower in {"lift", "can", "pickplacecan", "square", "nutassemblysquare", "stack", "threading"}:
             return panda_image_keys_single
 
         # Fallback to two-arm Panda cameras --------------------------------
@@ -494,7 +497,7 @@ class RobosuiteGymWrapper:
             return humanoid_low_dim_keys
 
         # Single-arm Panda tasks
-        if env_lower in {"lift", "can", "pickplacecan", "square", "nutassemblysquare", "threading"}:
+        if env_lower in {"lift", "can", "pickplacecan", "square", "nutassemblysquare", "stack", "threading"}:
             return panda_low_dim_keys_single
 
         # Default: two-arm Panda
