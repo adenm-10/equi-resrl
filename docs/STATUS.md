@@ -13,14 +13,14 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 **Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, any deletion not covered by the DECISION,
-anything new (Stack, TODO B25, stays unbuilt). **O1's `rrr` arms run at 1e-6, as pre-registered**, and
+anything else new. **Stack (TODO B25) is approved to build now** (2026-10-29 DEVIATION). **O1's `rrr` arms run at 1e-6, as pre-registered**, and
 are queued.
 
 **Claude's watching is paused (07:32 on 10-29):** with 3 GB of RAM available and four runs, Claude
 Code stopped Claude's background wait, and its note says not to restart it unasked (EXPERIMENTS.md, the
 2026-10-29 NOTE). The runs, the queue and the watchers are unaffected. Until Aden says to resume, no
-LAUNCHED entry, readout or rolling reclaim is written. Next by the queue alone: `long-eee 5` after
-`long-resfit 4` ends (about 08:00), once RAM clears the memory floor.
+LAUNCHED entry, readout or rolling reclaim is written. **`long-1027`'s seeds 5 are cancelled** (Aden,
+10-29: `long-eee 5` stopped before training, no wandb run); the queue holds O1's eight jobs only.
 
 **Waiting on Aden, by hand, before about 10-31: the two scripts in `outputs/cleanup-20261028/`** (5.7 GB in
 all; `rm -rf` is denied to Claude, so every directory waits for them):

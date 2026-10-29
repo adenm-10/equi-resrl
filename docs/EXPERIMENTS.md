@@ -11265,3 +11265,41 @@ Written by Claude at about 07:40 on 10-29.
     is stopped.
 - **`long-eee 4` (`rkks1a9p`) is at 0.50 at 140k.** Its 150k readout, against `eee`'s four runs, waits with
   the rest.
+
+---
+
+### 2026-10-29 — DEVIATION — `long-1027`'s seeds 5 cancelled; the new task, Stack, to be built now (Aden, morning)
+
+Aden, verbatim: "can we cancel second long run seed? I want to test the alternate (better for
+equivariance) task and the object-centric obs asap". Done by the VSCode session at 08:18–08:20.
+
+1. **`long-eee 5`:**
+   - The queue launched it at 07:58:15 on GPU 0, beside `actor-resfit-shape-wide 3`.
+   - Its gate passed (Tier 2 skipped at `e2fdb27`), and the trainer was processing its demos (31% of
+     80,731 frames).
+   - Stopped at 08:18 by an interrupt (Ctrl-C) in its tmux session: before any training step and before
+     `wandb.init`. So there is no wandb run and no run package; only its Hydra folder
+     `outputs/2026-10-29/08-02-31` is left.
+   - `run_job.sh` never relaunches a trainer that started. No env worker was left behind.
+   - Console: `outputs/queue/20261029-075816_long-eee-5_gpu0.log`.
+2. **`long-resfit 5`** was removed from the queue before it launched.
+   - `order-1027` was restarted at 08:20 from its 60 s sleep, with O1's eight jobs only.
+   - Its scrollback is saved beside it, and the old script kept as `order_queue.sh.before-20261029`.
+   - `--check` showed one long job alive, 38 GB of RAM available, and 13 GB of disk.
+3. **What it does to the 2026-10-27 PRE-REGISTERED readout.** `long-1027` has one run per arm:
+   `long-eee 4` (`rkks1a9p`, running) and `long-resfit 4` (`3ctaaap1`, 300k reached this morning).
+   - Each run's curve reading (still climbing, levelled off, collapsed) stands as registered.
+   - The 110k–150k pools still join their source arms' pools.
+   - The gap to ResFiT per window was already described, not a contrast; it now rests on one run each.
+   - The spread at 150k comes from those pools: eee's four earlier runs plus `long-eee 4`; ResFiT's
+     re-rendered arm from `bue9dupf` and `long-resfit 4`.
+   - Nothing else changes.
+4. **The slots and the disk.**
+   - O1's `obj-nut-eee 2` takes GPU 0's free slot, smoke first; O1's eight runs move about a day earlier.
+   - The two seed-5 runs would have written about 4.7 GB of checkpoints (3.1 GB and 1.56 GB), plus their
+     packages.
+5. **The new task, Stack, `eee` against `rrr` (TODO B25), is approved to build now.** It goes to `claude-o1`,
+   which keeps the single writer to main's docs.
+   - Claude's recommendation on the slots: O1's seeds 2 first, as queued. Stack's base-policy training
+     takes the first slot after its dataset is built, ahead of O1's seeds 3.
+   - That leaves O1's design unchanged; only when its last four runs start moves.
