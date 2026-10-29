@@ -81,6 +81,16 @@ afternoon and 11-01; O1 about 11-02.
 
 ### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), being built `[SC]`
 
+**Progress (10-29, 10:00):**
+- **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
+  (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
+- **Step 4:** the base is pre-registered with its headroom rule (`3c23fe9`, worktree
+  `equi-resrl-3c23fe9`), and queued first. It trains from about 23:00, about 9–12 h.
+- **Then:** the Stack RL config (`residual_equi_td3_stack_config`, once the base's wandb ID exists), its
+  500-episode base measurement, and the arms `stack-eee` and `stack-rrr` at seeds 2 and 3.
+- **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable`. Its `if wandb is not None` tests the
+  module, which is never None. Every real run enables wandb.
+
 The plan of record for the new task (the 2026-10-27 evening DECISION, item 4). Stack is robosuite's own
 task, MimicGen's Stack D0: two cubes within ±8 cm of the table's middle, at any yaw. Every cube-to-cube
 direction occurs, where Square's nut-to-peg direction spans 18.5°. ResFiT reported no Stack result, so

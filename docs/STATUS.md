@@ -259,22 +259,29 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 08:25 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
+**At 10:00 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38, 0.62 at 50k) and O1's first slot (`obj-nut-eee 2`, its smoke first) | 150k about 04:00 on 10-30 |
-| 1 | `long-eee 4` (`rkks1a9p`, from 01:50, 0.50 at 140k) and `actor-eae 3` (`xymahaba`, from 16:22, 0.60 at 70k) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38) and `obj-nut-eee 2` (O1's first; smoke PASS 09:53, then its full gate with Tier 2 at `e7710f4`) | 150k about 04:00 on 10-30; about 16:00 on 10-30 |
+| 1 | `long-eee 4` (`rkks1a9p`, 0.66 at 150k) and `actor-eae 3` (`xymahaba`, from 16:22) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
 
-`long-resfit 4` (`3ctaaap1`) reached 300k at 07:52 on 10-29; `actor-resfit-shape-wide 2` (`160x34lf`) and
+`long-resfit 4` (`3ctaaap1`) reached 300k at 07:52 on 10-29. `actor-resfit-shape-wide 2` (`160x34lf`) and
 `actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28. Their packages are complete.
 
-`e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests) and is listed, so later long
-launches skip it. Queued in `order-1027`, in the registered order: O1's `obj-nut-eee 2`,
-`obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, then the same at seed 3; Stack's base-policy training
-goes ahead of the seeds 3 once its dataset is built. The queue was restarted at
-09:42 on 10-28 with the `rrr` arms (`OBJ_WORKTREE`, O1's pinned worktree), at 15:28 with the disk floor,
-and at 08:20 on 10-29 with O1's eight jobs only (the DEVIATION; `order_queue.sh.before-20261029`). O1's smokes are in `outputs/diagnostics/obj/smokes/`.
+**Queued in `order-1027`**, restarted at 09:54 on 10-29:
+- `stack-base 1` first: Stack's base policy, through `outputs/queue/launchers/stack/launch_base.sh` from
+  `equi-resrl-3c23fe9` (the 2026-10-29 PRE-REGISTERED entry). It takes `actor-eae 3`'s slot at about 23:00.
+- Then O1's `obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, and the four at seed 3.
+
+How the queue works now:
+- `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, and
+  finished runs' idle sessions are closed by cleanups. At 09:54 the old list would have relaunched
+  `long-resfit 4` and `actor-resfit-shape 3`; `--check` caught it.
+- `held()` counts a `train_bc_dexmg` process as a slot.
+- Earlier copies of the script are kept beside it: `order_queue.sh.before-20261029` and `.before-stack`.
+- `e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests). O1's smokes are in
+  `outputs/diagnostics/obj/smokes/`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
