@@ -88,10 +88,12 @@ def trainers(notes_prefix: str) -> dict[int, dict]:
 
 
 def package_of(trainer: dict) -> Path | None:
-    """The newest incomplete run package launched from the trainer's worktree with its name."""
+    """The newest incomplete run package launched from the trainer's worktree with its name, in the trainer's
+    own wandb project (its argv's wandb.project; Square's, PROJECT, if it names none)."""
     name = f"wandb.name={_arg(trainer['argv'], 'wandb.name')}"
+    project = _arg(trainer["argv"], "wandb.project") or PROJECT
     best = None
-    for manifest_path in (RUNS_ROOT / PROJECT).glob("*/manifest.json"):
+    for manifest_path in (RUNS_ROOT / project).glob("*/manifest.json"):
         try:
             manifest = json.loads(manifest_path.read_text())
         except (OSError, json.JSONDecodeError):

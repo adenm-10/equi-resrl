@@ -312,3 +312,40 @@ def test_the_object_arms_are_never_stopped_and_log_their_early_speed():
             for i in range(1, len(rates) + 1):
                 for passed in (False, True):
                     assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+
+def test_the_stack_arms_are_never_stopped_and_log_their_early_speed():
+    """stack-1030 (TODO B25): both arms to their own 150k with no automatic stop of any kind (watch-only),
+    through 16 evals and a runaway critic, each with its early speed logged."""
+    from square_rerendered_watch import FIXED_LENGTH_ARMS, RESIDUAL_ARMS, SPEED_ARMS, STACK, WATCH_ONLY_ARMS
+
+    assert GROUPS["stack-1030"] == STACK == ("stack-eee", "stack-rrr")
+    assert set(STACK) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
+    assert not set(STACK) & FIXED_LENGTH_ARMS
+    runaway = _qs(0, 150_000, 50.0)
+    for arm in STACK:
+        for rates in (KYV7CLFC, OJ5K0JQB, [0.58] * 16, [0.0] * 16):
+            for i in range(1, len(rates) + 1):
+                for passed in (False, True):
+                    assert decide(arm, evals(rates[:i]), 0, passed, runaway)[0] is None, (arm, i)
+
+
+def test_a_trainers_package_is_looked_up_in_its_own_wandb_project(tmp_path, monkeypatch):
+    """Stack's runs go to robomimic-stack-final: the watcher finds each trainer's package in the project its
+    argv names, and in Square's when it names none, as every earlier group's trainer did."""
+    import json
+
+    import run_watch
+
+    monkeypatch.setattr(run_watch, "RUNS_ROOT", tmp_path)
+    cwd = "/home/aden/projects/equi-resrl-abc1234"
+    for project, rid, name in (("robomimic-stack-final", "s1", "stack-eee-2"),
+                               (run_watch.PROJECT, "q1", "obj-nut-eee-2")):
+        (tmp_path / project / rid).mkdir(parents=True)
+        argv = [f"{cwd}/resfit/rl_finetuning/scripts/train_residual_td3.py", f"wandb.name={name}"]
+        (tmp_path / project / rid / "manifest.json").write_text(
+            json.dumps({"argv": argv, "started": "2026-10-30T12:00:00", "completed": False}))
+    stack = {"cwd": cwd, "argv": ["python", "wandb.project=robomimic-stack-final", "wandb.name=stack-eee-2"]}
+    square = {"cwd": cwd, "argv": ["python", "wandb.name=obj-nut-eee-2"]}
+    assert run_watch.package_of(stack) == tmp_path / "robomimic-stack-final" / "s1"
+    assert run_watch.package_of(square) == tmp_path / run_watch.PROJECT / "q1"
