@@ -118,6 +118,7 @@ RLPDDexmgConfig                       (rlpd.py — task, cameras, envs, eval set
     ├── ResidualTD3SquareConfig              task=Square, equivariance=None
     ├── ResidualEquiTD3CanConfig             task=Can,    equivariance=EquivarianceConfig(N=8)
     ├── ResidualEquiTD3SquareConfig          task=Square, equivariance=EquivarianceConfig(N=8)
+    ├── ResidualEquiTD3StackConfig           task=Stack,  equivariance=EquivarianceConfig(N=8); both Stack arms
     ├── ResidualTD3BoxCleanConfig            task=TwoArmBoxCleanup (two-arm, dexmg)
     │   ├── ResidualEquiTD3BoxCleanConfig    equivariance=EquivarianceConfig(N=8, n_arms=2)
     │   ├── ResidualTD3CoffeeConfig          task=TwoArmCoffee
@@ -142,6 +143,7 @@ Registered at [residual_td3.py:338-347](../resfit/rl_finetuning/config/residual_
 | `residual_td3_square_config` | `ResidualTD3SquareConfig` | Square | no |
 | `residual_equi_td3_can_config` | `ResidualEquiTD3CanConfig` | Can | yes |
 | `residual_equi_td3_square_config` | `ResidualEquiTD3SquareConfig` | Square | yes |
+| `residual_equi_td3_stack_config` | `ResidualEquiTD3StackConfig` | Stack | yes (`stack-rrr` sets ResFiT's families) |
 | `residual_td3_dexmg_config` | `ResidualTD3DexmgConfig` | (base) | no |
 | `residual_td3_box_clean_config` | `ResidualTD3BoxCleanConfig` | TwoArmBoxCleanup | no |
 | `residual_equi_td3_box_clean_config` | `ResidualEquiTD3BoxCleanConfig` | TwoArmBoxCleanup | yes |

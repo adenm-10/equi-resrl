@@ -193,6 +193,15 @@
 #   obj-nut-rrr   arch-swap-rrr, the nut's pose.
 #   obj-peg-rrr   arch-swap-rrr, the nut's and the peg's.
 #
+# stack-1030: two arms of arch-swap-1021 on Stack (TODO B25; robosuite's own Stack, the scene of
+# MimicGen's Stack_D0), for 150k steps at seeds 2 and 3: residual_equi_td3_stack_config in place of
+# Square's, which brings Stack's task, its demos (local/mimicgen-stack-d0-rerendered, all 1,000) and its
+# base policy (stack-base's step 2000, the headroom rule's pick), so Square's demos and base-policy
+# version are not passed. Every other override and every rate is its source arm's. wandb
+# robomimic-stack-final / equi-residual-rl.
+#   stack-eee     arch-swap-eee on Stack.
+#   stack-rrr     arch-swap-rrr on Stack.
+#
 # Every arm here runs to its full length (150k; the long group's 300k). From 2026-10-17 (DEVIATION) no
 # automatic stop of any kind applies, the divergence stop included: Aden stops a run by hand.
 
@@ -253,10 +262,25 @@ done
 # arch-swap-rrr's families and heads.
 RRR=(agent.critic.num_q=10 equivariance.encoder_family=resfit equivariance.actor_family=resfit
      equivariance.critic_family=resfit)
+# EQUI_ANCHOR on Stack: Stack's config, which names its demos and its base policy, the headroom rule's
+# pick, by its own artifact and version (EXPERIMENTS.md, 2026-10-29 PRE-REGISTERED, "Stack's base
+# policy"), in place of Square's config, demos and base-policy version.
+STACK_ANCHOR=()
+for o in "${EQUI_ANCHOR[@]}"; do
+    case "$o" in
+        --config-name=*) o=--config-name=residual_equi_td3_stack_config ;;
+        base_policy.wt_version=*|"$RERENDERED") continue ;;
+    esac
+    STACK_ANCHOR+=("$o")
+done
 
 # Every arm's length but the long group's.
 ARM_STEPS=150000
 case "$ARM" in
+    stack-eee)
+        ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448) ;;
+    stack-rrr)
+        ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RRR[@]}") ;;
     obj-nut-eee)
         ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 object_obs=nut) ;;
     obj-peg-eee)
@@ -361,6 +385,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    stack-*)
+        SEED_GROUP=stack-1030 PROJECT=robomimic-stack-final GROUP=equi-residual-rl
+        GATE=(--task Stack --method residual --stack equi) ;;
     obj-*)
         SEED_GROUP=obj-1027 PROJECT=robomimic-square-final GROUP=equi-residual-rl
         GATE=(--task Square --method residual --stack equi) ;;

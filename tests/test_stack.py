@@ -19,6 +19,17 @@ def test_stack_is_a_single_arm_panda_task():
     assert ENV_ROBOTS["Stack"] == ["Panda"]
 
 
+def test_stacks_robot_base_is_squares():
+    """The equivariant agent rotates about the robot base (EQUIVARIANCE.md). Stack's probe, which the
+    trainer reads, puts it where Square's does, so the agent's rotation centre carries over unchanged."""
+    import json
+    import pathlib
+
+    probes = pathlib.Path(__file__).resolve().parent.parent / "env_probes"
+    stack, square = (json.loads((probes / f"{task}.json").read_text()) for task in ("Stack", "Square"))
+    assert stack["bases"] == [square["base_xy"]] == [[-0.5600000023841858, 0.0]]
+
+
 @pytest.mark.gpu
 @pytest.mark.slow
 def test_the_stack_env_observes_places_and_succeeds_as_square_does():

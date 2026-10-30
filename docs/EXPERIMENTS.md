@@ -11535,3 +11535,110 @@ is `arch-swap-eee 2`'s (`wk45zp27`) but for `offline_data.name=local/robomimic-m
   method). Its source arm's seed 2 (`wk45zp27`) was 0.0360 too. Its step-0 eval, the base alone, is 0.58.
 - **Next check:** the gross-failure check (every eval at 10k–50k at or below 0.10), reported to Aden and not
   acted on, at 50k, about 23:00 on 10-29.
+
+## 2026-10-30 — LAUNCHED — `stack-base 1` (`8g47hqyc`) and `obj-peg-eee 2` (`3vimywbf`); `obj-nut-rrr`'s smoke FAIL dropped both its jobs; `actor-design-1026`'s last two runs finished; `obj-nut-eee 2`'s gross-failure check passed
+
+Written at about 09:00 on 10-30 by Claude, from the run packages' manifests, the consoles, `order-1027/order_queue.log`,
+the smokes' checks (`outputs/diagnostics/obj/smokes/`) and `outputs/queue/watch.log`. Both launched through
+`order-1027/order_queue.sh`.
+
+| Job | Took the slot of | Queue launched; trainer started | GPU | Gate: Tier 1; Tier 2 | In wandb | End (expected) | Run |
+|---|---|---|---|---|---|---|---|
+| `stack-base` 1 | `actor-eae 3` (`xymahaba`, finished 00:07) | 00:12; 00:12 (no gate, no smoke, as pre-registered) | 1 | — | 00:12 | 50k about 22:00 on 10-30 | [**`8g47hqyc`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-stack-bc/runs/8g47hqyc) |
+| `obj-peg-eee` 2 | `actor-resfit-shape-wide 3` (`jfdajea9`, finished 00:46), after `obj-nut-rrr`'s failed smoke and its own | 05:52; about 05:57 | 0 | 218; skipped, as `e7710f4` is listed | 06:54 | 150k about 13:00 on 10-31 | [**`3vimywbf`**](https://wandb.ai/aden-mckinney10-university-of-central-florida/robomimic-square-final/runs/3vimywbf) |
+
+- **`stack-base 1`:** the manifest records commit `3c23fe9`, clean, and mujoco 3.3.2. Its argv is the pre-registered
+  launch (`outputs/queue/launchers/stack/launch_base.sh`). It launched with 29 GB of RAM available, beside
+  `long-eee 4`.
+  - **It runs at about 2,300 steps an hour, not the registered 9–12 h for 50k:** loading the data takes 3–4 s of
+    each step's 3.2–4.3 s (PNG decoding on the shared CPUs), and each 100-episode eval takes about 3 min. It ends
+    about 22:00 on 10-30, about 22 h in all.
+  - Evals (100 episodes each, every 1k steps): 0.18 0.67 0.67 0.79 0.87 0.71 0.79 0.74 0.91 0.86 0.91 0.90 0.91
+    0.93 0.90 **0.96** 0.85 0.88 0.91 at 1k–19k. Its best versions so far are at steps 1k, 2k, 4k, 5k, 9k, 14k and
+    16k. The headroom rule is applied in the NOTE below.
+- **`obj-peg-eee 2`:** the manifest records commit `e7710f4`, clean, and mujoco 3.3.2. Its argv is `arch-swap-eee 2`'s
+  (`wk45zp27`) but for `offline_data.name=local/robomimic-mh-square-rerendered-object`, `object_obs=nut+peg`,
+  `wandb.name` and `wandb.notes`, as pre-registered.
+  - **Its smoke passed** (04:22–05:52, package `k2i4wbop`): the objects' normalizer has its 6 fields, finite; the
+    encoder reads the nut and the peg (29 low-dim numbers); `best_model.pt` reloads strictly. Peak GPU 4,964 MiB;
+    peak RAM 14.6 GiB.
+  - **The gate:** GO with three warnings: Tier 2 skipped (`e7710f4` passed it at `obj-nut-eee 2`'s gate), the BC
+    policy's download, and the disk (9 GB free, no cache to write). The queue launched with 43 GB of RAM available.
+  - **The early speed:** 0.0383, inside 0.025–0.045. Predicted 0.0359. Its step-0 eval, the base alone, is 0.66.
+- **`obj-nut-rrr`'s smoke failed at 04:17, and the queue dropped both its jobs** (seeds 2 and 3). Every check
+  passed but one: the run (package `p611sqqq`, commit `e7710f4`) reached 1,000 steps with a finite critic loss, both
+  cache keys carry `object_obs`, and the objects' normalizer is finite. But no `best_model.pt` was written, so the
+  strict reload could not run. The trainer saves a best model only when an eval beats 0, and its three evals,
+  of **2 episodes** each, were all 0/2 (at steps 0, 500 and 1,000). Step 0 is the base alone, which succeeds about
+  55–68% of the time on Square, so 0/2 there is about a 1-in-5 chance. The fix is the DEVIATION below.
+- **`actor-design-1026`'s last two runs finished**, both packages complete:
+  - `actor-eae 3` (`xymahaba`) at 00:07: evals 0.56 0.50 0.50 0.52 0.60 at 110k–150k, a pool of **0.536**.
+  - `actor-resfit-shape-wide 3` (`jfdajea9`) at 00:46: 0.70 0.80 0.60 0.72 0.66, a pool of **0.696**.
+  - Their duplicate best models were deleted at about 08:50 (374 MB and 258 MB), each byte-identical to its
+    `wandb_best/` copy, listed in `deleted_best_models.txt` (the rolling reclaim). The free disk was 9.4 GB.
+  - The readout, the group's NOTE, follows.
+- **`obj-nut-eee 2` (`ifsnjb9f`) passed its gross-failure check:** its evals at 10k–50k are 0.00 0.22 0.46 0.58
+  0.48, not all at or below 0.10. Then 0.52 0.70 0.68 0.64 0.74 at 60k–100k.
+
+## 2026-10-30 — DEVIATION — O1's smokes evaluate 8 episodes, not 2; `obj-nut-rrr`'s two jobs are back in the queue, first (Claude's call)
+
+O1's smoke recipe (`outputs/diagnostics/obj/smokes/launch_smoke.sh`, arch-swap-1021's) evaluated 2 episodes at steps
+0, 500 and 1,000. Its check requires `best_model.pt` to reload strictly, and the trainer writes a best model only
+when an eval's success beats 0. With 2 episodes that fails by chance: `obj-nut-rrr`'s three evals were all 0/2
+(the LAUNCHED entry above).
+
+- **The change:** `eval_num_episodes=8` in the smoke (one per eval env). The chance that the base alone (about 0.55)
+  scores 0/8 is about 0.002. Nothing else in the recipe or the check changes. The smoke is a gate, not a
+  measurement, so no run's config changes.
+- **`obj-nut-rrr 2` and `obj-nut-rrr 3` are back in `order-1027`'s JOBS, first.** The queue was restarted at 08:48
+  with only the six jobs not yet launched. The failed smoke's files are kept beside the new ones
+  (`obj-nut-rrr.*.fail-20261030-0417`), and its verdict moved aside so the arm's smoke runs again in its first slot.
+- `obj-nut-eee`'s and `obj-peg-eee`'s smokes passed at 2 episodes and are not run again.
+
+## 2026-10-30 — NOTE — the headroom rule applied to `stack-base` (`8g47hqyc`) at 19k: its best at step 2000 (0.67), uploaded again as `run_8g47hqyc_model_step_2000:v0`, because the run keeps only its latest best in wandb
+
+Applied by Claude at about 08:50 on 10-30, under the 2026-10-29 PRE-REGISTERED rule ("Stack's base policy").
+
+- **The rule fires now, not at 50k.** Its final best is already above 0.85 (0.96 at 16k), and a best can only rise,
+  so it ends above 0.85. Each later best version is uploaded only when it beats 0.96. So the versions at or below
+  0.85 are final now: steps 1k (0.18), 2k (0.67) and 4k (0.79). **The nearest to 0.60 is step 2000, at 0.67.**
+  This is the pick the rule makes at 50k.
+- **A deviation in how the pick is reached, not in which it is:** the rule names "the uploaded `run_<id>_best`
+  version". The BC trainer's `upload_best` (`resfit/lerobot/utils/load_policy.py`) deletes each superseded version
+  from wandb, so only v6 (step 16k) is there. Claude did not check this when writing the rule. Every best was
+  uploaded when it was new, so the candidates are the same set. The run also keeps each one locally
+  (`best_step_<step>/policy`, written by `policy.save_pretrained` at that eval, in `equi-resrl-3c23fe9`'s run
+  package).
+- **The pick, uploaded again:** `outputs/diagnostics/stack/upload_step.py 2000 0.67` uploaded `best_step_2000/`
+  unchanged as `run_8g47hqyc_model_step_2000:v0` (alias `headroom`; upload run `8zro6afd` in `robomimic-stack-bc`;
+  model sha256 `8595f65f…`, in its metadata). The RL trainer loads it as `base_policy.wt_type=2000`,
+  `wt_version=v0` (`download_policy_from_wandb` reads a step as `run_<id>_model_step_<step>`).
+- **Next, as registered:** B_stack, `eval_base_policy --num-evals 10` (500 episodes). Above 0.85, step down one
+  version (to step 1k); below 0.30, step up one (to step 4k).
+- **Predictions so far:** "the final best is 0.90 or more" holds (0.96 already). "The version picked is from the
+  first 10k steps" holds. B_stack 0.4–0.75 is next.
+
+## 2026-10-30 — CODE — Stack, step 5 (TODO B25): the RL config, the gate's entry, the arms `stack-eee` and `stack-rrr`, and their early-speed calibration (both in the band)
+
+- **`residual_equi_td3_stack_config`** (`ResidualEquiTD3StackConfig`): task Stack, the demos
+  `local/mimicgen-stack-d0-rerendered` (all 1,000 episodes), the base policy `robomimic-stack-bc/8g47hqyc` at
+  `wt_type=2000`, `wt_version=v0` (the NOTE above), wandb `robomimic-stack-final` / `equi-residual-rl`, N=8.
+  ResFiT's networks run in this agent through the families, as on Square, so one config serves both arms.
+- **The gate:** `preflight.py`'s `TASKS["Stack"]` (107,590 frames, horizon 300, the one-arm cameras), so
+  `--task Stack` works. `env_probes/Stack.json`, the robot base the equivariant agent rotates about, is (-0.56, 0),
+  Square's; `tests/test_stack.py` pins that.
+- **The arms (`submit.sh`, seed group `stack-1030`):** `stack-eee` is `arch-swap-eee` and `stack-rrr` is
+  `arch-swap-rrr`. Each passes Stack's config in place of Square's config, demos and base-policy version, and
+  changes nothing else. `tests/test_sweep_arms.py` pins each as its source arm but for Stack's task, demos and
+  base policy (and its wandb project). All 33 tests that name Stack pass, the two build-and-update tests on the
+  CPU.
+- **The early speed, calibrated** (`outputs/diagnostics/stack/calibrate.py`; `calibration.json`): O1's real-frame
+  method, with 32 real demo frames per task and each frame's demo action standing in for the base action.
+  - Each arm's 50-step residual is set against its Square source's on Square's demos, both normalized by their own
+    demos' statistics. `stack-eee` is 1.081× `arch-swap-eee` and `stack-rrr` 1.085× `arch-swap-rrr`.
+  - Times the sources' measured 0–3k at seed 2 (0.0353, 0.0286), that predicts **`stack-eee` 0.0381 and
+    `stack-rrr` 0.0310, both inside 0.025–0.045**, so neither needs a rate change.
+  - Same networks, so this measures the inputs only: the Stack frames and statistics move each arm's speed by about
+    8%.
+- **RAM:** Stack's offline buffer holds 107,590 frames against Square's 80,731, about 2.3 GB more per run, so about
+  24 GB per run. The queue's per-launch reserve is 23 GB.

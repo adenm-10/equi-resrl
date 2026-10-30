@@ -361,6 +361,39 @@ class ResidualEquiTD3SquareConfig(ResidualTD3DexmgConfig):
 
 
 @dataclass
+class ResidualEquiTD3StackConfig(ResidualTD3DexmgConfig):
+    # Stack (TODO B25): robosuite's own Stack, the scene of MimicGen's Stack_D0, on MimicGen's 1,000
+    # Stack_D0 demos rendered in our env (tools/build_stack_demos.py), with the base policy trained on
+    # them. ResFiT's networks run in this agent as on Square, through the families, so one config
+    # serves both arms.
+    task: str = "Stack"
+
+    offline_data: OfflineDataConfig = field(
+        default_factory=lambda: OfflineDataConfig(
+            name="local/mimicgen-stack-d0-rerendered",
+            num_episodes=1_000,
+        )
+    )
+
+    # stack-base's best at step 2000 (0.67 on 100 episodes), the headroom rule's pick (EXPERIMENTS.md,
+    # 2026-10-29 PRE-REGISTERED, "Stack's base policy"; the 2026-10-30 NOTE), uploaded again on its own as
+    # run_8g47hqyc_model_step_2000, since the run keeps only its latest best in wandb.
+    base_policy: BasePolicyConfig = field(
+        default_factory=lambda: BasePolicyConfig(
+            wandb_id="robomimic-stack-bc/8g47hqyc",
+            wt_type="2000",
+            wt_version="v0",
+        )
+    )
+
+    wandb: WandBConfig = field(
+        default_factory=lambda: WandBConfig(project="robomimic-stack-final", group="equi-residual-rl")
+    )
+
+    equivariance: EquivarianceConfig = field(default_factory=lambda: EquivarianceConfig(N=8))
+
+
+@dataclass
 class ResidualTD3BoxCleanConfig(ResidualTD3DexmgConfig):
     task: str = "TwoArmBoxCleanup"
 
@@ -627,6 +660,7 @@ cs.store(name="residual_td3_two_arm_cansort_config", node=ResidualTD3TwoArmCanSo
 
 cs.store(name="residual_equi_td3_can_config",    node=ResidualEquiTD3CanConfig)
 cs.store(name="residual_equi_td3_square_config", node=ResidualEquiTD3SquareConfig)
+cs.store(name="residual_equi_td3_stack_config", node=ResidualEquiTD3StackConfig)
 cs.store(name="residual_equi_td3_box_clean_config", node=ResidualEquiTD3BoxCleanConfig)
 
 cs.store(name="tuned_rlpd_square_config", node=TunedRLPDSquareConfig)

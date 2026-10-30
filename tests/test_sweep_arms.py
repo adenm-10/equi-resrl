@@ -73,7 +73,9 @@ run to 300k with a checkpoint every 50k, each its source arm but for those two f
 trainer's loop end reads the run length; and 2026-10-27 PRE-REGISTERED, "O1, the objects' poses": obj-1027's
 four arms are arch-swap-eee's and arch-swap-rrr's launches with the objects' poses (object_obs) on the
 re-rendered demos with the poses added, each its source arm but for those two fields
-(tests/test_object_obs.py checks what the poses build).
+(tests/test_object_obs.py checks what the poses build); and stack-1030 (TODO B25): two arms, arch-swap-eee's
+and arch-swap-rrr's launches on Stack, each its source arm but for Stack's config (its task, demos and base
+policy, by its own artifact and version) in place of Square's config, demos and base-policy version.
 """
 
 from __future__ import annotations
@@ -272,6 +274,21 @@ OBJ_ARMS = tuple(OBJ_SOURCES)
 LAUNCHED.update({arm: (LAUNCHED[source] - {f"offline_data.name={RERENDERED_DEMOS}"})
                  | {f"offline_data.name={OBJ_DEMOS}", f"object_obs={OBJ_SETS[arm]}"}
                  for arm, source in OBJ_SOURCES.items()})
+# stack-1030 (TODO B25): arch-swap-eee's and arch-swap-rrr's launches on Stack: Stack's config, which
+# brings its task, its demos and its base policy (stack-base's step 2000, the headroom rule's pick, by its
+# own artifact), in place of Square's config, demos and base-policy version; each its source arm but for
+# those.
+STACK_GROUP = "stack-1030"
+STACK_DEMOS = "local/mimicgen-stack-d0-rerendered"
+STACK_SOURCES = {"stack-eee": SWAP_EEE, "stack-rrr": SWAP_RRR}
+STACK_ARMS = tuple(STACK_SOURCES)
+STACK_VALUES = {"task": "Stack", "offline_data.name": STACK_DEMOS, "offline_data.num_episodes": 1_000,
+                "base_policy.wandb_id": "robomimic-stack-bc/8g47hqyc", "base_policy.wt_type": "2000",
+                "base_policy.wt_version": "v0"}
+SQUARE_LAUNCH = {"--config-name=residual_equi_td3_square_config", "base_policy.wt_version=v9",
+                 f"offline_data.name={RERENDERED_DEMOS}"}
+STACK_LAUNCH = {"--config-name=residual_equi_td3_stack_config"}
+LAUNCHED.update({arm: (LAUNCHED[source] - SQUARE_LAUNCH) | STACK_LAUNCH for arm, source in STACK_SOURCES.items()})
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -319,6 +336,7 @@ FROM_ANCHOR[AD_EAE] = FROM_ANCHOR[SWAP_EEE] | set(AD_CHANGES[AD_EAE])
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(LONGRUN_VALUES) for arm, source in LONGRUN_SOURCES.items()})
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | {"offline_data.name", "object_obs"}
                     for arm, source in OBJ_SOURCES.items()})
+FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(STACK_VALUES) for arm, source in STACK_SOURCES.items()})
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -364,6 +382,7 @@ ARM_VALUES.update({arm: {**ARM_VALUES[SWAP_EEE], **changes} for arm, changes in 
 ARM_VALUES.update({arm: {**ARM_VALUES[source], **LONGRUN_VALUES} for arm, source in LONGRUN_SOURCES.items()})
 ARM_VALUES.update({arm: {**ARM_VALUES[source], "offline_data.name": OBJ_DEMOS, "object_obs": OBJ_SETS[arm]}
                    for arm, source in OBJ_SOURCES.items()})
+ARM_VALUES.update({arm: {**ARM_VALUES[source], **STACK_VALUES} for arm, source in STACK_SOURCES.items()})
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -373,7 +392,8 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              ACTORLN448: RERENDERED_DEMOS, ACTORLR1E5: RERENDERED_DEMOS, ACTORLR3E5: RERENDERED_DEMOS,
              **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS),
              **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS), **dict.fromkeys(AD_ARMS, RERENDERED_DEMOS),
-             **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS), **dict.fromkeys(OBJ_ARMS, OBJ_DEMOS)}
+             **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS), **dict.fromkeys(OBJ_ARMS, OBJ_DEMOS),
+             **dict.fromkeys(STACK_ARMS, STACK_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -393,7 +413,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          SWAP_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          IFACE_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          AD_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         OBJ_GROUP: ("robomimic-square-final", "equi-residual-rl")}
+         OBJ_GROUP: ("robomimic-square-final", "equi-residual-rl"),
+         STACK_GROUP: ("robomimic-stack-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -486,6 +507,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in STACK_SOURCES:
+        return STACK_GROUP
     if arm in OBJ_SOURCES:
         return OBJ_GROUP
     if arm in LONGRUN_SOURCES:
@@ -510,7 +533,7 @@ def group_of(arm: str) -> str:
 
 
 def anchor_of(arm: str) -> str:
-    arm = OBJ_SOURCES.get(arm, LONGRUN_SOURCES.get(arm, arm))
+    arm = {**OBJ_SOURCES, **LONGRUN_SOURCES, **STACK_SOURCES}.get(arm, arm)
     if arm in RESFIT_ARMS:
         return "oj5k0jqb"
     return "6ng62tpm" if arm == LONG else "eaqorqki"
@@ -723,6 +746,20 @@ def test_each_object_arm_is_its_source_arm_with_the_objects(arm, tmp_path):
     assert (theirs["object_obs"], ours["object_obs"]) == ("none", OBJ_SETS[arm])
 
 
+@pytest.mark.parametrize("arm", STACK_ARMS)
+def test_each_stack_arm_is_its_source_arm_on_stack(arm, tmp_path):
+    """stack-1030 (TODO B25): each arm launches its source arm's overrides with Stack's config in place of
+    Square's config, demos and base-policy version, and composes to its source arm's config but for Stack's
+    task, demos and base policy (and its wandb project, which is naming). The agent's shapes are Square's
+    (tests/test_stack.py), so the same config builds the same networks."""
+    ours, theirs = _overrides(arm, tmp_path), _overrides(STACK_SOURCES[arm], tmp_path)
+    assert _unnamed(ours) == (_unnamed(theirs) - SQUARE_LAUNCH) | STACK_LAUNCH
+    ours, theirs = _flat(_compose(ours)), _flat(_compose(theirs))
+    assert _differing(ours, theirs) == set(STACK_VALUES)
+    assert {k: ours[k] for k in STACK_VALUES} == STACK_VALUES
+    assert (theirs["wandb.project"], ours["wandb.project"]) == ("robomimic-square-final", "robomimic-stack-final")
+
+
 def test_only_the_loop_end_reads_the_run_length():
     """A long run's first 150k is its source arm's run at a new seed only if nothing in the trainer reads
     the run length but its loop's end: no schedule, buffer or eval scales with it. The configs declare it,
@@ -763,7 +800,7 @@ def test_the_dataset_each_arm_loads_is_built(arm):
     """A dataset the trainer cannot find is a launch that dies at startup."""
     root = LEROBOT_HOME / ARM_DEMOS[arm]
     assert (root / "meta/info.json").exists() and (root / "meta/episodes_stats.jsonl").exists(), root
-    if ARM_DEMOS[arm] in (RERENDERED_DEMOS, OBJ_DEMOS):
+    if ARM_DEMOS[arm] in (RERENDERED_DEMOS, OBJ_DEMOS, STACK_DEMOS):
         assert (root / "meta/rerender.json").exists(), root
     if ARM_DEMOS[arm] == OBJ_DEMOS:  # tools/add_object_obs.py's, whose guards passed
         assert (root / "meta/object_obs.json").exists(), root
