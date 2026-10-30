@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-30, 11:40 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-30, 18:20 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -41,8 +41,8 @@ cancelled** (the DEVIATION): each long arm has one run.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 9.3 GB free at 11:22 on 10-30, after the rolling reclaim of `long-eee 4`'s duplicate best model
-(0.44 GB) and its eval videos (0.21 GB).
+**The disk:** 11 GB free at 18:12 on 10-30. It fell to 6.5 GB at 18:04, under the queue's floor, and 4.5 GB was
+reclaimed (the 10-30 LAUNCHED entry). Each Stack run keeps its 444 MB best model twice until it ends.
 - tmux `wandb-cache` trims wandb's artifact cache to about 2 GB at 07:35 and 19:35, and each launch adds the
   1 GB BC policy.
 - **What the queue still writes:** about 7 GB, net of the rolling reclaim. That is O1's six runs to come and
@@ -267,31 +267,29 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 11:40 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries; rates measured from wandb at 11:21):
+**At 18:20 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `obj-nut-eee 2` (`ifsnjb9f`, 0.74 at 110k; 4,830 steps/h) and `obj-peg-eee 2` (`3vimywbf`, from 06:52; early speed 0.0383, predicted 0.0359; 4,750 steps/h) | 150k about 18:00 on 10-30; about 15:00 on 10-31 |
-| 1 | `stack-base 1` (`8g47hqyc`, Stack's base policy, from 00:12; 2,340 steps/h) and, from about 11:38, `stack-eee 2`'s smoke, then its full gate (Tier 2 at `9944eeb`, about 2 h) | 50k about 22:00 on 10-30; `stack-eee 2` trains from about 15:30, 150k on 10-31 about 21:00–23:00 |
+| 0 | `obj-peg-eee 2` (`3vimywbf`, 0.56 at 50k) and `stack-rrr 2`'s smoke (from 18:12), then its run (Tier 2 skipped) | about 15:00 on 10-31; `stack-rrr 2` about 07:00 on 10-31 |
+| 1 | `stack-base 1` (`8g47hqyc`, to 50k; nothing reads it past step 2000) and `stack-eee 2` (`tjl95db5`, from 16:04; step 0 0.62, 10k 0.36; early speed 0.0321) | about 22:00 on 10-30; 150k about 22:00 on 10-31 to 00:00 on 11-01 |
 
-`long-eee 4` (`rkks1a9p`) reached 300k at 11:17 on 10-30, package complete; `long-1027` is read. B_stack ran
-on GPU 1 from 11:18 to 11:33 (0.602).
+`obj-nut-eee 2` (`ifsnjb9f`) reached 150k at 18:06, 0.720 (its NOTE). `long-1027` is read.
 
-**Queued in `order-1027`**, restarted at 09:21 on 10-30 with Stack's runs (`STACKRL_WORKTREE` `equi-resrl-9944eeb`),
-in this order, with the slot each is expected to take:
+**Queued in `order-1027`**, restarted at 18:07 on 10-30 with Stack first (Aden: "stack training to start asap";
+the LAUNCHED entry):
 
 | Job | Slot | Expected end |
 |---|---|---|
-| `stack-eee 2` | GPU 1, about 11:38 (smoke, full gate) | 10-31 about 21:00–23:00 |
-| `obj-nut-rrr 2` | GPU 0 when `obj-nut-eee 2` ends, about 18:00 (smoke) | 10-31 about 05:30 |
-| `stack-rrr 2` | GPU 1 when `stack-base` ends, about 22:00–23:00 (smoke) | 10-31 about 10:00 |
-| `obj-peg-rrr 2` | when `obj-nut-rrr 2` ends (smoke) | 10-31 about 17:00 |
-| `stack-eee 3` | when `stack-rrr 2` ends | 11-01 about 16:00 |
-| `stack-rrr 3` | when `obj-peg-eee 2` ends | 11-01 about 01:00 |
-| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots | 11-01 about 08:00 to 11-02 about 07:00 |
+| `obj-nut-rrr 2` | GPU 1, when `stack-base` ends about 22:00 (smoke) | 10-31 about 10:00 |
+| `stack-eee 3` | when `stack-rrr 2` ends | 11-01 about 14:00 |
+| `obj-peg-rrr 2` | when `obj-nut-rrr 2` ends (smoke) | 10-31 about 21:30 |
+| `stack-rrr 3` | when `obj-peg-eee 2` ends | 11-01 about 02:00 |
+| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots | 11-01 about 11:00 to 11-02 about 09:00 |
 
-The times assume each smoke takes 60–90 min, as O1's did, an `eee` run 30 h and an `rrr` run 10 h. The queue
-reserves 23 GB of RAM for each launch for 3 h, so `stack-rrr 2` may wait until `obj-nut-rrr 2`'s reserve ends.
+Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` done; `stack-rrr 2`,
+`obj-nut-rrr 2` and `stack-eee 2` expected by Saturday night. A Stack smoke takes about 70 min (42 of them
+filling the buffer), an O1 smoke 60–90 min, an `eee` run 29–31 h and an `rrr` run about 10 h.
 
 How the queue works now:
 - `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, and

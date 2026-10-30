@@ -11934,3 +11934,72 @@ against.
 - Disk: an `eee` run's package holds about 1.1 GB while it runs (its best model twice, and the eval videos).
   After the rolling reclaim of the duplicate and the videos it is about 0.5 GB, and an `rrr` run's less. 9.3 GB
   was free at 11:20.
+
+## 2026-10-30 — LAUNCHED — `stack-eee 2` (`tjl95db5`), Stack's first RL run: smoke PASS, the full gate ran Tier 2 at `9944eeb` and listed it; step 0 0.62; early speed 0.0321 against 0.0381 predicted, inside the band. The queue reordered for Stack (Claude's call; Aden: "stack training to start asap"); the disk under the queue's floor, 4.5 GB reclaimed
+
+Written by Claude at about 18:20 on 10-30, under the `stack-1030` PRE-REGISTERED entry above.
+
+- **The smoke** (11:38–12:48 on GPU 1, beside `stack-base`; package `f8rekprl`, `9944eeb`, clean): PASS on every check.
+  - Evals at 0, 500 and 1,000 steps: 8 of 8, 6 of 8, 5 of 8.
+  - The robot base was read from `env_probes/Stack.json`. The offline buffer held 106,588 transitions (the
+    CODE entry computed 106,590; the check needs 106,000).
+  - `best_model.pt` reloads strictly, task Stack, base `8g47hqyc` step 2000 v0.
+  - 472 ms an env step in the main loop; peak GPU 4,970 MiB; peak RAM 24.44 GiB, as registered (about 24 GB).
+  - It took 70 minutes, 42 of them filling the offline buffer from 107,590 frames (Square's 80,731 take about
+    30). Every Stack launch pays this twice: once in its smoke and once in its run.
+- **The run:** launched 12:48 on GPU 1. Its full gate passed at 15:14 (145 min) and added `9944eeb` to
+  `retry/tier2_passed.txt`, so Stack's later launches skip Tier 2. wandb from 16:04.
+  - **Step 0, the base alone: 0.62** (50 episodes; B_stack 0.602).
+  - **Early speed 0.0321** (the watcher's SPEED line, 16:47), inside 0.025–0.045. That is 16% under the
+    calibrated 0.0381, just outside Claude's "within 15%" prediction.
+  - 10k: 0.36. **The gross-failure check passed** at that eval (above 0.10).
+  - Expected at 150k between about 22:00 on 10-31 and 00:00 on 11-01.
+- **The queue reordered** (18:07; Aden, 10-30 evening: "stack training to start asap"). `obj-nut-eee 2` exited
+  at 18:06, freeing a GPU 0 slot that `obj-nut-rrr 2` would have taken.
+  - The new order: `stack-rrr 2`, `obj-nut-rrr 2`, `stack-eee 3`, `obj-peg-rrr 2`, `stack-rrr 3`, then O1's seeds
+    3 as before.
+  - `stack-rrr 2`'s smoke started at 18:11:56 on GPU 0, about 3.5 h earlier than in the old order. `stack-eee 3`
+    moves ahead of `obj-peg-rrr 2`.
+  - Expected: `stack-rrr 2` at 150k about 07:00 on 10-31, Stack's four runs done about 14:00 on 11-01.
+    `obj-nut-rrr 2` takes the slot `stack-base` frees at about 22:00 and ends about 10:00 on 10-31, so Aden's
+    Sunday goal holds.
+  - Saved: `order_queue.sh.before-stackfirst` and `scrollback-20261030-1810.txt`. The finished run's tmux
+    session `q-obj-nut-eee-2` was closed without saving its scrollback. Its console,
+    `outputs/queue/20261029-095347_obj-nut-eee-2_gpu0.log`, holds the same output.
+- **The disk fell to 6.5 GB at 18:04**, under the queue's 8 GB floor. Claude's background wait, which wakes
+  under 9 GB, had stopped with the previous Claude Code session at about 13:00. Each Stack run keeps its 444 MB
+  best model twice, and `stack-base`'s new bests (28k, 37k) write about 0.7 GB each. Reclaimed under the 10-28
+  DECISION's kind A and the wrapup's standing video exception, each file logged:
+  - the duplicate `models/best_model.pt` of the three running groups' smoke packages (`k2i4wbop`, `f7dwvvz4`,
+    `f8rekprl`; 1.35 GB) and of `obj-nut-eee 2` once finished (0.44 GB), each sha256- and byte-identical to
+    `wandb_best/` (`outputs/cleanup-20261028/deleted_best_models.txt`). The packages are kept;
+  - the eval videos outside `wandb_best/` of every finished package, 231 files, 1.4 GB
+    (`outputs/cleanup-20261030/deleted_eval_videos.txt`);
+  - wandb's artifact cache, trimmed by hand at 12:31 (to 2 GB) and at 18:05 (to 1 GB, below the 12-hourly
+    job's 2 GB; `outputs/queue/wandb_cache.log`).
+  - 11.1 GB free at 18:12.
+
+---
+
+## 2026-10-30 — NOTE — `obj-nut-eee 2` (`ifsnjb9f`) at 150k: 0.720, above all five of eee's runs (0.516–0.676, mean 0.609); its early evals and its critic's online value at 10k–30k are eee's. One seed, so C1 is not read
+
+Read by Claude at about 18:15 on 10-30, from the complete package (`e7710f4`, clean; 29.0 h). O1's PRE-REGISTERED
+entry (2026-10-27) reads its contrasts at two seeds an arm; this is a description of one run.
+
+| | Evals 0, 10k, …, 150k | 110k–150k | 10k–50k evals | Online value 10k–30k / 100k–150k | Training success 10k–30k / 100k–150k |
+|---|---|---|---|---|---|
+| `obj-nut-eee 2` | 0.58 0.00 0.22 0.46 0.58 0.48 0.52 0.70 0.68 0.64 0.74 0.74 0.74 0.72 0.70 0.70 | **0.720** | 0.348 | +0.016 / +0.150 | 0.351 / 0.721 |
+| `eee`, five runs | | 0.516–0.676 (0.609) | 0.276–0.380 (0.329) | −0.011 to +0.019 (+0.005) / +0.090 to +0.167 | 0.219–0.418 / 0.526–0.722 |
+| `rrr`, two runs | | 0.612, 0.684 (0.648) | 0.360 | +0.040, +0.077 / — | 0.316, 0.432 / — |
+
+- **Its 110k–150k pool is the highest of any `eee` run at 150k**, 0.044 above the best of the five and 0.111 above
+  their mean. That is 1.7 SDs of their spread (SD 0.066), and under the 0.13 bar. C1 needs `obj-nut-eee 3`.
+- **Early it is plain `eee`.** It dips to 0.00 at 10k. Its 10k–50k evals, training success and early speed
+  (0.0360, predicted 0.0350) are inside the five's range.
+- **The registered prediction on the critic is not met by this run.** O1 predicted the online value at 10k–30k
+  would rise from about 0.005 towards 0.03 or more. It was +0.016, inside eee's range and under `rrr`'s.
+- Late, its online value (+0.150) and training success (0.721) sit at the top of eee's range, not outside it.
+- `obj-peg-eee 2` (`3vimywbf`) at 50k: 0.66 0.00 0.16 0.28 0.50 0.56, 10k–50k 0.300, online value at 10k–30k
+  −0.009, inside eee's ranges. **Its gross-failure check passed** (0.16 at 20k).
+- The package: its duplicate best model and eval videos were reclaimed (the LAUNCHED entry above). Best 0.74 at
+  100k.

@@ -82,7 +82,7 @@ afternoon and 11-01; O1 about 11-02.
 
 ### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), PRE-REGISTERED and queued 2026-10-30 `[SC]`
 
-**Progress (10-30, 11:40):**
+**Progress (10-30, 18:20):**
 - **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
   (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
 - **Step 4:** the base trains (`8g47hqyc`, from 00:12 on 10-30, to about 22:00: data loading makes it about
@@ -95,9 +95,9 @@ afternoon and 11-01; O1 about 11-02.
 - **Step 8 is done:** the four runs pre-registered (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`: S1 =
   `stack-eee` − `stack-rrr` at 0.13; S2 against Square's −0.108, described). The queue, its smoke launcher
   and checker, the watcher (`stack-watch`) and the digest were set up from `9944eeb`, restarted at 09:21.
-- **Step 9, the runs:** `stack-eee 2` first (smoke from about 11:38, training from about 15:30, 150k about
-  21:00–23:00 on 10-31); `stack-rrr 2` about 22:00 on 10-30; seeds 3 on 10-31; the last about 16:00 on 11-01,
-  then the readout.
+- **Step 9, the runs:** `stack-eee 2` (`tjl95db5`) trains from 16:04 on 10-30 (step 0 0.62, early speed 0.0321),
+  150k about 22:00 on 10-31 to 00:00 on 11-01. `stack-rrr 2`'s smoke from 18:12 (moved first at 18:07, Aden:
+  "asap"). Seeds 3 on 10-31; the last about 14:00 on 11-01, then the readout.
 - **Removed** at 11:40: `equi-resrl-adebb3c` (B_stack's worktree) and tmux `stack-bstack` (its scrollback in
   `outputs/cleanup-20261030/scrollback/`). `equi-resrl-3c23fe9` (the base policy's) goes after its 50k, once its
   package is read.
