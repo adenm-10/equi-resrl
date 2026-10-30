@@ -9,10 +9,11 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now (10-30): O1 (B23, B24) runs, two of eight; Stack (B25) is being built, its base policy training and
-about to be measured; `long-eee 4` ends at 300k. The actor's design (B22) is done and read (2026-10-30 NOTE):
-nothing counted.** Then, in Aden's order (the 2026-10-27 DECISIONs; B24): O1's and Stack's runs; latency and
-the tuning after. B26 waits on Aden.
+**Now (10-30): O1 (B23, B24) runs, two of eight; Stack (B25) is pre-registered and queued (`stack-1030`,
+four runs, `stack-eee 2` first). The long runs (B24) and the actor's design (B22) are done and read
+(2026-10-30 NOTEs).** Aden's Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, expected by
+Saturday 10-31 night. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26 and
+B27 wait on Aden.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
@@ -46,10 +47,10 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
     dropped (Aden).
 
 **The to-do** (coarse; the days are targets):
-1. **The long runs: seeds 4 launched 10-28; seeds 5 CANCELLED 10-29** (Aden; the DEVIATION), one run per
-   arm. `long-resfit 4` DONE at 300k (levelled at 0.88; the 2026-10-28 and 10-29 NOTEs). `long-eee 4`'s
-   150k readout DONE (0.648; eee's five runs average 0.609), its 300k about 11:20 on 10-30, then the
-   `long-1027` NOTE.
+1. **The long runs: DONE 10-30** (seeds 5 CANCELLED 10-29, Aden; the DEVIATION), one run per arm.
+   `long-resfit 4` levelled at 0.88; `long-eee 4` was still climbing at 150k, then held at 0.74–0.80 and
+   ended at 0.800; the gap to ResFiT narrowed from 0.200 to 0.080 (the 2026-10-30 `long-1027` NOTE). Not
+   done: the 200-episode re-evaluations of the checkpoints (the secondary readout); B27.
 2. **O1: BUILT 10-27** (the CODE entry). The rest:
    - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
 
@@ -79,21 +80,27 @@ afternoon and 11-01; O1 about 11-02.
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
 
-### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), being built `[SC]`
+### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), PRE-REGISTERED and queued 2026-10-30 `[SC]`
 
-**Progress (10-30, 09:40):**
+**Progress (10-30, 11:40):**
 - **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
   (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
 - **Step 4:** the base trains (`8g47hqyc`, from 00:12 on 10-30, to about 22:00: data loading makes it about
   22 h, not 9–12). It reached 0.91–0.96 by 9k–16k, so the headroom rule picked its step 2000 (0.67), uploaded
-  again as `run_8g47hqyc_model_step_2000:v0` (the 2026-10-30 NOTE). **Next: B_stack** (500 episodes, tmux
-  `stack-bstack`, when `long-eee 4` exits about 11:20); outside 0.30–0.85 the rule steps a version.
+  again as `run_8g47hqyc_model_step_2000:v0` (the 2026-10-30 NOTE). **B_stack = 0.602** (500 episodes, standard
+  error 0.022, 11:18–11:33 on 10-30), inside 0.30–0.85, so step 2000 stays.
 - **Steps 6–7 are done** (`adebb3c`; the 2026-10-30 CODE entry): the config, the gate's entry, the robot-base
   probe (Square's), the arms and their tests, the early-speed calibration (`stack-eee` 0.0381, `stack-rrr`
   0.0310, both in the band).
-- **Left:** pre-register the four runs (step 8; Claude's design, the arms at their source arms' rates);
-  the queue's `kind()` (`stack-rrr` is a ViT run), `smokes_of()` and a smoke launcher for Stack; a watcher
-  group and the digest; then the smokes and the runs.
+- **Step 8 is done:** the four runs pre-registered (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`: S1 =
+  `stack-eee` − `stack-rrr` at 0.13; S2 against Square's −0.108, described). The queue, its smoke launcher
+  and checker, the watcher (`stack-watch`) and the digest were set up from `9944eeb`, restarted at 09:21.
+- **Step 9, the runs:** `stack-eee 2` first (smoke from about 11:38, training from about 15:30, 150k about
+  21:00–23:00 on 10-31); `stack-rrr 2` about 22:00 on 10-30; seeds 3 on 10-31; the last about 16:00 on 11-01,
+  then the readout.
+- **Removed** at 11:40: `equi-resrl-adebb3c` (B_stack's worktree) and tmux `stack-bstack` (its scrollback in
+  `outputs/cleanup-20261030/scrollback/`). `equi-resrl-3c23fe9` (the base policy's) goes after its 50k, once its
+  package is read.
 - **Step 5 (the symmetry record)** is not done; it needs no slot.
 - **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable`. Its `if wandb is not None` tests the
   module, which is never None. Every real run enables wandb. And its `upload_best` keeps only the latest
@@ -190,6 +197,15 @@ control latency, sampled and held over many steps, were critical to its transfer
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
 
+### B27. Whether `eee`'s later runs go past 150k — WAITING ON ADEN `[SC]`
+
+`long-eee 4` gained 0.15 from 110k–150k to 260k–300k (0.648 to 0.800) while ResFiT's run gained 0.03, so the
+gap at 150k is partly how long `eee` runs. One run, so a description (the `long-1027` NOTE). Options: Stack's or
+O1's `eee` runs to 300k (each about 30 h more), a second `long-eee` seed, or the 200-episode re-evaluations of
+`long-eee 4`'s checkpoints at 150k and 300k (`tools/residual_field_ablation.py` reads the equivariant agent
+already; a few GPU hours, no training slot). Claude's recommendation: the re-evaluations first. They are
+cheapest, and at 200 episodes (standard error about 0.035) they test whether the 0.15 is real.
+
 ### B26. More seeds of `ere` (the actor-design readout's registered next step) — WAITING ON ADEN `[SC]`
 
 The 2026-10-30 NOTE: with nothing counted in B22, the registered next step is more seeds of `eee` and `ere`.
@@ -204,24 +220,11 @@ every pair at matched speed. The arms pooled 0.584 (shaped), 0.640 (shaped, wide
 `eee` 0.540 and `ere` 0.692; against eee's five runs (0.609) all three are within 0.04. The tuning anchor
 stays `eee` (B24). Next: B26. The record of the build and the runs follows.
 
-C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's
-launch, seeds 2 and 3, read against arch-swap's `eee` and `ere` (EXPERIMENTS.md, 2026-10-26 CODE,
-DECISION and PRE-REGISTERED).
-- **Done:** `ResFiTShapedActor` (`equivariance.actor_design=resfit`, `actor_feature_fields`) and its
-  tests; the three arms in `submit.sh`, the sweep-arm tests and the watcher; the calibration
-  (`outputs/diagnostics/actor-design/`: the 128-field arm at 3e-6, the 362-field at 1e-6, `eae` at 2.5e-7);
-  `iface-window 3` stopped for the slot (Aden); the queue (`order-1026`) and the watcher (`ad-watch`).
-- **Now** (03:00 on 10-28; EXPERIMENTS.md, 2026-10-27 and 10-28 LAUNCHED):
-  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k; the gross-failure check
-    passed.
-  - `actor-resfit-shape-wide 2` (`160x34lf`) runs to about 18:30 on 10-28.
-  - `actor-resfit-shape 3` (`xhz9iwoo`) runs to about 08:00 on 10-29.
-  - `actor-eae 3` and `actor-resfit-shape-wide 3` are queued behind the long runs' slots.
-  - `order-1027/digest.md` has every run's state.
-- **Read on the morning of 10-30** (the NOTE above).
-- **The disk** (12.6 GB on the afternoon of 10-28; short near the queue's end): each finished run's
-  duplicate best model is reclaimed, the queue holds launches under 8 GB free, and Aden's two by-hand
-  scripts free 5.7 GB (STATUS).
+C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's launch,
+seeds 2 and 3 (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED; the runs in the 10-27 to 10-30
+LAUNCHED entries): `ResFiTShapedActor` (`equivariance.actor_design=resfit`) at 128 and 362 fields, and `eae`;
+calibrated in `outputs/diagnostics/actor-design/`. Its worktree `a5b5cc8` and watcher `ad-watch` were removed on
+10-30.
 
 ### B21. The encoder's interface: the encoders widened, their last layers widened, or a window for the critic (`enc-iface-1023`) — DONE 2026-10-28 as cut by the 2026-10-26 and 10-27 DECISIONs (Aden, 2026-10-23, 10-24 and 10-26) `[SC]`
 

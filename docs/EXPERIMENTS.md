@@ -11749,3 +11749,188 @@ it is, from the same readout and the long runs' readouts. The base on the re-ren
 **CORRECTION, times.** This morning's entries and STATUS ran 30–40 minutes fast. The actor-design NOTE was read at
 about 09:00, not "about 09:30". STATUS's "09:40" was about 09:05. The LAUNCHED entry's "about 09:00" and the
 headroom NOTE's "about 08:50" stand.
+
+## 2026-10-30 — NOTE — `long-1027` read: `long-eee 4` (`rkks1a9p`) at 300k was still climbing at 150k, then held at 0.74–0.80, ending at 0.800, above its predicted 0.62–0.72; not levelled by the registered rule (0.060 apart), never collapsed. The gap to ResFiT's one run narrowed from 0.200 at 110k–150k to 0.080 at 260k–300k, against a predicted 0.15–0.20. One run per arm, under the seeds-5 DEVIATION
+
+Written by Claude at about 11:25 on 10-30, from the complete package (commit `e2fdb27`, clean; 300,001 steps;
+57.5 h). The 2026-10-27 PRE-REGISTERED entry reads each run's curve and describes the gap. Under the 2026-10-29
+DEVIATION each arm has one run, so this is the group's whole readout. `long-resfit 4`'s numbers are from its 300k
+NOTE (10-29), read from its package the same way.
+
+| Window | 10k–30k | 110k–150k | 160k–200k | 210k–250k | 260k–300k |
+|---|---|---|---|---|---|
+| `long-eee 4` evals | 0.12 0.24 0.22 | 0.72 0.70 0.66 0.50 0.66 | 0.80 0.80 0.76 0.70 0.78 | 0.82 0.68 0.72 0.76 0.72 | 0.74 0.84 0.76 0.88 0.78 |
+| **`long-eee 4` pool** | 0.193 | **0.648** | **0.768** | **0.740** | **0.800** |
+| `long-resfit 4` pool | 0.427 | 0.848 | 0.820 | 0.876 | 0.880 |
+| **Gap (ResFiT − eee)** | 0.233 | **0.200** | **0.052** | **0.136** | **0.080** |
+| eee training success | 0.233 | 0.722 | 0.744 | 0.779 | 0.749 |
+| eee critic's online value (`debug/q_data_online`) | +0.004 | +0.167 | +0.186 | +0.233 | +0.249 |
+| eee demo value (`debug/q_data_demo`) | 0.356 | 0.387 | 0.383 | 0.380 | 0.385 |
+| eee demo preference | +0.352 | +0.220 | +0.197 | +0.147 | +0.136 |
+| ResFiT training success / online value / demo preference | 0.415 / +0.065 / +0.326 | 0.802 / +0.214 / +0.204 | 0.868 / +0.257 / +0.165 | 0.819 / +0.316 / +0.115 | 0.877 / +0.356 / +0.077 |
+
+(Step 0, the base alone: 0.56. The 150k NOTE's 0.706 training success and +0.163 online value at 100k–150k were
+read from wandb's server mid-run; the complete package gives 0.722 and +0.167 over 110k–150k.)
+
+- **The registered readings** (descriptions at a window pool's standard error of about 0.045, so two pools differ
+  by about 0.064 SD from noise alone):
+  - *Still climbing at 150k:* **yes.** The 160k–200k pool is 0.120 above the 110k–150k pool; the rule needs 0.05.
+  - *Levelled off:* **no, by the rule.** The last two pools are 0.060 apart, the rule's bar is 0.05. That is under
+    one SD of noise, and the three pools from 160k sit within 0.06 of each other (0.740–0.800).
+  - *Collapsed:* **no.** No pool is 0.2 below an earlier one; the lowest eval after 40k is 0.50 at 140k.
+  - The line through the four pools rises +0.086 per 100k (ResFiT's: +0.03).
+- **Against the predictions** (Claude's, before launch):
+  - `eee` "still rising at 150k and levelled by 250k–300k at about 0.62–0.72": rising at 150k, as predicted.
+    It ended at **0.800, above the range**, and not levelled by the rule.
+  - The gap "about 0.15–0.20 at 300k, holding rather than closing": **0.080 at 260k–300k, under the range.** It
+    was 0.200 at 110k–150k. With one run an arm its standard error is about 0.064, so "narrowed" is a
+    description of one pair of runs, not a finding.
+  - ResFiT rising to 0.85–0.90: inside it (its 300k NOTE).
+- **The spread at 150k** (110k–150k pools): `eee`, five runs: 0.516, 0.564, 0.640, 0.648, 0.676 (mean 0.609, SD
+  0.066). ResFiT's re-rendered arm, two runs: 0.828 (`bue9dupf`), 0.848 (`3ctaaap1`) (mean 0.838).
+- **The signals against the curve (question 4).**
+  - eee's critic valued its own experience more with every window: online value +0.167 to +0.249. Its value of
+    the demos held at 0.38–0.39, so its preference for the demos fell from +0.220 to +0.136.
+  - ResFiT's moved the same way, from higher: +0.214 to +0.356, and +0.204 to +0.077.
+  - eee's online value at 260k–300k (+0.249) is about ResFiT's at 160k–200k (+0.257). Its eval pool there (0.800)
+    is a little under ResFiT's at 110k–150k (0.848).
+  - So neither critic's signals levelled off when the evals did. eee's training success stopped rising from
+    210k (0.779, then 0.749).
+- **The registered caveat:** from 200k the buffer drops its oldest transitions, so 210k–300k is not the same
+  training continued, for either run.
+- **Not done:** the secondary readout, 200-episode re-evaluations of the checkpoints. The re-evaluation tool was
+  not extended to ResFiT's agent.
+- **The package:** seven checkpoints, 0 to 300k, 444 MB each (3.1 GB; the 10-28 LAUNCHED entry corrected the
+  registered size). The best is 290k's (0.88). The duplicate `models/best_model.pt` was deleted at 11:21,
+  byte-identical to `wandb_best/` (sha256 `9379bd9c…`; `outputs/cleanup-20261028/deleted_best_models.txt`). Its
+  31 eval videos outside `wandb_best/` (209 MB) were deleted under the standing exception
+  (`outputs/cleanup-20261030/deleted_eval_videos.txt`). The worktree `equi-resrl-e2fdb27` and the watcher
+  `long-watch` were removed; their scrollbacks are in `outputs/cleanup-20261030/scrollback/`.
+- **What it adds to the 10-28 analysis:** all 17 runs above the base were still climbing at 150k, and this is the
+  first eee run read past it. It kept improving to 160k–200k and then held. At 260k–300k it was 0.259 above the
+  base (0.541), where its 110k–150k pool was 0.107 above it. One run, so this says eee *can* keep improving past 150k, not how often.
+- **Next:** nothing is queued for `long-1027`; the seeds 5 were cancelled (DEVIATION). Whether eee's later runs go
+  to 300k is Aden's call (TODO).
+
+## 2026-10-30 — PRE-REGISTERED — Stack: `eee` against `rrr` at seeds 2 and 3, on `stack-base`'s step 2000 (B_stack 0.602) (`stack-1030`)
+
+**Decided by Aden:** the new task, Stack, `eee` against `rrr` (the 2026-10-27 evening DECISION, item 4; approved
+to build on 10-29, "asap", the DEVIATION of that date). TODO B25's step 8 fixes the design: seeds 2 and 3, 150k,
+pools at 110k–150k, the 0.13 bar, and the prediction that `eee`'s gain over `rrr` is larger than on Square.
+Claude's calls within it are below. The code is `adebb3c` (the 2026-10-30 CODE entry). **The launch pin is
+`9944eeb`**, run from the worktree `equi-resrl-9944eeb`: the queue was armed with it at 09:21. It adds the
+watcher's Stack group to `adebb3c` and changes nothing under `resfit/`, `submit.sh` or `preflight.py`. This
+entry's commit adds docs only.
+
+**Why Stack:** two cubes start within ±8 cm of the table's middle, at any yaw, so every cube-to-cube direction
+occurs. Square's nut-to-peg direction spans 18.5°, and no turned Square scene is one the task produces (the
+2026-10-27 FINDING). On Stack the C8 constraint matches a symmetry the task has. **Not yet measured:** the
+symmetry record (B25 step 5, turned-demo replays on Stack) is not done; it needs no slot.
+
+**Questions:**
+1. **S1:** does `eee` beat `rrr` on Stack (`stack-eee` − `stack-rrr`)?
+2. **S2, described:** is `eee`'s standing against `rrr` better on Stack than on Square? On Square, `eee` −
+   `rrr` was −0.108 at arch-swap's two seeds each (0.540 against 0.648), or −0.039 with eee's five 150k runs
+   (0.609). S2 is S1 less that. Its standard error is about 0.1, so no claim rests on it.
+3. **Against the base:** does each arm beat B_stack?
+4. **The critic's signal:** is `eee`'s critic's value of online data at 10k–30k still below `rrr`'s, as on
+   Square? There arch-swap's `eee` averaged +0.004 (`wk45zp27` −0.011, `jr63pxb9` +0.019) and `rrr` +0.059
+   (`w1g1d1tf` +0.077, `1u5xnikc` +0.040).
+
+**The base, B_stack = 0.602** (`outputs/diagnostics/stack/bstack.log`). `stack-base`'s step 2000
+(`robomimic-stack-bc/8g47hqyc`, `run_8g47hqyc_model_step_2000:v0`), measured as every base is: `eval_base_policy
+--num-evals 10`, 500 episodes, 8 envs, from `equi-resrl-adebb3c`, 11:18–11:33 on 10-30. Its ten evals: 0.72,
+0.58, 0.62, 0.46, 0.50, 0.60, 0.58, 0.70, 0.66, 0.60; standard error 0.022
+(`outputs/base_rates/Stack__8g47hqyc_2000_v0__seed1000.json`). It is inside 0.30–0.85, so the headroom rule keeps
+step 2000, and inside the prediction (0.4–0.75). Square's base on its re-rendered demos is 0.541. **The caveat,
+as registered for the base:** an under-trained policy (the run reached 0.96 by 16k) is imperfect differently from
+a fully trained one on fewer demos. It is recorded on every Stack result.
+
+**The runs** (seed group `stack-1030`; wandb `robomimic-stack-final` / `equi-residual-rl`; 150k each, at the
+source arms' rates: the actor's 1e-6, the critic's and the encoder's 1e-4):
+
+| Queue position (10-30, 09:21) | Arm | Source arm | Seed | Expected training start, end |
+|---|---|---|---|---|
+| 1 | `stack-eee` | `arch-swap-eee` | 2 | about 15:30 on 10-30 (smoke, full gate first), Saturday 10-31 about 21:00–23:00 |
+| 3 | `stack-rrr` | `arch-swap-rrr` | 2 | about 23:30 on 10-30 (smoke first), 10-31 about 10:00 |
+| 5 | `stack-eee` | `arch-swap-eee` | 3 | about 10:30 on 10-31, 11-01 about 16:00 |
+| 6 | `stack-rrr` | `arch-swap-rrr` | 3 | about 15:00 on 10-31, 11-01 about 01:00 |
+
+O1's seed-2 `rrr` runs hold positions 2 and 4, and O1's four seed-3 runs follow these.
+
+**What is held fixed:** each arm is its source arm's launch but for Stack's config
+(`residual_equi_td3_stack_config`) in place of Square's. That changes the task, the demos
+(`local/mimicgen-stack-d0-rerendered`, all 1,000 episodes, 107,590 frames, rendered by our env), the base policy
+and the wandb project, and nothing else. `tests/test_sweep_arms.py` pins this. The networks, rates, buffer,
+noise, horizon (300), cameras and robot base ((-0.56, 0), Square's; `tests/test_stack.py`) are the source arms'.
+**Not held:** everything the task changes: the scene, the demos, the base, and so the inputs' statistics (about
+8% on each arm's early speed, the CODE entry). No Square run is pooled with these. S1 is read within Stack.
+
+**Readouts** (pools of five 50-episode evals at 110k–150k, 250 episodes a run; an arm is the mean of its two
+runs):
+- **S1 = `stack-eee` − `stack-rrr`, counted at 0.13 or more either way** (arch-swap's bar).
+- **S2 = S1 − Square's `eee` − `rrr`:** reported against both Square figures above, not counted.
+- **Each arm against B_stack:** reported, with each run's step-0 eval (the base alone, 50 episodes).
+- **The signals:** `debug/q_data_online` at 10k–30k and 100k–150k; `debug/q_data_demo` − `debug/q_data_online`;
+  training success per 10k; each residual field's size (pinning: any of xy, z, yaw or tilt at 0.098 or more at
+  3k–10k).
+- **The early speed:** each run's 0–3k residual (the watcher's SPEED line) against its prediction (`stack-eee`
+  0.0381, `stack-rrr` 0.0310) and the band (0.025–0.045).
+- **The 10-28 analysis's two conditions:** both arms have a constrained critic (equivariant, or ResFiT's own), so
+  only the speed band is tested here.
+- **A gross failure is reported to Aden, not acted on:** every eval at 10k–50k at or below 0.10. No automatic
+  stop of any kind applies (2026-10-17 DEVIATION).
+
+**Readings:**
+
+| Result | Reading | Next |
+|---|---|---|
+| S1 ≥ +0.13 | the constraint pays on a task that has the symmetry, where on Square it did not | the symmetry record; ResFiT's own agent on Stack as a reference; more seeds |
+| S1 within ±0.13, S2 > 0 | `eee` stands better against `rrr` here than on Square, inside the bar | described only; more seeds if Aden wants S1 read |
+| S1 ≤ −0.13 | `rrr` better on Stack too: Square's extrinsic symmetry is not what holds `eee` back | the critic (the tuning group), on both tasks |
+| both arms at or below B_stack | the residual does not lift this base | the base's headroom (a later step, or another version) before any arm is read |
+
+**Predictions** (Claude's, before launch):
+- both arms above B_stack at 110k–150k;
+- S1 between −0.05 and +0.10, so it does not count; S2 positive against both Square figures;
+- each early speed within 15% of its prediction;
+- `eee`'s critic's online value at 10k–30k below `rrr`'s, as on Square.
+
+**Slots and timing (Claude's call at 09:21, recorded here).** Aden, verbatim (10-30): "i need at least one seed
+of stack and obj centr obs on both eee and resfit done by sunday ideally, is this planned and or possible?"
+Claude reads "resfit" as the `rrr` arms, ResFiT's networks in our agent, which is what O1 and Stack compare
+against.
+- In the order of 10-29, `stack-eee 2` would have ended about 03:00 on Monday 11-02.
+- So the queue was restarted at 09:21 with Stack's seed-2 runs ahead of O1's seeds 3. `stack-eee 2` goes
+  first, as the longest. The order is `stack-eee 2`, `obj-nut-rrr 2`, `stack-rrr 2`, `obj-peg-rrr 2`, `stack-eee
+  3`, `stack-rrr 3`, then O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr). The old script is kept as
+  `order_queue.sh.before-stackrl`.
+- `obj-nut-eee 2` (running) ends about 18:00 on 10-30. `obj-nut-rrr 2` ends about 05:30 on 10-31, `stack-rrr 2`
+  about 10:00 and `stack-eee 2` about 21:00–23:00. So all four of Aden's runs are expected by Saturday night.
+- **What it moves:** O1's seeds 3 start about a day later. Its last run ends about 07:00 on Monday 11-02. O1's
+  design is unchanged.
+- **Risks:** a failed smoke or crash on `stack-eee 2` costs about a day. Its run time on Stack is not yet
+  measured; the Square source took 29–32 h.
+
+**Launch:**
+- Each arm's first job runs its smoke in its slot (`outputs/diagnostics/stack/smokes/`, 8 eval episodes, the
+  2026-10-30 DEVIATION). `check_smoke.py` needs:
+  - 1,000 steps, two evals, the critic values and the 28 residual-field keys, and a finite critic loss;
+  - the robot base read from `env_probes/Stack.json`;
+  - at least 106,000 transitions in the offline buffer;
+  - `best_model.pt` reloading strictly, with task Stack and the base policy above.
+- The first launch from `9944eeb` runs the full gate with Tier 2 (about 2 h) and lists the commit. The gate is
+  `--task Stack --method residual --stack equi`. Its render check is Can and Square, as for every launch, a
+  check on mujoco itself.
+- **Watcher:** tmux `stack-watch` (`tools/square_rerendered_watch.py --group stack-1030`, from
+  `equi-resrl-9944eeb`), watch-only, the early speed logged. The digest shows both arms.
+
+**Resources:**
+- Run time: about 30 h for each `eee` run and 10 h for each `rrr` run, as the source arms took on Square. The
+  horizon and networks are the same.
+- RAM about 24 GB a run, 2.3 GB above Square's for the bigger demo buffer (the CODE entry). The queue reserves
+  23 GB for each launch for 3 h, against a 28 GB floor.
+- GPU memory is measured by the smoke.
+- Disk: an `eee` run's package holds about 1.1 GB while it runs (its best model twice, and the eval videos).
+  After the rolling reclaim of the duplicate and the videos it is about 0.5 GB, and an `rrr` run's less. 9.3 GB
+  was free at 11:20.
