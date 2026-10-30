@@ -9,10 +9,10 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now: the actor's design, `actor-design-1026` (B22), running; the encoder's interface,
-`enc-iface-1023` (B21), its last run; the architecture swap, `arch-swap-1021` (B20), done (its NOTE,
-2026-10-26).** Next, in Aden's order (the 2026-10-27 DECISIONs; B24): the long runs, then O1 (B23), then a
-new task; latency and the tuning after.
+**Now (10-30): O1 (B23, B24) runs, two of eight; Stack (B25) is being built, its base policy training and
+about to be measured; `long-eee 4` ends at 300k. The actor's design (B22) is done and read (2026-10-30 NOTE):
+nothing counted.** Then, in Aden's order (the 2026-10-27 DECISIONs; B24): O1's and Stack's runs; latency and
+the tuning after. B26 waits on Aden.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
@@ -48,8 +48,8 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
 **The to-do** (coarse; the days are targets):
 1. **The long runs: seeds 4 launched 10-28; seeds 5 CANCELLED 10-29** (Aden; the DEVIATION), one run per
    arm. `long-resfit 4` DONE at 300k (levelled at 0.88; the 2026-10-28 and 10-29 NOTEs). `long-eee 4`'s
-   150k readout about 10:00 on 10-29 (`outputs/diagnostics/long/read_window.py`), its 300k about 18:00 on
-   10-30, then the `long-1027` NOTE.
+   150k readout DONE (0.648; eee's five runs average 0.609), its 300k about 11:20 on 10-30, then the
+   `long-1027` NOTE.
 2. **O1: BUILT 10-27** (the CODE entry). The rest:
    - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
 
@@ -66,7 +66,7 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
    - `tools/residual_field_ablation.py` for ResFiT's agent, for the long runs' 200-episode
      re-evaluations; it reads the equivariant agent only.
    - The readout scripts: each long run's curve by window, and O1 against `eee` and `rrr`.
-   - B22's readout, which sets the tuning anchor.
+   - B22's readout: DONE 10-30, nothing counted; the tuning anchor stays `eee`.
 
 **The results, roughly:** ResFiT's long runs about 10-29 midday and 10-31 night; `eee`'s about 10-30
 afternoon and 11-01; O1 about 11-02.
@@ -81,15 +81,23 @@ afternoon and 11-01; O1 about 11-02.
 
 ### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), being built `[SC]`
 
-**Progress (10-29, 10:00):**
+**Progress (10-30, 09:40):**
 - **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
   (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
-- **Step 4:** the base is pre-registered with its headroom rule (`3c23fe9`, worktree
-  `equi-resrl-3c23fe9`), and queued first. It trains from about 23:00, about 9–12 h.
-- **Then:** the Stack RL config (`residual_equi_td3_stack_config`, once the base's wandb ID exists), its
-  500-episode base measurement, and the arms `stack-eee` and `stack-rrr` at seeds 2 and 3.
+- **Step 4:** the base trains (`8g47hqyc`, from 00:12 on 10-30, to about 22:00: data loading makes it about
+  22 h, not 9–12). It reached 0.91–0.96 by 9k–16k, so the headroom rule picked its step 2000 (0.67), uploaded
+  again as `run_8g47hqyc_model_step_2000:v0` (the 2026-10-30 NOTE). **Next: B_stack** (500 episodes, tmux
+  `stack-bstack`, when `long-eee 4` exits about 11:20); outside 0.30–0.85 the rule steps a version.
+- **Steps 6–7 are done** (`adebb3c`; the 2026-10-30 CODE entry): the config, the gate's entry, the robot-base
+  probe (Square's), the arms and their tests, the early-speed calibration (`stack-eee` 0.0381, `stack-rrr`
+  0.0310, both in the band).
+- **Left:** pre-register the four runs (step 8; Claude's design, the arms at their source arms' rates);
+  the queue's `kind()` (`stack-rrr` is a ViT run), `smokes_of()` and a smoke launcher for Stack; a watcher
+  group and the digest; then the smokes and the runs.
+- **Step 5 (the symmetry record)** is not done; it needs no slot.
 - **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable`. Its `if wandb is not None` tests the
-  module, which is never None. Every real run enables wandb.
+  module, which is never None. Every real run enables wandb. And its `upload_best` keeps only the latest
+  best in wandb, so a rule that picks an earlier best reads the run's local `best_step_<step>/`.
 
 The plan of record for the new task (the 2026-10-27 evening DECISION, item 4). Stack is robosuite's own
 task, MimicGen's Stack D0: two cubes within ±8 cm of the table's middle, at any yaw. Every cube-to-cube
@@ -182,7 +190,19 @@ control latency, sampled and held over many steps, were critical to its transfer
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
 
-### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — RUNNING from 2026-10-26; seed 2 done but for the wide arm, seeds 3 running and queued (Aden, 2026-10-26) `[SC]`
+### B26. More seeds of `ere` (the actor-design readout's registered next step) — WAITING ON ADEN `[SC]`
+
+The 2026-10-30 NOTE: with nothing counted in B22, the registered next step is more seeds of `eee` and `ere`.
+eee has five runs at 150k (mean 0.609); `ere` has two (0.688, 0.696), and C4 against eee's five is +0.083,
+under the bar. Seeds 4–6 of `arch-swap-ere` would settle whether ResFiT's actor helps at all. About 3 slots of
+30 h; after O1 and Stack, or in place of their seeds 3. Aden's call.
+
+### B22. The actor's design: the equivariant actor wired as ResFiT's, at two widths, and arch-wide's actor unconstrained (`actor-design-1026`) — DONE 2026-10-30: read, nothing counted (Aden, 2026-10-26) `[SC]`
+
+**Read** (EXPERIMENTS.md, the 2026-10-30 NOTE): D1–D5 +0.044, +0.056, +0.030, +0.108, +0.122, none at 0.13,
+every pair at matched speed. The arms pooled 0.584 (shaped), 0.640 (shaped, wide), 0.570 (`eae`) against
+`eee` 0.540 and `ere` 0.692; against eee's five runs (0.609) all three are within 0.04. The tuning anchor
+stays `eee` (B24). Next: B26. The record of the build and the runs follows.
 
 C4 counted in B20: ResFiT's actor on our encoder and critic beat ours by 0.152. Three arms on eee's
 launch, seeds 2 and 3, read against arch-swap's `eee` and `ere` (EXPERIMENTS.md, 2026-10-26 CODE,
@@ -198,9 +218,7 @@ DECISION and PRE-REGISTERED).
   - `actor-resfit-shape 3` (`xhz9iwoo`) runs to about 08:00 on 10-29.
   - `actor-eae 3` and `actor-resfit-shape-wide 3` are queued behind the long runs' slots.
   - `order-1027/digest.md` has every run's state.
-- **Then:** the readout about the evening of 10-30: `/analyze-experiment` against the rules, then the NOTE.
-  It reports C4 against all four of eee's runs too (+0.093). The next step comes from the PRE-REGISTERED
-  entry's readings, and the readout also sets the tuning anchor (B24).
+- **Read on the morning of 10-30** (the NOTE above).
 - **The disk** (12.6 GB on the afternoon of 10-28; short near the queue's end): each finished run's
   duplicate best model is reclaimed, the queue holds launches under 8 GB free, and Aden's two by-hand
   scripts free 5.7 GB (STATUS).

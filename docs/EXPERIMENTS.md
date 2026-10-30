@@ -11642,3 +11642,82 @@ Applied by Claude at about 08:50 on 10-30, under the 2026-10-29 PRE-REGISTERED r
     8%.
 - **RAM:** Stack's offline buffer holds 107,590 frames against Square's 80,731, about 2.3 GB more per run, so about
   24 GB per run. The queue's per-launch reserve is 23 GB.
+
+## 2026-10-30 — NOTE — `actor-design-1026` read: none of D1–D5 counts at 0.13 (+0.044, +0.056, +0.030, +0.108, +0.122), every pair at matched speed. By the registered reading, the actor's wiring, width and constraint are not the gap at this bar. Against all five of eee's runs (0.609) the three new arms sit within 0.04 of eee, and C4 shrinks to +0.083
+
+Read by Claude at about 09:30 on 10-30, from the ten complete packages (`rkks1a9p`'s first 150k from wandb's server),
+with `outputs/diagnostics/actor-design/readout_1030.py` (arch-swap's `readout_1026.py`, plus this group's field
+signals). Output: `readout_1030.json` beside it. Under the 2026-10-26 PRE-REGISTERED entry, "the actor's design".
+
+| Arm | Run (seed) | Commit | step 0 | Best | Final | 110k–150k | Early speed | Arm's pool |
+|---|---|---|---|---|---|---|---|---|
+| `actor-resfit-shape` | `j457zalw` (2) | `a5b5cc8` | 0.64 | 0.72 @110k | 0.52 | 0.552 | 0.0355 | **0.584** |
+| | `xhz9iwoo` (3) | `a5b5cc8` | 0.54 | 0.74 @130k | 0.60 | 0.616 | 0.0346 | |
+| `actor-resfit-shape-wide` | `160x34lf` (2) | `a5b5cc8` | 0.48 | 0.66 @140k | 0.56 | 0.584 | 0.0363 | **0.640** |
+| | `jfdajea9` (3) | `a5b5cc8` | 0.54 | 0.82 @100k | 0.66 | 0.696 | 0.0290 | |
+| `actor-eae` | `e4220e3z` (2) | `a5b5cc8` | 0.58 | 0.68 @110k | 0.54 | 0.604 | 0.0321 | **0.570** |
+| | `xymahaba` (3) | `a5b5cc8` | 0.50 | 0.62 @60k | 0.60 | 0.536 | 0.0376 | |
+| `eee` (anchor) | `wk45zp27`, `jr63pxb9` | `aec1bdc` | 0.58, 0.52 | 0.68, 0.74 | 0.46, 0.54 | 0.516, 0.564 | 0.0353, 0.0348 | **0.540** |
+| `ere` (anchor) | `6xh63lfb`, `ifpm32n9` | `aec1bdc` | 0.46, 0.56 | 0.74, 0.76 | 0.68, 0.76 | 0.688, 0.696 | 0.0410, 0.0361 | **0.692** |
+
+Every run beat its step 0 and learned. The ten step-0 evals (the base alone) average 0.540. No gross failure:
+`actor-resfit-shape 2` was at 0.52 by 30k.
+
+**The contrasts** (two seeds pooled at 110k–150k, 500 episodes an arm; counting at 0.13):
+
+| | Contrast | Difference | Counts | Early speeds (ratio) |
+|---|---|---|---|---|
+| D1 | `actor-resfit-shape` − `eee`: ResFiT's wiring | +0.044 | no | 0.0351, 0.0351 (1.00×) |
+| D2 | `actor-resfit-shape-wide` − `actor-resfit-shape`: the free parameters | +0.056 | no | 0.0326, 0.0351 (1.07×) |
+| D3 | `actor-eae` − `eee`: our actor's constraint | +0.030 | no | 0.0348, 0.0351 (1.01×) |
+| D4 | `ere` − `actor-resfit-shape`: ResFiT's actor against its equivariant twin | +0.108 | no | 0.0386, 0.0351 (1.10×) |
+| D5 | `ere` − `actor-eae`: ResFiT's design against ours, both unconstrained | +0.122 | no | 0.0386, 0.0348 (1.11×) |
+
+- **The registered reading is the last row: "nothing counts: the actor's design and constraint are not the gap at
+  this bar; C4's 0.152 was at the edge of the bar; more seeds of `eee` and `ere`."**
+- **The speed readout:** every run inside 0.025–0.045 (0.0290–0.0376). No contrast's ends differ by more than 1.11×,
+  so no contrast is read with a speed caveat.
+- **Each new arm sits above the anchor `eee`, by 0.03–0.10, and below `ere`, by 0.05–0.12.** All three moved the same
+  way as ResFiT's actor, by less than ResFiT's actor did.
+- **Predictions:** 1 (D1 counts the shape way, held low): wrong, +0.044. 2 (D2 does not count, moderate): right.
+  3 (D3 does not count, low): right. 4 (D5 counts the R way, low): wrong, +0.122, 0.008 under the bar.
+
+**Reported, deciding nothing: eee's five 150k runs.** The anchor's two runs (0.516, 0.564) are the lowest two of
+eee's five. The other three ran its launch again on later commits: `h216n857` 0.640, `mgcifv1y` 0.676 and `rkks1a9p`
+0.648. All five average **0.609** (range 0.516–0.676). Against that:
+
+- `actor-resfit-shape` −0.025, `actor-resfit-shape-wide` +0.031, `actor-eae` −0.039: all three within eee's range.
+- **C4 (`ere` − `eee`) is +0.083, against the +0.152 counted at two seeds** (the 2026-10-27 NOTE gave +0.093 against
+  four).
+- `ere` has two runs (0.688, 0.696), above all five of eee's, by 0.012 at the closest (`mgcifv1y`, 0.676).
+- The anchor pair, not the actor, carried most of C4.
+
+**The critics** (reported; early 10k–30k, late 100k–150k; each arm's two seeds). Every new arm has eee's encoder and
+critic, and its critic reads as eee's:
+
+| Arm | `dQ_da_mean_abs` early, late | `q_data_demo` early | `q_data_online` early, late | `actor_grad_norm` late |
+|---|---|---|---|---|
+| `actor-resfit-shape` | 5.8–7.6e-5, 4.7–5.4e-5 | 0.313–0.323 | −0.023 to −0.020, +0.085 to +0.098 | 0.008–0.010 |
+| `actor-resfit-shape-wide` | 6.6–7.8e-5, 4.8–5.9e-5 | 0.297–0.303 | −0.045 to −0.033, +0.074 to +0.106 | 0.009–0.012 |
+| `actor-eae` | 6.4–7.3e-5, 5.1e-5 | 0.318–0.330 | −0.024 to −0.023, +0.076 to +0.102 | 0.020–0.024 |
+| `eee` (5 runs) | 6.0–7.1e-5, 4.7–5.7e-5 | 0.322–0.356 | −0.011 to +0.019, +0.090 to +0.162 | 0.011–0.017 |
+| `ere` | 6.4–7.1e-5, 5.0–5.3e-5 | 0.322–0.334 | −0.020 to −0.008, +0.107 to +0.117 | 0.015–0.018 |
+
+- The shaped actors' gradient is the smallest (0.008–0.012), and the unconstrained actor's the largest (0.020–0.024).
+  Their critics value online data a little lower early than eee's runs do, and in eee's range late.
+
+**Also reported:**
+- **The 10k eval and 10k–30k pooled:** `actor-resfit-shape` 0.00, 0.00 and 0.214; `-wide` 0.00, 0.04 and 0.210;
+  `actor-eae` 0.04, 0.02 and 0.170; `eee` 0.00, 0.20 and 0.220; `ere` 0.02, 0.02 and 0.310. Every arm dips at 10k.
+- **Pinning at 3k–10k:** none. The largest field size was 0.090 (`actor-resfit-shape-wide 2`'s z), under 0.098.
+- **Each field's size late:** xy 0.085–0.091, z 0.072–0.083, yaw 0.057–0.074, tilt 0.081–0.086, as eee's and ere's
+  (xy 0.088–0.092, tilt 0.080–0.091). The shaped actors are lowest on yaw (0.057–0.070). Yaw's signed mean late
+  +0.002 to +0.012. The residual's size late 0.060–0.065 in every run.
+
+**What this changes.**
+- The gap arch-swap counted in the actor (C4) does not survive more seeds of eee at the registered bar.
+- Neither the actor's wiring, nor its width, nor its constraint moves the result by 0.13.
+- What still stands from arch-swap is the critic. C2 (`ara` − `ere`, −0.378) and C6 (`rrr` − `rra`, +0.246) were
+  both far over the bar: with the constraint off in the encoder and critic, nothing learned.
+- The registered next step is more seeds of `eee` and `ere`. eee has five; `ere` has two. Whether to run `ere`'s
+  seeds 4–6 is Aden's call (TODO). O1 and Stack hold the queue now.

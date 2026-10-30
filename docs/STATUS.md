@@ -1,12 +1,12 @@
 # Status
 
-**Last updated:** 2026-10-29, 08:45 · **Last verified commit:** `6e74a1e`, O1's code (EXPERIMENTS.md,
-2026-10-27 CODE, "O1, the task objects' poses"). Off, every earlier run is unchanged bit for bit (the
-goldens pass). 539 tests pass on the CPU, the GPU tier's included; the 13 that fail need CUDA itself.
-The full gate's GPU tier runs at O1's first launch. Where each group launches from:
-- `obj-1027` from its pre-registration commit;
+**Last updated:** 2026-10-30, 09:40 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
+tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
+full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
+- `obj-1027` from `e7710f4`;
 - `long-1027` from `e2fdb27`;
-- `actor-design-1026` from `a5b5cc8`.
+- Stack's base policy from `3c23fe9`, and Stack's RL runs from `adebb3c` (its pre-registration's commit, to come).
 
 Main is pushed to origin through `4a6ab43`; the commits since are local.
 
@@ -14,8 +14,9 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, and any deletion the DECISION does not
 cover.
-- **Stack (TODO B25) is being built** (approved 10-29; the 2026-10-29 DEVIATION). O1's seeds 2 run first,
-  and Stack's base-policy training takes the first slot after its dataset is built, ahead of O1's seeds 3.
+- **Stack (TODO B25) is being built** (approved 10-29; the 2026-10-29 DEVIATION). Its base policy trains
+  (`8g47hqyc`); the headroom rule picked its step 2000 (0.67), measured next; its RL code is committed
+  (`adebb3c`). Its runs are pre-registered once the base is measured.
 - **O1's `rrr` arms run at 1e-6**, as pre-registered.
 
 **The work is back in the VSCode session from about 08:45 on 10-29** (Aden: so they can watch it there).
@@ -29,13 +30,15 @@ cancelled** (the DEVIATION): each long arm has one run, and the queue holds O1's
 - **The finished groups' worktrees are removed:** `equi-resrl-58d55d7` (enc-iface) and `equi-resrl-aec1bdc`
   (arch-swap). With them went the enc-iface watcher and the finished runs' idle tmux sessions; their
   scrollbacks are in `outputs/cleanup-20261029/scrollback/`.
-- **The other three worktrees go as their groups end:** `a5b5cc8` after actor-design (about 04:00 on
-  10-30), `e2fdb27` after `long-eee 4` (about 18:00 on 10-30), and `e7710f4` after O1.
+- **The other worktrees go as their groups end:** `a5b5cc8` went at 09:35 on 10-30 with actor-design's watcher
+  (its scrollback in `outputs/cleanup-20261030/scrollback/`); `e2fdb27` goes after `long-eee 4` (about 11:20
+  on 10-30), `e7710f4` after O1, `3c23fe9` after Stack's base policy is measured and its package read.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 20.8 GB free at 08:31 on 10-29.
+**The disk:** 10 GB free at 08:55 on 10-30, after the rolling reclaim of actor-design's last two duplicate
+best models (0.63 GB).
 - tmux `wandb-cache` trims wandb's artifact cache to about 2 GB at 07:35 and 19:35, and each launch adds the
   1 GB BC policy.
 - **What the queue still writes:** about 8 GB, net of the rolling reclaim. That is O1's eight runs and
@@ -45,11 +48,11 @@ cancelled** (the DEVIATION): each long arm has one run, and the queue holds O1's
   `models/best_model.pt` is deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`).
   Claude is woken below 9 GB.
 
-**Now: O1 (`obj-1027`) starts, `long-eee 4` runs to 300k, and actor-design's seeds 3 finish; Stack is
-being built** (EXPERIMENTS.md, the 2026-10-27 PRE-REGISTERED entries, the 2026-10-29 DEVIATION). O1 is the
-nut's pose alone or with the peg's, on `eee` and `rrr`, eight runs from 10-29. `long-1027` has one run per
-arm: `long-resfit 4` is done, `long-eee 4` ends about 18:00 on 10-30. Stack, `eee` against `rrr` (TODO
-B25), is approved and being built; latency is sidelined. One queue places
+**Now: O1 (`obj-1027`) runs, Stack's base policy trains and is measured, `long-eee 4` ends at 300k;
+actor-design is read** (EXPERIMENTS.md, the 2026-10-27 PRE-REGISTERED entries, the 2026-10-29 DEVIATION, the
+2026-10-30 entries). O1 is the nut's pose alone or with the peg's, on `eee` and `rrr`, eight runs: two run,
+six queued. `long-1027` has one run per arm: `long-resfit 4` is done, `long-eee 4` ends about 11:20 on 10-30.
+Stack, `eee` against `rrr` (TODO B25), is being built; latency is sidelined. One queue places
 every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
 - **`long-resfit 4` (`3ctaaap1`) is complete at 300k** (EXPERIMENTS.md, the 2026-10-28 and 2026-10-29
@@ -59,7 +62,8 @@ every job: tmux `order-queue`,
   critic's online value kept rising (0.21 to 0.36).
 - **`long-eee 4` (`rkks1a9p`)**, the `eee` arm's one run: pooled 0.648 at 110k–150k, inside eee's four runs'
   range (mean 0.599), every signal comparable, so **eee has five runs at 150k, mean 0.609** (the 2026-10-29
-  NOTE). 0.80 at 160k and 170k. The `long-1027` NOTE after its 300k, about 18:00 on 10-30.
+  NOTE). From 160k: 0.80 0.80 0.76 0.70 0.78 0.82 0.68 0.72 0.76 0.72 0.74 0.84 0.76, level, not climbing. The
+  `long-1027` NOTE after its 300k, about 11:20 on 10-30.
 - **`arch-swap-1021` is complete and read** (EXPERIMENTS.md, the 2026-10-26 NOTE). Pooled at 110k–150k,
   two seeds: `ere` 0.692, `rrr` 0.648, `eee` 0.540, `rra` 0.402, `aaa` 0.388, `ara` 0.314 (the twelve
   step-0 evals, the base alone, 0.552). Counted at 0.13: C1 (`aaa` − `eee` −0.152) and C2 (`ara` − `ere`
@@ -69,17 +73,13 @@ every job: tmux `order-queue`,
   2026-10-27 NOTE), under the bar: reported, not registered. Aden's calls (TODO B20; the last 2026-10-26
   DECISION): the drift readout dropped; a slower dense critic planned after `actor-design-1026`, its place
   in the new order open (TODO B24, call 7).
-- **`actor-design-1026`** (EXPERIMENTS.md, 2026-10-26 CODE, DECISION and PRE-REGISTERED; the 2026-10-27
-  LAUNCHED). It is eee's agent with its actor wired as ResFiT's (`actor-resfit-shape`, 128 fields, at 3e-6;
-  `actor-resfit-shape-wide`, 362 fields, ResFiT's free parameters per hidden layer, at 1e-6), or arch-wide's
-  actor unconstrained (`actor-eae`, at 2.5e-7). Seeds 2 and 3, against `arch-swap`'s `eee` and `ere`.
-  - `actor-resfit-shape 2` (`j457zalw`) and `actor-eae 2` (`e4220e3z`) reached 150k on 10-27. Their early
-    speeds were at their predictions, and the gross-failure check passed.
-  - `actor-resfit-shape-wide 2` (`160x34lf`) reached 150k at 15:14 on 10-28, and `actor-resfit-shape 3`
-    (`xhz9iwoo`) at 22:52 (0.616 at 110k–150k, reported only; the 2026-10-29 LAUNCHED entry).
-    `actor-eae 3` (`xymahaba`, 0.0376 early) runs to about 23:00 on 10-29, `actor-resfit-shape-wide 3`
-    (`jfdajea9`, 0.0290 early) to about 04:00 on 10-30.
-  - The readout follows the last seed 3, about the morning of 10-30. Watcher: tmux `ad-watch`.
+- **`actor-design-1026` is complete and read** (EXPERIMENTS.md, the 2026-10-30 NOTE). eee's agent with its actor
+  wired as ResFiT's (`actor-resfit-shape`, 0.584; `-wide`, 0.640) or unconstrained (`actor-eae`, 0.570),
+  two seeds each, pooled at 110k–150k, against `arch-swap`'s `eee` (0.540) and `ere` (0.692). **None of D1–D5
+  counts at 0.13** (+0.044, +0.056, +0.030, +0.108, +0.122), every pair at matched speed. By the registered
+  reading, the actor's wiring, width and constraint are not the gap at this bar. Against eee's five runs
+  (0.609), the three arms sit within 0.04 of eee and C4 (`ere` − `eee`) is +0.083. The anchor pair were eee's
+  two lowest. Next by the registered reading: more seeds of `ere` (it has two), Aden's call (TODO B26).
 - **`enc-iface-1023`** (EXPERIMENTS.md, 2026-10-23 PRE-REGISTERED; the 2026-10-24 and 10-26 DECISIONs;
   the 2026-10-26 LAUNCHED and NOTE; the 2026-10-27 NOTE).
   - Seed 2, provisional, 110k–150k: `iface-window` 0.236 (`od14pmu3`; never above its step 0; its critic
@@ -260,27 +260,33 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 14:20 on 2026-10-29** (the 2026-10-28 and 10-29 LAUNCHED entries):
+**At 09:40 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `actor-resfit-shape-wide 3` (`jfdajea9`, from 23:38) and `obj-nut-eee 2` (`ifsnjb9f`, O1's first, from 13:03; early speed 0.0360, predicted 0.0350) | 150k about 04:00 on 10-30; about 20:00 on 10-30 |
-| 1 | `long-eee 4` (`rkks1a9p`, 0.80 at 170k) and `actor-eae 3` (`xymahaba`, from 16:22) | 300k about 18:00 on 10-30; 150k about 23:00 on 10-29 |
+| 0 | `obj-nut-eee 2` (`ifsnjb9f`, 0.74 at 100k) and `obj-peg-eee 2` (`3vimywbf`, from 06:54; early speed 0.0383, predicted 0.0359) | 150k about 20:00 on 10-30; about 13:00 on 10-31 |
+| 1 | `long-eee 4` (`rkks1a9p`, 0.76 at 280k) and `stack-base 1` (`8g47hqyc`, Stack's base policy, from 00:12; 0.91 at 19k) | 300k about 11:20 on 10-30; 50k about 22:00 on 10-30 |
 
-`long-resfit 4` (`3ctaaap1`) reached 300k at 07:52 on 10-29. `actor-resfit-shape-wide 2` (`160x34lf`) and
-`actor-resfit-shape 3` (`xhz9iwoo`) reached 150k on 10-28. Their packages are complete.
+`actor-eae 3` (`xymahaba`) and `actor-resfit-shape-wide 3` (`jfdajea9`) reached 150k at 00:07 and 00:46 on 10-30,
+packages complete; actor-design is read.
 
-**Queued in `order-1027`**, restarted at 09:54 on 10-29:
-- `stack-base 1` first: Stack's base policy, through `outputs/queue/launchers/stack/launch_base.sh` from
-  `equi-resrl-3c23fe9` (the 2026-10-29 PRE-REGISTERED entry). It takes `actor-eae 3`'s slot at about 23:00.
-- Then O1's `obj-nut-rrr 2`, `obj-peg-eee 2`, `obj-peg-rrr 2`, and the four at seed 3.
+**Next on GPU 1, when `long-eee 4` exits (about 11:20):** B_stack, Stack's base measured at the headroom rule's
+pick (`run_8g47hqyc_model_step_2000:v0`, 500 episodes, about 30 min), from tmux `stack-bstack`
+(`outputs/queue/launchers/stack/measure_base.sh`, waiting on `long-eee 4`'s trainer; log
+`outputs/diagnostics/stack/bstack.log`). The queue counts it as a slot, so `obj-nut-rrr`'s smoke follows it.
+
+**Queued in `order-1027`**, restarted at 08:55 on 10-30: `obj-nut-rrr 2` (back after its smoke's chance FAIL;
+the 2026-10-30 DEVIATION: smokes now evaluate 8 episodes), `obj-peg-rrr 2`, then the four at seed 3. Stack's
+runs join once pre-registered.
 
 How the queue works now:
 - `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, and
   finished runs' idle sessions are closed by cleanups. At 09:54 the old list would have relaunched
   `long-resfit 4` and `actor-resfit-shape 3`; `--check` caught it.
-- `held()` counts a `train_bc_dexmg` process as a slot.
-- Earlier copies of the script are kept beside it: `order_queue.sh.before-20261029` and `.before-stack`.
+- `held()` counts a `train_bc_dexmg` or `eval_base_policy` process as a slot.
+- Earlier copies of the script are kept beside it: `order_queue.sh.before-20261029`, `.before-stack`,
+  `.before-20261030` and `.before-evalbase`.
+- The queue's start line still reads `AD_WORKTREE` (the removed `a5b5cc8`); drop it at the next restart.
 - `e2fdb27` passed the full gate's Tier 2 at both long launches (970 tests). O1's smokes are in
   `outputs/diagnostics/obj/smokes/`.
 
@@ -329,23 +335,22 @@ How the runs are launched and followed:
   itself when the queue is done. **Read it first when a session opens.**
 - **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group, from
   the group's pinned worktree), each watch-only: logged, FLAGged and finalized, never signalled.
-  - `ad-watch` (`actor-design-1026`, from `equi-resrl-a5b5cc8`);
-  - `iface-watch` (`enc-iface-1023`, from `equi-resrl-58d55d7`);
   - `long-watch` (`long-1027`, from its pinned worktree);
   - `obj-watch` (`obj-1027`, from `equi-resrl-e7710f4`);
-  - `swap-watch` and `iface-watch` are stopped (on 10-26 and 10-29), with all their groups' runs exited.
-    Their worktrees are removed. `order_queue.sh` still names them in its start line (`SWAP`, `IFACE`):
-    drop that at the next restart.
+  - `swap-watch`, `iface-watch` and `ad-watch` are stopped (on 10-26, 10-29 and 10-30), with all their groups'
+    runs exited, and their worktrees removed. Stack's base policy has no watcher; its console is
+    `outputs/queue/*_stack-base-1_gpu1.log`.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 08:45 on 10-29:**
+- **tmux, at 09:40 on 10-30:**
   - `order-queue` and `queue-digest`;
   - `q-<arm>-<seed>`, one per running job (finished runs' idle sessions are closed);
-  - the watchers `ad-watch`, `long-watch` and `obj-watch`;
+  - `stack-bstack`, waiting to measure Stack's base;
+  - the watchers `long-watch` and `obj-watch`;
   - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
     every 20 s; it logs, and wakes a Claude session below 8 GB when one is open).
 
   Earlier cleanups' scrollback: `outputs/cleanup-20261024/`, `-20261026/tmux_scrollback/`, `-20261027/` and
-  `-20261029/scrollback/`.
+  `-20261029/scrollback/` and `-20261030/scrollback/`.
   The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**
@@ -498,7 +503,9 @@ ours (C4) through its wiring, its free parameters, or its lack of a constraint.
   of online data.
 - **The new task, Stack, `eee` against `rrr`** (TODO B25; approved and being built from 10-29). Square's
   symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
-  Turned Square is dropped.
+  Turned Square is dropped. Built: the env, the 1,000 demos in our env, the RL config and arms (`adebb3c`;
+  both arms' early speed calibrated in the band). Training: the base policy. Next: B_stack, the runs'
+  pre-registration, their smokes.
 - **Then latency (sidelined) and the tuning.**
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
