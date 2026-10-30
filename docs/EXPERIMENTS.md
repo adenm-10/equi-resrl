@@ -11721,3 +11721,31 @@ critic, and its critic reads as eee's:
   both far over the bar: with the constraint off in the encoder and critic, nothing learned.
 - The registered next step is more seeds of `eee` and `ere`. eee has five; `ere` has two. Whether to run `ere`'s
   seeds 4–6 is Aden's call (TODO). O1 and Stack hold the queue now.
+
+## 2026-10-30 — NOTE — the 10-28 analysis's two conditions, checked against the Square runs finished since its table: all eight inside the speed band with a constrained critic, and seven of the eight above the base. With a CORRECTION of this morning's times
+
+The 10-28 NOTE ("what goes with beating the base") asks each readout from actor-design's on to check its two
+necessary conditions against every Square run finished since its table (08:02 on 10-27): the early speed inside
+0.025–0.045, and a constrained critic (equivariant, or ResFiT's). The actor-design NOTE above left this out; here
+it is, from the same readout and the long runs' readouts. The base on the re-rendered demos is 0.541.
+
+| Run | Arm | Early speed | Critic | 110k–150k | Outcome |
+|---|---|---|---|---|---|
+| `j457zalw` | `actor-resfit-shape` 2 | 0.0355 | equivariant | 0.552 | +0.011 |
+| `xhz9iwoo` | `actor-resfit-shape` 3 | 0.0346 | equivariant | 0.616 | +0.075 |
+| `160x34lf` | `actor-resfit-shape-wide` 2 | 0.0363 | equivariant | 0.584 | +0.043 |
+| `jfdajea9` | `actor-resfit-shape-wide` 3 | 0.0290 | equivariant | 0.696 | +0.155 |
+| `e4220e3z` | `actor-eae` 2 | 0.0321 | equivariant | 0.604 | +0.063 |
+| `xymahaba` | `actor-eae` 3 | 0.0376 | equivariant | 0.536 | −0.005 |
+| `rkks1a9p` | `long-eee` 4 | 0.0403 | equivariant | 0.648 | +0.107 |
+| `3ctaaap1` | `long-resfit` 4 | 0.0277 | ResFiT's (its own agent) | 0.848 | +0.307 |
+
+- **Both conditions hold in all eight, and seven of the eight are above the base.** No run since the table has
+  fallen outside the band or had an unconstrained critic, so neither condition was tested against a new
+  failure.
+- **With the equivariant critic, 11 of 17 runs in the band are now above the base** (5 of 10 in the table, 6 of 7
+  since). The outcomes since are +0.06 on average, against ResFiT's critic's +0.225 in the table.
+
+**CORRECTION, times.** This morning's entries and STATUS ran 30–40 minutes fast. The actor-design NOTE was read at
+about 09:00, not "about 09:30". STATUS's "09:40" was about 09:05. The LAUNCHED entry's "about 09:00" and the
+headroom NOTE's "about 08:50" stand.

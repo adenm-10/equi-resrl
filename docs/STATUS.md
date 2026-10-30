@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-30, 09:40 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-30, 09:30 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -260,7 +260,7 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 09:40 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
+**At 09:05 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
