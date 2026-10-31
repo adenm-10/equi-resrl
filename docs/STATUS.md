@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-31, 13:00 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-31, 13:30 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -40,19 +40,20 @@ run (the 10-29 DEVIATION).
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 6.4 GB free at 13:00 on 10-31, of 3.6 TB: **under the queue's floor (about 7.2 GB), so it launches
-nothing** until space is freed (Aden's call: `stack-base`'s extra checkpoints, `delete_by_hand_2.sh`). **It filled
-at 22:57 on 10-30** (the 10-31 FAILURE entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
+**The disk:** 6.6 GB free at 13:22 on 10-31, of 3.6 TB. **The queue's floor is 6 GB from 13:13** (Claude's call
+for Aden's Sunday goal; EXPERIMENTS.md, the 2026-10-31 DECISION), so launches pause under about 5.2 GB.
+`stack-rrr 2` launched at 13:18. More room is Aden's call: `stack-base`'s extra checkpoints (about 5 GB) and
+`delete_by_hand_2.sh` (3.2 GB). **It filled at 22:57 on 10-30** (the 10-31 FAILURE entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
 - tmux `cache-trim` trims wandb's artifact cache to 1 GB hourly (from 10:13 on 10-31), `wandb-cache` to 2 GB at
   07:35 and 19:35. Each new best a run uploads leaves a 0.2–0.46 GB copy there.
 - tmux `disk-watch` logs free space every 20 s to `/dev/shm/df.log`, alerting under 3,000 MB.
 - **What the queue still writes:** about 7 GB, net of the rolling reclaim. That is O1's six runs to come and
   their smokes (about 3.5 GB), Stack's four runs and two smokes (about 2.5 GB), and wandb folders.
 - **Stack adds:** its demos (1.1 GB, downloaded), its dataset and its base policy.
-- **The rules:** the queue launches only while 8 GB is free (`DISK_FLOOR_GB`), as `df -BG` reports it,
-  rounded up, so it pauses only under about 7.2 GB. Each finished run's duplicate `models/best_model.pt` is
+- **The rules:** the queue launches only while 6 GB is free (`DISK_FLOOR_GB`; 8 GB from 10-28 to 13:13 on 10-31),
+  as `df -BG` reports it, rounded up, so it pauses only under about 5.2 GB. Each finished run's duplicate `models/best_model.pt` is
   deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`). Claude's wait
-  (`order-1027/wait_event.sh`) wakes under `DISK_MB` MB, 8,700 since 21:00 on 10-30.
+  (`order-1027/wait_event.sh`) wakes under `DISK_MB` MB, 5,500 since 13:19 on 10-31.
 
 **Now: O1 (`obj-1027`) and Stack (`stack-1030`) run; the long runs and actor-design are done and read**
 (EXPERIMENTS.md, the 2026-10-27 and 2026-10-30 PRE-REGISTERED entries, the 2026-10-29 DEVIATION, the 2026-10-30
@@ -269,28 +270,32 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 13:00 on 2026-10-31** (wandb's server; the console logs of `3vimywbf` and `tjl95db5` stopped at the disk-full):
+**At 13:22 on 2026-10-31** (wandb's server; `tjl95db5`'s local wandb record stopped at the disk-full):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `obj-peg-eee 2` (`3vimywbf`, 149.5k; 110k–140k 0.72 0.56 0.58 0.58) and `stack-eee 3` (`3l3j5z3v`, 60k) | about 13:10 on 10-31; 11-01 about 01:30 |
-| 1 | `stack-eee 2` (`tjl95db5`, 127k; 110k 0.78, 120k 0.62) and `obj-peg-rrr 2` (`mflrk646`, 140k; 110k–140k 0.86 0.86 0.90 0.88) | 10-31 about 16:15; about 13:50 |
+| 0 | `stack-eee 3` (`3l3j5z3v`, 62k; 50k 0.68, 60k 0.72) and `stack-rrr 2` (from 13:18, its gate first) | 11-01 about 01:30–03:00; 11-01 about 01:00–03:00 |
+| 1 | `stack-eee 2` (`tjl95db5`, 129k; 110k 0.78, 120k 0.62) and `obj-peg-rrr 2` (`mflrk646`, 145k; 110k–140k 0.86 0.86 0.90 0.88) | 10-31 about 16:15; about 13:50 |
 
-**The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2` (`cs4ezjj2`) died at 30k, and
-`obj-nut-rrr`'s smoke failed on it. Done: `obj-nut-eee 2` (0.720), `stack-base 1` (`8g47hqyc`), `long-1027`.
+**Done on 10-31:** `obj-peg-eee 2` (`3vimywbf`) at 13:10, 0.648 at 110k–150k against its step 0's 0.66 (the
+2026-10-31 NOTE). Its package's `metrics.jsonl` stops at 22:56 on 10-30; the server's full history is beside it in
+`wandb_logs/metrics_from_server.jsonl`. **The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2`
+(`cs4ezjj2`) died at 30k, and `obj-nut-rrr`'s smoke failed on it. Done before: `obj-nut-eee 2` (0.720),
+`stack-base 1` (`8g47hqyc`), `long-1027`.
 
-**Queued in `order-1027`**, restarted at 10:14 on 10-31 with the two Sunday-goal jobs first. Each job takes the
-next slot to free, once the disk is above the floor:
+**Queued in `order-1027`**, restarted at 13:13 on 10-31 with the 6 GB floor. Each job takes the next slot to
+free, once the disk is above the floor and the memory reserve allows (23 GB held for 3 h after each launch, so
+nothing more launches before about 16:20):
 
 | Job | Slot | Expected end |
 |---|---|---|
-| `stack-rrr 2` (again, from step 0) | GPU 0, about 12:40 | 11-01 about 01:30 |
-| `obj-nut-rrr 2` | GPU 1, about 13:50 (smoke) | 11-01 about 03:00–04:00 |
-| `stack-rrr 3` | GPU 1, about 15:30 | 11-01 about 04:00 |
-| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots | 11-01 about 15:00 to 11-02 about 10:00 |
+| `obj-nut-rrr 2` | GPU 1, about 16:20 (smoke first, 60–90 min) | 11-01 about 07:00–09:00 |
+| `stack-rrr 3` | GPU 1, after the next reserve, about 19:30–21:00 | 11-01 about 08:00–11:00 |
+| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots, from about 01:00–03:00 on 11-01 | 11-02 |
 
-Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` done, `stack-eee 2` about 15:30;
-`stack-rrr 2` and `obj-nut-rrr 2` early on 11-01, if the disk lets them launch. A Stack smoke takes about 70 min (42 of them filling the
+Whether O1's seeds 3 stay in the queue is Aden's question 2 in the wrist-sweep plan (section 8); JOBS is unchanged
+until it is answered. Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` done,
+`stack-eee 2` about 16:15, `stack-rrr 2` about 01:00–03:00 on 11-01, `obj-nut-rrr 2` about 07:00–09:00 on 11-01. A Stack smoke takes about 70 min (42 of them filling the
 buffer), an O1 smoke 60–90 min. An `eee` run takes 29–31 h on Square and about 21 h on Stack (`stack-eee 2`'s
 first 30k), an `rrr` run about 10 h on Square and about 11–13 h on Stack (estimated from 0–3k).
 
@@ -312,7 +317,7 @@ needs it. New groups go in the watcher's watch-only set.
 How the runs are launched and followed:
 - **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
   `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree;
-  restarted 13:19 with the long runs first, 16:28 with O1's `eee` jobs, 09:42 on 10-28 with its `rrr` jobs (`OBJ_WORKTREE` `equi-resrl-e7710f4`), and 15:28 with an 8 GB free-disk floor (`DISK_FLOOR_GB`). It is `order-1026`'s queue with the long runs added, at most two at once
+  restarted 13:19 with the long runs first, 16:28 with O1's `eee` jobs, 09:42 on 10-28 with its `rrr` jobs (`OBJ_WORKTREE` `equi-resrl-e7710f4`), 15:28 with an 8 GB free-disk floor (`DISK_FLOOR_GB`), and 13:13 on 10-31 with that floor at 6 GB. It is `order-1026`'s queue with the long runs added, at most two at once
   (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
   last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
   `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,

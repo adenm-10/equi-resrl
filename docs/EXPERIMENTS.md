@@ -12260,3 +12260,71 @@ ready), and defer O1's four seeds 3.
 
 **Not applied:** `order-1027` still holds `stack-rrr 2`, `obj-nut-rrr 2`, `stack-rrr 3` and O1's seeds 3, and
 launches nothing while the disk is under its floor (6.4 GB free at 13:00, against about 7.2 GB).
+
+---
+
+## 2026-10-31 — NOTE — `obj-peg-eee 2` (`3vimywbf`) at 150k: 0.648 at 110k–150k against its step 0's 0.66, so at the base, inside `eee`'s five runs (mean 0.609) and under `obj-nut-eee 2` (0.720). One seed, so nothing is read. Its package's metrics stop at 22:56 on 10-30 (the disk-full); the server's full history is now in the package too
+
+Read by Claude at about 13:25 on 10-31. The run finished at 13:10 (`e7710f4`, clean; 30.3 h). O1's PRE-REGISTERED
+entry (2026-10-27) reads its contrasts at two seeds an arm, so this describes one run.
+
+**Where the numbers come from.** The package's `wandb_logs/metrics.jsonl` is parsed from the local wandb record
+(`run-3vimywbf.wandb`), which stopped growing at 22:58 on 10-30 when the disk filled. Its last row is step
+78,832. wandb's server has the whole run (state finished, last step 150,001). Claude saved that history beside
+it as `wandb_logs/metrics_from_server.jsonl` (2,117 rows, `Run.scan_history`; the 150k eval is in it), and the
+numbers below come from there. `stack-eee 2` (`tjl95db5`) also ran through the disk-full, so its package will
+have the same gap. The runs launched after it (`stack-eee 3`, `obj-peg-rrr 2`) are not affected.
+
+| | Evals 0, 10k, …, 150k | 110k–150k | 10k–50k | 60k–100k | Online value 10k–30k / 100k–150k | Training success 10k–30k / 100k–150k |
+|---|---|---|---|---|---|---|
+| `obj-peg-eee 2` | 0.66 0.00 0.16 0.28 0.50 0.56 0.44 0.58 0.66 0.60 0.60 0.72 0.56 0.58 0.58 0.80 | **0.648** | 0.300 | 0.576 | −0.009 / +0.116 | 0.333 / 0.604 |
+| `obj-nut-eee 2` (the 2026-10-30 NOTE) | | 0.720 | 0.348 | 0.656 | +0.016 / +0.150 | 0.351 / 0.721 |
+| `eee`, five runs | | 0.516–0.676 (0.609) | 0.276–0.380 (0.329) | 0.582 | −0.011 to +0.019 (+0.005) / +0.090 to +0.167 | 0.219–0.418 / 0.526–0.722 |
+
+- **At the base, beside `eee`.** Its 110k–150k pool is 0.012 under its step 0 and 0.039 above `eee`'s mean, both
+  under the 0.13 bar. Adding the peg's pose to the nut's did not lift this run above the nut's pose alone
+  (−0.072, also under the bar). Both are single seeds.
+- **Its best eval, 0.80, was its last** (150k), so `wandb_best/` holds step 150k. Before that its best was 0.72
+  at 110k.
+- **Every signal sits inside `eee`'s range:** the critic's online value early and late, training success
+  (episodes with a return above 0), and early speed (0.0388, inside the band; the 10-31 NOTE above).
+- **The package:** its duplicate `models/best_model.pt` (457 MB, sha256- and byte-identical to `wandb_best/`) and
+  16 eval videos (113 MB) were deleted at 13:11 (the 10-28 DECISION's kind A and the wrapup's video exception).
+  Both are logged, in `outputs/cleanup-20261028/deleted_best_models.txt` and
+  `outputs/cleanup-20261030/deleted_eval_videos.txt`.
+
+---
+
+## 2026-10-31 — DECISION — the queue's disk floor from 8 GB to 6 GB, so that `stack-rrr 2` and `obj-nut-rrr 2` start in time for Aden's Sunday goal; `stack-rrr 2` relaunched from step 0 at 13:18 (Claude's call)
+
+Claude's call at 13:13 on 10-31. The floor was Claude's call too (the 2026-10-28 LAUNCHED entry of `actor-eae 3`),
+and the 2026-10-28 DECISION lets Claude act on its own recommendations.
+
+- **Why.** `obj-peg-eee 2` finished at 13:10 with the disk at 5.0 GB. The reclaim above and a trim of wandb's
+  cache (1.8 to 0.9 GB) brought it to 6.9 GB. That is still under the 8 GB floor, which `df -BG` rounds up, so
+  launches pause under about 7.2 GB. The next two finishes each free a duplicate best model and their videos:
+  about 0.33 GB when `obj-peg-rrr 2` ends (about 13:50) and 0.53 GB when `stack-eee 2` ends (about 15:30). The
+  first would only just reach the floor's edge, less whatever the running runs write by then, so each launch
+  could have been held for hours. The rest of the space is Aden's call, not yet answered:
+  `stack-base`'s extra checkpoints (about 5 GB) and `delete_by_hand_2.sh` (3.2 GB). On the 8 GB floor, Aden's
+  Sunday goal (`stack-rrr 2` and `obj-nut-rrr 2` at 150k by 11-01) would have hung on that margin.
+- **Why 6 GB is enough.** Launches now pause under about 5.2 GB. The four runs' steady net use over the last
+  two hours was about 0.1 GB an hour, apart from new-best copies in wandb's cache, which `cache-trim` caps at
+  1 GB every hour. On 10-30 that cache grew from 0.65 to 3.2 GB overnight, before the hourly trim existed. tmux
+  `disk-watch` alerts under 3,000 MB, and Claude's wait wakes under 5,500 MB.
+- **The risk is not removed.** The cause of the 10-30 disk-full is still not established: about 6 GB went
+  in under an hour without an explanation (the 10-31 FAILURE). A recurrence would fill the disk at either floor.
+  The floor only gates launches and stops no run.
+- **Applied:** `DISK_FLOOR_GB=6` in `outputs/queue/launchers/order-1027/order_queue.sh`, with a dated note at its
+  top (backup `order_queue.sh.before-floor6`). tmux `order-queue` was restarted at 13:13:54 with its scrollback
+  saved (`scrollback-20261031-1313.txt` beside it). JOBS are
+  unchanged: `stack-rrr 2`, `obj-nut-rrr 2`, `stack-rrr 3`, then O1's four seeds 3.
+- **`stack-rrr 2` launched at 13:18:55 on GPU 0**, beside `stack-eee 3`, tmux `q-stack-rrr-2`, from step 0 (the
+  10-31 FAILURE: `cs4ezjj2` died at 30k). Its LAUNCHED entry follows once its step 0 and early speed are in.
+- **What comes next:** `obj-nut-rrr 2` (its smoke first) when `obj-peg-rrr 2` ends, about 13:50, and `stack-rrr 3`
+  when `stack-eee 2` ends, about 15:30. Each must clear the memory reserve and the floor. These three are the
+  ones the wrist-sweep plan recommends keeping (the 10-31 DECISION above).
+- **Not decided here: O1's seeds 3.** Whether they stay in JOBS is question 2 of the wrist-sweep plan's
+  section 8, which is Aden's to answer. As JOBS stand, the next free slot after those three comes when
+  `stack-rrr 2` ends, about 02:00–03:00 on 11-01, and `obj-nut-eee 3` would take it. The other session
+  (`equi-resrl-6e`) has put the question to Aden. Neither session changes JOBS until Aden answers.
