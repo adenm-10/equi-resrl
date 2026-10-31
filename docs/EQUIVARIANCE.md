@@ -322,6 +322,8 @@ share an orientation.
 object yaw is uniform, but the targets are fixed: Square's peg sits 0.80 m from the base, so a 45° turn
 about the base moves it 0.61 m, and no turned scene is one the task produces (0 of 200,000 layouts). The
 symmetry is extrinsic: it contradicts no data and shares nothing (EXPERIMENTS.md, 2026-10-27 FINDING).
+Stack is extrinsic about the base too: its cubes start within ±9.4° of heading from it, and 0% of turned
+layouts are real. Seen from the gripper, its layout is nearly closed (EXPERIMENTS.md, 2026-10-31 FINDING).
 
 BoxCleanup is further off, and the record should say so plainly before any result is read:
 
@@ -405,10 +407,11 @@ prior: the network is not being handed a false invariance so much as a slightly 
 exactly-equivariant proprioception and action branches carry the parts of the state where the
 symmetry is precise.
 
-If equivariant results ever need explaining and the exact branches have been ruled out, the cheap
-diagnostic is still available: render a scene before and after a 45° rotation about the base and
-measure the distance between the second render and a 45° in-plane rotation of the first. That
-quantifies the approximation rather than arguing about it. Not currently scheduled.
+**Measured by geometry, 2026-10-31** (EXPERIMENTS.md, FINDING; `outputs/diagnostics/symmetry/camera_turn.py`):
+the picture is centred on the table middle (its optical axis meets the table at x = −0.03), 0.53 m from the
+rotation centre. A 45° turn about the base lands Stack's cubes 47 px from a 45° in-plane rotation of the
+picture, and 95% leave the crop; about the table middle, 3 px. So for turns about the base the approximation
+is poor. The render-and-compare check is still not run (TODO B29's P1 adds it).
 
 ### 2. Random cropping breaks exact equivariance
 

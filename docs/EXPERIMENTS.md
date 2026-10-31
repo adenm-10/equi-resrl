@@ -12158,3 +12158,105 @@ and the two `rrr` packages. B_stack is 0.602; Square's base about 0.54.)
   +0.063) is below `rrr`'s (+0.159), though both `eee` values are far above Square's `eee` (+0.005).
 - Every early speed is in the band. `eee`'s two Stack runs came in 16–17% under the calibrated 0.0381, `rrr`'s
   13% over its 0.0310.
+
+---
+
+## 2026-10-31 — FINDING — Stack's symmetry under our group is extrinsic too, and the front camera's picture is centred on the table middle, not the robot base: a 45° turn about the base lands the cubes 47 px from the in-plane rotation the encoder assumes. Seen from the gripper, Stack's layout is nearly closed. Nothing tested. With a CORRECTION of the `stack-1030` premise
+
+Written by Claude at about 13:00 on 10-31. No run was launched and nothing about past runs changes. The scripts
+are in `outputs/diagnostics/symmetry/` (local), beside the 10-27 FINDING's: `stack_layouts.py`, `camera_turn.py`
+and `gripper_tilt.py`, CPU only.
+
+**The layouts** (`stack_layouts.py`, the 10-27 FINDING's test, 200,000 samples). Stack's cubes start uniform
+within ±8 cm of the table middle (0, 0), at any yaw (`tests/test_stack.py`). Seen from the robot base
+(−0.56, 0), the network's rotation centre, they span ±9.4° of heading (Square's layout: 7°–27°).
+- Turned about the base by 45°, 90°, 135° or 180°: **0%** of turned layouts are Stack layouts.
+- Turned about the table middle: 69%, 100%, 69% and 100%.
+
+**CORRECTION of the 2026-10-30 PRE-REGISTERED entry (`stack-1030`), "Why Stack".** It says "On Stack the C8
+constraint matches a symmetry the task has." By the 10-27 FINDING's own test it does not: every cube-to-cube
+direction occurs, but the network turns scenes about the robot base, and no turned Stack scene is one the task
+produces. S1 and S2 stand as registered. The reading in its table's first row ("the constraint pays on a task
+that has the symmetry") is not available: Stack differs from Square in its relative layout, not in whether the
+network's symmetry is real.
+
+**The front camera** (`camera_turn.py`: a pinhole model of robosuite's agentview, `table_arena.xml` pos
+0.5 0 1.35, quat 0.653 0.271 0.271 0.653, MuJoCo's default fovy 45°, 84 px, the eval crop 76 px).
+- Its optical axis meets the table at x = −0.03: **the picture the C8 encoder rotates is centred on the table
+  middle, 0.53 m from the base**, where the proprioception's xy is measured from.
+- A 45° turn about the base moves Stack's cubes about 50 px, leaves 5% inside the crop, and lands them **47 px**
+  from the in-plane rotation of the picture (58 px at 90°). Square's nut and peg: 0% inside the crop.
+- A 45° turn about the table middle: 5.7 px, 100% inside the crop, 2.8 px from the in-plane rotation (5.0 px
+  at 90°).
+- The crop's footprint on the table is a trapezoid, 0.4 m wide at x = 0.26 and 0.9 m at x = −0.67, past the
+  base, so the arm is in view.
+- **Caveats:** geometry from the camera's XML, not a render; the robot's own pixels are not modelled.
+  EQUIVARIANCE.md's assumption 1 treats the tilted camera as a perspective error. The larger error is that its
+  centre is not the network's. The render it describes is still not done; the wrist-sweep plan's P1 adds it.
+
+**Seen from the gripper** (`stack_layouts.py`; the gripper starts at (−0.10, 0) in the first frames of 40 demos
+of each re-rendered dataset, spread about 1 cm):
+- Stack: cube A within ±76°, cube B from cube A in all 360°.
+- Square: the nut at 93°–98°, the peg from the nut at −20° to −2°.
+- So a turn about the gripper is nearly a symmetry of Stack's layout, and not of Square's beyond the nut's yaw.
+  It is the symmetry both Northeastern papers in `docs/papers/` build on: SO(2) equivariant RL (`SO2ERL.pdf`:
+  a top-down depth image centred on the gripper, world-aligned, no proprioception, yaw-only actions) and the
+  practical guide for symmetry in diffusion policy (`practica_guide_for_sym_diffpo.pdf`: one eye-in-hand
+  camera, actions in the gripper's frame, a C8 or frame-averaged pretrained encoder before an unconstrained
+  head).
+
+**The gripper's tilt from vertical in the demos** (`gripper_tilt.py`, the end-effector frame's z axis, 60
+parquet files each): median 5.3° on both; 95th percentile 12.5° (Square) and 10.7° (Stack); 99th 16.8° and
+13.6°; max 62° and 74°.
+
+**What it leads to:** the wrist sweep (the DECISION below).
+
+## 2026-10-31 — NOTE — the gap between ResFiT's own agent and its networks in ours, described: 0.838 against 0.648 on the re-rendered demos at 110k–150k. The action space was ruled out on 10-15; the input normalization was never tested
+
+Written by Claude at about 13:00 on 10-31, from the existing packages; no run. Post hoc, not a registered
+contrast.
+
+- **The numbers** (110k–150k pools): ResFiT's own agent on the re-rendered demos, `bue9dupf` 0.828 and
+  `3ctaaap1` 0.848 (mean 0.838); `rrr`, ResFiT's networks in this agent (arch-swap's `w1g1d1tf` 0.684 and
+  `1u5xnikc` 0.612; mean 0.648). The gap is 0.190, two runs each, at different seeds and commits. The
+  registered H (arch-swap's 2026-10-20 PRE-REGISTERED entry) set `rrr` against ResFiT's agent on the original
+  demos (0.714; `oj5k0jqb`, `s8opblsd`): −0.066, under the bar. `eee`'s five runs (0.609) against `rrr`:
+  −0.039.
+- **What differs** (ARCHITECTURE.md, "The two stacks side by side" and "The network families"). The two Square
+  configs differ only in the `equivariance` block (`ResidualTD3SquareConfig`, `ResidualEquiTD3SquareConfig`),
+  and the update mirrors ResFiT's (10 heads, the min of a random 2, AdamW at the same rates). What differs is
+  how this agent turns inputs and outputs into numbers: the state (11 numbers normalized per field, xy about
+  the base with one shared scale and no centring, the 6D rotation unscaled, where ResFiT's agent z-scores the
+  raw 9), the base action (env units scaled per field, where ResFiT's rescales each axis to [−1, 1]), the
+  residual's bound (disks in env units, a box in scaled units) and the noise (env units).
+- **Already ruled out on ResFiT's own agent** (the 2026-10-15 NOTE; one seed each, original demos, "no harm"
+  against the anchors' 0.714): the disk bound (`limits`, 0.800), env-unit noise (`noise`, 0.824), the
+  rotation range (`fk9ayyco`, 0.716). **Never tested:** the state and base-action normalization.
+- The critic's early value of online data leans the same way: `rrr` +0.059, ResFiT's own +0.082 (the
+  2026-10-28 NOTE).
+- **The test, not planned:** `rrr` with ResFiT's input handling (the z-scored raw state, the per-axis rescaled
+  base action), one switch on the ResFiT family (TODO B30).
+
+## 2026-10-31 — DECISION — the wrist sweep: the queue to be upended for it (Aden); its plan drafted, not yet approved. Nothing in the queue has changed
+
+Aden's calls in conversation on 10-31, late morning to 13:00, after the FINDING above and the two papers:
+- "I also want to test if simply removing the agent view camera can help our current system": `stack-na-eee`.
+- The gripper-centred design with constrained networks and a wrist image de-rotated by the gripper's heading
+  is dropped: "lets focus on G, as I dont want to have to test the depth images and pure vertical gripper
+  images".
+- "cut NA-rrr and resfit": the front camera is not removed from `rrr` or from ResFiT's own agent.
+- "the G experiments all look good"; "lets upend all currently queued experiments to prioritize this new
+  sweep".
+
+**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local), a DRAFT awaiting Aden's approval and the
+decisions in its section 8. On Stack, seed 2, 150k, seed group `wrist-1031`: `stack-na-eee` (`stack-eee`
+without the front camera), `stack-p2` (`stack-rrr` with ResFiT's critic reading one flat token), `stack-w-cnn`
+(wrist only, a plain CNN, ResFiT's actor, the flat critic, no gripper xy, actions in the table's axes),
+`stack-g-cnn` (W-cnn with actions in the gripper's heading frame), `stack-g-c8` (G-cnn with our C8 CNN on the
+wrist image), `stack-g-pre` and `stack-g-fa` (a frozen ImageNet ResNet-18, without and with C8 frame
+averaging), and P1, a render script. Claude's recommendation: keep `stack-rrr 2` at the head (P2's reference
+and Stack's `rrr` arm), backfill `obj-nut-rrr 2` and `stack-rrr 3` (they end before the sweep's code is
+ready), and defer O1's four seeds 3.
+
+**Not applied:** `order-1027` still holds `stack-rrr 2`, `obj-nut-rrr 2`, `stack-rrr 3` and O1's seeds 3, and
+launches nothing while the disk is under its floor (6.4 GB free at 13:00, against about 7.2 GB).

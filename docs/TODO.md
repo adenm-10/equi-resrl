@@ -9,12 +9,30 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now (10-31): O1 (B23, B24) runs, three of eight; Stack (B25) two of four (`stack-1030`). The disk filled at
-22:57 on 10-30 and `stack-rrr 2` runs again (the 10-31 FAILURE). The long runs (B24) and the actor's design (B22)
-are done and read.** Aden's Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, early on 11-01. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26, B27 and
-B28 wait on Aden.
-Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
-has what B17–B19 found that bears on them.
+**Now (10-31, 13:00): the wrist sweep (B29) is planned and waits on Aden; he asked for the queue to be upended
+for it (the 10-31 DECISION), not yet applied.** O1 (B23, B24) runs, three of eight; Stack (B25) two of four
+(`stack-1030`); the queue launches nothing while the disk is under its floor (STATUS, the disk). The long runs
+(B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
+
+### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — PLANNED 2026-10-31, WAITING ON ADEN `[SC]`
+
+**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local, DRAFT): the seven arms, the build in eight steps
+with file and line targets, the queue, the timeline and the readouts. **Why:** the 10-31 FINDING (Stack is
+extrinsic about the base; the front camera is centred on the table middle; seen from the gripper, Stack's layout
+is nearly closed) and the two papers read on 10-31 (the 10-31 DECISION).
+- **Aden's calls so far:** NA-eee in; NA-rrr and NA-resfit cut; the G family only (the constrained,
+  de-rotated-wrist design dropped); "upend all currently queued experiments".
+- **Waiting on Aden (the plan's section 8):** the disk deletions; `stack-rrr 2` at the head and the backfill;
+  the G arms with or without gripper xy; the heading frame or the full gripper frame; the pretrained encoders
+  frozen or fine-tuned; the encoder widths; the wave order.
+- **Then:** the build (one commit, one full gate), the pre-registration, and a new queue `order-1031`.
+
+### B30. What costs ResFiT's networks 0.19 in our agent — NOT PLANNED, WAITING ON ADEN `[SC]`
+
+The 10-31 NOTE: ResFiT's own agent 0.838 against `rrr` 0.648 on the re-rendered demos (post hoc), against `eee`
+− `rrr` of −0.039. The action space was ruled out on 10-15; the input normalization is untested. The test: `rrr`
+with ResFiT's input handling (a z-scored raw state, a per-axis rescaled base action), one switch on the ResFiT
+family, about 10 h a run. If it closes the gap, part of the cost of equivariance is the normalization it forces.
 
 ### B24. The next phase, in Aden's order: the long runs, then O1, then a new task; latency and the tuning after — the long runs first in the queue 2026-10-27; O1 planned (Aden, 2026-10-27) `[SC]`
 
@@ -127,8 +145,9 @@ reference.
 4. **Base policy** (about a day of GPU): the diffusion base, trained as v9 was, then 200 or more episodes
    of the base alone. **A headroom rule, set before training:** if the base succeeds above about 0.85,
    train it on fewer demos or move to Stack D1 (±20 cm, wider camera).
-5. **The symmetry record** (CPU): turned-demo replays (`outputs/diagnostics/symmetry/turned_replay.py`) on
-   Stack, so the claim that turned scenes are real rests on a measurement, as Square's FINDING does.
+5. **The symmetry record** (CPU): the layout test is DONE (the 10-31 FINDING: about the base no turned Stack
+   layout is real; this corrects the pre-registration's premise). Not done: the turned-demo replays
+   (`outputs/diagnostics/symmetry/turned_replay.py`).
 6. **Agent plumbing:**
    - robot-base detection and the normalizer's statistics from the new dataset;
    - every Square-specific spot in the trainer, preflight (its task checks and render check), the

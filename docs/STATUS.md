@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-31, 10:25 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-31, 13:00 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -15,6 +15,10 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, and any deletion the DECISION does not
 cover.
+- **The wrist sweep (TODO B29) is planned, not approved.** Aden (10-31): "upend all currently queued experiments
+  to prioritize this new sweep". The plan, `docs/plans/2026-10-31-wrist-sweep.md` (local, DRAFT), waits on his
+  answers to its section 8; nothing in the queue has changed (EXPERIMENTS.md, the 10-31 DECISION). Its basis:
+  the 10-31 FINDING (Stack is extrinsic about the base too; the front camera is centred on the table middle).
 - **Stack (TODO B25) is pre-registered and queued** (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`): `eee`
   against `rrr`, seeds 2 and 3, on `stack-base`'s step 2000, **B_stack 0.602** (500 episodes, standard error
   0.022). Its base policy finished its 50k at 22:01 on 10-30 (`8g47hqyc`; 0.92 at the end, 0.99 at best; the
@@ -36,8 +40,9 @@ run (the 10-29 DEVIATION).
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 6.9 GB free at 10:15 on 10-31, of 3.6 TB. **It filled at 22:57 on 10-30** (the 10-31 FAILURE
-entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
+**The disk:** 6.4 GB free at 13:00 on 10-31, of 3.6 TB: **under the queue's floor (about 7.2 GB), so it launches
+nothing** until space is freed (Aden's call: `stack-base`'s extra checkpoints, `delete_by_hand_2.sh`). **It filled
+at 22:57 on 10-30** (the 10-31 FAILURE entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
 - tmux `cache-trim` trims wandb's artifact cache to 1 GB hourly (from 10:13 on 10-31), `wandb-cache` to 2 GB at
   07:35 and 19:35. Each new best a run uploads leaves a 0.2–0.46 GB copy there.
 - tmux `disk-watch` logs free space every 20 s to `/dev/shm/df.log`, alerting under 3,000 MB.
@@ -264,12 +269,12 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 10:25 on 2026-10-31** (the 10-29 to 10-31 LAUNCHED entries, the 10-31 FAILURE and NOTE):
+**At 13:00 on 2026-10-31** (wandb's server; the console logs of `3vimywbf` and `tjl95db5` stopped at the disk-full):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `obj-peg-eee 2` (`3vimywbf`, 135k) and `stack-eee 3` (`3l3j5z3v`, 46k; from 23:05 on 10-30) | about 12:40 on 10-31; 11-01 about 08:00–10:00 |
-| 1 | `stack-eee 2` (`tjl95db5`, 112k) and `obj-peg-rrr 2` (`mflrk646`, 107k; from 00:13 on 10-31) | 10-31 about 15:30; about 13:50 |
+| 0 | `obj-peg-eee 2` (`3vimywbf`, 149.5k; 110k–140k 0.72 0.56 0.58 0.58) and `stack-eee 3` (`3l3j5z3v`, 60k) | about 13:10 on 10-31; 11-01 about 01:30 |
+| 1 | `stack-eee 2` (`tjl95db5`, 127k; 110k 0.78, 120k 0.62) and `obj-peg-rrr 2` (`mflrk646`, 140k; 110k–140k 0.86 0.86 0.90 0.88) | 10-31 about 16:15; about 13:50 |
 
 **The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2` (`cs4ezjj2`) died at 30k, and
 `obj-nut-rrr`'s smoke failed on it. Done: `obj-nut-eee 2` (0.720), `stack-base 1` (`8g47hqyc`), `long-1027`.
@@ -507,11 +512,14 @@ are not the gap at the bar) and `long-1027` (both long runs at 300k: ResFiT's le
 0.74–0.80 from 160k).
 
 **Now, in Aden's order** (the 2026-10-27 DECISIONs; TODO B24 has the to-do list and the calls):
+- **The wrist sweep first** (TODO B29; the 10-31 DECISION), once Aden approves its plan; the queued jobs below go
+  after it, but the queue is unchanged until then.
 - **O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
   with the peg, on `eee` and `rrr`, eight runs from 10-29, the last about 07:00 on 11-02. It targets the
   critic's low value of online data.
 - **The new task, Stack, `eee` against `rrr`** (TODO B25; the 2026-10-30 PRE-REGISTERED entry). Square's
-  symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
+  symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs, but
+  about the robot base Stack is extrinsic too (the 10-31 FINDING, which corrects the pre-registration's premise).
   Four runs, seeds 2 and 3, on `stack-base`'s step 2000 (B_stack 0.602), the last about 06:00–08:00 on 11-01.
 - **Aden's Sunday goal** (10-30): one seed of O1 and of Stack on both `eee` and `rrr`. `obj-nut-eee 2` is
   done; `obj-nut-rrr 2`, `stack-rrr 2` and `stack-eee 2` are expected by Saturday 10-31 about 13:00–16:00.
