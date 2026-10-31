@@ -9,9 +9,9 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now (10-30): O1 (B23, B24) runs, two of eight; Stack (B25) trains its seeds 2 (`stack-1030`, seeds 3
-queued). The long runs (B24) and the actor's design (B22) are done and read (2026-10-30 NOTEs).** Aden's
-Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, expected by Saturday 10-31 about 13:00–16:00. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26 and
+**Now (10-31): O1 (B23, B24) runs, three of eight; Stack (B25) two of four (`stack-1030`). The disk filled at
+22:57 on 10-30 and `stack-rrr 2` runs again (the 10-31 FAILURE). The long runs (B24) and the actor's design (B22)
+are done and read.** Aden's Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, early on 11-01. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26 and
 B27 wait on Aden.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
@@ -94,10 +94,9 @@ afternoon and 11-01; O1 about 11-02.
 - **Step 8 is done:** the four runs pre-registered (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`: S1 =
   `stack-eee` − `stack-rrr` at 0.13; S2 against Square's −0.108, described). The queue, its smoke launcher
   and checker, the watcher (`stack-watch`) and the digest were set up from `9944eeb`, restarted at 09:21.
-- **Step 9, the runs:** `stack-eee 2` (`tjl95db5`) trains from 16:04 on 10-30 (step 0 0.62, early speed 0.0321,
-  30k 0.56), 150k about 13:00–16:00 on 10-31. `stack-rrr 2` (`cs4ezjj2`) trains from 20:37 (smoke PASS; moved
-  first at 18:07, Aden: "asap"; step 0 0.64, early speed 0.0351), 150k about 07:00–09:30 on 10-31. Seeds 3 on
-  10-31; the last about 06:00–08:00 on 11-01, then the readout.
+- **Step 9, the runs:** `stack-eee 2` (`tjl95db5`, 112k at 10:15 on 10-31) ends about 15:30; `stack-eee 3`
+  (`3l3j5z3v`, from 23:05) about 08:00–10:00 on 11-01. `stack-rrr 2` (`cs4ezjj2`) died at 30k when the disk
+  filled (the 10-31 FAILURE) and runs again from about 12:40, then `stack-rrr 3`. The readout about 10:00 on 11-01.
 - **Removed** at 11:40: `equi-resrl-adebb3c` (B_stack's worktree) and tmux `stack-bstack` (its scrollback in
   `outputs/cleanup-20261030/scrollback/`). At 22:03: `equi-resrl-3c23fe9` (the base policy's) and tmux
   `q-stack-base-1`, its run folder moved to the main checkout first (its deletion: STATUS, Aden's call).

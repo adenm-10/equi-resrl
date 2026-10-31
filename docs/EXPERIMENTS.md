@@ -12076,3 +12076,85 @@ step 2000 (B_stack 0.602, the PRE-REGISTERED entry above).
   disk is short (`outputs/queue/wandb_cache.log`).
 - **The queue** saw GPU 1's free slot at 22:01 and waits on memory: 37 GB available, less the 23 GB it holds for
   `stack-rrr 2`'s launch until 22:25, is under its 28 GB floor. `obj-nut-rrr 2`'s smoke starts then.
+
+---
+
+## 2026-10-31 — FAILURE — the disk filled at 22:57 on 10-30: `stack-rrr 2` (`cs4ezjj2`) died at 30k, `obj-nut-rrr`'s smoke failed and the queue dropped the arm, `stack-watch` crashed. Both jobs are back at the head of the queue; the disk is now trimmed hourly
+
+Written by Claude at about 10:25 on 10-31, on reopening the session. Claude's background wait had stopped with
+the previous Claude Code session at about 22:05, so nothing watched the disk overnight.
+
+- **What happened.** The disk had 8.4 GB free at 22:05 and none at 22:57. **The cause is not established.**
+  `disk-watch`, which logs free space every 20 s, had exited after its one alert at 06:53 on 10-30 and was
+  not restarted, so there is no curve for the night. Known writes in that window: `stack-rrr 2`'s new best at
+  22:13 (two 223 MB copies, plus wandb's cache and staging copies on upload), `obj-nut-rrr`'s smoke and its gate
+  from 22:31, and a VS Code snap update written at 22:57 (`/var/lib/snapd/snaps/code_274.snap`, 570 MB), the
+  minute the disk filled. Those account for about 2 GB, not 8. The disk is 3.6 TB and 99.8% full, so the
+  project's margin is a few GB whatever it writes.
+- **`stack-rrr 2` (`cs4ezjj2`) died at 30k**, exit 1, `OSError: [Errno 28] No space left on device`. wandb marks
+  it failed. Its evals: 0.64 (step 0), 0.60, 0.84, 0.72 at 10k–30k; early speed 0.0351; its critic's online
+  value at 10k–30k +0.159. The package is kept, unfinalized (`stack-watch` crashed finalizing it). It is not
+  read as a result: it ends 120k short of the readout window.
+- **`obj-nut-rrr`'s smoke failed on the full disk**, not on a check: its log stops mid-write at 22:57 and its
+  check and verdict are empty. The queue dropped the arm (seeds 2 and 3). Its files are moved aside
+  (`obj-nut-rrr.*.fail-20261030-2257`), so the arm's smoke runs again in its first slot.
+- **`stack-watch` crashed** at 22:57 finalizing `cs4ezjj2` (`finalize_run_package`, `mkdir` on the full disk;
+  scrollback in `outputs/cleanup-20261031/scrollback/`). Restarted at 10:18 on 10-31.
+- **The two runs already training lost their console logs from 22:57.** `tee` stops writing a file when a write
+  fails. `stack-eee 2` and `obj-peg-eee 2` trained on, and wandb's server holds their full histories (each
+  package's metrics come from the server at the end), but the watchers read evals from the console logs and
+  saw none after 22:57. Their early readouts and gross-failure checks were already logged.
+- **What the queue did overnight, correctly:** `stack-eee 3` (`3l3j5z3v`) launched at 23:05 into `stack-rrr 2`'s
+  slot (from `9944eeb`, early speed 0.0318 against 0.0381 predicted, 17% under; step 0 0.70);
+  `obj-peg-rrr`'s smoke passed at 00:13 and `obj-peg-rrr 2` (`mflrk646`) launched (early speed 0.0316, in the
+  band; step 0 0.52). Their LAUNCHED details are in the NOTE below.
+- **Restored at 10:12–10:18 on 10-31 (Claude's calls, under the 10-28 DECISION's kinds and the queue's
+  autonomy):**
+  - wandb's artifact cache trimmed by hand, 2.2 GB to 0.44 GB (disk 4.7 to 6.4 GB). The duplicate best models of
+    `cs4ezjj2` (the run is over) and of `obj-peg-rrr`'s smoke package `5uyejq4q`, each sha256- and byte-identical
+    to `wandb_best/`, deleted with their eval videos (6.9 GB free). Each file is logged.
+  - **A new tmux `cache-trim`** trims wandb's cache to 1 GB every hour
+    (`outputs/queue/launchers/order-1027/cache_trim.sh`). Overnight the cache grew from 0.65 to 3.2 GB between the
+    12-hourly trims.
+  - **`disk-watch` restarted**, its alert threshold now an argument (3,000 MB), so its 20 s log of free space
+    (`/dev/shm/df.log`) runs on below 8 GB.
+  - **The queue restarted at 10:14** in tmux `order-queue` (the old session closed when interrupted). `JOBS`:
+    `stack-rrr 2`, `obj-nut-rrr 2`, `stack-rrr 3`, then O1's seeds 3. `stack-rrr 2` runs again from the start
+    at seed 2, from `9944eeb`, as registered. The old script is kept as `order_queue.sh.before-diskfull`. It
+    launches when a slot frees and the disk is above its floor (about 7.2 GB).
+- **What it costs:** `stack-rrr 2` loses about 14 h; Aden's Sunday goal now needs `stack-rrr 2` and
+  `obj-nut-rrr 2` to start when the first slots free on 10-31 (about 12:40 and 14:00), and to end early on
+  11-01. The disk decides whether they can.
+
+## 2026-10-31 — NOTE — the runs at about 10:15 on 10-31: Stack's seeds 2–3 and O1's peg arms on seed 2, at matched steps against Square's `eee` and `rrr`
+
+Read by Claude at about 10:25 on 10-31 from wandb's server (for the runs still training) and from the finished
+packages. Evals are 50 episodes each; a five-eval pool's standard error is about 0.03–0.045.
+
+| Run | Step 0 | 10k–50k | 60k–100k | 110k–150k | Online value 10k–30k | Early speed |
+|---|---|---|---|---|---|---|
+| `obj-peg-eee 2` (`3vimywbf`, at 135k) | 0.66 | 0.300 | 0.576 | 0.620 (3 evals) | −0.009 | 0.0388 |
+| `obj-nut-eee 2` (`ifsnjb9f`, done) | 0.58 | 0.348 | 0.656 | 0.720 | +0.016 | 0.0360 |
+| Square `eee`, five runs | 0.52–0.58 | 0.329 | 0.582 | 0.609 | +0.005 | |
+| `obj-peg-rrr 2` (`mflrk646`, at 107k) | 0.52 | 0.480 | 0.688 | | +0.092 | 0.0316 |
+| Square `rrr`, two runs (`w1g1d1tf`, `1u5xnikc`) | 0.68, 0.44 | 0.360 | 0.582 | 0.648 | +0.059 | |
+| `stack-eee 2` (`tjl95db5`, at 112k) | 0.62 | 0.572 | 0.608 | 0.78 (1 eval) | +0.094 | 0.0321 |
+| `stack-eee 3` (`3l3j5z3v`, at 46k) | 0.70 | 0.565 (4 evals) | | | +0.063 | 0.0318 |
+| `stack-rrr 2` (`cs4ezjj2`, died at 30k) | 0.64 | 0.720 (3 evals) | | | +0.159 | 0.0351 |
+
+(Square's window means are from the five `eee` packages, `wk45zp27`, `jr63pxb9`, `h216n857`, `mgcifv1y`, `rkks1a9p`,
+and the two `rrr` packages. B_stack is 0.602; Square's base about 0.54.)
+
+- **The peg's pose did nothing for `eee` in this run.** `obj-peg-eee 2` sits on Square's `eee` mean at every
+  window (−0.03, −0.01, +0.01). `obj-nut-eee 2`, the nut alone, is above it from 60k (+0.07, +0.11), inside
+  the spread of the five's best run.
+- **`obj-peg-rrr 2` is above Square's `rrr` early and mid-run** (+0.12 at 10k–50k, +0.11 at 60k–100k; above both
+  `rrr` runs at 60k–100k). Its critic valued online data at +0.092 early, above Square's `rrr` (+0.059).
+  `eee`'s critic, given the same poses, stayed where it was (−0.009 and +0.016 against +0.005). One run each;
+  O1's contrasts need seed 3.
+- **Stack: `eee` hovers at the base; `rrr` was well above it before it died.** `stack-eee 2`'s 60k–100k is 0.608
+  against B_stack 0.602 (its 110k eval 0.78 is one eval). At 10k–30k `stack-rrr 2` averaged 0.720 against
+  `eee`'s 0.493 and 0.587. **The critic prediction holds so far:** `eee`'s online value at 10k–30k (+0.094,
+  +0.063) is below `rrr`'s (+0.159), though both `eee` values are far above Square's `eee` (+0.005).
+- Every early speed is in the band. `eee`'s two Stack runs came in 16–17% under the calibrated 0.0381, `rrr`'s
+  13% over its 0.0310.
