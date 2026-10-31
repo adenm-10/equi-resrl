@@ -12328,3 +12328,41 @@ and the 2026-10-28 DECISION lets Claude act on its own recommendations.
   section 8, which is Aden's to answer. As JOBS stand, the next free slot after those three comes when
   `stack-rrr 2` ends, about 02:00–03:00 on 11-01, and `obj-nut-eee 3` would take it. The other session
   (`equi-resrl-6e`) has put the question to Aden. Neither session changes JOBS until Aden answers.
+
+---
+
+## 2026-10-31 — NOTE — `obj-peg-rrr 2` (`mflrk646`) at 150k: 0.872 at 110k–150k against its step 0's 0.52, the highest of any Square run with a package, ResFiT's own agent included; 0.224 above `rrr`'s two Square runs (0.648) and 0.034 above ResFiT's own agent (0.838). One seed, and the peg's arm is `rrr`'s control, so nothing is read until `obj-nut-rrr 2`
+
+Read by Claude at about 13:55 on 10-31 from the complete package (`e7710f4`, clean; 12.5 h). It launched at 00:13,
+after the disk-full, so its local record is whole (its `metrics.jsonl` ends at step 150,001). O1's PRE-REGISTERED
+entry (2026-10-27) reads its contrasts at two seeds an arm, so this describes one run.
+
+| | Evals 0, 10k, …, 150k | 110k–150k | 10k–50k | 60k–100k | Online value 10k–30k / 100k–150k | Training success 10k–30k / 100k–150k |
+|---|---|---|---|---|---|---|
+| `obj-peg-rrr 2` | 0.52 0.36 0.32 0.44 0.58 0.70 0.56 0.64 0.68 0.78 0.78 0.86 0.86 0.90 0.88 0.86 | **0.872** | 0.480 | 0.688 | +0.092 / +0.237 | 0.506 / 0.792 |
+| `rrr`, two runs (`w1g1d1tf`, `1u5xnikc`) | | 0.684, 0.612 (0.648) | 0.360 | 0.582 | +0.040, +0.077 / — | 0.316, 0.432 / — |
+| ResFiT's own agent, re-rendered (`bue9dupf`, `3ctaaap1`) | | 0.828, 0.848 (0.838) | | | +0.082 (the 49-run analysis) | |
+| `obj-peg-eee 2` (the NOTE above) | | 0.648 | 0.300 | 0.576 | −0.009 / +0.116 | 0.333 / 0.604 |
+
+- **It is the highest 110k–150k pool of any Square run with a package.** Claude ranked all 70 complete packages
+  under `outputs/runs/`. Next come ResFiT's own agent's `3ctaaap1` (0.848) and `bue9dupf` (0.828). Only Can's
+  two RLPD runs are higher, on a different task and agent. Runs from before packages existed are not in that
+  count. It is 0.224 above its source arm's mean, past the 0.13 bar. That is one run against
+  two, though, and it is the nut's and the peg's effects together. The registered contrasts split them: C1
+  (`obj-nut-rrr` − `rrr`) and C2 (`obj-peg-rrr` − `obj-nut-rrr`). Neither can be read without `obj-nut-rrr 2`,
+  which the queue launches at about 16:20.
+- **It led from the start,** not just at the end. At 10k–50k (0.480) and in training success at 10k–30k (0.506)
+  it is above both of `rrr`'s runs. Its critic's online value at 10k–30k (+0.092) is above both of theirs too,
+  and above ResFiT's own agent's +0.082.
+- **Its step 0 was low:** 0.52, against the twelve arch-swap step-0 evals' 0.552 and `obj-peg-eee 2`'s 0.66. That
+  is the base alone over 50 episodes, so its rise from step 0 (+0.352) overstates the gain over the others.
+- **Its best was 0.90 at 130k** (`wandb_best/`). It held at 0.86–0.90 from 110k, with no fall.
+- **Early speed 0.0316, against 0.0218 predicted** (O1's CODE entry, by the method's batch). That is 45% over the
+  prediction, inside the 0.025–0.045 band. Reported at launch (the 10-31 FAILURE entry).
+- **The package:** its duplicate `models/best_model.pt` (225 MB, byte-identical to `wandb_best/`) and 16 eval
+  videos were deleted at 13:49 (kind A and the video exception), both logged as before. The disk went from 6.8 to
+  7.1 GB.
+- **A correction to the 2026-10-31 FAILURE entry:** it says the packages' metrics "come from the server at the
+  end". They do not. `finalize_run_package` parses the run's local wandb record (`run-<id>.wandb`), so a run
+  alive during the disk-full has a package whose `metrics.jsonl` stops at 22:56–22:58 on 10-30. That applies to
+  `obj-peg-eee 2` (fixed in the NOTE above) and `stack-eee 2`.
