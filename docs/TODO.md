@@ -81,11 +81,11 @@ afternoon and 11-01; O1 about 11-02.
 
 ### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), PRE-REGISTERED and queued 2026-10-30 `[SC]`
 
-**Progress (10-30, 21:10):**
+**Progress (10-30, 22:05):**
 - **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
   (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
-- **Step 4:** the base trains (`8g47hqyc`, from 00:12 on 10-30, to about 22:00: data loading makes it about
-  22 h, not 9–12). It reached 0.91–0.96 by 9k–16k, so the headroom rule picked its step 2000 (0.67), uploaded
+- **Step 4 is done:** the base (`8g47hqyc`) trained from 00:12 to 22:01 on 10-30 (data loading made it about
+  22 h, not 9–12; 0.92 at 50k, 0.99 at best; the NOTE). It reached 0.91–0.96 by 9k–16k, so the headroom rule picked its step 2000 (0.67), uploaded
   again as `run_8g47hqyc_model_step_2000:v0` (the 2026-10-30 NOTE). **B_stack = 0.602** (500 episodes, standard
   error 0.022, 11:18–11:33 on 10-30), inside 0.30–0.85, so step 2000 stays.
 - **Steps 6–7 are done** (`adebb3c`; the 2026-10-30 CODE entry): the config, the gate's entry, the robot-base
@@ -99,8 +99,8 @@ afternoon and 11-01; O1 about 11-02.
   first at 18:07, Aden: "asap"; step 0 0.64, early speed 0.0351), 150k about 07:00–09:30 on 10-31. Seeds 3 on
   10-31; the last about 06:00–08:00 on 11-01, then the readout.
 - **Removed** at 11:40: `equi-resrl-adebb3c` (B_stack's worktree) and tmux `stack-bstack` (its scrollback in
-  `outputs/cleanup-20261030/scrollback/`). `equi-resrl-3c23fe9` (the base policy's) goes after its 50k, once its
-  package is read.
+  `outputs/cleanup-20261030/scrollback/`). At 22:03: `equi-resrl-3c23fe9` (the base policy's) and tmux
+  `q-stack-base-1`, its run folder moved to the main checkout first (its deletion: STATUS, Aden's call).
 - **Step 5 (the symmetry record)** is not done; it needs no slot.
 - **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable`. Its `if wandb is not None` tests the
   module, which is never None. Every real run enables wandb. And its `upload_best` keeps only the latest

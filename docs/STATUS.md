@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-30, 21:10 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-30, 22:05 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -17,7 +17,8 @@ reason. Waiting for Aden: any change to a pre-registered design, and any deletio
 cover.
 - **Stack (TODO B25) is pre-registered and queued** (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`): `eee`
   against `rrr`, seeds 2 and 3, on `stack-base`'s step 2000, **B_stack 0.602** (500 episodes, standard error
-  0.022). Its base policy trains on to 50k (`8g47hqyc`, about 22:00 on 10-30); nothing reads it past step 2000.
+  0.022). Its base policy finished its 50k at 22:01 on 10-30 (`8g47hqyc`; 0.92 at the end, 0.99 at best; the
+  2026-10-30 NOTE); nothing reads it past step 2000.
 - **The queue order is Claude's call for Aden's Sunday goal** (recorded in the pre-registration): Stack's seed-2
   runs ahead of O1's seeds 3, `stack-eee 2` first.
 - **O1's `rrr` arms run at 1e-6**, as pre-registered.
@@ -35,10 +36,10 @@ cancelled** (the DEVIATION): each long arm has one run.
   scrollbacks are in `outputs/cleanup-20261029/scrollback/`.
 - **The other worktrees go as their groups end:** `a5b5cc8` went at 09:35 on 10-30 with actor-design's watcher
   (its scrollback in `outputs/cleanup-20261030/scrollback/`); `e2fdb27` went at 11:22 on 10-30 with
-  `long-watch`, after `long-eee 4`'s 300k; `adebb3c` at 11:40 with `stack-bstack`, B_stack measured; `e7710f4` after O1,
-  `3c23fe9` after Stack's base policy ends (about 22:00 on 10-30) and its package is read. Its BC run folder
-  (`8g47hqyc`, 5.1 GB) is inside that worktree, so it is moved to the main checkout's
-  `outputs/runs/robomimic-stack-bc/` first. Deleting any of it is Aden's call.
+  `long-watch`, after `long-eee 4`'s 300k; `adebb3c` at 11:40 with `stack-bstack`, B_stack measured; `3c23fe9` at
+  22:03 with `q-stack-base-1`, Stack's base policy ended, its run and wandb folders moved to the main checkout
+  (`outputs/runs/robomimic-stack-bc/8g47hqyc`; deleting all but step 2000 and the best, about 5 GB, is Aden's
+  call). `9944eeb` goes after Stack, `e7710f4` after O1.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
@@ -271,21 +272,22 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 21:10 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
+**At 22:05 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
 | 0 | `obj-peg-eee 2` (`3vimywbf`, 0.44 at 60k) and `stack-rrr 2` (`cs4ezjj2`, from 20:37; step 0 0.64; early speed 0.0351) | about 11:00–14:00 on 10-31; about 07:00–09:30 on 10-31 |
-| 1 | `stack-base 1` (`8g47hqyc`, to 50k; nothing reads it past step 2000) and `stack-eee 2` (`tjl95db5`, from 16:04; step 0 0.62, 10k–30k 0.36, 0.56, 0.56; early speed 0.0321) | about 22:00 on 10-30; about 13:00–16:00 on 10-31 |
+| 1 | `stack-eee 2` (`tjl95db5`, from 16:04; step 0 0.62, 10k–30k 0.36, 0.56, 0.56; early speed 0.0321) and a free slot: `obj-nut-rrr 2`'s smoke at 22:25, when the queue's memory reserve for `stack-rrr 2` ends | about 13:00–16:00 on 10-31 |
 
-`obj-nut-eee 2` (`ifsnjb9f`) reached 150k at 18:06, 0.720 (its NOTE). `long-1027` is read.
+`obj-nut-eee 2` (`ifsnjb9f`) reached 150k at 18:06, 0.720 (its NOTE). `stack-base 1` (`8g47hqyc`) ended its 50k
+at 22:01 (its NOTE). `long-1027` is read.
 
 **Queued in `order-1027`**, restarted at 18:07 on 10-30 with Stack first (Aden: "stack training to start asap";
 the LAUNCHED entry). Each job takes the next slot to free:
 
 | Job | Slot | Expected end |
 |---|---|---|
-| `obj-nut-rrr 2` | GPU 1, when `stack-base` ends about 22:00 (smoke) | 10-31 about 10:00 |
+| `obj-nut-rrr 2` | GPU 1 at 22:25 (smoke) | 10-31 about 10:00 |
 | `stack-eee 3` | when `stack-rrr 2` ends | 11-01 about 06:00–08:00 |
 | `obj-peg-rrr 2` | when `obj-nut-rrr 2` ends (smoke) | 10-31 about 21:30 |
 | `stack-rrr 3` | when `obj-peg-eee 2` ends | 11-01 about 01:00–03:00 |
@@ -356,7 +358,7 @@ How the runs are launched and followed:
   - `obj-watch` (`obj-1027`, from `equi-resrl-e7710f4`);
   - `stack-watch` (`stack-1030`, from `equi-resrl-9944eeb`; it reads each trainer's own wandb project);
   - `swap-watch`, `iface-watch`, `ad-watch` and `long-watch` are stopped (on 10-26, 10-29, 10-30 and 10-30),
-    with all their groups' runs exited, and their worktrees removed. Stack's base policy has no watcher; its
+    with all their groups' runs exited, and their worktrees removed. Stack's base policy had no watcher; its
     console is `outputs/queue/*_stack-base-1_gpu1.log`.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
 - **tmux, at 11:40 on 10-30:**

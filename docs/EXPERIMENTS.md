@@ -12046,3 +12046,33 @@ Written by Claude at about 21:10 on 10-30, under the `stack-1030` PRE-REGISTERED
     the worktree would delete it. BC checkpoints are none of the three kinds that may be reclaimed. Claude will
     move the folder into the main checkout's `outputs/runs/robomimic-stack-bc/` before removing the worktree.
     Deleting any of it is Aden's call.
+
+---
+
+## 2026-10-30 — NOTE — `stack-base 1` (`8g47hqyc`) finished at 50k: 0.92 at the end, 0.99 at its best (37k, 45k); nothing reads it past step 2000. Its folder moved to the main checkout and its worktree removed
+
+Written by Claude at about 22:05 on 10-30. The run is B25's step 4, the Stack base policy; the RL runs use its
+step 2000 (B_stack 0.602, the PRE-REGISTERED entry above).
+
+- **Its evals** (100 episodes each, every 1k; wandb `robomimic-stack-bc/8g47hqyc`, finished, 21.8 h): 0.18 at
+  1k, 0.67 at 2k–3k, 0.87 at 5k, 0.91 at 9k, 0.96 at 16k, then 0.85–0.99 to the end; 0.99 at 37k and 45k; 0.92
+  at 50k. From 9k on it is at or above 0.85 in all 42 evals. The headroom rule's pick of step 2000 stands.
+- **Exited 0 at 22:01.** Its last writes, the final policy and the full training state at 49,999 steps (1.4 GB
+  at 21:56), took the disk from 9.6 to 8.4 GB.
+- **Moved, nothing deleted:** its run folder (`outputs/runs/robomimic-stack-bc/8g47hqyc`, 6.5 GB) and its wandb
+  folder (`wandb/run-20261030_001225-8g47hqyc`) from `equi-resrl-3c23fe9` into the main checkout. Then tmux
+  `q-stack-base-1` was closed (its scrollback in `outputs/cleanup-20261030/scrollback/q-stack-base-1.txt`), and
+  the worktree removed. Left in it and removed with it: `__pycache__` folders, wandb's debug-log links and an
+  empty `tea_debug.log`.
+- **What the folder holds:** ten `best_step_*` checkpoints (1k, 2k, 4k, 5k, 9k, 14k, 16k, 28k, 37k, 45k; about
+  0.34 GB each), `best/` and `wandb_best/` (the 45k best), `latest/` (the full training state), `policy_step_49999`
+  and `eval_stack/` (videos). wandb holds `run_8g47hqyc_best:v9` (the 45k best) and the step-2000 upload the RL
+  runs load (`run_8g47hqyc_model_step_2000:v0`). **Deleting the local checkpoints other than
+  `best_step_2000` and the best would free about 5 GB. That is none of the 10-28 DECISION's three kinds, so it
+  is Aden's call**; Claude recommends it if the disk runs short.
+- **The wandb cache**, trimmed by hand at 21:54 (1.8 GB to 0.65 GB; disk 8.7 to 9.6 GB). Each new best a run
+  uploads leaves a copy there: 0.36 GB from `stack-base` at 19:49, 0.22 GB from `stack-rrr 2` at 20:46, 0.44 GB
+  from `stack-eee 2` at 21:53. The 12-hourly job trims only to 2 GB, so Claude trims to 1 GB by hand while the
+  disk is short (`outputs/queue/wandb_cache.log`).
+- **The queue** saw GPU 1's free slot at 22:01 and waits on memory: 37 GB available, less the 23 GB it holds for
+  `stack-rrr 2`'s launch until 22:25, is under its 28 GB floor. `obj-nut-rrr 2`'s smoke starts then.
