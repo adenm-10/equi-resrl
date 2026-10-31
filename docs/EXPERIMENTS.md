@@ -12003,3 +12003,46 @@ entry (2026-10-27) reads its contrasts at two seeds an arm; this is a descriptio
   −0.009, inside eee's ranges. **Its gross-failure check passed** (0.16 at 20k).
 - The package: its duplicate best model and eval videos were reclaimed (the LAUNCHED entry above). Best 0.74 at
   100k.
+
+---
+
+## 2026-10-30 — LAUNCHED — `stack-rrr 2` (`cs4ezjj2`), Stack's first `rrr` run: smoke PASS, gate GO with Tier 2 skipped at `9944eeb`; step 0 0.64; early speed 0.0351 against 0.0310 predicted, inside the band and the 15%. The disk at 8.9 GB, 0.2 GB reclaimed
+
+Written by Claude at about 21:10 on 10-30, under the `stack-1030` PRE-REGISTERED entry above.
+
+- **The smoke** (18:12–19:25 on GPU 0, beside `obj-peg-eee 2`; package `ofqn88to`, `9944eeb`, clean): PASS on
+  every check.
+  - Evals at 0, 500 and 1,000 steps: 8 of 8, 8 of 8, 2 of 8 (`stack-eee`'s smoke: 8, 6 and 5 of 8). Eight
+    episodes each, so the last is not read.
+  - The offline buffer held 106,588 transitions. `best_model.pt` reloads strictly into ResFiT's actor and
+    critic, task Stack, base `8g47hqyc` step 2000 v0.
+  - 237 ms an env step in the main loop, so 150k steps in 9.9 h before evals (`stack-eee`'s smoke: 472 ms);
+    peak GPU 3,156 MiB; peak RAM 24.24 GiB, as registered.
+  - The residual at 500 and 1,000 steps: 0.0181 and 0.0363 (`stack-eee`'s: 0.0121 and 0.0232).
+- **The run:** launched 19:25 on GPU 0, beside `obj-peg-eee 2`. The gate skipped Tier 2, since `9944eeb` is
+  listed from `stack-eee 2`'s gate. Tier 1 passed (218 tests, 3 skipped), and Tier 3 returned GO with three
+  warnings: Tier 2 skipped, the base policy downloaded from wandb, and the disk at 11 GB. wandb from 20:37.
+  - **Step 0, the base alone: 0.64** (50 episodes; B_stack 0.602; `stack-eee 2`'s step 0 0.62).
+  - **Early speed 0.0351** (the watcher's SPEED line, 21:00), inside 0.025–0.045. That is 13% over the
+    calibrated 0.0310, so inside Claude's "within 15%" prediction. `stack-eee 2` came in 16% under its
+    prediction, so the two arms' speeds are closer together than predicted (0.0321 and 0.0351, against
+    0.0381 and 0.0310).
+  - 0–3k took 12 minutes, about 240 ms a step, as in the smoke. Expected at 150k about 07:00–09:30 on 10-31;
+    the range is wide because Stack's eval time for this arm is not yet measured past step 0 (11 minutes).
+- **`stack-eee 2`** at 10k, 20k, 30k: 0.36, 0.56, 0.56, about 83 minutes per 10k, steady. That puts 150k at about
+  13:00–16:00 on 10-31, earlier than the LAUNCHED entry's 22:00–00:00, which was taken from Square's `eee`
+  runs (29–31 h). Its smoke measured 472 ms a step on Stack. Square's sources were not timed the same way.
+- **The disk fell to 8.9 GB at 20:47** (10.6 GB at 19:25): the run's package (its best model twice, 0.45 GB),
+  `stack-base`'s new best at 45k (0.34 GB), and the running groups' evals. Reclaimed under the 10-28 DECISION's
+  kind A and the wrapup's video exception, each file logged: the smoke package `ofqn88to`'s duplicate
+  `models/best_model.pt` (223 MB, sha256- and byte-identical to `wandb_best/`) and its three eval videos (3 MB).
+  9.1 GB free at 20:51.
+  - **The queue's floor is looser than its number.** `disk_gb` reads `df -BG`, which rounds up, so "8 GB"
+    pauses launches only under about 7.2 GB. That was also true at 18:04 (6.5 GB, under it either way).
+  - Claude's background wait now takes its disk threshold from `DISK_MB` (default 9000, so unchanged when
+    unset) and runs at 8,700 MB, so it does not wake again at once.
+  - **Coming at about 22:00:** `stack-base` ends. Its BC run folder (`8g47hqyc`, 5.1 GB: ten `best_step_*`
+    checkpoints, `best/`, `wandb_best/`, eval videos) sits inside the worktree `equi-resrl-3c23fe9`, so removing
+    the worktree would delete it. BC checkpoints are none of the three kinds that may be reclaimed. Claude will
+    move the folder into the main checkout's `outputs/runs/robomimic-stack-bc/` before removing the worktree.
+    Deleting any of it is Aden's call.

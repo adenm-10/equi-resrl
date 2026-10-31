@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-30, 18:20 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-30, 21:10 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -36,26 +36,30 @@ cancelled** (the DEVIATION): each long arm has one run.
 - **The other worktrees go as their groups end:** `a5b5cc8` went at 09:35 on 10-30 with actor-design's watcher
   (its scrollback in `outputs/cleanup-20261030/scrollback/`); `e2fdb27` went at 11:22 on 10-30 with
   `long-watch`, after `long-eee 4`'s 300k; `adebb3c` at 11:40 with `stack-bstack`, B_stack measured; `e7710f4` after O1,
-  `3c23fe9` after Stack's base policy ends (about 22:00 on 10-30) and its package is read.
+  `3c23fe9` after Stack's base policy ends (about 22:00 on 10-30) and its package is read. Its BC run folder
+  (`8g47hqyc`, 5.1 GB) is inside that worktree, so it is moved to the main checkout's
+  `outputs/runs/robomimic-stack-bc/` first. Deleting any of it is Aden's call.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 11 GB free at 18:12 on 10-30. It fell to 6.5 GB at 18:04, under the queue's floor, and 4.5 GB was
-reclaimed (the 10-30 LAUNCHED entry). Each Stack run keeps its 444 MB best model twice until it ends.
+**The disk:** 9.1 GB free at 20:51 on 10-30. It fell to 6.5 GB at 18:04, under the queue's floor, and 4.5 GB was
+reclaimed; it fell to 8.9 GB at 20:47, and 0.2 GB was reclaimed (the two 10-30 LAUNCHED entries). Each Stack run
+keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
 - tmux `wandb-cache` trims wandb's artifact cache to about 2 GB at 07:35 and 19:35, and each launch adds the
   1 GB BC policy.
 - **What the queue still writes:** about 7 GB, net of the rolling reclaim. That is O1's six runs to come and
   their smokes (about 3.5 GB), Stack's four runs and two smokes (about 2.5 GB), and wandb folders.
 - **Stack adds:** its demos (1.1 GB, downloaded), its dataset and its base policy.
-- **The rules:** the queue launches only while 8 GB is free (`DISK_FLOOR_GB`). Each finished run's duplicate
-  `models/best_model.pt` is deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`).
-  Claude is woken below 9 GB.
+- **The rules:** the queue launches only while 8 GB is free (`DISK_FLOOR_GB`), as `df -BG` reports it,
+  rounded up, so it pauses only under about 7.2 GB. Each finished run's duplicate `models/best_model.pt` is
+  deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`). Claude's wait
+  (`order-1027/wait_event.sh`) wakes under `DISK_MB` MB, 8,700 since 21:00 on 10-30.
 
 **Now: O1 (`obj-1027`) and Stack (`stack-1030`) run; the long runs and actor-design are done and read**
 (EXPERIMENTS.md, the 2026-10-27 and 2026-10-30 PRE-REGISTERED entries, the 2026-10-29 DEVIATION, the 2026-10-30
 entries). O1 is the nut's pose alone or with the peg's, on `eee` and `rrr`, eight runs: two run, six queued.
-Stack is `eee` against `rrr` at seeds 2 and 3, four runs queued, `stack-eee 2` first. `long-1027` has one run
+Stack is `eee` against `rrr` at seeds 2 and 3: the two seed-2 runs train, the two seed-3 runs are queued. `long-1027` has one run
 per arm, both at 300k. Latency is sidelined. One queue places every job: tmux `order-queue`,
 `outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
 - **`long-resfit 4` (`3ctaaap1`) is complete at 300k** (EXPERIMENTS.md, the 2026-10-28 and 2026-10-29
@@ -267,29 +271,31 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 18:20 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
+**At 21:10 on 2026-10-30** (the 2026-10-29 and 10-30 LAUNCHED entries):
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `obj-peg-eee 2` (`3vimywbf`, 0.56 at 50k) and `stack-rrr 2`'s smoke (from 18:12), then its run (Tier 2 skipped) | about 15:00 on 10-31; `stack-rrr 2` about 07:00 on 10-31 |
-| 1 | `stack-base 1` (`8g47hqyc`, to 50k; nothing reads it past step 2000) and `stack-eee 2` (`tjl95db5`, from 16:04; step 0 0.62, 10k 0.36; early speed 0.0321) | about 22:00 on 10-30; 150k about 22:00 on 10-31 to 00:00 on 11-01 |
+| 0 | `obj-peg-eee 2` (`3vimywbf`, 0.44 at 60k) and `stack-rrr 2` (`cs4ezjj2`, from 20:37; step 0 0.64; early speed 0.0351) | about 11:00–14:00 on 10-31; about 07:00–09:30 on 10-31 |
+| 1 | `stack-base 1` (`8g47hqyc`, to 50k; nothing reads it past step 2000) and `stack-eee 2` (`tjl95db5`, from 16:04; step 0 0.62, 10k–30k 0.36, 0.56, 0.56; early speed 0.0321) | about 22:00 on 10-30; about 13:00–16:00 on 10-31 |
 
 `obj-nut-eee 2` (`ifsnjb9f`) reached 150k at 18:06, 0.720 (its NOTE). `long-1027` is read.
 
 **Queued in `order-1027`**, restarted at 18:07 on 10-30 with Stack first (Aden: "stack training to start asap";
-the LAUNCHED entry):
+the LAUNCHED entry). Each job takes the next slot to free:
 
 | Job | Slot | Expected end |
 |---|---|---|
 | `obj-nut-rrr 2` | GPU 1, when `stack-base` ends about 22:00 (smoke) | 10-31 about 10:00 |
-| `stack-eee 3` | when `stack-rrr 2` ends | 11-01 about 14:00 |
+| `stack-eee 3` | when `stack-rrr 2` ends | 11-01 about 06:00–08:00 |
 | `obj-peg-rrr 2` | when `obj-nut-rrr 2` ends (smoke) | 10-31 about 21:30 |
-| `stack-rrr 3` | when `obj-peg-eee 2` ends | 11-01 about 02:00 |
-| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots | 11-01 about 11:00 to 11-02 about 09:00 |
+| `stack-rrr 3` | when `obj-peg-eee 2` ends | 11-01 about 01:00–03:00 |
+| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots | 11-01 about 08:00 to 11-02 about 08:00 |
 
 Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` done; `stack-rrr 2`,
-`obj-nut-rrr 2` and `stack-eee 2` expected by Saturday night. A Stack smoke takes about 70 min (42 of them
-filling the buffer), an O1 smoke 60–90 min, an `eee` run 29–31 h and an `rrr` run about 10 h.
+`obj-nut-rrr 2` and `stack-eee 2` expected by Saturday about 13:00–16:00. O1's peg arms at seed 2 follow by
+Saturday about 21:30. A Stack smoke takes about 70 min (42 of them filling the
+buffer), an O1 smoke 60–90 min. An `eee` run takes 29–31 h on Square and about 21 h on Stack (`stack-eee 2`'s
+first 30k), an `rrr` run about 10 h on Square and about 11–13 h on Stack (estimated from 0–3k).
 
 How the queue works now:
 - `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, and
@@ -513,9 +519,9 @@ are not the gap at the bar) and `long-1027` (both long runs at 300k: ResFiT's le
   critic's low value of online data.
 - **The new task, Stack, `eee` against `rrr`** (TODO B25; the 2026-10-30 PRE-REGISTERED entry). Square's
   symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs.
-  Four runs, seeds 2 and 3, on `stack-base`'s step 2000 (B_stack 0.602), the last about 16:00 on 11-01.
-- **Aden's Sunday goal** (10-30): one seed of O1 and of Stack on both `eee` and `rrr`. `obj-nut-eee 2`,
-  `obj-nut-rrr 2`, `stack-rrr 2` and `stack-eee 2`, all expected by Saturday 10-31 night.
+  Four runs, seeds 2 and 3, on `stack-base`'s step 2000 (B_stack 0.602), the last about 06:00–08:00 on 11-01.
+- **Aden's Sunday goal** (10-30): one seed of O1 and of Stack on both `eee` and `rrr`. `obj-nut-eee 2` is
+  done; `obj-nut-rrr 2`, `stack-rrr 2` and `stack-eee 2` are expected by Saturday 10-31 about 13:00–16:00.
 - **Then latency (sidelined) and the tuning.**
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
