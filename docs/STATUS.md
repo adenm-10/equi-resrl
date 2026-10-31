@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-10-31, 15:00 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
+**Last updated:** 2026-10-31, 15:58 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
 2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
 tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
 full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
@@ -40,7 +40,7 @@ run (the 10-29 DEVIATION).
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 6.4 GB free at 14:55 on 10-31, of 3.6 TB. **The queue's floor is 6 GB from 13:13** (Claude's call
+**The disk:** 7.1 GB free at 15:56 on 10-31, of 3.6 TB. **The queue's floor is 6 GB from 13:13** (Claude's call
 for Aden's Sunday goal; EXPERIMENTS.md, the 2026-10-31 DECISION), so launches pause under about 5.2 GB.
 `stack-rrr 2` launched at 13:18. More room is Aden's call: `stack-base`'s extra checkpoints (about 5 GB) and
 `delete_by_hand_2.sh` (3.2 GB). **It filled at 22:57 on 10-30** (the 10-31 FAILURE entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
@@ -270,17 +270,17 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 13:22 on 2026-10-31** (wandb's server; `tjl95db5`'s local wandb record stopped at the disk-full):
+**At 15:58 on 2026-10-31:**
 
 | GPU | Running | Ends |
 |---|---|---|
-| 0 | `stack-eee 3` (`3l3j5z3v`, 62k; 50k 0.68, 60k 0.72) and `stack-rrr 2` (`fxqkfi6u`, from 13:18; step 0 0.50, early speed 0.0302) | 11-01 about 01:30–03:00; 11-01 about 03:00–04:00 |
-| 1 | `stack-eee 2` (`tjl95db5`, 129k; 110k 0.78, 120k 0.62); its second slot waits on the memory reserve | 10-31 about 16:15 |
+| 0 | `stack-eee 3` (`3l3j5z3v`, 70k; 60k 0.72, 70k 0.72) and `stack-rrr 2` (`fxqkfi6u`, from 13:18; step 0 0.50, early speed 0.0302) | 11-01 about 01:30–03:00; 11-01 about 03:00–04:00 |
+| 1 | both slots free; `obj-nut-rrr 2`'s smoke waits on the memory reserve to about 16:18 | |
 
-**Done on 10-31:** `obj-peg-rrr 2` (`mflrk646`) at 13:45, **0.872** at 110k–150k against its step 0's 0.52, the
+**Done on 10-31:** `stack-eee 2` (`tjl95db5`) at 15:55, 0.692 at 110k–150k (B_stack 0.602); `obj-peg-rrr 2` (`mflrk646`) at 13:45, **0.872** at 110k–150k against its step 0's 0.52, the
 highest of any Square run with a package; `obj-peg-eee 2` (`3vimywbf`) at 13:10, 0.648 against its step 0's 0.66
-(the 2026-10-31 NOTEs). Its package's `metrics.jsonl` stops at 22:56 on 10-30; the server's full history is beside it in
-`wandb_logs/metrics_from_server.jsonl`. **The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2`
+(the 2026-10-31 NOTEs). `tjl95db5`'s and `3vimywbf`'s `metrics.jsonl` stop at the disk-full; the server's full
+histories are beside them in `wandb_logs/metrics_from_server.jsonl`. **The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2`
 (`cs4ezjj2`) died at 30k, and `obj-nut-rrr`'s smoke failed on it. Done before: `obj-nut-eee 2` (0.720),
 `stack-base 1` (`8g47hqyc`), `long-1027`.
 
@@ -295,8 +295,8 @@ nothing more launches before about 16:20):
 | O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots, from about 01:00–03:00 on 11-01 | 11-02 |
 
 Whether O1's seeds 3 stay in the queue is Aden's question 2 in the wrist-sweep plan (section 8); JOBS is unchanged
-until it is answered. Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` done,
-`stack-eee 2` about 16:15, `stack-rrr 2` about 03:00–04:00 on 11-01, `obj-nut-rrr 2` about 07:00–09:00 on 11-01. A Stack smoke takes about 70 min (42 of them filling the
+until it is answered. Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` and
+`stack-eee 2` done, `stack-rrr 2` about 03:00–04:00 on 11-01, `obj-nut-rrr 2` about 07:00–09:00 on 11-01. A Stack smoke takes about 70 min (42 of them filling the
 buffer), an O1 smoke 60–90 min. An `eee` run takes 29–31 h on Square and about 21 h on Stack (`stack-eee 2`'s
 first 30k), an `rrr` run about 10 h on Square and about 11–13 h on Stack (estimated from 0–3k).
 

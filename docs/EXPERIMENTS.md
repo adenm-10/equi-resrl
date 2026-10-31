@@ -12396,3 +12396,39 @@ and config; nothing about the design changed.
   `outputs/cleanup-20261031/scrollback/stack-watch-before-restart-20261031-1434.txt`. It now tracks `fxqkfi6u`.
   The restart re-logged the other Stack runs' SPEED and EVAL lines, and those duplicates in `watch.log` are
   harmless. The watcher only watches, and stops no run (all of `stack-1030` is watch-only). The fix is TODO H14.
+
+---
+
+## 2026-10-31 — NOTE — `stack-eee 2` (`tjl95db5`) at 150k: 0.692 at 110k–150k, 0.090 above B_stack (0.602), under the bar; its step 0 0.62. Stack's first complete residual run. S1 waits on `stack-rrr 2`; its package's metrics stop at 47,900 steps (the disk-full), the server's full history saved beside them
+
+Read by Claude at about 15:58 on 10-31. The run finished at 15:55 (`9944eeb`, clean; 23.9 h), under the
+`stack-1030` PRE-REGISTERED entry (2026-10-30), which reads S1 at two seeds an arm. This describes one run.
+
+**Where the numbers come from:** its local wandb record stopped at the disk-full (22:58 on 10-30), so the
+package's `metrics.jsonl` ends at step 47,900. Claude saved the server's history beside it as
+`wandb_logs/metrics_from_server.jsonl` (2,267 rows; state finished, last step 150,001), and the numbers come from
+that file.
+
+| | Evals 0, 10k, …, 150k | 110k–150k | 10k–50k | 60k–100k | Online value 10k–30k / 100k–150k | Training success 10k–30k / 100k–150k |
+|---|---|---|---|---|---|---|
+| `stack-eee 2` | 0.62 0.36 0.56 0.56 0.68 0.70 0.60 0.58 0.54 0.72 0.60 0.78 0.62 0.66 0.62 0.78 | **0.692** | 0.572 | 0.608 | +0.094 / +0.154 | 0.473 / 0.610 |
+| `stack-eee 3` (`3l3j5z3v`), running | 0.70 0.58 0.60 0.58 0.50 0.68 0.72 0.72 (to 70k) | | 0.588 | | +0.063 / | |
+| `stack-rrr 2` (`fxqkfi6u`), running | 0.50 0.56 (to 10k) | | | | | |
+| `cs4ezjj2` (died at 30k) | 0.64 0.60 0.84 0.72 | | | | +0.159 / | |
+
+- **Against the base:** its 110k–150k pool is 0.090 above B_stack (500 episodes) and 0.072 above its own step 0.
+  It is above the base, as predicted, but under the 0.13 bar. Its best was 0.78 at 110k (`wandb_best/`), and it
+  scored 0.78 again at 150k.
+- **The shape:** a dip to 0.36 at 10k, close to the base from 20k to 100k (0.54–0.72), then a little higher over
+  110k–150k. Its
+  critic's online value rose from +0.094 to +0.154, and training success from 0.473 to 0.610.
+- **S1 (`stack-eee` − `stack-rrr`) cannot be read yet.** The other seed-2 run, `stack-rrr 2`, relaunched at 13:18
+  (the LAUNCHED entry above) and ends at about 03:00–04:00 on 11-01. Seeds 3: `stack-eee 3` ends about the same
+  time, and `stack-rrr 3` is queued. `cs4ezjj2`'s first 30k (0.720 at 10k–30k, online value +0.159) is not a
+  result.
+- **Early speed 0.0321,** inside the band and within 15% of its prediction (the 10-31 NOTE).
+- **The package:** its duplicate `models/best_model.pt` (444 MB, byte-identical to `wandb_best/`) and 16 eval
+  videos (107 MB) were deleted at 15:56 (kind A and the video exception), both logged as before. The disk went
+  from 6.6 to 7.1 GB.
+- **Aden's Sunday goal, two of four done:** `obj-nut-eee 2` and `stack-eee 2`. `stack-rrr 2` ends about
+  03:00–04:00 on 11-01. `obj-nut-rrr 2`'s smoke launches when the queue's memory reserve clears at about 16:18.

@@ -9,9 +9,9 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now (10-31, 15:00): the wrist sweep (B29) is planned and waits on Aden, who asked for the queue to be upended
+**Now (10-31, 15:58): the wrist sweep (B29) is planned and waits on Aden, who asked for the queue to be upended
 for it (the 10-31 DECISION), not yet applied.** O1 (B23, B24) has three of eight done (`obj-peg-eee 2` 0.648, `obj-peg-rrr 2` 0.872);
-Stack (B25) three of four (`stack-1030`; `stack-rrr 2` relaunched at 13:18 as `fxqkfi6u`). The queue's disk floor is 6 GB from
+Stack (B25) has three of four started (`stack-1030`), and `stack-eee 2` done (0.692). The queue's disk floor is 6 GB from
 13:13 (the 10-31 DECISION after it; STATUS, the disk). The long runs
 (B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
 
