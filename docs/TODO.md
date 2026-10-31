@@ -9,9 +9,9 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 ## B — Square and the bimanual task
 
-**Now (10-31, 13:55): the wrist sweep (B29) is planned and waits on Aden, who asked for the queue to be upended
+**Now (10-31, 15:00): the wrist sweep (B29) is planned and waits on Aden, who asked for the queue to be upended
 for it (the 10-31 DECISION), not yet applied.** O1 (B23, B24) has three of eight done (`obj-peg-eee 2` 0.648, `obj-peg-rrr 2` 0.872);
-Stack (B25) three of four (`stack-1030`; `stack-rrr 2` relaunched at 13:18). The queue's disk floor is 6 GB from
+Stack (B25) three of four (`stack-1030`; `stack-rrr 2` relaunched at 13:18 as `fxqkfi6u`). The queue's disk floor is 6 GB from
 13:13 (the 10-31 DECISION after it; STATUS, the disk). The long runs
 (B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
 
@@ -669,6 +669,17 @@ in `wandb_best/`; the 2026-10-24 cleanup deleted 7.15 GB of them (EXPERIMENTS.md
 **Aden, 2026-10-24: no code change.** A switch would change what a run package holds in the middle of
 two groups; instead every `/wrapup` deletes the eval videos of finished runs, the best kept
 (EXPERIMENTS.md, 2026-10-24 DECISION).
+
+### H14. The run watcher can track a dead run under a relaunched run's name `[CS]` (found 2026-10-31)
+
+`tools/run_watch.py`'s `package_of` takes the newest incomplete package with the trainer's `wandb.name`. A run
+that died leaves its package incomplete. When the same name is relaunched, the watcher matches the new trainer
+to the dead run's package, because the new run has no package until wandb starts (about 70 minutes on Stack),
+and it never re-matches a tracked pid. It happened to `stack-rrr 2` on 10-31 (EXPERIMENTS.md, that date's
+LAUNCHED entry), and the fix then was a restart once the new package existed. **The fix:** skip a package whose
+`started` is before the trainer process's start time, and test it in `tests/test_square_rerendered_watch.py`.
+It is not urgent: the watched groups stop no run, and a relaunch is rare. Do it when the watcher is next
+touched, from a new launch commit, since the running watchers run from `e7710f4` and `9944eeb`.
 
 ### H8. Left over from the sync-free update (2026-09-30) `[CS]` `[SC]`
 

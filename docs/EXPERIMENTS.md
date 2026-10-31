@@ -12366,3 +12366,33 @@ entry (2026-10-27) reads its contrasts at two seeds an arm, so this describes on
   end". They do not. `finalize_run_package` parses the run's local wandb record (`run-<id>.wandb`), so a run
   alive during the disk-full has a package whose `metrics.jsonl` stops at 22:56–22:58 on 10-30. That applies to
   `obj-peg-eee 2` (fixed in the NOTE above) and `stack-eee 2`.
+
+---
+
+## 2026-10-31 — LAUNCHED — `stack-rrr 2` again (`fxqkfi6u`), from step 0, Aden's Sunday-goal run: gate GO with Tier 2 skipped at `9944eeb`; step 0 0.50; early speed 0.0302 against 0.0310 predicted, inside the band and the 15%. The run watcher at first tracked the dead run (`cs4ezjj2`) under its name; it was restarted at 14:34
+
+Written by Claude at about 15:00 on 10-31, under the `stack-1030` PRE-REGISTERED entry (2026-10-30). This is the
+seed-2 `rrr` run again: `cs4ezjj2` died at 30k in the disk-full (the 10-31 FAILURE entry). Same arm, seed, commit
+and config; nothing about the design changed.
+
+- **The launch:** at 13:18:55 on GPU 0, beside `stack-eee 3`, tmux `q-stack-rrr-2`, from `equi-resrl-9944eeb`
+  (`9944eeb`, clean). The queue's floor was lowered for it (the 10-31 DECISION above). No smoke: the arm's smoke
+  passed on 10-30 (`ofqn88to`).
+- **The gate:** Tier 1 passed (218 tests, 3 skipped). Tier 2 was skipped, since `9944eeb` is listed from
+  `stack-eee 2`'s gate. Tier 3 returned GO with three warnings: Tier 2 skipped, the BC policy not in
+  `artifacts/` (downloaded from wandb, as before), and the disk.
+- **wandb from 14:32,** after its buffers filled (about 70 minutes, as for `cs4ezjj2`).
+- **Step 0, the base alone: 0.50** (`cs4ezjj2`'s: 0.64; B_stack 0.602 over 500 episodes, standard error 0.022).
+  A 50-episode eval's standard error near 0.6 is about 0.07, so 0.50 is 1.5 of those under B_stack.
+- **Early speed:** the 0–3k residual was 0.0302, against 0.0310 predicted (the PRE-REGISTERED entry). That is
+  3% under, inside the 0.025–0.045 band and the 15% (`cs4ezjj2`: 0.0351). It ran about 240 ms a step over 0–3k,
+  so 150k is expected at about 03:00–04:00 on 11-01, with evals.
+- **The run watcher tracked the wrong run for 70 minutes.** At 13:23 `stack-watch` matched the new trainer
+  (pid 3350207) to `cs4ezjj2`, the dead run of the same name, and re-logged that run's old SPEED and 20k EVAL
+  lines. Its `package_of` (`tools/run_watch.py`) takes the newest incomplete package with the trainer's
+  `wandb.name`. `cs4ezjj2`'s package never completed, since its run died, and the new run had no package until
+  wandb started at 14:32. Once a pid is tracked, it is never matched again. Claude restarted the watcher at
+  14:34, from `equi-resrl-9944eeb`, once `fxqkfi6u`'s package existed. Its scrollback is in
+  `outputs/cleanup-20261031/scrollback/stack-watch-before-restart-20261031-1434.txt`. It now tracks `fxqkfi6u`.
+  The restart re-logged the other Stack runs' SPEED and EVAL lines, and those duplicates in `watch.log` are
+  harmless. The watcher only watches, and stops no run (all of `stack-1030` is watch-only). The fix is TODO H14.
