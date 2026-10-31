@@ -23,23 +23,15 @@ cover.
   runs ahead of O1's seeds 3, `stack-eee 2` first.
 - **O1's `rrr` arms run at 1e-6**, as pre-registered.
 
-**The work is back in the VSCode session from about 08:45 on 10-29** (Aden: so they can watch it there).
-tmux `claude-o1` is closed; its handoff is `outputs/claude-o1/handoff.md`. **`long-1027`'s seeds 5 are
-cancelled** (the DEVIATION): each long arm has one run.
+**The work is in the VSCode session from 10-29** (PROGRESS, the 10-29 to 10-31 entry). Each long arm has one
+run (the 10-29 DEVIATION).
 
-**Cleaned up on 10-29 (Aden's go):**
-- **Aden ran two deletions by hand:** `outputs/cleanup-20261028/delete_by_hand.sh` (2.5 GB, the seven
-  directories the 2026-10-28 DECISION approved), and the three old Claude scratchpads in `/tmp/claude-1003/`
-  (7.2 GB). `delete_by_hand_2.sh` (September's 14 wandb folders, 3.2 GB) is not run, and stays Aden's call.
-- **The finished groups' worktrees are removed:** `equi-resrl-58d55d7` (enc-iface) and `equi-resrl-aec1bdc`
-  (arch-swap). With them went the enc-iface watcher and the finished runs' idle tmux sessions; their
-  scrollbacks are in `outputs/cleanup-20261029/scrollback/`.
-- **The other worktrees go as their groups end:** `a5b5cc8` went at 09:35 on 10-30 with actor-design's watcher
-  (its scrollback in `outputs/cleanup-20261030/scrollback/`); `e2fdb27` went at 11:22 on 10-30 with
-  `long-watch`, after `long-eee 4`'s 300k; `adebb3c` at 11:40 with `stack-bstack`, B_stack measured; `3c23fe9` at
-  22:03 with `q-stack-base-1`, Stack's base policy ended, its run and wandb folders moved to the main checkout
-  (`outputs/runs/robomimic-stack-bc/8g47hqyc`; deleting all but step 2000 and the best, about 5 GB, is Aden's
-  call). `9944eeb` goes after Stack, `e7710f4` after O1.
+**Cleanups** (PROGRESS has each; the lists are in `outputs/cleanup-202610*/`):
+- `delete_by_hand_2.sh` (September's 14 wandb folders, 3.2 GB) is not run, and stays Aden's call.
+- **Worktrees go as their groups end;** removed so far: `58d55d7`, `aec1bdc`, `a5b5cc8`, `e2fdb27`, `adebb3c`,
+  `3c23fe9`. Left: `9944eeb` (Stack) and `e7710f4` (O1). `stack-base`'s folder is in the main checkout
+  (`outputs/runs/robomimic-stack-bc/8g47hqyc`); deleting all but step 2000 and the best (about 5 GB) is Aden's
+  call.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
@@ -359,15 +351,16 @@ How the runs are launched and followed:
     with all their groups' runs exited, and their worktrees removed. Stack's base policy had no watcher; its
     console is `outputs/queue/*_stack-base-1_gpu1.log`.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 11:40 on 10-30:**
-  - `order-queue` and `queue-digest`;
+- **tmux, at 10:25 on 10-31:**
+  - `order-queue` (restarted 10:14 on 10-31) and `queue-digest`;
   - `q-<arm>-<seed>`, one per running job (finished runs' idle sessions are closed);
-  - the watchers `obj-watch` and `stack-watch` (`stack-1030`, from `equi-resrl-9944eeb`);
-  - `wandb-cache` (the 12-hourly cache cleanup) and `disk-watch` (`/dev/shm/disk_watch.sh`: the free space
-    every 20 s; it logs, and wakes a Claude session below 8 GB when one is open).
+  - the watchers `obj-watch` and `stack-watch` (`stack-1030`, from `equi-resrl-9944eeb`; restarted 10:18 on 10-31);
+  - `wandb-cache` (the 12-hourly cache cleanup, to 2 GB), `cache-trim` (hourly, to 1 GB) and `disk-watch`
+    (`/dev/shm/disk_watch.sh 3000`: free space every 20 s to `/dev/shm/df.log`; exits with a snapshot under
+    3,000 MB).
 
-  Earlier cleanups' scrollback: `outputs/cleanup-20261024/`, `-20261026/tmux_scrollback/`, `-20261027/` and
-  `-20261029/scrollback/` and `-20261030/scrollback/`.
+  Earlier cleanups' scrollback: `outputs/cleanup-20261024/`, `-20261026/tmux_scrollback/`, `-20261027/`, and
+  `scrollback/` under `-20261029/`, `-20261030/` and `-20261031/`.
   The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**

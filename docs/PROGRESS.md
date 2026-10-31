@@ -17,6 +17,57 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-29 (morning) to 10-31 (morning) — Stack built and launched; O1 at seed 2; actor-design and the long runs read; the disk filled on 10-30 night
+
+The work moved back to the VSCode session at about 08:45 on 10-29 (EXPERIMENTS.md, the 10-29 CORRECTION). Claude
+acts on its own recommendations (the 10-28 DECISION), each call recorded in EXPERIMENTS.md.
+
+**Decided**
+- **Aden (10-30): "i need at least one seed of stack and obj centr obs on both eee and resfit done by sunday
+  ideally".** Claude reordered the queue twice for it: at 09:21 (Stack's seed-2 runs ahead of O1's seeds 3; the
+  Stack PRE-REGISTERED entry's "Slots and timing") and at 18:07 (Aden: "stack training to start asap";
+  `stack-rrr 2` first; the `stack-eee 2` LAUNCHED entry). Then at 10:14 on 10-31, after the disk filled,
+  `stack-rrr 2` (from step 0) and `obj-nut-rrr 2` first (the 10-31 FAILURE).
+- **Claude's calls:** O1's smokes evaluate 8 episodes, not 2 (10-30 DEVIATION); the headroom rule picked
+  `stack-base`'s step 2000 (10-30 NOTE); stopping `stack-base` early was left to Aden, not done.
+
+**Done**
+- **Stack (TODO B25), steps 1–9:** the env and demo replay (`d2d4f4c`), the demos rendered in our env
+  (`ab15ad9`), the base pre-registered (`3c23fe9`) and trained (`8g47hqyc`, 00:12–22:01 on 10-30, 0.92 at 50k),
+  B_stack 0.602 at its step 2000, the RL side (`adebb3c`), the watcher (`9944eeb`), `stack-1030` pre-registered
+  (`bba136e`). Launched: `stack-eee 2` (`tjl95db5`), `stack-rrr 2` (`cs4ezjj2`, died at 30k), `stack-eee 3`
+  (`3l3j5z3v`). EXPERIMENTS.md: the 10-29 CODE and PRE-REGISTERED entries, the 10-30 CODE, PRE-REGISTERED,
+  LAUNCHED and NOTE entries.
+- **O1 (`obj-1027`) at seed 2:** `obj-nut-eee 2` (`ifsnjb9f`) done, 0.720; `obj-peg-eee 2` (`3vimywbf`) and
+  `obj-peg-rrr 2` (`mflrk646`) running. `obj-nut-rrr`'s smoke failed twice: by chance at 2 episodes (04:17 on
+  10-30), then on the full disk (22:57).
+- **Read:** `actor-design-1026` (none of D1–D5 counts at 0.13; 10-30 NOTE), `long-1027` (`long-eee 4` 0.800 at
+  260k–300k against ResFiT's 0.880; 10-30 NOTE), the 10-28 analysis's conditions against eight more runs (10-30
+  NOTE), and the runs at matched steps (10-31 NOTE).
+- **Cleanup:** worktrees `a5b5cc8`, `e2fdb27`, `adebb3c` and `3c23fe9` removed with their tmux sessions
+  (scrollbacks in `outputs/cleanup-20261030/` and `-20261031/`); `stack-base`'s folder moved to the main checkout;
+  rolling reclaims logged in `outputs/cleanup-20261028/deleted_best_models.txt` and
+  `outputs/cleanup-20261030/deleted_eval_videos.txt`.
+- **The disk:** under the queue's floor at 18:04 on 10-30 (reclaimed), then full at 22:57, unwatched (10-31
+  FAILURE). New: tmux `cache-trim` (hourly), `disk-watch`'s threshold an argument, `wait_event.sh`'s `DISK_MB`.
+
+**Findings** (one or two runs each; EXPERIMENTS.md has the numbers)
+- `eee` keeps climbing past 150k on Square (0.648 to 0.800 by 300k); ResFiT's agent had levelled by 150k.
+- Object poses lift `rrr` (`obj-peg-rrr 2` +0.11 over Square's `rrr` at 60k–100k) and its critic's value of
+  online data, not `eee` (`obj-peg-eee 2` on `eee`'s mean; `obj-nut-eee 2` +0.11 at 110k–150k, inside the spread).
+- Stack: `eee` at the base (0.608 at 60k–100k against 0.602); `rrr` 0.720 at 10k–30k before it died. `eee`'s
+  critic values online data at +0.06 to +0.09 on Stack (Square: +0.005), still below `rrr`'s +0.159.
+- **Why the actor's rate is hard to set** (explained to Aden on 10-30 evening; TODO B28): the rate becomes a
+  0–3k speed through a gain the actor's architecture sets (12× between our actors), and only speeds of
+  0.025–0.045 have beaten the base.
+- Infrastructure: `tee` stops writing a console log after a failed write; the queue's "8 GB" floor is about
+  7.2 GB, since `df -BG` rounds up.
+
+**Next:** TODO B25 step 9 (Stack readout about 10:00 on 11-01), B23/B24 (O1 readout about 10:00 on 11-02).
+Waiting on Aden: deleting `stack-base`'s extra checkpoints (about 5 GB; STATUS, the disk), B26, B27, B28.
+
+---
+
 ## 2026-10-29 (morning) — `long-1027`'s seeds 5 cancelled (Aden); `long-resfit 4` at 300k; Stack approved and started
 
 **Decided** (Aden, relayed by the VSCode session; EXPERIMENTS.md, the 2026-10-29 DEVIATION): "can we cancel
@@ -772,58 +823,32 @@ wave 1's 150k on 2026-10-16.
 ## 2026-10-12 (afternoon) — ResFiT's residual given the equivariant stack's differences, pre-registered; the field test recorded
 
 **Found**
-
-- The field test at `ls0thn4u`'s 10k checkpoint: no single field of the residual is the cause
-  (EXPERIMENTS.md, NOTE). `notilt` fell to 0.02 and 0.00 at 10k and 20k anyway.
-- The two stacks' action limits, scaling and noise, measured from the code and the demos.
-  - ResFiT's per-axis limits come from the demos' min and max, which outlier frames set.
-  - At the 99th percentile, rx and ry are 0.09 and 0.17 (Square), so one tilt radius fits the
-    demos well.
-  - ResFiT's executed actions are clamped to the demos' range ×1.1, which is [−0.48, 0.24] on rx.
-- Parameter counts per component: ResFiT's actor has 13× the equivariant one's parameters and its
-  critic 28×, at the same channel widths (EXPERIMENTS.md, the pre-registration's table).
-
-- **The pre-registered `equi-arch` would over-match ResFiT's actor.** The equivariant actor
-  already has ResFiT's depth: three hidden layers before its output (`visual_proj`, the trunk, one
-  policy layer), as ResFiT's (`compress`, two policy layers). `num_actor_layers=2` would add a
-  fourth, and put `arch-wide` at about 5M parameters, not 3.4M.
+- The field test at `ls0thn4u`'s 10k: no single field of the residual is the cause (EXPERIMENTS.md, NOTE);
+  `notilt` fell to 0.02 and 0.00 at 10k and 20k anyway.
+- The stacks' action limits, scaling and noise, measured: ResFiT's per-axis limits come from the demos' min and
+  max, and its executed actions are clamped to that range ×1.1. ResFiT's actor has 13× the equivariant one's
+  parameters and its critic 28×, at the same widths.
+- The pre-registered `equi-arch` would over-match ResFiT's actor: the equivariant actor already has ResFiT's
+  depth, so `num_actor_layers=2` would add a fourth layer (about 5M parameters, not 3.4M).
 
 **Done**
-
-- Pre-registered `resfit-equi-diff-1012` and `equi-resfit-arch-1013` (`7db124d`).
-- `submit.sh` and `tests/test_sweep_arms.py` for their config-only arms.
-- The watcher's two new groups.
-- The `rerendered` smoke (`kvcdljaf`) passed. `rerendered` launched at 15:25 from `7db124d`, with
-  its watcher (tmux `rfe-watch`). `noln` waits for `diag`'s slot. `notilt` scored 0.14 at 30k, so
-  it did not stop.
-- **`limits`' code:** `agent.actor.action_bound=equivariant` (EXPERIMENTS.md, CODE). At `"box"`,
-  ResFiT's agent is bit for bit what it was, against a fingerprint taken before the change
-  (`tests/test_action_bound.py`).
-- **`noln-all`'s code:** `agent.vit.use_layer_norm=false` (EXPERIMENTS.md, CODE).
-- **`equi-resfit-arch-1013`'s arms** in `submit.sh`, and `tests/test_sweep_arms.py` for both groups.
-- `noln` launched itself into `diag`'s slot (`c1xca5uk`, 18:09) and scored 0.00 at 10k; its watcher
-  was stopped by hand before its 20k eval, so it could run on under the new rule.
-- **The schedule** (EXPERIMENTS.md, PRE-REGISTERED `equi-residual-long-1012`, AMENDMENT, CODE):
-  `agent.actor.noise_units`; the watcher's fixed length; `tools/arms_hold.py` for `combined`; the
-  five new arms in `submit.sh` and the sweep tests (three anchors); one slot queue for all nine
-  launches.
-- `outputs/queue/launchers/`: scripts that launch an arm when a run's process exits, or into the
-  first free slot, so a launch does not need this session.
+- Pre-registered `resfit-equi-diff-1012`, `equi-resfit-arch-1013` (`7db124d`) and `equi-residual-long-1012`
+  (with its AMENDMENT and CODE); their arms in `submit.sh` and `tests/test_sweep_arms.py`; the watcher's groups.
+- Code (EXPERIMENTS.md, CODE): `agent.actor.action_bound=equivariant` for `limits` (at `"box"` ResFiT's agent is
+  bit for bit unchanged, `tests/test_action_bound.py`), `agent.vit.use_layer_norm=false` for `noln-all`,
+  `agent.actor.noise_units`, `tools/arms_hold.py`.
+- Launched `rerendered` (smoke `kvcdljaf`, 15:25) and `noln` (`c1xca5uk`, 18:09); scripts in
+  `outputs/queue/launchers/` launch arms without the session.
 
 **Decided** (Aden)
-
-- Priorities `rerendered`, `noln`, `limits`; dropped `noise`, `smallcritic`, `crop`, `noln-actor`.
-- `limits` covers all three limits.
-- `equi-arch` keeps LayerNorm's own start.
-- `limits` may launch overnight without a smoke.
-- `equi-arch` keeps the actor's depth: amended, so `num_actor_layers` stays dead.
-- **Every run to a fixed 150k, stopped only on the divergence stop**, for both stacks: no
-  equivariant residual had been let run long enough to see the late recovery (`6ng62tpm` stopped at
-  30k; `eaqorqki` cancelled at 80k while climbing).
-- Rerun the equivariant baseline (`6ng62tpm`'s launch) and `init0` (`eaqorqki`'s) to 150k at seed 2.
-- Add `smallcritic` and `noise` to ResFiT's ablations; `combined` stays conditional.
-- The queue's order: the two long reruns first, then `limits`, `noln-all`, the `arch` arms,
-  `combined`, `smallcritic`, `noise`.
+- Priorities `rerendered`, `noln`, `limits` (all three limits; may launch overnight without a smoke); dropped
+  `noise`, `smallcritic`, `crop`, `noln-actor`. Later the same day `smallcritic` and `noise` were added to
+  ResFiT's ablations; `combined` stays conditional.
+- `equi-arch` keeps LayerNorm's own start and the actor's depth (amended, so `num_actor_layers` stays dead).
+- **Every run to a fixed 150k, stopped only on the divergence stop**, for both stacks: no equivariant residual
+  had run long enough to see a late recovery (`6ng62tpm` stopped at 30k; `eaqorqki` cancelled at 80k while
+  climbing). The equivariant baseline and `init0` rerun to 150k at seed 2, first in the queue, then `limits`,
+  `noln-all`, the `arch` arms, `combined`, `smallcritic`, `noise`.
 
 ---
 
@@ -967,49 +992,28 @@ those sessions.)
 ## 2026-10-07 (evening) — B15 phases 0–3: records in main, mujoco 3.3.2 on the gate
 
 **Done** (EXPERIMENTS.md, the three CODE entries of 2026-10-07 after the RESULTS)
-
-- **Every run record is in main** (Aden: all experiments in one place, fewer worktrees). 34
-  records and their Hydra folders moved out of 14 worktrees and upstream's clone, hashes
-  verified; the three never-synced ones are also in `~/equi-resrl-preserve/`. New runs record
-  into `CACHE_DIR` wherever they launch from. The 15 worktrees hold only code now; removing them
-  is Aden's (TODO B15 has the commands).
-- **The queue runner** launches only once its line is deleted and 5 GB are free, and runs from
-  main. The "broken" `gpu0.log` append was a misreading: the EXIT line was glued to a cut-off line.
-- **mujoco 3.3.2 pinned,** nothing else changed. The gate fails on another version and on a
-  render that does not match the demos. The planned "about 2x" bar would have failed a correct
-  env: the matching render sits at 2.06x on Can (an even colour offset; the demos are video).
-  The bar is 2.5x, set by measuring both versions.
-- **`versions` on every run's record, mujoco in the online cache key, and `read_buffer_caches`**
-  for runs that must not read a cache (both Square residual arms would have read
-  `1d31ed9b`, whose key does not record its normalization path).
-- **The equivariant agent logs `critic_diagnostics`.** A new bit-identity test caught a first
-  version moving torch's RNG through the actor's `std=0` path, which draws a zeroed random
-  number; evals and actor losses take that path in every equivariant run.
-- Deleted, approved: upstream's buffer caches (21 GB) and Square's old-render online cache
-  (16 GB). 51 GB free.
-- **Checked end to end** by two smoke runs from a scratch directory with cache reads off
-  (`u0itew7i`, ResFiT residual on Square; `rhqmlon0`, equivariant tuned RLPD on Can): every record
-  in main, `versions` on both, 0.115 and 0.41 s a step. Square's offline buffer takes 26.6 min to
-  fill without its cache. The gate said GO.
-
-- **The baselines pre-registered** (EXPERIMENTS.md, PRE-REGISTERED, "the fixed-env baselines"):
-  five arms, ten runs. `submit.sh` and `tests/test_sweep_arms.py` rewritten for them; the
-  equivariance checks now run on each arm's own networks. `tools/baseline_verdict.py` judges them
-  and, with no arguments, shows every run's evals so far.
+- **Every run record moved into main** (Aden: one place, fewer worktrees): 34 records and their Hydra folders
+  from 14 worktrees and upstream's clone, hashes verified; the three never synced also in
+  `~/equi-resrl-preserve/`. New runs record into `CACHE_DIR` wherever they launch from.
+- **mujoco 3.3.2 pinned.** The gate fails on another version and on a render unlike the demos, at 2.5× the
+  within-demo gap: measured on both versions, the matching render sits at 2.06× on Can, so the planned "about
+  2×" would have failed a correct env.
+- `versions` on every record, mujoco in the online cache key, and `read_buffer_caches` for runs that must not
+  read a cache. The equivariant agent logs `critic_diagnostics` (a bit-identity test caught a first version
+  moving torch's RNG through the actor's `std=0` path).
+- The queue runner launches from main once 5 GB are free. Upstream's buffer caches (21 GB) and Square's
+  old-render online cache (16 GB) deleted, approved.
+- Checked end to end by the smokes `u0itew7i` and `rhqmlon0` from a scratch directory; the gate said GO.
+- **The fixed-env baselines pre-registered:** five arms, ten runs (`submit.sh`, `tests/test_sweep_arms.py`,
+  `tools/baseline_verdict.py`).
 
 **Decided**
-
 - Aden: fewer worktrees. B15 launches from one, at its launch commit, removed when its runs end.
-- The render bar is 2.5x the within-demo gap (above).
-- Aden's review of the arms: base policies pinned; wandb where each kind of run has gone; the disk
-  bound written up as a stack difference (ARCHITECTURE.md, "The two stacks side by side"); the
-  actor as built; two seeds; a fifth arm, the equivariant residual at zero init, since the one
-  run that blamed zero init (`a3e3zylp`) was confounded with host and broken images.
+- Aden's review of the arms: base policies pinned; the disk bound written up as a stack difference
+  (ARCHITECTURE.md, "The two stacks side by side"); two seeds; a fifth arm, the equivariant residual at zero
+  init, since the one run that blamed zero init (`a3e3zylp`) was confounded with host and broken images.
 
-**Open**
-
-- Aden's review of "The two stacks side by side".
-- The doc budget is about 450 KB against 150 KB, mostly EXPERIMENTS.md (TODO H5).
+**Open** (then): Aden's review of "The two stacks side by side"; the doc budget (TODO H5).
 
 ---
 
@@ -1495,68 +1499,39 @@ single-arm task and the first two-arm task.
 
 ## 2026-09-16 — The lost run was not lost, and the target was wrong
 
-Started as a session to move the previous session's setup onto a second workstation. Turned into
-recovering `z8yoqylh` and discovering the reproduction had been aimed at the wrong commit.
+Meant to move the setup to a second workstation; it became recovering `z8yoqylh` and finding the reproduction
+aimed at the wrong commit (EXPERIMENTS.md, the 09-16 correction).
 
 **Done**
-
-- **Moved the repo setup to `boce-WS-01`** (`10.188.60.163`, user `aden`, `~/projects/equi-resrl`).
-  There was already a GitHub remote sitting at `caf83f3`; pushed the 14 unpushed commits plus tags,
-  pulled there. Docs, `.claude/` skills, 148 tests, `preflight.py`, `submit.sh` all in place; gate
-  passes.
-- **Recovered `z8yoqylh`** at `boce-WS-01:~/projects/equi-resrl/wandb/run-20260522_083555-z8yoqylh`,
-  173 MB, config and logs intact. Backed up to `~/equi-resrl-preserve/`.
-- **Corrected the record** in EXPERIMENTS.md (append-only, new section) and repointed
-  `preflight.py` at `z8yoqylh`'s environment. Tagged `repro-z8yoqylh-actual` at `7dae4925`.
-- **Launched the 3-seed replication** on `boce-WS-01`, seed-group `equi-repro-7dae4925`: seeds
-  2114495708 / 1 / 2 as `9qgsaxsr` / `4sseggkv` / `dxbept4u`. Pre-registered before launching.
-- **Killed `m0ylcivk`**, the `caf83f3` run started earlier in the day, once it was clear it was not
-  the reproduction.
+- The repo set up on `boce-WS-01` (`~/projects/equi-resrl`): 14 commits and tags pushed, the gate passes.
+- `z8yoqylh` recovered there (`wandb/run-20260522_083555-z8yoqylh`, 173 MB), backed up to
+  `~/equi-resrl-preserve/`; the record corrected; `preflight.py` repointed at its environment; tagged
+  `repro-z8yoqylh-actual` at `7dae4925`.
+- The 3-seed replication pre-registered and launched (`equi-repro-7dae4925`: `9qgsaxsr`, `4sseggkv`, `dxbept4u`);
+  `m0ylcivk`, the `caf83f3` run, killed.
 
 **Findings**
-
-1. **`z8yoqylh` ran at `7dae4925`, not `caf83f3`** — from its own `wandb-metadata.json`. That is
-   the same commit as the three collapsed runs, so `7dae4925` is not an architectural failure, and
-   **the `FieldNorm` hypothesis is dead**: `FieldNorm` was in the critic head of the run that
-   reached 0.94.
-2. **The launch carried an override no doc mentioned:**
-   `agent.actor.actor_last_layer_init_scale=1e-4`, against a default of 0.0 that sits in the config
-   with `1e-4` commented out beneath it. `z8yoqylh` and `a3e3zylp` share a commit and a config and
-   differ in only this and the host/stack — one reached 0.94, the other 0.00.
-3. **Host correlates perfectly with outcome across the whole project.** Every collapsed equivariant
-   run ran on `ZXP-S-works`; the one success ran on `boce-WS-01`, whose stack is torch 2.6.0 /
-   torchrl 0.7.0 / escnn 1.0.11. `preflight.py` had been validating the environment against
-   `a3e3zylp` — a run that collapsed to 0.00.
-4. **The successful run had robot-base centering disabled.** At `7dae4925` every call site is
-   commented out, so it rotated about the world origin — the case EQUIVARIANCE.md calls a silent
-   symmetry break. It reached 0.94 anyway. The feature is active at HEAD, so **HEAD is not the
-   architecture that produced 0.94.**
-5. Recovered specifics: seed **2114495708**, best **0.94** (not ~0.92 from the screenshot), runtime
-   **47.3 h** measured. `enc_degree_channel=32` was the one assumption guessed right.
-6. Two path traps in the worktree setup: `_CACHE_ROOT` defaults to the *current directory*, and the
-   BC artifact downloads into `./artifacts/`. Handled with `CACHE_DIR` and a symlink; without them
-   it is a 21 GB rebuild.
-7. Each run holds ~25 GB resident, not ~21 GB. Three is the ceiling on `boce-WS-01`, not a
-   comfortable three.
+1. `z8yoqylh` ran at `7dae4925` (its `wandb-metadata.json`), the collapsed runs' commit, not `caf83f3`. So the
+   `FieldNorm` hypothesis is dead: `FieldNorm` was in the critic of the run that reached 0.94.
+2. Its launch carried an undocumented `agent.actor.actor_last_layer_init_scale=1e-4` (default 0.0). With the
+   host, that is all that separates it from `a3e3zylp` (0.00).
+3. Host matched outcome across the project: every collapsed equivariant run on `ZXP-S-works`, the success on
+   `boce-WS-01` (torch 2.6.0, torchrl 0.7.0, escnn 1.0.11). `preflight.py` had validated against `a3e3zylp`.
+4. It ran with robot-base centering disabled (rotation about the world origin) and still reached 0.94, so HEAD
+   is not the architecture that produced it.
+5. Seed 2114495708, best 0.94, 47.3 h. Path traps: `_CACHE_ROOT` defaults to the current directory and the BC
+   artifact downloads to `./artifacts/` (handled with `CACHE_DIR` and a symlink; else a 21 GB rebuild). About
+   25 GB RAM a run, so three is the ceiling.
 
 **Decisions**
+- **Replicate before explaining:** three seeds first, init scale against host deferred to R11. With n=1 and two
+  candidate causes, isolating first risked ~94 h explaining a result that might not replicate.
+- Three seeds in parallel (1.85× slower per update, ~87 h against ~94 h sequential); the replication arm alone
+  on GPU 0, so the number that matters most is the cleanest.
+- The wrong tag `repro-z8yoqylh-base` (`caf83f3`, already pushed) left in place, superseded.
+- The freeze on `equi_off_policy/` kept while the three ran.
 
-- **Replicate before explaining.** Three seeds at the recovered config first; isolating init-scale
-  versus stack is deferred to R11. Rationale: with two candidate causes and n=1, isolating first
-  risks spending ~94 h explaining a result that may not replicate.
-- **Three seeds in parallel over sequential.** Sharing GPU 1 costs 1.85x (measured, 79.7 versus
-  145-150 ms/update) but gets all three in ~87 h against ~94 h sequential. The replication arm runs
-  alone on GPU 0 so the number that matters most is the cleanest.
-- **Left the wrong tag in place.** `repro-z8yoqylh-base` points at `caf83f3`; it is already pushed,
-  so it was superseded rather than moved.
-- **Freeze stays on** `equi_off_policy/`, with a new reason: three runs are in flight and the
-  analysis compares them against `z8yoqylh`.
-
-**Next**
-
-R7 — the 10k and 20k evaluations, where every past collapse was already unambiguous. Then R8
-(config caveats at `7dae4925`, which blocks the results entry) and R10 (`/analyze-experiment`, then
-lift the freeze).
+**Next** (then): R7 (the 10k and 20k evals), R8, R10.
 
 ---
 

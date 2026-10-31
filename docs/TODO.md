@@ -11,8 +11,8 @@ Tags: `[SC]` scientific consistency · `[CS]` code simplicity and correctness ·
 
 **Now (10-31): O1 (B23, B24) runs, three of eight; Stack (B25) two of four (`stack-1030`). The disk filled at
 22:57 on 10-30 and `stack-rrr 2` runs again (the 10-31 FAILURE). The long runs (B24) and the actor's design (B22)
-are done and read.** Aden's Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, early on 11-01. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26 and
-B27 wait on Aden.
+are done and read.** Aden's Sunday goal: one seed of O1 and of Stack on both `eee` and `rrr`, early on 11-01. Then, in Aden's order (the 2026-10-27 DECISIONs; B24): latency and the tuning. B26, B27 and
+B28 wait on Aden.
 Aden's architectural experiments (2026-10-20 DECISION); STATUS.md's "What the actor-speed groups leave"
 has what B17–B19 found that bears on them.
 
@@ -195,6 +195,19 @@ control latency, sampled and held over many steps, were critical to its transfer
 - Later: a residual over the whole chunk at each re-plan (Policy Decorator's, which ResFiT contrasts
   itself with); temporal ensembling (a re-plan every step); steering the base's diffusion noise instead
   of adding to its action.
+
+### B28. The actor's rate set in action units, or the actor held until the critic informs it — WAITING ON ADEN `[SC]`
+
+Each new arm's actor rate is picked by hand so its residual's 0–3k speed lands in 0.025–0.045 (no run outside
+it beat the base: the 2026-10-28 NOTE on 49 runs). The rate becomes a speed through a gain the architecture
+sets. AdamW moves each weight about the rate per step, so the output moves about rate × the last layer's input
+count × their mean size (the 2026-10-16 MEASUREMENT). LayerNorm (4×) and 448 fields (3.5×) make that 12×
+between actors; new inputs or a new task shift it again (Stack's data about 8%). AdamW also gives a weak critic
+full-size steps, which is why too fast pins the residual at its 0.1 limit before the critic informs it. Two
+ways to remove the hand-tuning, neither built (Claude to Aden, 10-30 evening):
+1. **The rate in action units:** the actor's rate divided by its last layer's input size, so one number is one
+   speed for every actor. It changes how new runs compare with earlier ones, so it is Aden's call.
+2. **The actor held** until the critic values online data: the tuning plan's "critic warm-up 20k" arm (B24).
 
 ### B27. Whether `eee`'s later runs go past 150k — WAITING ON ADEN `[SC]`
 
