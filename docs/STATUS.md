@@ -22,28 +22,30 @@ cover. On 11-01 Aden added: "go with your recommendation for the rest of the dec
 - **O1 (`obj-1027`):** C1 for `eee` counts, +0.159 (the 2026-11-01 NOTE). Its three remaining seeds 3 come after
   the sweep (Aden, 11-01), last in `order-1031`. O1's `rrr` arms run at 1e-6.
 
-**Cleanups** (PROGRESS has each; the lists are in `outputs/cleanup-202610*/`):
-- `delete_by_hand_2.sh` (September's 14 wandb folders, 3.2 GB) is not run, and stays Aden's call.
+**Cleanups** (PROGRESS has each; the lists are in `outputs/cleanup-2026*/`; the 11-02 wrapup's in
+`outputs/cleanup-20261102/README.txt`):
+- **Left for Aden** (approved, but refused by the permission checks on 11-02):
+  - `outputs/cleanup-20261028/delete_by_hand_2.sh`: September's 14 wandb folders, 3.2 GB;
+  - `rm -rf /tmp/pytest-of-aden`: the gates' temporary files, 0.8 GB.
 - **Worktrees go as their groups end;** removed so far: `58d55d7`, `aec1bdc`, `a5b5cc8`, `e2fdb27`, `adebb3c`,
-  `3c23fe9`. Left: `9944eeb` (Stack, done), `e7710f4` (O1's seeds 3), `79a954e` and `776c1ee` (the wrist sweep). `stack-base`'s folder is in the main checkout
-  (`outputs/runs/robomimic-stack-bc/8g47hqyc`); deleting all but step 2000 and the best (about 5 GB) is Aden's
-  call.
+  `3c23fe9`, `9944eeb` (11-02). Left: `e7710f4` (O1's seeds 3), `79a954e` and `776c1ee` (the wrist sweep).
+- `stack-base`'s folder is in the main checkout (`outputs/runs/robomimic-stack-bc/8g47hqyc`). Since 11-02 it keeps
+  only `best_step_2000`, `best/` and `wandb_best/`.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk: about 2.5 GB free at 08:00 on 11-02**, of 3.6 TB, under the queue's 6 GB floor (`DISK_FLOOR_GB`; `df -BG`
-rounds up, so launches pause under about 5.2 GB). It filled at 22:57 on 10-30 (the 10-31 FAILURE). Room is Aden's
-call: `outputs/cleanup-20261101/delete_by_hand_3.sh` (stack-base's extra checkpoints and eval videos, 4.8 GB),
-`outputs/cleanup-20261028/delete_by_hand_2.sh` (3.2 GB), and `/tmp/pytest-of-aden` (0.8 GB, the gates' temporary
-files).
+**The disk: about 8.1 GB free at 08:15 on 11-02**, of 3.6 TB, after the 11-02 wrapup ran `delete_by_hand_3.sh` (4.8 GB)
+and removed 39 more eval videos. The queue's floor is 6 GB (`DISK_FLOOR_GB`; `df -BG` rounds up, so launches pause
+under about 5.2 GB). It filled at 22:57 on 10-30 (the 10-31 FAILURE).
 - **Each run's first best model costs it three copies:** `models/`, `wandb_best/` and wandb's cache. That is 0.4 GB
-  each for a wrist run, and 1.2 GB for `eee` (NA-eee's).
+  for a wrist run, 1.2 GB for `eee`.
   - Each finished run's duplicate `models/best_model.pt` is deleted once byte-identical to `wandb_best/` (kind A;
     `outputs/cleanup-20261028/deleted_best_models.txt`).
 - **wandb's cache trims:** tmux `cache-trim` to 1 GB hourly, `cache-trim-15` to 100 MB every 5 min (since 01:17 on
   11-02, `wrist-now/cache_trim_15.sh`), and `wandb-cache` to 2 GB every 12 h.
-- tmux `disk-watch` logs free space every 20 s to `/dev/shm/df.log`, alerting under 3,000 MB.
+- tmux `disk-watch` logs free space every 20 s to `/dev/shm/df.log`. It exits on its alert, under 1,500 MB since 08:10 on
+  11-02 (`bash /dev/shm/disk_watch.sh 1500`).
 
 **Now: the wrist sweep (`wrist-1031`) runs.** Stack and O1's seeds 2 are done and read (above), and so are the long
 runs, actor-design, arch-swap and enc-iface (below). Latency is sidelined. One queue places every job: tmux
@@ -257,14 +259,14 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 08:15 on 2026-11-02: three of the wrist sweep's runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
+**At 08:15 on 2026-11-02: four of the wrist sweep's runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
 DEVIATION; the 2026-11-02 LAUNCHED and NOTE). They were launched by hand through
 `outputs/queue/launchers/wrist-now/run_job.sh`.
 - GPU 0: G-c8 (`fjy1z5nr`, tmux `q-stack-g-c8-2`), at 63k at about 8k steps an hour, so it ends about 19:00–20:00;
   W-cnn (`zrhqmb8a`, `q-stack-w-cnn-2`), at 118k at about 16k an hour, so it ends about 10:30.
 - GPU 1: NA-eee (`rq4uzl8v`, `q-stack-na-eee-2`), at 72k at about 9k an hour, so it ends about 17:00. Its first
   run, `9sux7vn2`, died at its first update out of GPU memory (the FAILURE).
-- G-cnn (`hum5118h`) finished at 07:54. Its `q-stack-g-cnn-2` is an idle shell.
+- G-cnn (`hum5118h`) finished at 07:54.
 - **GPU memory:** a run takes about 8.5–10 GB with its nine eval workers (654 MiB each). Nothing goes beside two
   runs on one GPU.
 
@@ -272,9 +274,9 @@ DEVIATION; the 2026-11-02 LAUNCHED and NOTE). They were launched by hand through
 `OBJ_WORKTREE`).
 - JOBS: P2 (its smoke passed), G-pre, G-fa (each smoke in its slot), then `obj-nut-rrr 3`, `obj-peg-eee 3` and
   `obj-peg-rrr 3`.
-- GPU 1 has had a free slot since 07:54, but **the disk holds every launch** until Aden's scripts run.
-- The watcher is tmux `wrist-watch` (from `776c1ee`, all seven arms), watch-only, writing to
-  `outputs/queue/watch.log`.
+- **P2 launched at 08:14** on GPU 1 beside NA-eee (tmux `q-stack-p2-2`). It ends about 19:00–20:00, and its LAUNCHED
+  entry waits on its step 0 and early speed. G-pre takes the next free slot (W-cnn's, about 10:30), then G-fa.
+- The watcher: tmux `wrist-watch` (all seven arms), watch-only, writing `outputs/queue/watch.log`.
 
 A Stack smoke takes about 70 min (42 of them filling the buffer). An `eee` run takes about 21 h on Stack, an `rrr`
 run about 11–13 h.
@@ -321,31 +323,27 @@ How the runs are launched and followed:
     a gate that starts within minutes of a run exiting; the retry has passed it every time. Its failing
     assertion is still not recorded.
   - The scripts are in `outputs/queue/launchers/`, which is gitignored (TODO: move them into `tools/`).
-- **The digest** (tmux `queue-digest`; `order-1027/digest.py` every 30 minutes, by `run_digest.sh`). It
-  rewrites `outputs/queue/launchers/order-1027/digest.md`: each long run's four windows and checkpoints,
-  MemAvailable, swap and each trainer's resident memory, and each run's state, step and evals, its early
-  speed against the band and its arm's prediction, the gross-failure check of `actor-resfit-shape 2`
-  (a FLAG line in `watch.log` once, if every eval at 10k–50k is at or below 0.10), the queue's smokes,
-  launches and drops, every FLAG, and the GPUs, RAM and disk. It changes nothing about any run, and stops
-  itself when the queue is done. **Read it first when a session opens.**
+- **No digest runs for `order-1031`.** `order-1027`'s (`order-1027/digest.py`, tmux `queue-digest`) stopped with its
+  queue on 11-01. **Read first when a session opens:** `outputs/queue/watch.log` (each run's EVAL, SPEED and EXITED
+  lines) and `outputs/queue/launchers/order-1031/order_queue.log` (launches, smokes, drops, waits).
 - **Watchers** (`tools/square_rerendered_watch.py --group <seed group>`, one tmux session per group, from
   the group's pinned worktree), each watch-only: logged, FLAGged and finalized, never signalled.
   - `obj-watch` (`obj-1027`, from `equi-resrl-e7710f4`);
-  - `stack-watch` (`stack-1030`, from `equi-resrl-9944eeb`; it reads each trainer's own wandb project);
-  - `swap-watch`, `iface-watch`, `ad-watch` and `long-watch` are stopped (on 10-26, 10-29, 10-30 and 10-30),
+  - `wrist-watch` (`wrist-1031`, from `equi-resrl-776c1ee`, all seven arms);
+  - `swap-watch`, `iface-watch`, `ad-watch`, `long-watch` and `stack-watch` are stopped (10-26 to 11-02),
     with all their groups' runs exited, and their worktrees removed. Stack's base policy had no watcher; its
     console is `outputs/queue/*_stack-base-1_gpu1.log`.
   - The older groups' entries in the watcher still enforce stops that no longer apply.
-- **tmux, at 10:25 on 10-31:**
-  - `order-queue` (restarted 10:14 on 10-31) and `queue-digest`;
+- **tmux, at 08:15 on 11-02:**
+  - `order-queue` (`order-1031`);
   - `q-<arm>-<seed>`, one per running job (finished runs' idle sessions are closed);
-  - the watchers `obj-watch` and `stack-watch` (`stack-1030`, from `equi-resrl-9944eeb`; restarted 10:18 and 14:34 on 10-31, the second so it tracks `fxqkfi6u`, TODO H14);
-  - `wandb-cache` (the 12-hourly cache cleanup, to 2 GB), `cache-trim` (hourly, to 1 GB) and `disk-watch`
-    (`/dev/shm/disk_watch.sh 3000`: free space every 20 s to `/dev/shm/df.log`; exits with a snapshot under
-    3,000 MB).
+  - the watchers `obj-watch` and `wrist-watch`;
+  - `wandb-cache` (12-hourly, to 2 GB), `cache-trim` (hourly, to 1 GB), `cache-trim-15` (every 5 min, to 100 MB)
+    and `disk-watch` (`/dev/shm/disk_watch.sh 1500`: free space every 20 s to `/dev/shm/df.log`; exits with a
+    snapshot under 1,500 MB).
 
   Earlier cleanups' scrollback: `outputs/cleanup-20261024/`, `-20261026/tmux_scrollback/`, `-20261027/`, and
-  `scrollback/` under `-20261029/`, `-20261030/` and `-20261031/`.
+  `scrollback/` under `-20261029/`, `-20261030/`, `-20261031/` and `-20261102/`.
   The queue checks a job's `q-*` session only on a restart.
 
 - **What each run records beyond its evals and videos:**

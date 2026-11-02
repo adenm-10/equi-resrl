@@ -41,9 +41,8 @@ DECISION). On 11-01 at about 22:10 Aden added: "go with your recommendation for 
   relaunched at 00:04. P2's smoke passed; the chain was stopped before G-pre's.
 - **G-cnn finished at 150k**, with the morning's matched-step readout (the 11-02 NOTE). The LAUNCHED entry has
   every step 0 and early speed.
-- **The disk** (kind A): ten duplicate best models reclaimed (`3l3j5z3v`, `fxqkfi6u`, `riczucki`, `b4e3jqgj`,
-  `rrgn653s`, `ce3k4r5l`, `israseo9`, `9sux7vn2`, `n5sfmjx3`, `hum5118h`). wandb's cache is now trimmed to 100 MB
-  every 5 min.
+- **The disk** (kind A): ten duplicate best models reclaimed (`outputs/cleanup-20261028/deleted_best_models.txt`).
+  wandb's cache is now trimmed to 100 MB every 5 min.
 
 **Findings** (one seed an arm: described, not read)
 - **G-cnn: 0.952 at 110k–150k,** the best Stack run (`stack-rrr` 0.794 at two seeds; B_stack 0.602).
@@ -61,9 +60,15 @@ DECISION). On 11-01 at about 22:10 Aden added: "go with your recommendation for 
 - **Tier 2 beside the launches, not before:** this saved about 1.5 h, and both full gates passed.
 - **The out-of-queue smoke chain stopped after P2's,** for the RAM, the disk and the GPUs.
 
+**The 11-02 wrapup** (`outputs/cleanup-20261102/README.txt`; Aden approved it), taking the disk from 2.9 to 8.1 GB:
+- `delete_by_hand_3.sh` and 39 more eval videos;
+- 13 idle tmux sessions closed (scrollbacks saved) and worktree `9944eeb` removed;
+- `disk-watch` restarted at 1,500 MB, and main pushed.
+
+`delete_by_hand_2.sh` and `/tmp/pytest-of-aden` were refused by the permission checks and are left for Aden.
+
 **Next:** TODO B29.
-- The disk first: Aden's two scripts and `/tmp/pytest-of-aden`. At about 2.5 GB free, nothing launches.
-- Then P2, G-pre and G-fa.
+- P2, G-pre and G-fa, now that the disk is over the queue's floor.
 - A NOTE as each run ends: W-cnn about 10:30, NA-eee about 17:00, G-c8 about 19:00–20:00.
 - The sweep's readout.
 

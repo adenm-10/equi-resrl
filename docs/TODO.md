@@ -33,9 +33,8 @@ papers (the 10-31 DECISION). **Aden's calls:**
   on all three 10k–30k signals.
 
 **Next:**
-1. **The disk (Aden):** `outputs/cleanup-20261101/delete_by_hand_3.sh` (4.8 GB), `outputs/cleanup-20261028/
-   delete_by_hand_2.sh` (3.2 GB) and `/tmp/pytest-of-aden` (0.8 GB). The disk is about 2.5 GB free, and `order-1031`
-   launches nothing under its 6 GB floor.
+1. **The disk:** about 8.1 GB free after the 11-02 wrapup. Left for Aden (refused by the permission checks):
+   `outputs/cleanup-20261028/delete_by_hand_2.sh` (3.2 GB) and `/tmp/pytest-of-aden` (0.8 GB).
 2. P2, G-pre and G-fa launch from `order-1031` as slots free (G-pre's and G-fa's smokes in their slots). O1's three
    seeds 3 follow them.
 3. As each run ends: its NOTE (the 110k–150k pool), and the duplicate best model reclaimed (kind A).
@@ -43,11 +42,7 @@ papers (the 10-31 DECISION). **Aden's calls:**
 4. The sweep's readout, once its arms are at 150k: each arm's pool against `stack-eee`, `stack-rrr` and B_stack,
    and the plan's contrasts at 0.13 (`/analyze-experiment`).
 
-**Learned on the night:**
-- A run's GPU memory is about 8.5–10 GB with its nine eval workers (654 MiB each), not the 2.7–3.2 GB the smokes'
-  checker reports for the trainer alone. Nothing goes beside two runs on a GPU.
-- `run_job.sh` already retries the render-guard flake.
-- G-c8 runs at about 8k steps an hour, a third of G-cnn's pace.
+**Learned on the night:** PROGRESS's 10-31 to 11-02 entry, "Findings".
 
 ### B30. What costs ResFiT's networks 0.19 in our agent — NOT PLANNED, WAITING ON ADEN `[SC]`
 
