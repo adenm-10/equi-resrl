@@ -271,31 +271,31 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 22:45 on 2026-11-01: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
+**At 00:10 on 2026-11-02: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
 DEVIATION; Aden at about 22:10: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and G-fa.
 asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/run_job.sh`, each gate run without Tier
 2 while the commit's full gate runs beside:
 - GPU 0: G-c8 (tmux `q-stack-g-c8-2`) and W-cnn (`q-stack-w-cnn-2`);
 - GPU 1: G-cnn (`q-stack-g-cnn-2`) and NA-eee (`q-stack-na-eee-2`).
-- G-cnn's first gate failed only the known render-guard flake (below, "How the queue works now"), and its
-  `run_job.sh` retried at 22:45.
+- G-cnn's first gate failed only the known render-guard flake; its retry launched at 22:49.
+- NA-eee's first run (`9sux7vn2`) died at its first update, out of GPU memory beside P2's smoke (the 2026-11-02
+  FAILURE). It was relaunched from step 0 at 00:04.
 - Each fills its buffer for about 45 min, then trains: a W/G run for about 6–9 h (W-cnn's smoke), NA-eee about 21 h.
 
 **Beside them:**
 - **The two full gates.** If either fails, the runs at its commit are stopped (the DEVIATION).
-- **P2's, G-pre's and G-fa's smokes,** one after another on GPU 1 (tmux `smokes-d`, `run_smokes_seq.sh`;
-  `smoke-sampler`), once G-cnn's gate has passed.
-  - W-cnn's smoke passed at 22:15.
-  - G-c8's and G-cnn's smokes were stopped before training, so they have no verdict; their runs are their test.
+- **The smokes:** W-cnn's passed at 22:15 and P2's at 00:06. G-c8's and G-cnn's were stopped before training, so
+  their runs are their test. The chain was stopped before G-pre's (the FAILURE), so G-pre's and G-fa's run in their
+  slots.
+- **wandb's cache** is also trimmed to 300 MB every 15 min (tmux `cache-trim-15`).
 - **`order-1031`** in tmux `order-queue` from 22:41, with `WRIST_WORKTREE`, `WRIST2_WORKTREE` and `OBJ_WORKTREE`.
-  - JOBS: P2, G-pre, G-fa, then `obj-nut-rrr 3`, `obj-peg-eee 3`, `obj-peg-rrr 3`. The four launched by hand are
-    skipped while their `q-*` sessions exist.
+  - JOBS: P2, G-pre, G-fa, then `obj-nut-rrr 3`, `obj-peg-eee 3`, `obj-peg-rrr 3` (the four by hand are skipped).
   - A `'` in `WRIST2`'s message had swallowed `JOBS` and the floors; `--check` caught it before the start (fixed).
 - **tmux `wrist-watch`:** the watcher for `wrist-1031`, from `776c1ee` (all seven arms), watch-only. Its lines are
   in `outputs/queue/watch.log`.
 - `order-1027` is stopped (08:25 on 11-01).
 
-**The disk: about 6.4 GB free at 22:40,** against the 6 GB floor, which pauses launches under about 5.2 GB.
+**The disk: about 4.2 GB free at 00:08,** against the 6 GB floor, which pauses launches under about 5.2 GB.
 - Without Aden's two scripts, the floor will likely hold P2's, G-pre's and G-fa's launches in the morning (the bulk
   video deletion was refused by the permission classifier):
   - `outputs/cleanup-20261101/delete_by_hand_3.sh`: stack-base's extra checkpoints and the night's eval videos,

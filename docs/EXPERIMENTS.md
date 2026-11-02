@@ -12826,3 +12826,37 @@ process over night." A and B are the two commits of Claude's question 4 that aft
   - Each launch also downloads the base policy (341 MB) into wandb's cache, which `cache-trim` caps hourly.
   - Aden's two scripts (`delete_by_hand_3.sh`, 4.8 GB; `delete_by_hand_2.sh`, 3.2 GB) have not been run. Without
     them the 6 GB floor will likely hold P2's, G-pre's and G-fa's launches in the morning. The floor stops no run.
+
+---
+
+## 2026-11-02 — FAILURE — `stack-na-eee 2` (`9sux7vn2`) died at its first update: the GPU ran out of memory, because Claude placed P2's smoke beside it. Relaunched from step 0 at 00:04 as a new run. G-pre's and G-fa's smokes go back into their slots
+
+- **What happened:**
+  - NA-eee finished its demo labelling at about 23:45 and evaluated step 0.
+  - At 00:01 its first update died: `torch.OutOfMemoryError` in the ablated encoder's forward (`ablate_equi_encoder.py`,
+    line 50), needing 42 MiB with 56 MiB free of GPU 1's 23.5 GiB.
+  - GPU 1 then held G-cnn, NA-eee, P2's smoke and `79a954e`'s full gate (2.3 GiB). G-cnn was not hurt.
+- **The cause was Claude's placement.** P2's smoke, started at 22:49 beside two runs and a gate, was sized from
+  W-cnn's smoke's 2.7 GB peak. But that peak counts only the trainer. Each run's nine eval workers hold 654 MiB of
+  GPU memory each, about 6 GB more, so a run takes about 8.5–10 GB (STATUS's 9.9 GB). Two runs and a gate leave no
+  room for a third tenant.
+- **Its record:** `9sux7vn2`'s package is kept, finalized by the watcher, with its step-0 eval only. Its duplicate
+  best model was reclaimed (kind A, 400 MB).
+- **Relaunched** from step 0 at 00:04:07 on GPU 1, through `wrist-now/run_job.sh`, as a new run. Its LAUNCHED line
+  follows. By its first update (about 01:15), GPU 1 holds only G-cnn.
+- **P2's smoke passed at 00:06** (`n5sfmjx3`):
+  - evals 1.0, 1.0 and 0.5;
+  - 206 ms an env step;
+  - peak GPU 3,232 MiB (the trainer) and peak RAM 24.52 GiB;
+  - its options as registered, and its best model reloads strictly.
+- **The smoke chain was stopped after P2's** (Claude's call), for three reasons:
+  - **RAM:** 9 GB available at 23:58, with the runs' buffers growing.
+  - **The disk:** under 3.5 GB at 00:02, when NA-eee's 400 MB best model was copied three times.
+  - **The GPUs:** this failure.
+
+  G-pre's smoke was stopped as it began, before labelling, and it wrote no verdict. `order-1031` runs G-pre's and
+  G-fa's smokes in their slots, about an hour each, before their launches.
+- **Also on the night (Claude's calls, within the 10-28 DECISION's kinds):**
+  - wandb's artifact cache is trimmed to 300 MB every 15 minutes (tmux `cache-trim-15`,
+    `wrist-now/cache_trim_15.sh`), beside the hourly trim to 1 GB;
+  - the duplicate best models of `israseo9`, `ce3k4r5l` and `n5sfmjx3` were reclaimed (kind A).
