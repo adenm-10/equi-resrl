@@ -5,7 +5,7 @@
 - `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`), and G-pre and G-fa from `776c1ee` (`equi-resrl-776c1ee`);
 - O1's seeds 3 (`obj-1027`) from `e7710f4`; `stack-1030` ran from `9944eeb` (done).
 
-Main is pushed to origin through `4a6ab43`; the commits since are local.
+Main is pushed to origin (08:20 on 11-02, through the wrapup commit `943298f` and this line's).
 
 **Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
