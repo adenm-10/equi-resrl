@@ -15,7 +15,7 @@ Stack (B25) has three of four started (`stack-1030`), and `stack-eee 2` done (0.
 13:13 (the 10-31 DECISION after it; STATUS, the disk). The long runs
 (B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
 
-### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — FIVE ARMS BUILT AND PRE-REGISTERED 2026-11-01; G-pre AND G-fa TO BUILD `[SC]`
+### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — ALL SEVEN ARMS BUILT AND PRE-REGISTERED 2026-11-01 `[SC]`
 
 **The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local; status BUILDING). **Why:** the 10-31 FINDING and the two
 papers (the 10-31 DECISION). **Aden's calls:** NA-eee in; NA-rrr and NA-resfit cut; the G family only; "upend all
@@ -31,8 +31,8 @@ so Claude's recommendations stand (the 2026-11-01 PRE-REGISTERED entry lists the
   2. the disk: Aden's `outputs/cleanup-20261101/delete_by_hand_3.sh` (4.8 GB) and `delete_by_hand_2.sh` (3.2 GB),
      without which the floor likely holds the fourth and fifth launches;
   3. Monday morning's partial readout (matched steps, the 10k–30k signals);
-  4. the second commit: `wrist_encoder=resnet18` and `resnet18_fa` (frozen; `agent.freeze_encoder=true`), G-pre and
-     G-fa, their calibration, smokes and launch.
+  4. G-pre and G-fa: built at `776c1ee` (frozen ResNet, alone or frame-averaged), calibrated in the band, its gate
+     from 21:50; queued after P2, each smoke in its slot (the second PRE-REGISTERED entry of 11-01).
 - **Also owed:** the NOTEs on the runs that finished on 10-31/11-01 and are not yet written up: `stack-eee 3`
   (`3l3j5z3v`), `stack-rrr 2` (`fxqkfi6u`), `stack-rrr 3` (`riczucki`), `obj-nut-rrr 2` (`b4e3jqgj`) and
   `obj-nut-eee 3` (`rrgn653s`). Stack's S1 can now be read at two seeds an arm, and O1 has two seeds of its nut arms.
@@ -548,6 +548,13 @@ From `docs/plans/2026-09-29-non-ablation-work.md` (untracked). S1, S4, S5, S6-Sq
 PRE-REGISTERED). That gate ran under the image bug, and B10 reopens it.
 
 ## H — Housekeeping
+
+### H15. `tests/group_action.py`'s `rotate_image` turns its non-right angles the other way from its `rot90` branch — FOUND 2026-11-01 `[CS]`
+
+Its affine grid at +90° equals `torch.rot90(k=-1)`, where its right-angle branch is `rot90(k=+1)` (EXPERIMENTS.md, the
+2026-11-01 CODE entry of `776c1ee`). Only `test_vision_encoder_error_at_diagonal_angles` uses the affine branch, to report
+an error it does not assert, so the reported 45° error is measured against the opposite turn. Fix: build the grid as
+`[[c, -s], [s, c]]` (`tests/test_wrist_sweep.py`'s `_turn_image`), and record the corrected 45° error.
 
 ### H1, H3 — RESOLVED 2026-09-16 `[CS]` `[HI]`
 

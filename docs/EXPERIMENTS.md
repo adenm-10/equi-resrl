@@ -12644,3 +12644,59 @@ an episode. The wrist-only buffer stores no front images.
   11-01: stack-base's extra checkpoints and the night's eval videos, 4.8 GB; and `delete_by_hand_2.sh`, 3.2 GB),
   the floor will likely hold the fourth and fifth launches.
 - O1's three seeds 3 not yet run follow in `order-1031`. The ResNet arms come with the second commit.
+
+---
+
+## 2026-11-01 — CODE — the wrist sweep's pretrained wrist encoders (`776c1ee`): a frozen ImageNet ResNet-18 on the wrist, alone (`wrist_encoder=resnet18`) or frame-averaged over C8 (`resnet18_fa`)
+
+Written by Claude at about 21:50 on 11-01. This is the second commit of `wrist-1031`, for G-pre and G-fa (the plan's
+step 4; the first commit, `79a954e`, has the other five arms).
+- **What it is:** `networks/pretrained_wrist.py`'s `PretrainedWristEncoder`.
+  - Torchvision's ResNet-18 at `IMAGENET1K_V1` (cached in `~/.cache/torch`), its classifier removed: 512 pooled
+    features.
+  - Frozen: `agent.freeze_encoder=true`, which `check_families` requires.
+  - Always in eval mode, so its batch norms keep ImageNet's statistics. It runs without gradients, in bf16 on the
+    GPU.
+  - The image is mapped from [−1, 1] to ImageNet's normalization.
+- **`resnet18_fa`** is Ψ(x) = ⅛ Σ_k ρ(k) Φ(R_k⁻¹x) on the crop masked to its inscribed disk. Its 512 outputs are
+  read as 64 regular fields of C8. R_k turns in `torch.rot90`'s direction.
+- **Unread with either:** the wrist CNN's `ih_out_channel` and `ih_channels`, and the agentview encoder's fields, so
+  each is refused off its default.
+- **Arms:** `stack-g-pre` (G-cnn with `wrist_encoder=resnet18` and `agent.freeze_encoder=true`) and `stack-g-fa`
+  (G-pre with `resnet18_fa`), in `submit.sh`, the arm pins and the watcher's `wrist-1031`.
+- **Tests:**
+  - its weights are ImageNet's, and its batch norms stay in eval mode in a training agent;
+  - an update leaves every weight and statistic as it was;
+  - Ψ permutes under the crop's right-angle turns to 1e-4, and under 45° turns to the bilinear resampling's error
+    (under 0.1 relative, on a smooth image);
+  - both arms build, update, and keep the heading frame's invariance under turns about the hand at non-C8 angles;
+  - no host sync for either;
+  - the arm pins.
+  
+  81 tests in `tests/test_wrist_sweep.py` pass on the CPU. The full gate at `776c1ee` runs from 21:50 in tmux
+  `gate-776c1ee`.
+- **Found:** `tests/group_action.py`'s `rotate_image` resamples its non-right-angle turns in the opposite direction
+  to its `torch.rot90` branch: its affine grid at +90° is `rot90(k=−1)`. Only `test_vision_encoder_error_at_diagonal_angles`
+  uses that branch, to report an error it does not assert, so its reported 45° error is measured against the wrong
+  turn. Not changed (TODO H15). The new test builds its own turns in `rot90`'s direction and checks that direction
+  first.
+
+## 2026-11-01 — PRE-REGISTERED — the wrist sweep's ResNet arms, G-pre and G-fa, on Stack at seed 2 (`wrist-1031`, pin `776c1ee`)
+
+The plan's arms `stack-g-pre` and `stack-g-fa`, Aden's "one seed of each of the new arms" (the PRE-REGISTERED entry
+above, whose decisions, held fixed and readouts carry over). The second commit adds the ResNet and changes nothing
+for the other five: their pin stays `79a954e`.
+- **Questions:** does a frozen pretrained wrist encoder help the heading-frame residual (G-pre − G-cnn)? And does
+  frame averaging help it (G-fa − G-pre)? The guide measured +4.1 points from frame averaging.
+- **Arms:**
+  - `stack-g-pre`: G-cnn with `wrist_encoder=resnet18`, `agent.freeze_encoder=true`; 512 features, against G-cnn's
+    256 (Aden's widths question was unanswered, so the plan's recommendation stands).
+  - `stack-g-fa`: G-pre with `resnet18_fa`.
+- **Calibration** (`outputs/diagnostics/wrist/calibrate.py`, rerun at 21:45 with all seven arms; the first five
+  unchanged): G-pre 0.830× `stack-rrr`'s 50-step residual, predicting 0.0269 for 0–3k; G-fa 0.782×, predicting
+  0.0253. Both are inside the band at the source rate, G-fa near its lower edge.
+- **Order:** after P2 in `order-1031`, from the worktree `equi-resrl-776c1ee` (`WRIST2_WORKTREE`). Each runs its
+  smoke in its slot first, so not before slots free on Monday.
+- **The cost to be measured in the smoke:** G-fa runs the ResNet on 8 turns of every image. If its smoke projects
+  more than 4 h over G-pre's 150k, it goes to Aden (the plan's "cache the features instead").
+- **Prediction** (Claude's, as in the plan): G-fa above G-pre.
