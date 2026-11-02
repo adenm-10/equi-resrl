@@ -271,7 +271,7 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 00:10 on 2026-11-02: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
+**At 01:45 on 2026-11-02: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
 DEVIATION; Aden at about 22:10: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and G-fa.
 asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/run_job.sh`, each gate run without Tier
 2 while the commit's full gate runs beside:
@@ -283,11 +283,11 @@ asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/ru
 - Each fills its buffer for about 45 min, then trains: a W/G run for about 6–9 h (W-cnn's smoke), NA-eee about 21 h.
 
 **Beside them:**
-- **The two full gates.** If either fails, the runs at its commit are stopped (the DEVIATION).
+- **Both full gates passed** (00:15, 00:33): both commits are in `tier2_passed.txt`.
 - **The smokes:** W-cnn's passed at 22:15 and P2's at 00:06. G-c8's and G-cnn's were stopped before training, so
   their runs are their test. The chain was stopped before G-pre's (the FAILURE), so G-pre's and G-fa's run in their
   slots.
-- **wandb's cache** is also trimmed to 300 MB every 15 min (tmux `cache-trim-15`).
+- **wandb's cache** is also trimmed to 100 MB every 5 min (tmux `cache-trim-15`).
 - **`order-1031`** in tmux `order-queue` from 22:41, with `WRIST_WORKTREE`, `WRIST2_WORKTREE` and `OBJ_WORKTREE`.
   - JOBS: P2, G-pre, G-fa, then `obj-nut-rrr 3`, `obj-peg-eee 3`, `obj-peg-rrr 3` (the four by hand are skipped).
   - A `'` in `WRIST2`'s message had swallowed `JOBS` and the floors; `--check` caught it before the start (fixed).
@@ -295,7 +295,7 @@ asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/ru
   in `outputs/queue/watch.log`.
 - `order-1027` is stopped (08:25 on 11-01).
 
-**The disk: about 4.2 GB free at 00:08,** against the 6 GB floor, which pauses launches under about 5.2 GB.
+**The disk: about 3.5 GB free at 01:20,** against the 6 GB floor, which pauses launches under about 5.2 GB.
 - Without Aden's two scripts, the floor will likely hold P2's, G-pre's and G-fa's launches in the morning (the bulk
   video deletion was refused by the permission classifier):
   - `outputs/cleanup-20261101/delete_by_hand_3.sh`: stack-base's extra checkpoints and the night's eval videos,

@@ -12860,3 +12860,54 @@ process over night." A and B are the two commits of Claude's question 4 that aft
   - wandb's artifact cache is trimmed to 300 MB every 15 minutes (tmux `cache-trim-15`,
     `wrist-now/cache_trim_15.sh`), beside the hourly trim to 1 GB;
   - the duplicate best models of `israseo9`, `ce3k4r5l` and `n5sfmjx3` were reclaimed (kind A).
+
+---
+
+## 2026-11-02 — LAUNCHED — the wrist sweep's first four runs on Stack at seed 2 (`wrist-1031`, `79a954e`): G-c8 (`fjy1z5nr`), G-cnn (`hum5118h`), W-cnn (`zrhqmb8a`) and NA-eee (`rq4uzl8v`). Steps 0 0.60, 0.60, 0.54, 0.54; early speeds all inside the band, G-c8's 32% over its prediction. Both commits' full gates passed
+
+Written by Claude at about 01:40 on 11-02, under the wrist sweep's PRE-REGISTERED entry (2026-11-01), as launched by
+the 2026-11-01 DEVIATION. wandb project `robomimic-stack-final`; every config is its arm's dry run at `79a954e`.
+
+- **Tier 2 is now covered for both commits.** Both full gates passed:
+  - `79a954e` at 00:15 (1,143 GPU tests, 2 h 41 min);
+  - `776c1ee` at 00:33 (1,161 GPU tests, 2 h 39 min).
+
+  Each was added to `tier2_passed.txt`, so every launch tonight is now covered by Tier 2. G-pre and G-fa will
+  launch from the queue with Tier 2 skipped the usual way.
+- **Each launch gate** (Tier 1 and Tier 3) returned GO with three warnings: Tier 2 skipped, the BC policy not in
+  `artifacts/` (downloaded from wandb), and the disk.
+  - G-cnn's first gate failed only `test_every_guard_passes_on_cans_first_demos`, the known render-guard flake,
+    with six suites sharing the CPUs. Its `run_job.sh` retried at 22:45, got GO, and launched at 22:49.
+
+| Arm | Run | GPU | Gate GO | wandb from | Step 0 | 0–3k residual (predicted) | Steps an hour, 00:20–00:50 |
+|---|---|---|---|---|---|---|---|
+| G-c8 | `fjy1z5nr` | 0 | 22:29 | 23:19 | 0.60 | 0.0385 (0.0292) | about 6k, 8k after `776c1ee`'s gate ended |
+| G-cnn | `hum5118h` | 1 | 22:49 | 23:47 | 0.60 | 0.0298 (0.0295) | about 18k |
+| W-cnn | `zrhqmb8a` | 0 | about 22:36 | 23:34 | 0.54 | 0.0304 (0.0311) | about 16k |
+| NA-eee | `rq4uzl8v` | 1 | about 00:12 | 01:05 | 0.54 | 0.0263 (0.0276) | (not measured) |
+
+- **Step 0 is the base alone.** B_stack is 0.602 over 500 episodes; a 50-episode eval's standard error near 0.6 is
+  about 0.07. So all four are within one standard error of B_stack.
+- **The early speeds:** all four are inside the 0.025–0.045 band. Three are within 5% of their predictions (from
+  `outputs/diagnostics/wrist/calibration.json`, real frames). **G-c8's is 32% over its 0.0292**, outside the 15%.
+  That is recorded, not acted on: the band is the registered check. Its residual grows faster than calibrated from
+  the same rate; G-cnn, the same arm but for the encoder, is on its prediction.
+- **G-c8 runs at about a third of G-cnn's pace:** it spends 81% of its time in gradient steps, behind the C8 encoder.
+  At about 8k steps an hour, it reaches about 60–65k by 08:00 and 150k on the evening of 11-02. G-cnn and W-cnn
+  reach about 120–130k by 08:00. Monday morning's readout of G-c8 against G-cnn is therefore at matched steps, as
+  the PRE-REGISTERED entry provides, up to about 60k.
+- **The first evals** (watch-only; one seed; described, not read):
+  - G-c8: 0.64 at 10k.
+  - G-cnn: 0.30 at 10k, 0.70 at 20k.
+  - W-cnn: 0.40 at 10k, 0.66 at 20k.
+
+  For scale, Stack's `rrr` runs scored 0.52–0.60 at 10k, and `stack-eee 2` scored 0.36.
+- **NA-eee** is the second run of its name: the first (`9sux7vn2`) died of GPU memory at 00:01 (the 2026-11-02
+  FAILURE). The watcher finalized the dead package at 00:01 and tracked the new run correctly at 01:05, so TODO H14's
+  wrong-run match did not recur.
+- **The night's disk:** 2,716 MB free at 01:16, once NA-eee's step-0 best (400 MB) was written three times.
+  - wandb's cache was trimmed by hand at 01:16 (0.84 GB).
+  - The extra trim was tightened to 100 MB every 5 minutes (tmux `cache-trim-15`). That leaves 3.5 GB.
+  - `/tmp/pytest-of-aden` holds 0.8 GB of the gates' temporary files, which are not a kind Claude may delete.
+- **Resources at 00:50:** 39 GB of RAM available, 4 GB of swap used. GPU 0 at 19.1 GB and GPU 1 at 14.0 GB, then
+  about 20 GB once NA-eee's eval workers started.
