@@ -15,27 +15,39 @@ Stack (B25) has three of four started (`stack-1030`), and `stack-eee 2` done (0.
 13:13 (the 10-31 DECISION after it; STATUS, the disk). The long runs
 (B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
 
-### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — ALL SEVEN ARMS BUILT AND PRE-REGISTERED 2026-11-01 `[SC]`
+### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — FOUR ARMS RUNNING OR DONE, THREE WAITING ON THE DISK 2026-11-02 `[SC]`
 
-**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local; status BUILDING). **Why:** the 10-31 FINDING and the two
-papers (the 10-31 DECISION). **Aden's calls:** NA-eee in; NA-rrr and NA-resfit cut; the G family only; "upend all
-currently queued experiments"; on 11-01, O1's seeds 3 deferred to after the sweep, and "build and queue one seed of
-each of the new arms", with G-c8 against G-cnn wanted by Monday morning. Section 8's questions 3–7 were not answered,
-so Claude's recommendations stand (the 2026-11-01 PRE-REGISTERED entry lists them; Aden can still change them).
-- **Done 11-01:** P1 (the NOTE: cube B is out of the wrist's view for about 40% of the approach and 27% of the carry);
-  the five arms' code (the CODE entry: `rl_camera` without the front camera, `critic_tokens`, `gripper_xy_input`,
-  `action_frame`, `wrist_encoder=c8`), its tests, the calibration (all five in the band at their sources' rates),
-  the PRE-REGISTERED entry, the queue `order-1031`.
-- **Next:**
-  1. the smokes and the full gate, then `order-1031` (G-c8, G-cnn, W-cnn, NA-eee, P2, then O1's three seeds 3);
-  2. the disk: Aden's `outputs/cleanup-20261101/delete_by_hand_3.sh` (4.8 GB) and `delete_by_hand_2.sh` (3.2 GB),
-     without which the floor likely holds the fourth and fifth launches;
-  3. Monday morning's partial readout (matched steps, the 10k–30k signals);
-  4. G-pre and G-fa: built at `776c1ee` (frozen ResNet, alone or frame-averaged), calibrated in the band, its gate
-     from 21:50; queued after P2, each smoke in its slot (the second PRE-REGISTERED entry of 11-01).
-- **Also owed:** the NOTEs on the runs that finished on 10-31/11-01 and are not yet written up: `stack-eee 3`
-  (`3l3j5z3v`), `stack-rrr 2` (`fxqkfi6u`), `stack-rrr 3` (`riczucki`), `obj-nut-rrr 2` (`b4e3jqgj`) and
-  `obj-nut-eee 3` (`rrgn653s`). Stack's S1 can now be read at two seeds an arm, and O1 has two seeds of its nut arms.
+**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local; status RUNNING). **Why:** the 10-31 FINDING and the two
+papers (the 10-31 DECISION). **Aden's calls:**
+- NA-eee in; NA-rrr and NA-resfit cut; the G family only; "upend all currently queued experiments".
+- On 11-01: O1's seeds 3 deferred to after the sweep, and G-c8 against G-cnn wanted by Monday morning.
+- At about 22:10 on 11-01: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and G-fa. asap.
+  go with your recommendation for the rest of the decisions". So Claude's recommendations for section 8's questions
+  3–7 stand (the 11-01 PRE-REGISTERED entry).
+
+**Done:**
+- P1, the code (`79a954e`, `776c1ee`), the calibration, both PRE-REGISTERED entries and both full gates.
+- Four launches (the 11-01 DEVIATION; the 11-02 FAILURE and LAUNCHED entries).
+- **G-cnn (`hum5118h`) at 150k: 0.952** (the 11-02 NOTE).
+- Monday morning's partial readout (the same NOTE): G-c8 level with G-cnn at 10k–60k, both above W-cnn; G-c8 first
+  on all three 10k–30k signals.
+
+**Next:**
+1. **The disk (Aden):** `outputs/cleanup-20261101/delete_by_hand_3.sh` (4.8 GB), `outputs/cleanup-20261028/
+   delete_by_hand_2.sh` (3.2 GB) and `/tmp/pytest-of-aden` (0.8 GB). The disk is about 2.5 GB free, and `order-1031`
+   launches nothing under its 6 GB floor.
+2. P2, G-pre and G-fa launch from `order-1031` as slots free (G-pre's and G-fa's smokes in their slots). O1's three
+   seeds 3 follow them.
+3. As each run ends: its NOTE (the 110k–150k pool), and the duplicate best model reclaimed (kind A).
+   - W-cnn ends about 10:30 on 11-02, NA-eee about 17:00, G-c8 about 19:00–20:00.
+4. The sweep's readout, once its arms are at 150k: each arm's pool against `stack-eee`, `stack-rrr` and B_stack,
+   and the plan's contrasts at 0.13 (`/analyze-experiment`).
+
+**Learned on the night:**
+- A run's GPU memory is about 8.5–10 GB with its nine eval workers (654 MiB each), not the 2.7–3.2 GB the smokes'
+  checker reports for the trainer alone. Nothing goes beside two runs on a GPU.
+- `run_job.sh` already retries the render-guard flake.
+- G-c8 runs at about 8k steps an hour, a third of G-cnn's pace.
 
 ### B30. What costs ResFiT's networks 0.19 in our agent — NOT PLANNED, WAITING ON ADEN `[SC]`
 
@@ -78,36 +90,23 @@ climbing at 150k, which is the case for the long runs; so were 15 of the 32 belo
    `long-resfit 4` levelled at 0.88; `long-eee 4` was still climbing at 150k, then held at 0.74–0.80 and
    ended at 0.800; the gap to ResFiT narrowed from 0.200 to 0.080 (the 2026-10-30 `long-1027` NOTE). Not
    done: the 200-episode re-evaluations of the checkpoints (the secondary readout); B27.
-2. **O1: BUILT 10-27** (the CODE entry). The rest:
-   - all eight pre-registered and queued; the `rrr` arms at 1e-6 (the 2026-10-28 DECISION).
-
-   The steps, as planned (the steps plan's section 2):
-   - the pose through the wrapper;
-   - the demos' column from robomimic's states;
-   - its field types and tests: with the switch off, everything is today's bit for bit, and a turned raw
-     observation gives the declared representation;
-   - the four arms' early speeds;
-   - the smokes, the pre-registration, and the eight jobs in the queue.
-
-   Committed and queued about 10-28; the first launch about 10-30.
+2. **O1: BUILT 10-27** (the CODE entry; the steps plan's section 2). Seeds 2 done, and C1 for `eee` counts (the
+   2026-11-01 NOTE). Three seeds 3 wait behind the wrist sweep in `order-1031`; the `rrr` arms run at 1e-6.
 3. **While they run.**
    - `tools/residual_field_ablation.py` for ResFiT's agent, for the long runs' 200-episode
      re-evaluations; it reads the equivariant agent only.
    - The readout scripts: each long run's curve by window, and O1 against `eee` and `rrr`.
    - B22's readout: DONE 10-30, nothing counted; the tuning anchor stays `eee`.
 
-**The results, roughly:** ResFiT's long runs about 10-29 midday and 10-31 night; `eee`'s about 10-30
-afternoon and 11-01; O1 about 11-02.
-
 **Then, after these results:**
-- **A new task** (call 10): Stack, `eee` against `rrr` (B25), once Aden approves it.
+- **A new task** (call 10): Stack (B25), done and read on 11-01.
 - **The tuning group** (the plan's section 3).
   - Stage 1: 50k screens at seed 2, each one change from the anchor. They are scored on the online value
     at 20k–50k, with the speed band as a gate. The arms: critic rate 3e-4 and 3e-5, updates per step 8 and
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
 
-### B25. Stack, `eee` against `rrr` (`stack-1030`) — ALL FOUR RUNS DONE 2026-11-01; THE READOUT IS OWED `[SC]`
+### B25. Stack, `eee` against `rrr` (`stack-1030`) — DONE AND READ 2026-11-01 `[SC]`
 
 **Steps 1–4 and 6–9 are done** (EXPERIMENTS.md, the 2026-10-29 and 10-30 CODE, NOTE and PRE-REGISTERED entries).
 - The demos (`local/mimicgen-stack-d0-rerendered`, 954 of 1,000 action replays succeed), the env and the dataset.
@@ -115,8 +114,8 @@ afternoon and 11-01; O1 about 11-02.
   error 0.022).
 - The arms, their calibration and the four runs: `stack-eee 2` (`tjl95db5`) and 3 (`3l3j5z3v`); `stack-rrr 2`
   (`fxqkfi6u`, relaunched after the 10-30 disk-full) and 3 (`riczucki`).
-- **Next:** read S1 (`stack-eee` − `stack-rrr` at 0.13) and S2 at two seeds an arm, and write up the three runs
-  that finished overnight (TODO B29, "also owed").
+- **Read 11-01** (the NOTE): S1 = −0.078, not counted; `eee` 0.716, `rrr` 0.794, both above B_stack. By the
+  registered table, more seeds only if Aden wants S1 read.
 - **Step 5, the symmetry record**, is half done: the layouts are measured (the 10-31 FINDING corrects the
   pre-registration's premise), and the turned-demo replays (`outputs/diagnostics/symmetry/turned_replay.py`) are
   not.

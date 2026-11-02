@@ -12911,3 +12911,48 @@ the 2026-11-01 DEVIATION. wandb project `robomimic-stack-final`; every config is
   - `/tmp/pytest-of-aden` holds 0.8 GB of the gates' temporary files, which are not a kind Claude may delete.
 - **Resources at 00:50:** 39 GB of RAM available, 4 GB of swap used. GPU 0 at 19.1 GB and GPU 1 at 14.0 GB, then
   about 20 GB once NA-eee's eval workers started.
+
+---
+
+## 2026-11-02 — NOTE — `stack-g-cnn 2` (`hum5118h`) at 150k: 0.952 at 110k–150k, the highest of any Stack run (B_stack 0.602; `stack-rrr` 0.794 over two seeds). Monday morning's partial readout at matched steps: G-c8 0.750 at 10k–60k against G-cnn's 0.743 and W-cnn's 0.660; G-c8 first on all three 10k–30k signals. One seed an arm: described, not read
+
+Written by Claude at about 08:10 on 11-02, under the wrist sweep's PRE-REGISTERED entry (2026-11-01, "Monday morning's
+partial readout"). The evals are the watcher's EVAL lines (`outputs/queue/watch.log`, 50 episodes each). G-cnn's pools
+come from its package (`outputs/runs/robomimic-stack-final/hum5118h/wandb_logs/metrics.jsonl`). The online values come
+from each run's console (`q_online(data/policy)`, the data half); for G-cnn this matches its package's
+`debug/q_data_online` (+0.0997).
+- **Config caveats:** none found. Every run is its arm's `submit.sh` dry run at `79a954e`, and `check_families`
+  refuses any field off its default that the arm's networks do not read (the 2026-11-01 CODE entry).
+- **`stack-g-cnn 2` finished** at 07:54, EXIT 0, package complete: about 8.1 h of training from 23:47. Its duplicate
+  best model was reclaimed (kind A). Its evals at 110k–150k were 0.96, 0.94, 0.90, 0.96 and 1.00, so **0.952**.
+  - That is 0.350 above B_stack and 0.158 above `stack-rrr`'s two-seed pool (0.794).
+  - It is one run, and the registered readouts are contrasts between arms, so nothing is read from it alone.
+  - W-cnn, its contrast, is at 118k.
+
+| Run (arm) | Evals 0, 10k, 20k, … | 10k–30k mean | 10k–60k mean | Online value, 10k–30k | Training successes to 100k | Step at 08:00 |
+|---|---|---|---|---|---|---|
+| `fjy1z5nr` (G-c8) | 0.60 0.64 0.68 0.80 0.74 0.76 0.88 | **0.707** | **0.750** | **+0.146** | 228 by 60k | 63k |
+| `hum5118h` (G-cnn) | 0.60 0.30 0.70 0.90 0.78 0.92 0.86 0.84 0.88 0.88 0.82 0.96 0.94 0.90 0.96 1.00 | 0.633 | 0.743 | +0.100 | 441 | done |
+| `zrhqmb8a` (W-cnn) | 0.54 0.40 0.66 0.68 0.68 0.70 0.84 0.94 0.88 0.84 0.82 0.86 | 0.580 | 0.660 | +0.088 | 425 | 118k |
+| `rq4uzl8v` (NA-eee) | 0.54 0.54 0.70 0.82 0.64 0.80 0.72 0.60 | 0.687 | 0.703 | +0.093 | 257 by 70k | 72k |
+
+- **At matched steps** (a mean of six evals has a standard error of about 0.03, before the curves' own drift):
+  - **G-c8 is level with G-cnn** at 10k–60k: 0.750 against 0.743.
+  - **Both are above W-cnn** (0.660).
+  - The three 10k–30k signals all rank G-c8 > G-cnn > W-cnn: the evals (0.707, 0.633, 0.580), the training
+    successes by 30k (94, 72, 70) and the online value (+0.146, +0.100, +0.088).
+  - The 10-28 analysis found the 10k–30k evals and training success the strongest early predictors (ρ +0.86 and
+    +0.80, on Square).
+- **The predictions, so far** (the registered readouts are the 110k–150k pools, still to come):
+  - G-c8 at or above G-cnn: so far, yes, at matched steps.
+  - G-cnn above W-cnn: so far, yes, but W-cnn reached G-cnn's level from 60k (0.84–0.94 against 0.82–0.96).
+- **For scale:**
+  - `stack-rrr`'s two runs: 0.607 at 10k–30k, +0.146 online value.
+  - `stack-eee`'s: 0.540 and +0.079.
+  - NA-eee (`eee` without the front camera) at 0.687 is above `stack-eee`'s early evals, with the online value of
+    `stack-eee 2`.
+- **G-c8's cost:** about 7.5–8k steps an hour against G-cnn's 18k. It reaches 150k at about 19:00–20:00 on 11-02.
+- **What has not launched:** P2, G-pre and G-fa.
+  - `order-1031` has a free slot on GPU 1 since 07:54, but the disk is at about 2.5 GB, under its 6 GB floor. They
+    wait for Aden's two deletion scripts.
+  - P2's smoke passed; G-pre's and G-fa's run in their slots.

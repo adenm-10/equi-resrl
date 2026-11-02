@@ -17,6 +17,58 @@ other four docs, with a pointer from here.
 
 ---
 
+## 2026-10-31 (afternoon) to 11-02 (morning) — the wrist sweep built, pre-registered and launched; Stack and O1's seeds 2 read; G-cnn 0.952 at 150k; NA-eee's GPU-memory crash
+
+The VSCode session, from the 10-31 handoff to 08:15 on 11-02. Claude acts on its own recommendations (the 10-28
+DECISION). On 11-01 at about 22:10 Aden added: "go with your recommendation for the rest of the decisions".
+
+**Done**
+- **Aden's answers** to the plan's section 8: O1's seeds 3 deferred to after the sweep, and the backfill kept. He
+  declined the disk question, paused the session, and resumed it on 11-01.
+- **P1** (the 11-01 NOTE).
+- **The code:**
+  - `79a954e`, the five arms' options. The residual without the front camera (`rl_camera`), `critic_tokens=flat`,
+    `gripper_xy_input`, `action_frame=heading` (`rl/heading_frame.py`) and `wrist_encoder=c8`.
+  - `776c1ee`, the frozen ImageNet ResNet-18, alone or frame-averaged over C8 (`networks/pretrained_wrist.py`).
+  - Tests in `tests/test_wrist_sweep.py`; the calibration in `outputs/diagnostics/wrist/calibration.json`.
+  - Two PRE-REGISTERED entries, and the queue `order-1031`.
+- **The readouts:** Stack's S1 −0.078, not counted; O1's C1 for `eee` +0.159, which counts (the 11-01 NOTEs).
+- **The launch** (the 11-01 DEVIATION). On Aden's "stop all runs and start A … B … asap", the three smokes were
+  stopped (W-cnn's had passed). G-c8, G-cnn, W-cnn and NA-eee were launched by hand
+  (`outputs/queue/launchers/wrist-now/`), with each gate's Tier 2 running beside instead of before. Both full gates
+  had passed by 00:33.
+- **NA-eee's first run died** at its first update, out of GPU memory beside P2's smoke (the 11-02 FAILURE). It was
+  relaunched at 00:04. P2's smoke passed; the chain was stopped before G-pre's.
+- **G-cnn finished at 150k**, with the morning's matched-step readout (the 11-02 NOTE). The LAUNCHED entry has
+  every step 0 and early speed.
+- **The disk** (kind A): ten duplicate best models reclaimed (`3l3j5z3v`, `fxqkfi6u`, `riczucki`, `b4e3jqgj`,
+  `rrgn653s`, `ce3k4r5l`, `israseo9`, `9sux7vn2`, `n5sfmjx3`, `hum5118h`). wandb's cache is now trimmed to 100 MB
+  every 5 min.
+
+**Findings** (one seed an arm: described, not read)
+- **G-cnn: 0.952 at 110k–150k,** the best Stack run (`stack-rrr` 0.794 at two seeds; B_stack 0.602).
+- **At matched steps (10k–60k):** G-c8 0.750, G-cnn 0.743, W-cnn 0.660. G-c8 is first on all three 10k–30k
+  signals (evals 0.707; 94 training successes; online value +0.146, `stack-rrr`'s level).
+- **G-c8 is slow:** about 8k steps an hour, a third of G-cnn's pace. Its early speed, 0.0385, is 32% over its
+  calibration but inside the band.
+- **GPU memory:** a run takes about 8.5–10 GB with its nine eval workers. The smoke checker's peak counts the
+  trainer alone (2.7–3.2 GB).
+- **A queue-script bug:** in `order-1031`'s script, an apostrophe inside a `${VAR:?message}` swallowed `JOBS` and
+  the floors. `--check` caught it before the start.
+
+**Decided** (Claude's calls, each in EXPERIMENTS.md)
+- **Four runs at once, not seven:** seven would need about 150 GB of RAM at their start, against 125 GB.
+- **Tier 2 beside the launches, not before:** this saved about 1.5 h, and both full gates passed.
+- **The out-of-queue smoke chain stopped after P2's,** for the RAM, the disk and the GPUs.
+
+**Next:** TODO B29.
+- The disk first: Aden's two scripts and `/tmp/pytest-of-aden`. At about 2.5 GB free, nothing launches.
+- Then P2, G-pre and G-fa.
+- A NOTE as each run ends: W-cnn about 10:30, NA-eee about 17:00, G-c8 about 19:00–20:00.
+- The sweep's readout.
+
+---
+
 ## 2026-10-31 (late morning) — the week's update prepared; Stack extrinsic about the base too, the front camera centred on the table middle; two papers read; the wrist sweep planned (Aden: upend the queue for it)
 
 The VSCode session, about 10:30–13:00. No run launched, no code changed.

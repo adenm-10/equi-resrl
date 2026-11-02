@@ -1,67 +1,53 @@
 # Status
 
-**Last updated:** 2026-11-01, 22:45 · **Last verified commit:** `776c1ee`, the wrist sweep's ResNet encoders
-(EXPERIMENTS.md, 2026-11-01 CODE). Both commits' new tests, arm pins and goldens pass by hand; their full gates run
-from 21:29 (`79a954e`, tmux `gate-79a954e`) and 21:50 (`776c1ee`, `gate-776c1ee`), beside the runs (the 2026-11-01
-DEVIATION). Where each group launches from:
-- `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`) and, for G-pre and G-fa, `776c1ee` (`equi-resrl-776c1ee`;
-  the two 2026-11-01 PRE-REGISTERED entries);
-- `obj-1027` from `e7710f4`; `stack-1030` ran from `9944eeb` (all four runs done).
+**Last updated:** 2026-11-02, 08:15 · **Last verified commit:** `776c1ee` (full gate GO at 00:33, 1,161 GPU tests;
+`79a954e`'s at 00:15, 1,143; both in `tier2_passed.txt`). Where each group launches from:
+- `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`), and G-pre and G-fa from `776c1ee` (`equi-resrl-776c1ee`);
+- O1's seeds 3 (`obj-1027`) from `e7710f4`; `stack-1030` ran from `9944eeb` (done).
 
 Main is pushed to origin through `4a6ab43`; the commits since are local.
 
 **Claude acts on its own recommendations** (Aden, 2026-10-28 morning; EXPERIMENTS.md, the 2026-10-28
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, and any deletion the DECISION does not
-cover.
-- **The wrist sweep (TODO B29) is built and pre-registered; launching tonight** (the 2026-11-01 CODE, NOTE and
-  PRE-REGISTERED entries). Aden (11-01): "build and queue one seed of each of the new arms", G-c8 against G-cnn wanted
-  by Monday morning; O1's seeds 3 after the sweep. Section 8's questions 3–7 were not answered, so Claude's
-  recommendations stand (the entry lists them). Five arms at seed 2: G-c8, G-cnn, W-cnn, NA-eee, P2, all calibrated
-  inside the speed band at their sources' rates. G-pre and G-fa (the ResNet) come in a second commit. P1: the wrist
-  loses cube B for about 40% of the approach and 27% of the carry.
-- **Stack (TODO B25) is pre-registered and queued** (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`): `eee`
-  against `rrr`, seeds 2 and 3, on `stack-base`'s step 2000, **B_stack 0.602** (500 episodes, standard error
-  0.022). Its base policy finished its 50k at 22:01 on 10-30 (`8g47hqyc`; 0.92 at the end, 0.99 at best; the
-  2026-10-30 NOTE); nothing reads it past step 2000.
-- **The queue order is Claude's call for Aden's Sunday goal** (recorded in the pre-registration): Stack's seed-2
-  runs ahead of O1's seeds 3, `stack-eee 2` first.
-- **O1's `rrr` arms run at 1e-6**, as pre-registered.
-
-**The work is in the VSCode session from 10-29** (PROGRESS, the 10-29 to 10-31 entry). Each long arm has one
-run (the 10-29 DEVIATION).
+cover. On 11-01 Aden added: "go with your recommendation for the rest of the decisions".
+- **The wrist sweep (TODO B29) runs** (EXPERIMENTS.md, the 2026-11-01 CODE, NOTE, PRE-REGISTERED and DEVIATION
+  entries; the 2026-11-02 FAILURE, LAUNCHED and NOTE).
+  - G-cnn finished at 150k: **0.952** at 110k–150k, the best Stack run.
+  - At matched steps (10k–60k), G-c8 0.750, G-cnn 0.743, W-cnn 0.660. One seed each, described only.
+  - G-c8, W-cnn and NA-eee run.
+  - P2, G-pre and G-fa wait on the disk.
+- **Stack (`stack-1030`, TODO B25) is done and read** (the 2026-11-01 NOTE): `eee` 0.716, `rrr` 0.794 at two
+  seeds, both above **B_stack 0.602**; S1 −0.078, not counted. The base policy is `8g47hqyc`'s step 2000.
+- **O1 (`obj-1027`):** C1 for `eee` counts, +0.159 (the 2026-11-01 NOTE). Its three remaining seeds 3 come after
+  the sweep (Aden, 11-01), last in `order-1031`. O1's `rrr` arms run at 1e-6.
 
 **Cleanups** (PROGRESS has each; the lists are in `outputs/cleanup-202610*/`):
 - `delete_by_hand_2.sh` (September's 14 wandb folders, 3.2 GB) is not run, and stays Aden's call.
 - **Worktrees go as their groups end;** removed so far: `58d55d7`, `aec1bdc`, `a5b5cc8`, `e2fdb27`, `adebb3c`,
-  `3c23fe9`. Left: `9944eeb` (Stack) and `e7710f4` (O1). `stack-base`'s folder is in the main checkout
+  `3c23fe9`. Left: `9944eeb` (Stack, done), `e7710f4` (O1's seeds 3), `79a954e` and `776c1ee` (the wrist sweep). `stack-base`'s folder is in the main checkout
   (`outputs/runs/robomimic-stack-bc/8g47hqyc`); deleting all but step 2000 and the best (about 5 GB) is Aden's
   call.
 - **`~/equi-resrl-preserve` stays.** It holds `z8yoqylh`'s only copy.
 - **The 10-28 reclaim** (2.67 GB), and what it kept, is listed in `outputs/cleanup-20261028/`. 196 of the
   199 April–May wandb folders are the only copies, and stay.
 
-**The disk:** 7.1 GB free at 15:56 on 10-31, of 3.6 TB. **The queue's floor is 6 GB from 13:13** (Claude's call
-for Aden's Sunday goal; EXPERIMENTS.md, the 2026-10-31 DECISION), so launches pause under about 5.2 GB.
-`stack-rrr 2` launched at 13:18. More room is Aden's call: `stack-base`'s extra checkpoints (about 5 GB) and
-`delete_by_hand_2.sh` (3.2 GB). **It filled at 22:57 on 10-30** (the 10-31 FAILURE entry), unwatched. Each run keeps its best model twice until it ends (444 MB for `eee`, 223 MB for `rrr`).
-- tmux `cache-trim` trims wandb's artifact cache to 1 GB hourly (from 10:13 on 10-31), `wandb-cache` to 2 GB at
-  07:35 and 19:35. Each new best a run uploads leaves a 0.2–0.46 GB copy there.
+**The disk: about 2.5 GB free at 08:00 on 11-02**, of 3.6 TB, under the queue's 6 GB floor (`DISK_FLOOR_GB`; `df -BG`
+rounds up, so launches pause under about 5.2 GB). It filled at 22:57 on 10-30 (the 10-31 FAILURE). Room is Aden's
+call: `outputs/cleanup-20261101/delete_by_hand_3.sh` (stack-base's extra checkpoints and eval videos, 4.8 GB),
+`outputs/cleanup-20261028/delete_by_hand_2.sh` (3.2 GB), and `/tmp/pytest-of-aden` (0.8 GB, the gates' temporary
+files).
+- **Each run's first best model costs it three copies:** `models/`, `wandb_best/` and wandb's cache. That is 0.4 GB
+  each for a wrist run, and 1.2 GB for `eee` (NA-eee's).
+  - Each finished run's duplicate `models/best_model.pt` is deleted once byte-identical to `wandb_best/` (kind A;
+    `outputs/cleanup-20261028/deleted_best_models.txt`).
+- **wandb's cache trims:** tmux `cache-trim` to 1 GB hourly, `cache-trim-15` to 100 MB every 5 min (since 01:17 on
+  11-02, `wrist-now/cache_trim_15.sh`), and `wandb-cache` to 2 GB every 12 h.
 - tmux `disk-watch` logs free space every 20 s to `/dev/shm/df.log`, alerting under 3,000 MB.
-- **What the queue still writes:** about 7 GB, net of the rolling reclaim. That is O1's six runs to come and
-  their smokes (about 3.5 GB), Stack's four runs and two smokes (about 2.5 GB), and wandb folders.
-- **Stack adds:** its demos (1.1 GB, downloaded), its dataset and its base policy.
-- **The rules:** the queue launches only while 6 GB is free (`DISK_FLOOR_GB`; 8 GB from 10-28 to 13:13 on 10-31),
-  as `df -BG` reports it, rounded up, so it pauses only under about 5.2 GB. Each finished run's duplicate `models/best_model.pt` is
-  deleted once byte-identical to `wandb_best/` (`deleted_best_models.txt`). Claude's wait
-  (`order-1027/wait_event.sh`) wakes under `DISK_MB` MB, 5,500 since 13:19 on 10-31.
 
-**Now: O1 (`obj-1027`) and Stack (`stack-1030`) run; the long runs and actor-design are done and read**
-(EXPERIMENTS.md, the 2026-10-27 and 2026-10-30 PRE-REGISTERED entries, the 2026-10-29 DEVIATION, the 2026-10-30
-entries). O1 is the nut's pose alone or with the peg's, on `eee` and `rrr`, eight runs: two run, six queued.
-Stack is `eee` against `rrr` at seeds 2 and 3: the two seed-2 runs train, the two seed-3 runs are queued. `long-1027` has one run
-per arm, both at 300k. Latency is sidelined. One queue places every job: tmux `order-queue`,
-`outputs/queue/launchers/order-1027/order_queue.sh` (log `order_queue.log` there; "Running now", below).
+**Now: the wrist sweep (`wrist-1031`) runs.** Stack and O1's seeds 2 are done and read (above), and so are the long
+runs, actor-design, arch-swap and enc-iface (below). Latency is sidelined. One queue places every job: tmux
+`order-queue`, `outputs/queue/launchers/order-1031/order_queue.sh` ("Running now", below).
 - **`long-resfit 4` (`3ctaaap1`) is complete at 300k** (EXPERIMENTS.md, the 2026-10-28 and 2026-10-29
   NOTEs). Its pools by window: 0.848, 0.820, 0.876, 0.880. At 150k it matched `bue9dupf`'s 0.828, so
   ResFiT's re-rendered arm is 0.838 over two runs. It was not still climbing at 150k by the registered
@@ -271,36 +257,24 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 01:45 on 2026-11-02: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
-DEVIATION; Aden at about 22:10: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and G-fa.
-asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/run_job.sh`, each gate run without Tier
-2 while the commit's full gate runs beside:
-- GPU 0: G-c8 (tmux `q-stack-g-c8-2`) and W-cnn (`q-stack-w-cnn-2`);
-- GPU 1: G-cnn (`q-stack-g-cnn-2`) and NA-eee (`q-stack-na-eee-2`).
-- G-cnn's first gate failed only the known render-guard flake; its retry launched at 22:49.
-- NA-eee's first run (`9sux7vn2`) died at its first update, out of GPU memory beside P2's smoke (the 2026-11-02
-  FAILURE). It was relaunched from step 0 at 00:04.
-- Each fills its buffer for about 45 min, then trains: a W/G run for about 6–9 h (W-cnn's smoke), NA-eee about 21 h.
+**At 08:15 on 2026-11-02: three of the wrist sweep's runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
+DEVIATION; the 2026-11-02 LAUNCHED and NOTE). They were launched by hand through
+`outputs/queue/launchers/wrist-now/run_job.sh`.
+- GPU 0: G-c8 (`fjy1z5nr`, tmux `q-stack-g-c8-2`), at 63k at about 8k steps an hour, so it ends about 19:00–20:00;
+  W-cnn (`zrhqmb8a`, `q-stack-w-cnn-2`), at 118k at about 16k an hour, so it ends about 10:30.
+- GPU 1: NA-eee (`rq4uzl8v`, `q-stack-na-eee-2`), at 72k at about 9k an hour, so it ends about 17:00. Its first
+  run, `9sux7vn2`, died at its first update out of GPU memory (the FAILURE).
+- G-cnn (`hum5118h`) finished at 07:54. Its `q-stack-g-cnn-2` is an idle shell.
+- **GPU memory:** a run takes about 8.5–10 GB with its nine eval workers (654 MiB each). Nothing goes beside two
+  runs on one GPU.
 
-**Beside them:**
-- **Both full gates passed** (00:15, 00:33): both commits are in `tier2_passed.txt`.
-- **The smokes:** W-cnn's passed at 22:15 and P2's at 00:06. G-c8's and G-cnn's were stopped before training, so
-  their runs are their test. The chain was stopped before G-pre's (the FAILURE), so G-pre's and G-fa's run in their
-  slots.
-- **wandb's cache** is also trimmed to 100 MB every 5 min (tmux `cache-trim-15`).
-- **`order-1031`** in tmux `order-queue` from 22:41, with `WRIST_WORKTREE`, `WRIST2_WORKTREE` and `OBJ_WORKTREE`.
-  - JOBS: P2, G-pre, G-fa, then `obj-nut-rrr 3`, `obj-peg-eee 3`, `obj-peg-rrr 3` (the four by hand are skipped).
-  - A `'` in `WRIST2`'s message had swallowed `JOBS` and the floors; `--check` caught it before the start (fixed).
-- **tmux `wrist-watch`:** the watcher for `wrist-1031`, from `776c1ee` (all seven arms), watch-only. Its lines are
-  in `outputs/queue/watch.log`.
-- `order-1027` is stopped (08:25 on 11-01).
-
-**The disk: about 3.5 GB free at 01:20,** against the 6 GB floor, which pauses launches under about 5.2 GB.
-- Without Aden's two scripts, the floor will likely hold P2's, G-pre's and G-fa's launches in the morning (the bulk
-  video deletion was refused by the permission classifier):
-  - `outputs/cleanup-20261101/delete_by_hand_3.sh`: stack-base's extra checkpoints and the night's eval videos,
-    4.8 GB;
-  - `outputs/cleanup-20261028/delete_by_hand_2.sh`: 3.2 GB.
+**The queue: `order-1031`** in tmux `order-queue` from 22:41 on 11-01 (`WRIST_WORKTREE`, `WRIST2_WORKTREE`,
+`OBJ_WORKTREE`).
+- JOBS: P2 (its smoke passed), G-pre, G-fa (each smoke in its slot), then `obj-nut-rrr 3`, `obj-peg-eee 3` and
+  `obj-peg-rrr 3`.
+- GPU 1 has had a free slot since 07:54, but **the disk holds every launch** until Aden's scripts run.
+- The watcher is tmux `wrist-watch` (from `776c1ee`, all seven arms), watch-only, writing to
+  `outputs/queue/watch.log`.
 
 A Stack smoke takes about 70 min (42 of them filling the buffer). An `eee` run takes about 21 h on Stack, an `rrr`
 run about 11–13 h.
@@ -513,23 +487,12 @@ How the runs are launched and followed:
 
 ## The plan, and why
 
-**Done on 10-30:** `actor-design-1026` (TODO B22; nothing counted: the actor's wiring, width and constraint
-are not the gap at the bar) and `long-1027` (both long runs at 300k: ResFiT's levelled at 0.88, `eee`'s held at
-0.74–0.80 from 160k).
+**Done:** `actor-design-1026` and `long-1027` (10-30); Stack's `stack-1030` and O1's seeds 2 (11-01; S1 not counted,
+O1's C1 for `eee` counts). G-cnn, the wrist sweep's first finished arm (0.952).
 
-**Now, in Aden's order** (the 2026-10-27 DECISIONs; TODO B24 has the to-do list and the calls):
-- **The wrist sweep first** (TODO B29; the 10-31 DECISION), once Aden approves its plan; the queued jobs below go
-  after it, but the queue is unchanged until then.
-- **O1** (TODO B23, B24 call 5; the 2026-10-27 CODE and PRE-REGISTERED entries): the nut alone or
-  with the peg, on `eee` and `rrr`, eight runs from 10-29, the last about 07:00 on 11-02. It targets the
-  critic's low value of online data.
-- **The new task, Stack, `eee` against `rrr`** (TODO B25; the 2026-10-30 PRE-REGISTERED entry). Square's
-  symmetry under our group is extrinsic (2026-10-27 FINDING). In Stack every cube-to-cube direction occurs, but
-  about the robot base Stack is extrinsic too (the 10-31 FINDING, which corrects the pre-registration's premise).
-  Four runs, seeds 2 and 3, on `stack-base`'s step 2000 (B_stack 0.602), the last about 06:00–08:00 on 11-01.
-- **Aden's Sunday goal** (10-30): one seed of O1 and of Stack on both `eee` and `rrr`. `obj-nut-eee 2` is
-  done; `obj-nut-rrr 2`, `stack-rrr 2` and `stack-eee 2` are expected by Saturday 10-31 about 13:00–16:00.
-- **Then latency (sidelined) and the tuning.**
+**Now** (TODO B29): the wrist sweep's other six arms at seed 2. The registered readouts are each arm's 110k–150k
+pool and the plan's contrasts (the 2026-11-01 PRE-REGISTERED entries). Then O1's three seeds 3. Latency is sidelined;
+the tuning follows (TODO B24).
 
 **2. BoxCleanup** (TODO B3, B4, B7) waits: a full run needs about 82 GiB of RAM and about 4 days.
 
