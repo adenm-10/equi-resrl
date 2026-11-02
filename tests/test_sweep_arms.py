@@ -289,6 +289,33 @@ SQUARE_LAUNCH = {"--config-name=residual_equi_td3_square_config", "base_policy.w
                  f"offline_data.name={RERENDERED_DEMOS}"}
 STACK_LAUNCH = {"--config-name=residual_equi_td3_stack_config"}
 LAUNCHED.update({arm: (LAUNCHED[source] - SQUARE_LAUNCH) | STACK_LAUNCH for arm, source in STACK_SOURCES.items()})
+# wrist-1031 (TODO B29; docs/plans/2026-10-31-wrist-sweep.md): each arm is its source arm on Stack but for its
+# overrides removed and added, which are all it changes.
+WRIST_GROUP = "wrist-1031"
+WRIST_ONLY = "rl_camera=[observation.images.robot0_eye_in_hand]"
+FLAT_CRITIC = {"equivariance.critic_tokens=flat", "agent.critic.fuse_patch=0"}
+WRIST_CHANGES = {  # arm: (source, removed, added)
+    "stack-na-eee": ("stack-eee", set(), {WRIST_ONLY}),
+    "stack-p2": ("stack-rrr", set(), FLAT_CRITIC),
+    "stack-w-cnn": ("stack-rrr", {"equivariance.encoder_family=resfit"},
+                    {WRIST_ONLY, *FLAT_CRITIC, "equivariance.ih_out_channel=256", "equivariance.gripper_xy_input=false"}),
+    "stack-g-cnn": ("stack-w-cnn", set(), {"equivariance.action_frame=heading"}),
+    "stack-g-c8": ("stack-g-cnn", {"equivariance.ih_out_channel=256"}, {"equivariance.wrist_encoder=c8"}),
+}
+WRIST_SOURCES = {arm: source for arm, (source, _, _) in WRIST_CHANGES.items()}
+WRIST_ARMS = tuple(WRIST_CHANGES)
+for _arm, (_source, _removed, _added) in WRIST_CHANGES.items():  # in order: each source is defined first
+    LAUNCHED[_arm] = (LAUNCHED[_source] - _removed) | _added
+# Each wrist arm's composed changes from its source arm.
+WRIST_VALUES = {
+    "stack-na-eee": {"rl_camera": ["observation.images.robot0_eye_in_hand"]},
+    "stack-p2": {"equivariance.critic_tokens": "flat", "agent.critic.fuse_patch": 0},
+    "stack-w-cnn": {"rl_camera": ["observation.images.robot0_eye_in_hand"], "equivariance.critic_tokens": "flat",
+                    "agent.critic.fuse_patch": 0, "equivariance.encoder_family": "equivariant",
+                    "equivariance.ih_out_channel": 256, "equivariance.gripper_xy_input": False},
+    "stack-g-cnn": {"equivariance.action_frame": "heading"},
+    "stack-g-c8": {"equivariance.ih_out_channel": 32, "equivariance.wrist_encoder": "c8"},
+}
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
 LAYOUT_PATHS = {"equivariance.actor_norm", "equivariance.critic_norm", "agent.critic.num_q",
@@ -337,6 +364,10 @@ FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(LONGRUN_VALUES) for arm, sour
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | {"offline_data.name", "object_obs"}
                     for arm, source in OBJ_SOURCES.items()})
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(STACK_VALUES) for arm, source in STACK_SOURCES.items()})
+for _arm, _source in WRIST_SOURCES.items():  # in order; a path back at the anchor's value leaves the set
+    FROM_ANCHOR[_arm] = FROM_ANCHOR[_source] | set(WRIST_VALUES[_arm])
+    FROM_ANCHOR[_arm] -= {"stack-w-cnn": {"equivariance.encoder_family"},
+                          "stack-g-c8": {"equivariance.ih_out_channel"}}.get(_arm, set())
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}
@@ -383,6 +414,8 @@ ARM_VALUES.update({arm: {**ARM_VALUES[source], **LONGRUN_VALUES} for arm, source
 ARM_VALUES.update({arm: {**ARM_VALUES[source], "offline_data.name": OBJ_DEMOS, "object_obs": OBJ_SETS[arm]}
                    for arm, source in OBJ_SOURCES.items()})
 ARM_VALUES.update({arm: {**ARM_VALUES[source], **STACK_VALUES} for arm, source in STACK_SOURCES.items()})
+for _arm, _source in WRIST_SOURCES.items():
+    ARM_VALUES[_arm] = {**ARM_VALUES[_source], **WRIST_VALUES[_arm]}
 # The demos each arm loads.
 ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL: DEMOS,
              COMBINED: RERENDERED_DEMOS, SMALLCRITIC: DEMOS, NOISE: DEMOS, ARCH: RERENDERED_DEMOS,
@@ -393,7 +426,7 @@ ARM_DEMOS = {RERENDERED: RERENDERED_DEMOS, NOLN: DEMOS, LIMITS: DEMOS, NOLN_ALL:
              **dict.fromkeys(MATCHED_ARMS, RERENDERED_DEMOS), **dict.fromkeys(SWAP_ARMS, RERENDERED_DEMOS),
              **dict.fromkeys(IFACE_ARMS, RERENDERED_DEMOS), **dict.fromkeys(AD_ARMS, RERENDERED_DEMOS),
              **dict.fromkeys(LONGRUN_ARMS, RERENDERED_DEMOS), **dict.fromkeys(OBJ_ARMS, OBJ_DEMOS),
-             **dict.fromkeys(STACK_ARMS, STACK_DEMOS)}
+             **dict.fromkeys(STACK_ARMS, STACK_DEMOS), **dict.fromkeys(WRIST_ARMS, STACK_DEMOS)}
 # The fixed-env baselines' equi-tuned-rlpd-can (eyyi99q4) as 9cf207d launched it, less naming.
 BASELINES = {
     "equi-tuned-rlpd-can": ["--config-name=equi_tuned_rlpd_can_config", "equivariance.residual_squash=true",
@@ -414,7 +447,8 @@ WANDB = {RESFIT_GROUP: ("robomimic-square-final", "residual-rl"),
          IFACE_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          AD_GROUP: ("robomimic-square-final", "equi-residual-rl"),
          OBJ_GROUP: ("robomimic-square-final", "equi-residual-rl"),
-         STACK_GROUP: ("robomimic-stack-final", "equi-residual-rl")}
+         STACK_GROUP: ("robomimic-stack-final", "equi-residual-rl"),
+         WRIST_GROUP: ("robomimic-stack-final", "equi-residual-rl")}
 
 # The composed config every arm must have: its anchor's, as its recorded config holds it.
 TRAINING = {
@@ -439,6 +473,9 @@ EQUI_INTERFACE = {"equivariance.ih_channels": [16, 32, 64, 128], "equivariance.e
                   "equivariance.critic_window": 0, "equivariance.critic_window_ih": 0}
 # The actor's design (2026-10-26 CODE), at the defaults that build every earlier run's actor.
 EQUI_ACTOR_DESIGN = {"equivariance.actor_design": "ours", "equivariance.actor_feature_fields": 16}
+# The wrist sweep's options (2026-11-01 CODE), at the defaults that build every earlier run's agent.
+EQUI_WRIST = {"equivariance.critic_tokens": "spatial", "equivariance.wrist_encoder": "plain",
+              "equivariance.gripper_xy_input": True, "equivariance.action_frame": "world"}
 EQUI_TRAINING = {
     **TRAINING, "offline_data.name": RERENDERED_DEMOS, "agent.critic.num_q": 5, "equivariance.N": 8,
     "equivariance.encoder_family": "equivariant", "equivariance.actor_family": "equivariant",
@@ -449,7 +486,7 @@ EQUI_TRAINING = {
     "equivariance.frozen_target_critic": False, "equivariance.float_images_as_uint8": False,
     "equivariance.actor_degree_channel": 128, "equivariance.critic_degree_channel": 128,
     "equivariance.enc_degree_channel": 32, "equivariance.use_visual_proj": True, **EQUI_INTERFACE,
-    **EQUI_ACTOR_DESIGN,
+    **EQUI_ACTOR_DESIGN, **EQUI_WRIST,
 }
 # The three network families (2026-10-20 CODE) at the default that builds every earlier run's networks.
 EQUI_FAMILIES = {f"equivariance.{part}_family": "equivariant" for part in ("encoder", "actor", "critic")}
@@ -475,7 +512,7 @@ ANCHORS = {
         "launch": EQUI_ANCHOR, "steps": 300_000,
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 0.0},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
-                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN,
+                  "agent.vit.use_layer_norm": True, **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN, **EQUI_WRIST,
                   "object_obs": "none"},
         "removed": EQUI_REMOVED,
     },
@@ -484,7 +521,7 @@ ANCHORS = {
         "shared": {**EQUI_TRAINING, "agent.actor.actor_last_layer_init_scale": 1e-4},
         "added": {"agent.actor.action_bound": "box", "agent.actor.noise_units": "scaled",
                   "agent.vit.use_layer_norm": True, "equivariance.critic_pooled_norm": "none",
-                  **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN, "object_obs": "none"},
+                  **EQUI_FAMILIES, **EQUI_INTERFACE, **EQUI_ACTOR_DESIGN, **EQUI_WRIST, "object_obs": "none"},
         "removed": EQUI_REMOVED,
     },
 }
@@ -507,6 +544,8 @@ RESFIT_ARMS = [arm for arm in ARMS if arm.startswith("resfit-")]
 
 
 def group_of(arm: str) -> str:
+    if arm in WRIST_SOURCES:
+        return WRIST_GROUP
     if arm in STACK_SOURCES:
         return STACK_GROUP
     if arm in OBJ_SOURCES:
@@ -533,6 +572,8 @@ def group_of(arm: str) -> str:
 
 
 def anchor_of(arm: str) -> str:
+    while arm in WRIST_SOURCES:
+        arm = WRIST_SOURCES[arm]
     arm = {**OBJ_SOURCES, **LONGRUN_SOURCES, **STACK_SOURCES}.get(arm, arm)
     if arm in RESFIT_ARMS:
         return "oj5k0jqb"
@@ -760,6 +801,18 @@ def test_each_stack_arm_is_its_source_arm_on_stack(arm, tmp_path):
     assert (theirs["wandb.project"], ours["wandb.project"]) == ("robomimic-square-final", "robomimic-stack-final")
 
 
+@pytest.mark.parametrize("arm", WRIST_ARMS)
+def test_each_wrist_arm_is_its_source_arm_but_for_its_changes(arm, tmp_path):
+    """wrist-1031 (TODO B29): each arm launches its source arm's overrides less those it removes and with those
+    it adds, and composes to its source arm's config but for those paths (and its naming)."""
+    source, removed, added = WRIST_CHANGES[arm]
+    ours, theirs = _overrides(arm, tmp_path), _overrides(source, tmp_path)
+    assert _unnamed(ours) == (_unnamed(theirs) - removed) | added
+    ours, theirs = _flat(_compose(ours)), _flat(_compose(theirs))
+    assert _differing(ours, theirs) == set(WRIST_VALUES[arm])
+    assert {k: ours[k] for k in WRIST_VALUES[arm]} == WRIST_VALUES[arm]
+
+
 def test_only_the_loop_end_reads_the_run_length():
     """A long run's first 150k is its source arm's run at a new seed only if nothing in the trainer reads
     the run length but its loop's end: no schedule, buffer or eval scales with it. The configs declare it,
@@ -849,8 +902,9 @@ def _agent(cfg, device):
 
     with open_dict(cfg):
         cfg.agent.device = str(device)
+    # The cameras the config names, as the trainer reads them: both in every arm before the wrist sweep's.
     shapes = dict(obs_shape=OBS_SHAPE, prop_shape=(STATE_DIM,), action_dim=ACTION_DIM,
-                  rl_cameras=list(CAMERAS), residual_actor=cfg.base_policy is not None)
+                  rl_cameras=list(cfg.rl_camera), residual_actor=cfg.base_policy is not None)
     if cfg.equivariance is None:
         from resfit.rl_finetuning.off_policy.rl.q_agent import QAgent
         from resfit.rl_finetuning.utils.normalization import ActionScaler

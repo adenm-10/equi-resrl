@@ -287,3 +287,17 @@ def test_vanilla_update_makes_no_host_sync(device, squash):
                  "agent.actor.action_scale": 1.0, "agent.actor.actor_last_layer_init_scale": None}
     agent = build_reference_agent(str(device), overrides=overrides, residual_actor=False)
     _assert_no_host_sync(agent, lambda: fixed_batch(weights=True, base_action=False).to(device))
+
+
+@pytest.mark.gpu
+@pytest.mark.slow
+@pytest.mark.parametrize("arm", ["na-eee", "p2", "w-cnn", "g-cnn", "g-c8"])
+def test_wrist_sweep_update_makes_no_host_sync(arm, device):
+    """wrist-1031's agents (2026-11-01 CODE; their configs in tests/test_wrist_sweep.py): the residual without
+    the agentview camera, ResFiT's critic over one flat token, the heading frame's turns and the C8 wrist
+    encoder."""
+    from tests.test_wrist_sweep import ARMS
+
+    cameras, overrides = ARMS[arm]
+    agent = build_reference_agent(str(device), overrides=overrides, cameras=cameras)
+    _assert_no_host_sync(agent, lambda: fixed_batch(weights=True, cameras=cameras).to(device))

@@ -202,6 +202,16 @@
 #   stack-eee     arch-swap-eee on Stack.
 #   stack-rrr     arch-swap-rrr on Stack.
 #
+# wrist-1031: the wrist sweep (TODO B29; docs/plans/2026-10-31-wrist-sweep.md), on Stack at seed 2, 150k,
+# wandb robomimic-stack-final / equi-residual-rl. Each arm is its source arm but for what is listed.
+#   stack-na-eee  stack-eee without the agentview camera (the residual sees the wrist alone).
+#   stack-p2      stack-rrr with ResFiT's critic reading one flat token (critic_tokens=flat, fuse_patch=0).
+#   stack-w-cnn   stack-rrr without the agentview camera, its wrist read by the plain CNN at 256 (the
+#                 equivariant family's wrist encoder, in place of ResFiT's ViTs), the flat critic, no
+#                 gripper xy; actions in the table's axes.
+#   stack-g-cnn   stack-w-cnn with the residual in the hand's heading frame (action_frame=heading).
+#   stack-g-c8    stack-g-cnn with the C8 encoder on the wrist (wrist_encoder=c8, 32 fields, 256 numbers).
+#
 # Every arm here runs to its full length (150k; the long group's 300k). From 2026-10-17 (DEVIATION) no
 # automatic stop of any kind applies, the divergence stop included: Aden stops a run by hand.
 
@@ -273,6 +283,12 @@ for o in "${EQUI_ANCHOR[@]}"; do
     esac
     STACK_ANCHOR+=("$o")
 done
+# The wrist sweep's parts: the wrist camera alone, and ResFiT's critic over one flat token.
+WRIST_ONLY="rl_camera=[observation.images.robot0_eye_in_hand]"
+FLAT_CRITIC=(equivariance.critic_tokens=flat agent.critic.fuse_patch=0)
+# stack-w-cnn: stack-rrr's actor and critic behind the equivariant family's wrist encoder, the wrist alone.
+W_CNN=("${STACK_ANCHOR[@]}" agent.critic.num_q=10 equivariance.actor_family=resfit equivariance.critic_family=resfit
+       "$WRIST_ONLY" "${FLAT_CRITIC[@]}" equivariance.ih_out_channel=256 equivariance.gripper_xy_input=false)
 
 # Every arm's length but the long group's.
 ARM_STEPS=150000
@@ -281,6 +297,18 @@ case "$ARM" in
         ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448) ;;
     stack-rrr)
         ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RRR[@]}") ;;
+    stack-na-eee)
+        ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 "$WRIST_ONLY") ;;
+    stack-p2)
+        ARM_OVERRIDES=("${STACK_ANCHOR[@]}" "${RRR[@]}" "${FLAT_CRITIC[@]}") ;;
+    stack-w-cnn)
+        ARM_OVERRIDES=("${W_CNN[@]}") ;;
+    stack-g-cnn)
+        ARM_OVERRIDES=("${W_CNN[@]}" equivariance.action_frame=heading) ;;
+    stack-g-c8)
+        ARM_OVERRIDES=()
+        for o in "${W_CNN[@]}"; do [[ "$o" == equivariance.ih_out_channel=* ]] || ARM_OVERRIDES+=("$o"); done
+        ARM_OVERRIDES+=(equivariance.action_frame=heading equivariance.wrist_encoder=c8) ;;
     obj-nut-eee)
         ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 object_obs=nut) ;;
     obj-peg-eee)
@@ -385,6 +413,9 @@ case "$ARM" in
         ;;
 esac
 case "$ARM" in
+    stack-na-eee|stack-p2|stack-w-cnn|stack-g-*)
+        SEED_GROUP=wrist-1031 PROJECT=robomimic-stack-final GROUP=equi-residual-rl
+        GATE=(--task Stack --method residual --stack equi) ;;
     stack-*)
         SEED_GROUP=stack-1030 PROJECT=robomimic-stack-final GROUP=equi-residual-rl
         GATE=(--task Stack --method residual --stack equi) ;;

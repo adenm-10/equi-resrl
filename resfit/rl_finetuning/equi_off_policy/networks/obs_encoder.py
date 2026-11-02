@@ -18,6 +18,7 @@ from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
     arm_key,
 )
 from resfit.rl_finetuning.equi_off_policy.rl.ablated import plain
+from resfit.rl_finetuning.equi_off_policy.rl.heading_frame import heading_of, turn_action, turn_rot6d
 from resfit.rl_finetuning.off_policy.common_utils import RandomShiftsAug
 from resfit.rl_finetuning.off_policy.networks.encoder import VitEncoder
 
@@ -120,6 +121,11 @@ class ResObsEnc(ModuleAttrMixin):
     [images | proprioception | base action]. They are built with the random state forked, so every
     other weight at a seed is the one built without them.
 
+    ``agentview_key=None`` is the residual without the agentview camera (EXPERIMENTS.md, 2026-11-01
+    CODE): the wrist cameras' features are the images' alone, [wrists], trivial fields in every family,
+    and nothing of the agentview encoder is built, so its fields and the critic's window over it are
+    unread (q_agent.py, check_families).
+
     ``objects`` are the task objects whose poses the encoder reads from ``observation.object``
     (object_obs.py, the run's object_obs; EXPERIMENTS.md, O1's CODE entry), in every family. Each is
     encoded as a gripper's position and rotation are: its xy less robot_base_xy, its quaternion as the
@@ -146,7 +152,7 @@ class ResObsEnc(ModuleAttrMixin):
         n_arms: int = 1,
         gripper_dim: int = 2,
         hand_dof: int = 1,
-        agentview_key: str = "observation.images.agentview",
+        agentview_key: str | None = "observation.images.agentview",
         wrist_keys: tuple[str, ...] = ("observation.images.robot0_eye_in_hand",),
         ih_out_channel: int,
         encoder_norm: str = "none",
@@ -157,8 +163,17 @@ class ResObsEnc(ModuleAttrMixin):
         critic_window: int = 0,
         critic_window_ih: int = 0,
         objects: tuple[str, ...] = (),
+        wrist_encoder: str = "plain",
+        gripper_xy_input: bool = True,
+        action_frame: str = "world",
     ):
         super().__init__()
+        if wrist_encoder != "plain" and (encoder != "equivariant" or agentview_key is not None or critic_window_ih):
+            raise ValueError("wrist_encoder other than plain is the equivariant family's, without the agentview "
+                             "camera, and without the critic's window (which reads the plain wrist CNN's map)")
+        if action_frame == "heading" and (objects or n_arms != 1 or gripper_xy_input or not base_action_input):
+            raise ValueError("action_frame=heading is one hand's frame: no objects, one arm, no gripper xy, "
+                             "and a base action to turn")
 
         if encoder not in ENCODERS:
             raise ValueError(f"unknown encoder {encoder!r}; expected one of {ENCODERS}")
@@ -167,6 +182,9 @@ class ResObsEnc(ModuleAttrMixin):
         if encoder == "resfit" and (enc_out_channel is not None or critic_window or critic_window_ih):
             raise ValueError("enc_out_channel and the critic's window configure the equivariant and ablated "
                              "encoders: the ResFiT encoder has no 9x9 map or last conv of its own")
+        if agentview_key is None and (enc_out_channel is not None or critic_window):
+            raise ValueError("enc_out_channel and critic_window configure the agentview camera's encoder: "
+                             "without that camera there is none")
 
         objects = tuple(objects)
         if objects != OBJECTS[:len(objects)]:
@@ -185,6 +203,9 @@ class ResObsEnc(ModuleAttrMixin):
         self.N = N
         self.float_images_as_uint8 = float_images_as_uint8
         self.base_action_input = base_action_input
+        self.wrist_encoder = wrist_encoder
+        self.gripper_xy_input = gripper_xy_input
+        self.action_frame = action_frame
 
         self.register_buffer(
             "robot_base_xy",
@@ -205,7 +226,7 @@ class ResObsEnc(ModuleAttrMixin):
         # state_dim is the raw observation.state width; prop_dim is the encoded
         # width, which is larger because quat(4) is expanded to a 6D rotation.
         self.state_dim  = n_arms * self.state_stride
-        self.prop_dim   = n_arms * (9 + gripper_dim)  # pos_xy 2, rot6d 6, pos_z 1, gripper
+        self.prop_dim   = n_arms * (9 + gripper_dim - (0 if gripper_xy_input else 2))  # pos_xy 2, rot6d 6, pos_z 1, gripper
         self.action_dim = n_arms * self.action_stride
         self._normalizers_ready = False
 
@@ -213,7 +234,7 @@ class ResObsEnc(ModuleAttrMixin):
 
         # Representations, one contiguous block per arm
         arm_prop_shape = (
-            4 * [self.group.irrep(1)]                        # pos_xy + 3 rotation column pairs
+            (4 if gripper_xy_input else 3) * [self.group.irrep(1)]  # pos_xy + 3 rotation column pairs
             + (1 + gripper_dim) * [self.group.trivial_repr]  # pos_z, gripper_qpos
         )
         self.prop_shape   = n_arms * arm_prop_shape
@@ -242,7 +263,7 @@ class ResObsEnc(ModuleAttrMixin):
         if encoder == "resfit":
             # ResFiT's _build_encoders: a ViT per camera, agentview then the wrists, as rl_cameras
             # orders them, and its augmentation (off_policy/rl/q_agent.py).
-            self.camera_keys = (agentview_key, *wrist_keys)
+            self.camera_keys = (*([agentview_key] if agentview_key is not None else []), *wrist_keys)
             self.vits = torch.nn.ModuleList([VitEncoder(obs_shape, vit_cfg) for _ in self.camera_keys])
             self.aug = RandomShiftsAug(pad=4)
             self.num_patch = len(self.vits) * self.vits[0].num_patch  # ResFiT's critic reads them as tokens
@@ -258,35 +279,52 @@ class ResObsEnc(ModuleAttrMixin):
                 crop_width=crop_shape[1],
             )
 
-            # In-hand encoders are scalar, one per arm
-            self.enc_ih = torch.nn.ModuleList([
-                ResEncoder76InHand(
-                    obs_channel=self.obs_channel,
-                    channels=tuple(ih_channels),
-                    n_out=ih_out_channel,
-                    blocks_per_stage=ih_blocks_per_stage,
-                )
-                for _ in range(n_arms)
-            ])
-
+            # In-hand encoders, one per arm; their outputs are scalar, invariant, in every family: an
+            # in-hand camera frame rotates with its gripper, so world-frame SO(2) equivariance does not
+            # apply there. The C8 one is the agentview encoder's class on the raw wrist crop.
             out_fields = n_hidden if enc_out_channel is None else enc_out_channel
-            self.vis_type    = enn.FieldType(self.group, out_fields * [self.group.regular_repr])
-            self.ih_type     = enn.FieldType(self.group, n_arms * ih_out_channel * [self.group.trivial_repr])
-            self.vis_ih_type = self.vis_type + self.ih_type
+            if wrist_encoder == "c8":
+                self.enc_ih = torch.nn.ModuleList([
+                    EquivariantResEncoder76Cyclic(obs_channel=self.obs_channel, n_out=n_hidden, N=N,
+                                                  initialize=initialize, norm=encoder_norm,
+                                                  orth_init=encoder_orth_init, out_fields=out_fields)
+                    for _ in range(n_arms)
+                ])
+                ih_width = out_fields * N
+            else:
+                self.enc_ih = torch.nn.ModuleList([
+                    ResEncoder76InHand(
+                        obs_channel=self.obs_channel,
+                        channels=tuple(ih_channels),
+                        n_out=ih_out_channel,
+                        blocks_per_stage=ih_blocks_per_stage,
+                    )
+                    for _ in range(n_arms)
+                ])
+                ih_width = ih_out_channel
 
-            # The ablated encoder is the equivariant one, built as it is, then exported.
-            enc_obs = EquivariantResEncoder76Cyclic(
-                obs_channel=self.obs_channel,
-                n_out=n_hidden,
-                N=N,
-                initialize=initialize,
-                norm=encoder_norm,
-                orth_init=encoder_orth_init,
-                out_fields=out_fields,
-            )
-            self.obs_map_end = enc_obs.map_end
-            self.enc_obs = enc_obs if encoder == "equivariant" else plain(enc_obs.conv)
-            self._build_window(enc_obs, ih_channels[-1], critic_window, critic_window_ih, initialize)
+            self.ih_type = enn.FieldType(self.group, n_arms * ih_width * [self.group.trivial_repr])
+            if agentview_key is None:
+                self.vis_type, self.vis_ih_type = None, self.ih_type
+                self.enc_obs = None
+                self._build_window(None, ih_channels[-1], 0, critic_window_ih, initialize)
+            else:
+                self.vis_type    = enn.FieldType(self.group, out_fields * [self.group.regular_repr])
+                self.vis_ih_type = self.vis_type + self.ih_type
+
+                # The ablated encoder is the equivariant one, built as it is, then exported.
+                enc_obs = EquivariantResEncoder76Cyclic(
+                    obs_channel=self.obs_channel,
+                    n_out=n_hidden,
+                    N=N,
+                    initialize=initialize,
+                    norm=encoder_norm,
+                    orth_init=encoder_orth_init,
+                    out_fields=out_fields,
+                )
+                self.obs_map_end = enc_obs.map_end
+                self.enc_obs = enc_obs if encoder == "equivariant" else plain(enc_obs.conv)
+                self._build_window(enc_obs, ih_channels[-1], critic_window, critic_window_ih, initialize)
 
         # The critic's [images | window | proprioception | objects], and the actor's [images |
         # proprioception | objects | base action]; vanilla RL's has no base action, so without a
@@ -296,6 +334,13 @@ class ResObsEnc(ModuleAttrMixin):
         self.enc_out_type_actor = self.vis_ih_type + self.lowdim_type
         if base_action_input:
             self.enc_out_type_actor = self.enc_out_type_actor + self.action_type
+        if action_frame == "heading":
+            # (cos psi, sin psi), last in both, for the heading-frame wrappers (rl/heading_frame.py). The
+            # turned fields before them are invariant under the world's turn, whatever their declared
+            # type: only ResFiT's networks read them (q_agent.py, check_families).
+            heading_type = enn.FieldType(self.group, [self.group.irrep(1)])
+            self.enc_out_type_critic = self.enc_out_type_critic + heading_type
+            self.enc_out_type_actor = self.enc_out_type_actor + heading_type
         self.enc_out_dim_critic = self.enc_out_type_critic.size
         self.enc_out_dim_actor  = self.enc_out_type_actor.size
 
@@ -382,11 +427,10 @@ class ResObsEnc(ModuleAttrMixin):
     def forward(self, nobs):
         assert self._normalizers_ready, "Call set_normalizer() before forward()"
 
-        obs         = nobs[self.agentview_key]
         base_action = nobs["observation.base_action"] if self.base_action_input else None
         state       = nobs["observation.state"]
 
-        batch_size = obs.shape[0]
+        batch_size = state.shape[0]
 
         window = []
         if self.encoder == "resfit":
@@ -400,18 +444,22 @@ class ResObsEnc(ModuleAttrMixin):
             for key, enc_ih in zip(self.wrist_keys, self.enc_ih):
                 ih = self._image_to_signed_unit(nobs[key])
                 out, ih_map = enc_ih.forward_map(self.crop_randomizer(ih))
+                if self.wrist_encoder == "c8":  # its regular fields, as plain numbers
+                    out = out.tensor.reshape(batch_size, -1)
                 ih_out.append(out)
                 ih_maps.append(ih_map)
 
-            obs     = self._image_to_signed_unit(obs)
-            obs     = self.crop_randomizer(obs)
-            if self.encoder == "equivariant":
-                enc_raw, obs_map = self.enc_obs.forward_map(obs)
-            else:
-                obs_map = self.enc_obs[:self.obs_map_end](obs)
-                enc_raw = self.enc_obs[self.obs_map_end:](obs_map)
-            enc_out = (enc_raw.tensor if self.encoder == "equivariant" else enc_raw).reshape(batch_size, -1)
-            images  = [enc_out, *ih_out]
+            images = ih_out
+            if self.agentview_key is not None:
+                obs     = self._image_to_signed_unit(nobs[self.agentview_key])
+                obs     = self.crop_randomizer(obs)
+                if self.encoder == "equivariant":
+                    enc_raw, obs_map = self.enc_obs.forward_map(obs)
+                else:
+                    obs_map = self.enc_obs[:self.obs_map_end](obs)
+                    enc_raw = self.enc_obs[self.obs_map_end:](obs_map)
+                enc_out = (enc_raw.tensor if self.encoder == "equivariant" else enc_raw).reshape(batch_size, -1)
+                images  = [enc_out, *ih_out]
 
             if self.window_obs is not None:
                 w = self.window_obs(obs_map)
@@ -420,18 +468,26 @@ class ResObsEnc(ModuleAttrMixin):
                 window += [win(ih_map).flatten(1) for win, ih_map in zip(self.window_ih, ih_maps)]
 
         # ---- Proprioception and action, one contiguous block per arm ----
-        prop, action = [], []
+        # In the heading frame (one arm; rl/heading_frame.py) the rotation and the base action's pairs
+        # are turned by R_psi^T first; the pairs' normalizers share one scale and no shift, so the turn
+        # commutes with them.
+        prop, action, heading = [], [], []
         for arm in range(self.n_arms):
             s = state[:, arm * self.state_stride : (arm + 1) * self.state_stride]
 
-            pos_xy_centered = s[:, 0:2] - self.robot_base_xy  # (B, 2), buffer broadcasts
-            pos_xy = self.normalizer[arm_key("pos_xy", arm)].normalize(pos_xy_centered)
+            rot6d = self.get6DRotation(s[:, 3:7])
+            if self.action_frame == "heading":
+                c, sn = heading_of(rot6d)
+                rot6d = turn_rot6d(rot6d, c, sn)
+                heading = [c, sn]
             pos_z  = self.normalizer[arm_key("pos_z", arm)].normalize(s[:, 2:3])
-            ee_rot = self.normalizer[arm_key("ee_rot", arm)].normalize(self.get6DRotation(s[:, 3:7]))
+            ee_rot = self.normalizer[arm_key("ee_rot", arm)].normalize(rot6d)
             ee_q   = self.normalizer[arm_key("ee_q", arm)].normalize(s[:, 7:self.state_stride])
 
+            if self.gripper_xy_input:
+                pos_xy_centered = s[:, 0:2] - self.robot_base_xy  # (B, 2), buffer broadcasts
+                prop.append(self.normalizer[arm_key("pos_xy", arm)].normalize(pos_xy_centered))
             prop += [
-                pos_xy,
                 ee_rot[:, 0:1], ee_rot[:, 3:4],  # col 0: (R00, R10)
                 ee_rot[:, 1:2], ee_rot[:, 4:5],  # col 1: (R01, R11)
                 ee_rot[:, 2:3], ee_rot[:, 5:6],  # col 2: (R02, R12)
@@ -441,6 +497,8 @@ class ResObsEnc(ModuleAttrMixin):
             if not self.base_action_input:
                 continue
             a = base_action[:, arm * self.action_stride : (arm + 1) * self.action_stride]
+            if self.action_frame == "heading":
+                a = turn_action(a, c, -sn)
             action += [
                 self.normalizer[arm_key("action_xy", arm)].normalize(a[:, 0:2]),
                 self.normalizer[arm_key("action_z", arm)].normalize(a[:, 2:3]),
@@ -464,8 +522,9 @@ class ResObsEnc(ModuleAttrMixin):
                 ]
 
         # ----- Concatenate feature vectors; vanilla RL's actor, without a window, has the critic's -----
-        critic_features = torch.cat([*images, *window, *prop], dim=1)
-        actor_features  = torch.cat([*images, *prop, *action], dim=1) if action or window else critic_features
+        critic_features = torch.cat([*images, *window, *prop, *heading], dim=1)
+        actor_features  = (torch.cat([*images, *prop, *action, *heading], dim=1) if action or window
+                           else critic_features)
 
         # Wrap in GeometricTensor for the equivariant family
         if self.encoder == "equivariant":

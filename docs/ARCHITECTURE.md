@@ -59,8 +59,12 @@ two mixes that differ in one network start with the same weights in the other tw
 `check_families` (`rl/q_agent.py`) refuses:
 - an equivariant actor or critic behind another encoder, since its image features would have to be
   declared invariant; and ResFiT's critic behind any but ResFiT's encoder, since it reads the ViTs'
-  spatial tokens;
+  spatial tokens, unless `critic_tokens=flat`;
 - any other family in vanilla RL, and ResFiT's critic with a distributional loss;
+- from 2026-11-01 (the wrist sweep), the residual without the agentview camera (`rl_camera` naming the wrist
+  cameras alone; `split_cameras` reads them by name) behind the ablated encoder, which differs from the
+  equivariant one in the agentview encoder alone; the C8 wrist encoder with the agentview camera; and the
+  heading frame with anything but one arm, no agentview camera, no gripper xy, and ResFiT's actor and critic;
 - any `EquivarianceConfig` field off its default that no network of the mix reads ("Config field
   provenance", below).
 
@@ -166,6 +170,10 @@ makes each row executable.
 | `encoder_family` | `"equivariant"` | which encoder | — | — | **Live** from 2026-10-20: `equivariant`, `ablated` or `resfit` ("The network families", above) |
 | `actor_family` | `"equivariant"` | — | — | which actor | **Live** from 2026-10-20 |
 | `critic_family` | `"equivariant"` | — | which critic | — | **Live** from 2026-10-20 |
+| `critic_tokens` | `"spatial"` | — | ResFiT's critic: `spatial` (the ViTs' tokens) or `flat` (every image feature in one token, behind any encoder, with `agent.critic.fuse_patch=0`) | — | **Live** from 2026-11-01 (the wrist sweep), with `critic_family=resfit` alone |
+| `wrist_encoder` | `"plain"` | each wrist's encoder: `plain` (`ResEncoder76InHand`) or `c8` (`EquivariantResEncoder76Cyclic` on the raw wrist crop, its fields joined as plain numbers) | — | — | **Live** from 2026-11-01; `c8` only without the agentview camera, in the equivariant family, where the agentview encoder's fields size it |
+| `gripper_xy_input` | `True` | `False` drops the gripper's xy from the proprioception (11 numbers to 9 per arm) | — | — | **Live** from 2026-11-01 |
+| `action_frame` | `"world"` | `heading` turns the rotation and the base action's pairs into the hand's heading frame and appends (cos ψ, sin ψ) | through `HeadingFrameCritic` | through `HeadingFrameActor` | **Live** from 2026-11-01; one arm, no agentview camera, no gripper xy, ResFiT's actor and critic (`rl/heading_frame.py`; EQUIVARIANCE.md, "The hand's frame") |
 | `N` | `8` | used | used (via group) | used (via group) | **Live** |
 | `enc_degree_channel` | `32` | `n_out` | — | — | **Live** (last run overrode to 16) |
 | `ih_out_channel` | `32` | wrist width | — | — | **Live** from 2026-09-29. Before, the wrist width was `enc_degree_channel` |

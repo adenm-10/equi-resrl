@@ -161,13 +161,14 @@ def _flat_params(module: torch.nn.Module) -> torch.Tensor:
 
 
 def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
-                          residual_actor: bool = True, **equivariance) -> QAgent:
+                          residual_actor: bool = True, cameras=CAMERAS, **equivariance) -> QAgent:
     """The equivariant QAgent at the Square reference config, seeded.
 
     `overrides` maps dotted config paths to values, as in CANDIDATES.
     Keyword arguments override EquivarianceConfig fields, for tests of one
     option. residual_actor=False builds vanilla RL's agent, which reads no base
-    action; its batches come from fixed_batch(base_action=False). The
+    action; its batches come from fixed_batch(base_action=False). `cameras` are
+    its rl_camera; the wrist sweep's arms read the wrist camera alone. The
     fingerprint itself always uses the reference."""
     cfg = ResidualEquiTD3SquareConfig()
     cfg.agent.device = device
@@ -194,7 +195,7 @@ def build_reference_agent(device: str = "cpu", overrides: dict | None = None,
             obs_shape=OBS_SHAPE,
             prop_shape=(STATE_DIM,),
             action_dim=ACTION_DIM,
-            rl_cameras=list(CAMERAS),
+            rl_cameras=list(cameras),
             agent_cfg=cfg.agent,
             equi_cfg=cfg.equivariance,
             residual_actor=residual_actor,

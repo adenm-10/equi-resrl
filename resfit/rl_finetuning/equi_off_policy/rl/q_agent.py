@@ -22,6 +22,7 @@ from resfit.rl_finetuning.equi_off_policy.rl.ablated import AblatedActor, Ablate
 from resfit.rl_finetuning.equi_off_policy.rl.actor import Actor as EquiActor, ResFiTShapedActor
 from resfit.rl_finetuning.equi_off_policy.rl.critic import Critic as EquiCritic
 from resfit.rl_finetuning.equi_off_policy.rl.equi_rl_utils import equi_clip, field_bounds
+from resfit.rl_finetuning.equi_off_policy.rl.heading_frame import HeadingFrameActor, HeadingFrameCritic
 from resfit.rl_finetuning.equi_off_policy.rl.resfit_heads import ResFiTActor, ResFiTCritic
 
 
@@ -36,13 +37,35 @@ ACTOR_FIELDS = ("actor_norm", "actor_degree_channel", "use_orth_init", "actor_de
 ACTOR_DESIGNS = ("ours", "resfit")
 CRITIC_FIELDS = ("critic_norm", "critic_pooled_norm", "num_critic_layers", "critic_degree_channel",
                  "critic_orth_init", "critic_last_layer_init_scale", *WINDOW_FIELDS)
+# The fields only the agentview camera's encoder reads, in the equivariant and ablated families; the
+# critic's window over it is critic_window.
+AGENTVIEW_FIELDS = ("enc_degree_channel", "enc_out_channel", "encoder_norm", "encoder_orth_init", "initialize",
+                    "critic_window")
+CRITIC_TOKENS = ("spatial", "flat")
+WRIST_ENCODERS = ("plain", "c8")
+ACTION_FRAMES = ("world", "heading")
 
 
-def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residual_actor: bool) -> None:
+def split_cameras(rl_cameras: list[str], n_arms: int) -> tuple[str | None, tuple[str, ...]]:
+    """rl_cameras as (the agentview camera's key, or None without it; the wrist cameras' keys). A wrist
+    camera is named *_eye_in_hand, one per arm, and comes after the agentview camera, as every run's
+    rl_camera has listed them. Without the agentview camera the residual sees the wrists alone; the
+    base policy still reads every camera it was trained on (EXPERIMENTS.md, 2026-11-01 CODE)."""
+    wrists = tuple(k for k in rl_cameras if k.endswith("_eye_in_hand"))
+    others = [k for k in rl_cameras if not k.endswith("_eye_in_hand")]
+    if len(wrists) != n_arms or len(others) > 1 or list(rl_cameras) != [*others, *wrists]:
+        raise ValueError(f"expected one wrist camera per arm, after at most one agentview camera: "
+                         f"n_arms={n_arms}, rl_cameras={rl_cameras}")
+    return (others[0] if others else None), wrists
+
+
+def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residual_actor: bool, *,
+                   agentview: bool = True) -> None:
     """Refuse, before anything is built, a mix of network families this agent cannot build, and any
     field that no network of the mix reads: a run's recorded config must describe the networks that
     trained it (STANDARDS 1.2). equivariance.residual_squash and residual_field_bound are read by
-    every actor family, and use_visual_proj by the equivariant and ablated actor and critic."""
+    every actor family, and use_visual_proj by the equivariant and ablated actor and critic.
+    `agentview` is whether the residual sees the agentview camera (split_cameras)."""
     encoder, actor, critic = equi_cfg.encoder_family, equi_cfg.actor_family, equi_cfg.critic_family
     for part, family in (("encoder", encoder), ("actor", actor), ("critic", critic)):
         if family not in ENCODERS:
@@ -50,8 +73,36 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
     if encoder != "equivariant" and "equivariant" in (actor, critic):
         raise ValueError("an equivariant actor or critic needs the equivariant encoder: behind any other, "
                          "its image features would have to be declared invariant")
-    if critic == "resfit" and encoder != "resfit":
-        raise ValueError("ResFiT's critic reads the ViTs' spatial tokens: it needs encoder_family=resfit")
+    if equi_cfg.critic_tokens not in CRITIC_TOKENS:
+        raise ValueError(f"equivariance.critic_tokens={equi_cfg.critic_tokens!r}: expected one of {CRITIC_TOKENS}")
+    if critic == "resfit" and encoder != "resfit" and equi_cfg.critic_tokens != "flat":
+        raise ValueError("ResFiT's critic reads the ViTs' spatial tokens: it needs encoder_family=resfit, "
+                         "or critic_tokens=flat")
+    if critic == "resfit" and equi_cfg.critic_tokens == "flat" and agent_cfg.critic.fuse_patch != 0:
+        raise ValueError("equivariance.critic_tokens=flat is one token of every image feature, which ResFiT's "
+                         "trunk projects whole with agent.critic.fuse_patch=0; with 1 each feature would be "
+                         "a token of its own")
+    if not agentview and encoder == "ablated":
+        raise ValueError("the ablated encoder is the equivariant one exported, and differs from it in the "
+                         "agentview camera's encoder alone: without that camera use encoder_family=equivariant")
+    if equi_cfg.wrist_encoder not in WRIST_ENCODERS:
+        raise ValueError(f"equivariance.wrist_encoder={equi_cfg.wrist_encoder!r}: expected one of {WRIST_ENCODERS}")
+    if equi_cfg.wrist_encoder != "plain" and (agentview or encoder != "equivariant"):
+        raise ValueError("equivariance.wrist_encoder other than plain is the residual without the agentview "
+                         "camera's, behind encoder_family=equivariant")
+    if equi_cfg.action_frame not in ACTION_FRAMES:
+        raise ValueError(f"equivariance.action_frame={equi_cfg.action_frame!r}: expected one of {ACTION_FRAMES}")
+    if equi_cfg.action_frame == "heading":
+        if agentview or (actor, critic) != ("resfit", "resfit") or equi_cfg.n_arms != 1:
+            raise ValueError("equivariance.action_frame=heading turns one hand's inputs into its frame: the "
+                             "agentview camera's picture would not turn with them, and a constrained or "
+                             "ablated network would read them as if they turned with the world; it needs one "
+                             "arm, no agentview camera, and ResFiT's actor and critic")
+        if equi_cfg.gripper_xy_input:
+            raise ValueError("equivariance.action_frame=heading needs gripper_xy_input=false: the gripper's "
+                             "position on the table does not turn with the hand")
+        if not residual_actor:
+            raise ValueError("equivariance.action_frame=heading turns the base action: it is residual-only")
     if not residual_actor and (encoder, actor, critic) != ("equivariant",) * 3:
         raise ValueError("the ablated and ResFiT families are residual-only: vanilla RL keeps the "
                          "equivariant networks")
@@ -72,6 +123,12 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
         unread += ACTOR_FIELDS
     if critic == "resfit":
         unread += CRITIC_FIELDS
+    else:
+        unread.append("critic_tokens")
+    if not agentview and equi_cfg.wrist_encoder == "c8":
+        unread += ("critic_window", "ih_out_channel", "ih_channels")  # the C8 wrist encoder reads the rest
+    elif not agentview:
+        unread += AGENTVIEW_FIELDS
     if actor != "resfit" and equi_cfg.actor_design == "ours":
         unread.append("actor_feature_fields")  # ResFiTShapedActor's alone
     unread = list(dict.fromkeys(unread))  # the window's fields are in two lists
@@ -92,6 +149,7 @@ def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equ
                   residual_actor: bool, objects: tuple[str, ...] = ()) -> ResObsEnc:
     """The agent's observation encoder, as QAgent builds it, on the CPU. tools/encoder_probe.py builds
     a run's encoder alone through here. `objects` are the task objects it reads (object_obs.py)."""
+    agentview_key, wrist_keys = split_cameras(rl_cameras, equi_cfg.n_arms)
     return ResObsEnc(                              # was: EquivariantResObsEnc
         obs_shape=obs_shape,
         N=equi_cfg.N,
@@ -108,8 +166,8 @@ def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equ
         n_arms=equi_cfg.n_arms,
         gripper_dim=equi_cfg.gripper_dim,
         hand_dof=equi_cfg.hand_dof,
-        agentview_key=rl_cameras[0],
-        wrist_keys=tuple(rl_cameras[1:]),
+        agentview_key=agentview_key,
+        wrist_keys=wrist_keys,
         ih_out_channel=equi_cfg.ih_out_channel,
         base_action_input=residual_actor,
         ih_channels=tuple(equi_cfg.ih_channels),
@@ -117,6 +175,9 @@ def build_encoder(obs_shape, rl_cameras: list[str], agent_cfg: QAgentConfig, equ
         critic_window=equi_cfg.critic_window,
         critic_window_ih=equi_cfg.critic_window_ih,
         objects=objects,
+        wrist_encoder=equi_cfg.wrist_encoder,
+        gripper_xy_input=equi_cfg.gripper_xy_input,
+        action_frame=equi_cfg.action_frame,
     )
 
 
@@ -163,11 +224,7 @@ class QAgent(torch.nn.Module):
         super().__init__()
         if isinstance(rl_cameras, str):
             rl_cameras = [rl_cameras]
-        assert len(rl_cameras) > 0, "At least one camera must be provided"
-        assert len(rl_cameras) == 1 + equi_cfg.n_arms, (
-            f"expected agentview plus one wrist camera per arm: "
-            f"n_arms={equi_cfg.n_arms}, rl_cameras={rl_cameras}"
-        )
+        agentview_key, _ = split_cameras(rl_cameras, equi_cfg.n_arms)
 
         self.rl_cameras = rl_cameras
         self.agent_cfg = agent_cfg
@@ -179,7 +236,7 @@ class QAgent(torch.nn.Module):
         if agent_cfg.actor.noise_units != "scaled":
             raise ValueError("agent.actor.noise_units is ResFiT's agent's: this agent's noise is in env units "
                              "already, as its actions are")
-        check_families(equi_cfg, agent_cfg, residual_actor)
+        check_families(equi_cfg, agent_cfg, residual_actor, agentview=agentview_key is not None)
 
         use_orth_init = self.equi_cfg.use_orth_init
 
@@ -203,7 +260,11 @@ class QAgent(torch.nn.Module):
         self.group = self.enc.group
 
         # The critic, then the actor: the equivariant network, or it exported (ablated), or ResFiT's.
-        if self.equi_cfg.critic_family == "resfit":
+        if self.equi_cfg.critic_family == "resfit" and self.equi_cfg.critic_tokens == "flat":
+            # Every image feature in one token (check_families: no window, fuse_patch=0).
+            self.critic = ResFiTCritic(1, self.enc.vis_ih_type.size, self.enc.lowdim_dim,
+                                       self.enc.action_dim, self.agent_cfg.critic)
+        elif self.equi_cfg.critic_family == "resfit":
             self.critic = ResFiTCritic(self.enc.num_patch, self.enc.patch_dim, self.enc.lowdim_dim,
                                        self.enc.action_dim, self.agent_cfg.critic)
         else:
@@ -274,6 +335,8 @@ class QAgent(torch.nn.Module):
                 action_fields=self.enc.action_fields,
             )
             self.actor = actor if self.equi_cfg.actor_family == "equivariant" else AblatedActor(actor)
+        if self.equi_cfg.action_frame == "heading":  # check_families: ResFiT's actor and critic
+            self.actor, self.critic = HeadingFrameActor(self.actor), HeadingFrameCritic(self.critic)
 
         # prop_shape and action_dim come from the env; the encoder derives its own
         # from equi_cfg. A mismatch would mis-slice every batch without erroring.

@@ -8,7 +8,9 @@ the wrappers change, and nothing else:
   final Tanh is replaced by this agent's bound and noise (bounded_residual): equi_tanh times the
   per-field bound, as every actor family has it;
 - the critic reads [tokens | state] as one tensor, and unflattens the tokens for ResFiT's spatial
-  trunk, which reads them as ResFiT's _encode gives them, [B, patches, 128].
+  trunk, which reads them as ResFiT's _encode gives them, [B, patches, 128]; under
+  equivariance.critic_tokens=flat it reads [image features | state], the features as one token,
+  [B, 1, features], behind any encoder.
 The state is this agent's, 11 numbers per arm normalized per field, where ResFiT's agent has a
 z-score of the raw 9; and the actions are in env units, where ResFiT's are in its scaler's units.
 tests/test_resfit_heads.py checks both wrappers against ResFiT's own modules.

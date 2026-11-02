@@ -369,6 +369,28 @@ The feature is active at HEAD, and `preflight.py` checks for `env_probes/<task>.
 **HEAD is not the architecture that produced 0.94**, independently of everything else that changed
 between the two commits. Any future comparison against `z8yoqylh` has to account for it.
 
+## The hand's frame (the wrist sweep, 2026-11-01)
+
+`equivariance.action_frame=heading` (`rl/heading_frame.py`; EXPERIMENTS.md, 2026-11-01 CODE) is a second,
+separate symmetry, the practical guide's (`docs/papers/practica_guide_for_sym_diffpo.pdf`, its Prop. 2
+restricted to the vertical axis), not the network's C8 about the base. ψ is the heading of the gripper's x axis
+in the table plane; every world vector the residual reads or writes is turned by R_ψᵀ (the base action's and
+the residual's xy and rx_ry pairs, and the rotation, R_ψᵀR), and z, yaw, the hand and gravity are kept. Turning
+the scene and the hand together about the hand then leaves every input of a residual without the agentview
+camera and without the gripper's xy unchanged: the wrist image turns with the hand, and the height, opening and
+tilt do not move. So any network reading them is symmetric under that turn by construction, at every angle, not
+only C8's (`tests/test_wrist_sweep.py`). The networks after it are ResFiT's, unconstrained; the constrained ones
+would read the turned inputs as if they turned with the world, so `check_families` refuses them.
+
+Whether the turn is a symmetry of the task is the 10-31 FINDING's question: seen from the gripper, Stack's cube A
+lies within ±76° and cube B from A in all 360°, so nearly; Square's nut does not. The wrist camera sees both
+cubes at the start, but loses cube B for about 40% of the approach and 27% of the carry (EXPERIMENTS.md, the
+2026-11-01 NOTE on P1).
+
+`equivariance.wrist_encoder=c8` puts the agentview encoder's C8 class on the raw wrist image. Its fields permute
+under the crop's own 90° turns, a rotation of the scene relative to the hand, and are joined to the features as
+plain numbers: a feature prior before an unconstrained head, as in the guide, not a constraint on the residual.
+
 ## Assumptions
 
 Documented so they can be tested rather than argued about.

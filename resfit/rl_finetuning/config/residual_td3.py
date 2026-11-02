@@ -61,6 +61,12 @@ class EquivarianceConfig:
     encoder_family: str = "equivariant"
     actor_family: str = "equivariant"
     critic_family: str = "equivariant"
+    # How ResFiT's critic (critic_family=resfit) reads the image features: "spatial", the ViTs' tokens,
+    # 81 per camera of 128 numbers, as ResFiT's own critic does, so behind the ResFiT encoder alone;
+    # or "flat", every image feature in one token, so its trunk is a Linear of [image features |
+    # action | state] (agent.critic.fuse_patch=0), and it reads any encoder's features. EXPERIMENTS.md,
+    # 2026-11-01 CODE (the wrist sweep).
+    critic_tokens: str = "spatial"
 
     N: int = 8
     enc_degree_channel: int = 32 # power of 8 for agent view encoder, ideally 128
@@ -79,6 +85,17 @@ class EquivarianceConfig:
     enc_out_channel: int | None = None
     critic_window: int = 0
     critic_window_ih: int = 0
+
+    # The wrist sweep (EXPERIMENTS.md, 2026-11-01 CODE; docs/EQUIVARIANCE.md, "The hand's frame"), each
+    # default every run before it. wrist_encoder: each wrist camera's encoder, "plain" (ResEncoder76InHand,
+    # ih_out_channel wide) or "c8" (EquivariantResEncoder76Cyclic, the agentview encoder's class and sizes,
+    # on the raw wrist crop; its regular fields joined as plain numbers), the residual without the
+    # agentview camera alone. gripper_xy_input: False drops the gripper's xy from the proprioception.
+    # action_frame: "world", or "heading", the residual written in the hand's heading frame
+    # (rl/heading_frame.py), behind ResFiT's actor and critic, without the agentview camera, xy or objects.
+    wrist_encoder: str = "plain"
+    gripper_xy_input: bool = True
+    action_frame: str = "world"
 
     # Per-arm observation layout. State is [eef_pos 3, eef_quat 4, gripper_qpos G]
     # and action is [delta_pose 6, hand H] per arm; one wrist camera per arm.
