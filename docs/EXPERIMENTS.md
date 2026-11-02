@@ -12700,3 +12700,63 @@ for the other five: their pin stays `79a954e`.
 - **The cost to be measured in the smoke:** G-fa runs the ResNet on 8 turns of every image. If its smoke projects
   more than 4 h over G-pre's 150k, it goes to Aden (the plan's "cache the features instead").
 - **Prediction** (Claude's, as in the plan): G-fa above G-pre.
+
+## 2026-11-01 — NOTE — `stack-1030` read at two seeds an arm: S1 (`stack-eee` − `stack-rrr`) is −0.078, inside the bar, so not counted. Both arms beat B_stack (0.716 and 0.794 against 0.602). `eee`'s critic values online data far more than on Square, but still below `rrr`'s
+
+Read by Claude at about 22:00 on 11-01, from the four packages (`tjl95db5`'s pools from its server history,
+`wandb_logs/metrics_from_server.jsonl`; the other three from their local records, which are complete). All four ran
+from `9944eeb` and finished cleanly: `stack-eee 3` (`3l3j5z3v`) at about 04:20, `stack-rrr 2` (`fxqkfi6u`) at about
+01:25, `stack-rrr 3` (`riczucki`) at about 02:55, all on 11-01; `stack-eee 2` on 10-31 (its NOTE).
+
+| Run | Step 0 | 10k–30k evals | 110k–150k | `debug/q_data_online`, 10k–30k |
+|---|---|---|---|---|
+| `stack-eee 2` (`tjl95db5`) | 0.62 | 0.493 | 0.692 | +0.094 |
+| `stack-eee 3` (`3l3j5z3v`) | 0.70 | 0.587 | 0.740 | +0.063 |
+| `stack-rrr 2` (`fxqkfi6u`) | 0.50 | 0.593 | 0.756 | +0.135 |
+| `stack-rrr 3` (`riczucki`) | 0.60 | 0.620 | 0.832 | +0.156 |
+| **`stack-eee`** | | 0.540 | **0.716** | +0.079 |
+| **`stack-rrr`** | | 0.607 | **0.794** | +0.146 |
+
+- **S1 = −0.078**, inside ±0.13. **Not counted.**
+- **S2, described:** S1 less Square's `eee` − `rrr`. Against arch-swap's two seeds an arm (−0.108) it is +0.030;
+  against `eee`'s five 150k runs (−0.039) it is −0.039. Its standard error is about 0.1, so nothing is read. By the
+  registered table, "S1 within ±0.13", whichever way S2 falls: described only, and more seeds only if Aden wants
+  S1 read.
+- **Against the base:** both arms are above B_stack (0.602), `eee` by 0.114 and `rrr` by 0.192. Each run's step 0
+  (the base alone, 50 episodes) is 0.50–0.70.
+- **The critic's signal (question 4):** `eee`'s online value at 10k–30k is +0.079, against `rrr`'s +0.146. It is
+  still below `rrr`'s, as on Square, but it is far above `eee`'s on Square (+0.004, arch-swap's two seeds). On a task
+  whose base and demos are new, `eee`'s critic carries over demo value to online data where on Square it did not.
+- **The caveats as registered:** Stack's base is under-trained (step 2000 of a run that reached 0.96 by 16k). And the
+  premise "the constraint matches a symmetry the task has" is corrected (the 2026-10-31 FINDING): about the robot
+  base, Stack is extrinsic too.
+- **Housekeeping:** the three night runs' duplicate best models were reclaimed at 08:15 on 11-01 (kind A). Their
+  eval videos (0.3 GB) are in Aden's `outputs/cleanup-20261101/delete_by_hand_3.sh`; the bulk deletion was refused to
+  Claude by the permission classifier.
+
+## 2026-11-01 — NOTE — O1's C1 for `eee` counts: `obj-nut-eee`'s two runs pool to 0.768 at 110k–150k against `eee`'s 0.609, +0.159. `rrr`'s C1 and both C2s wait on runs deferred until after the wrist sweep
+
+Read by Claude at about 22:00 on 11-01, from the packages. Every run here ran from `e7710f4`.
+- **`obj-nut-eee 3`** (`rrgn653s`) launched at 01:31 EDT on 11-01, from `order-1027`. Aden's 08:10 answer was to
+  defer O1's seeds 3, but it had not been applied, and the run had launched before the answer was given. It finished
+  at 19:41 EST (65,406 s, alone on the machine for most of it). **`obj-nut-rrr 2`** (`b4e3jqgj`) launched at 16:33 on
+  10-31, after its smoke passed, and finished at about 02:45 on 11-01 (its package's time; the clocks went back at 02:00).
+
+| Run | Step 0 | 10k–30k evals | 110k–150k | `debug/q_data_online`, 10k–30k |
+|---|---|---|---|---|
+| `obj-nut-eee 2` (`ifsnjb9f`) | 0.58 | 0.227 | 0.720 | +0.016 |
+| `obj-nut-eee 3` (`rrgn653s`) | 0.54 | 0.400 | 0.816 | +0.019 |
+| `obj-nut-rrr 2` (`b4e3jqgj`) | 0.54 | 0.407 | 0.864 | +0.080 |
+| `obj-peg-eee 2` (`3vimywbf`, its NOTE) | 0.66 | 0.147 | 0.648 | −0.009 |
+| `obj-peg-rrr 2` (`mflrk646`, its NOTE) | 0.52 | 0.373 | 0.872 | +0.092 |
+
+- **C1 for `eee` = `obj-nut-eee` − `eee` = 0.768 − 0.609 = +0.159**, against `eee`'s five 150k runs (the
+  registered anchor, which `long-eee 4` joins; +0.169 against the four the entry names). **It counts at 0.13: the
+  nut's pose lifts `eee` above its launch.** Two seeds, as registered.
+- **C1 for `rrr`, C2 for each, and C3 are not readable:** they need `obj-nut-rrr 3`, `obj-peg-eee 3` and
+  `obj-peg-rrr 3`, deferred to after the wrist sweep (Aden, 11-01), last in `order-1031`. With one seed,
+  `obj-nut-rrr` − `rrr` is +0.216 (described).
+- **The registered reading needs C1 for `rrr` before it is chosen:** "C1 counts up in both" reads that the pose is
+  what both encoders lose; "in `eee` only" reads that the equivariant encoder loses what ResFiT's ViTs keep.
+- **The critic's early online value with the nut's pose** is unchanged for `eee` (+0.016 and +0.019, against
+  +0.005 for `eee`), while its evals rose. So the lift does not come through that early signal.
