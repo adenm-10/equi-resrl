@@ -90,7 +90,9 @@ class EquivarianceConfig:
     # default every run before it. wrist_encoder: each wrist camera's encoder, "plain" (ResEncoder76InHand,
     # ih_out_channel wide) or "c8" (EquivariantResEncoder76Cyclic, the agentview encoder's class and sizes,
     # on the raw wrist crop; its regular fields joined as plain numbers), the residual without the
-    # agentview camera alone. gripper_xy_input: False drops the gripper's xy from the proprioception.
+    # agentview camera alone; or "resnet18" or "resnet18_fa", a frozen ImageNet ResNet-18 (agent.freeze_encoder=true),
+    # alone or frame-averaged over C_N (networks/pretrained_wrist.py), 512 out, the same. gripper_xy_input: False
+    # drops the gripper's xy from the proprioception.
     # action_frame: "world", or "heading", the residual written in the hand's heading frame
     # (rl/heading_frame.py), behind ResFiT's actor and critic, without the agentview camera, xy or objects.
     wrist_encoder: str = "plain"

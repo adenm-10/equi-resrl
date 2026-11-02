@@ -10,6 +10,7 @@ from resfit.rl_finetuning.config.rlpd import VitEncoderConfig
 from resfit.rl_finetuning.equi_off_policy.common_utils.module_attr_mixin import ModuleAttrMixin
 from resfit.rl_finetuning.equi_off_policy.networks.equi_encoder import EquivariantResEncoder76Cyclic
 from resfit.rl_finetuning.equi_off_policy.networks.ablate_equi_encoder import ResEncoder76InHand
+from resfit.rl_finetuning.equi_off_policy.networks.pretrained_wrist import PretrainedWristEncoder
 from resfit.rl_finetuning.equi_off_policy.networks.equi_normalizer import (
     ACTION_FIELDS,
     OBJECT_FIELDS,
@@ -281,9 +282,16 @@ class ResObsEnc(ModuleAttrMixin):
 
             # In-hand encoders, one per arm; their outputs are scalar, invariant, in every family: an
             # in-hand camera frame rotates with its gripper, so world-frame SO(2) equivariance does not
-            # apply there. The C8 one is the agentview encoder's class on the raw wrist crop.
+            # apply there. The C8 one is the agentview encoder's class on the raw wrist crop; the pretrained
+            # ones are a frozen ImageNet ResNet-18, alone or frame-averaged over C_N (networks/pretrained_wrist.py).
             out_fields = n_hidden if enc_out_channel is None else enc_out_channel
-            if wrist_encoder == "c8":
+            if wrist_encoder in ("resnet18", "resnet18_fa"):
+                self.enc_ih = torch.nn.ModuleList([
+                    PretrainedWristEncoder(frame_average=wrist_encoder == "resnet18_fa", size=crop_shape[0], N=N)
+                    for _ in range(n_arms)
+                ])
+                ih_width = PretrainedWristEncoder.n_out
+            elif wrist_encoder == "c8":
                 self.enc_ih = torch.nn.ModuleList([
                     EquivariantResEncoder76Cyclic(obs_channel=self.obs_channel, n_out=n_hidden, N=N,
                                                   initialize=initialize, norm=encoder_norm,

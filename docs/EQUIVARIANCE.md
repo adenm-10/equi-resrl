@@ -390,6 +390,9 @@ cubes at the start, but loses cube B for about 40% of the approach and 27% of th
 `equivariance.wrist_encoder=c8` puts the agentview encoder's C8 class on the raw wrist image. Its fields permute
 under the crop's own 90° turns, a rotation of the scene relative to the hand, and are joined to the features as
 plain numbers: a feature prior before an unconstrained head, as in the guide, not a constraint on the residual.
+`resnet18_fa` is the guide's other one: a frozen ImageNet ResNet-18 frame-averaged over C8, Ψ(x) = ⅛ Σ_k ρ(k)
+Φ(R_k⁻¹x) on the crop masked to its inscribed disk, its 512 outputs read as 64 regular fields. Ψ permutes under the
+crop's turns exactly at right angles and to the resampling's error at 45° (`networks/pretrained_wrist.py`).
 
 ## Assumptions
 

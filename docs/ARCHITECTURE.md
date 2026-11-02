@@ -171,7 +171,7 @@ makes each row executable.
 | `actor_family` | `"equivariant"` | — | — | which actor | **Live** from 2026-10-20 |
 | `critic_family` | `"equivariant"` | — | which critic | — | **Live** from 2026-10-20 |
 | `critic_tokens` | `"spatial"` | — | ResFiT's critic: `spatial` (the ViTs' tokens) or `flat` (every image feature in one token, behind any encoder, with `agent.critic.fuse_patch=0`) | — | **Live** from 2026-11-01 (the wrist sweep), with `critic_family=resfit` alone |
-| `wrist_encoder` | `"plain"` | each wrist's encoder: `plain` (`ResEncoder76InHand`) or `c8` (`EquivariantResEncoder76Cyclic` on the raw wrist crop, its fields joined as plain numbers) | — | — | **Live** from 2026-11-01; `c8` only without the agentview camera, in the equivariant family, where the agentview encoder's fields size it |
+| `wrist_encoder` | `"plain"` | each wrist's encoder: `plain` (`ResEncoder76InHand`), `c8` (`EquivariantResEncoder76Cyclic` on the raw wrist crop, its fields joined as plain numbers), or `resnet18` and `resnet18_fa` (the frozen ImageNet ResNet-18, 512 out, alone or frame-averaged over C_N; `networks/pretrained_wrist.py`) | — | — | **Live** from 2026-11-01; all but `plain` only without the agentview camera, in the equivariant family; `c8` is sized by the agentview encoder's fields; the ResNet needs `agent.freeze_encoder=true` |
 | `gripper_xy_input` | `True` | `False` drops the gripper's xy from the proprioception (11 numbers to 9 per arm) | — | — | **Live** from 2026-11-01 |
 | `action_frame` | `"world"` | `heading` turns the rotation and the base action's pairs into the hand's heading frame and appends (cos ψ, sin ψ) | through `HeadingFrameCritic` | through `HeadingFrameActor` | **Live** from 2026-11-01; one arm, no agentview camera, no gripper xy, ResFiT's actor and critic (`rl/heading_frame.py`; EQUIVARIANCE.md, "The hand's frame") |
 | `N` | `8` | used | used (via group) | used (via group) | **Live** |
@@ -442,9 +442,11 @@ mixes.
 | `rl/equi_rl_utils.py` | Shared helpers: `slice_gt`, `cat_gts`, `equi_clip`, `equi_tanh`, `field_bounds` and `bounded_residual` (every actor family's bound and noise), `feature_tensor`, `apply_deltaortho_init`, `scale_final_equi_layer`, `FieldNorm`, `HLGaussLoss`, `C51Loss`, `schedule`, `TruncatedNormal`. Imported with `*` by actor and critic. | yes |
 | `rl/ablated.py` | The ablated family: `plain`, which exports an equivariant module to plain torch layers, and `AblatedActor`, `AblatedCritic`. | yes |
 | `rl/resfit_heads.py` | The ResFiT family's actor and critic: ResFiT's own, wrapped to read this agent's features and to bound as it does. | yes |
+| `rl/heading_frame.py` | The hand's heading frame (`action_frame=heading`, 2026-11-01): `heading_of`, the turns, and `HeadingFrameActor` and `HeadingFrameCritic`, which turn actions between the world and the frame. | yes |
 | `networks/obs_encoder.py` | `ResObsEnc`. Builds field types, encodes images, normalizes and lays out proprioception and base action, in each encoder family. | yes |
 | `networks/equi_encoder.py` | `EquivariantResEncoder76Cyclic` — the C_N-equivariant vision backbone for the agentview camera. | yes |
 | `networks/ablate_equi_encoder.py` | `ResEncoder76InHand`, the wrist camera's CNN, in the equivariant and ablated encoders. Its scalar agentview twin, `ResEncoder76`, went with the scalar ablation on 2026-10-20. | yes |
+| `networks/pretrained_wrist.py` | `PretrainedWristEncoder` (`wrist_encoder=resnet18` or `resnet18_fa`): the frozen ImageNet ResNet-18 on the wrist, alone or frame-averaged over C_N. | yes |
 | `networks/equi_normalizer.py` | `LinearNormalizer`, `build_equivariant_normalizer`, `detect_robot_bases`, and the per-arm field names. | yes |
 | `common_utils/crop_randomizer.py` | Random crop 84×84 → 76×76. | yes |
 | `common_utils/escnn_fixes.py` | Two fixes to escnn 1.0.11 that remove its host syncs, exact to its outputs: basis expansions hash by identity, and a `GroupPooling` that slices with Python ints. See "Why the update used to stall". | yes |

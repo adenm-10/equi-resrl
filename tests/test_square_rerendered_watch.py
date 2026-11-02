@@ -335,7 +335,8 @@ def test_the_wrist_arms_are_never_stopped_and_log_their_early_speed():
     evals and a runaway critic, each with its early speed logged."""
     from square_rerendered_watch import FIXED_LENGTH_ARMS, RESIDUAL_ARMS, SPEED_ARMS, WATCH_ONLY_ARMS, WRIST
 
-    assert GROUPS["wrist-1031"] == WRIST == ("stack-na-eee", "stack-p2", "stack-w-cnn", "stack-g-cnn", "stack-g-c8")
+    assert GROUPS["wrist-1031"] == WRIST == ("stack-na-eee", "stack-p2", "stack-w-cnn", "stack-g-cnn", "stack-g-c8",
+                                            "stack-g-pre", "stack-g-fa")
     assert set(WRIST) <= WATCH_ONLY_ARMS & RESIDUAL_ARMS & SPEED_ARMS
     assert not set(WRIST) & FIXED_LENGTH_ARMS
     runaway = _qs(0, 150_000, 50.0)

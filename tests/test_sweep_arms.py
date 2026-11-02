@@ -301,6 +301,9 @@ WRIST_CHANGES = {  # arm: (source, removed, added)
                     {WRIST_ONLY, *FLAT_CRITIC, "equivariance.ih_out_channel=256", "equivariance.gripper_xy_input=false"}),
     "stack-g-cnn": ("stack-w-cnn", set(), {"equivariance.action_frame=heading"}),
     "stack-g-c8": ("stack-g-cnn", {"equivariance.ih_out_channel=256"}, {"equivariance.wrist_encoder=c8"}),
+    "stack-g-pre": ("stack-g-cnn", {"equivariance.ih_out_channel=256"},
+                    {"equivariance.wrist_encoder=resnet18", "agent.freeze_encoder=true"}),
+    "stack-g-fa": ("stack-g-pre", {"equivariance.wrist_encoder=resnet18"}, {"equivariance.wrist_encoder=resnet18_fa"}),
 }
 WRIST_SOURCES = {arm: source for arm, (source, _, _) in WRIST_CHANGES.items()}
 WRIST_ARMS = tuple(WRIST_CHANGES)
@@ -315,6 +318,9 @@ WRIST_VALUES = {
                     "equivariance.ih_out_channel": 256, "equivariance.gripper_xy_input": False},
     "stack-g-cnn": {"equivariance.action_frame": "heading"},
     "stack-g-c8": {"equivariance.ih_out_channel": 32, "equivariance.wrist_encoder": "c8"},
+    "stack-g-pre": {"equivariance.ih_out_channel": 32, "equivariance.wrist_encoder": "resnet18",
+                    "agent.freeze_encoder": True},
+    "stack-g-fa": {"equivariance.wrist_encoder": "resnet18_fa"},
 }
 # Each arm's changes from its anchor, as composed paths, and its values there.
 NOLN_PATHS = {"agent.actor.use_layer_norm", "agent.critic.use_layer_norm"}
@@ -366,8 +372,8 @@ FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | {"offline_data.name", "object_obs
 FROM_ANCHOR.update({arm: FROM_ANCHOR[source] | set(STACK_VALUES) for arm, source in STACK_SOURCES.items()})
 for _arm, _source in WRIST_SOURCES.items():  # in order; a path back at the anchor's value leaves the set
     FROM_ANCHOR[_arm] = FROM_ANCHOR[_source] | set(WRIST_VALUES[_arm])
-    FROM_ANCHOR[_arm] -= {"stack-w-cnn": {"equivariance.encoder_family"},
-                          "stack-g-c8": {"equivariance.ih_out_channel"}}.get(_arm, set())
+    FROM_ANCHOR[_arm] -= {"stack-w-cnn": {"equivariance.encoder_family"}, "stack-g-c8": {"equivariance.ih_out_channel"},
+                          "stack-g-pre": {"equivariance.ih_out_channel"}}.get(_arm, set())
 NOLN_VALUES = {"agent.actor.use_layer_norm": False, "agent.critic.use_layer_norm": False}
 LAYOUT_VALUES = {"equivariance.actor_norm": "layer_norm", "equivariance.critic_norm": "layer_norm",
                  "agent.critic.num_q": 10, "equivariance.num_critic_layers": 2}

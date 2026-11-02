@@ -44,6 +44,10 @@ ARMS = {
 ARMS["g-cnn"] = (WRIST, {**ARMS["w-cnn"][1], "equivariance.action_frame": "heading"})
 ARMS["g-c8"] = (WRIST, {**{k: v for k, v in ARMS["g-cnn"][1].items() if k != "equivariance.ih_out_channel"},
                         "equivariance.wrist_encoder": "c8"})
+# The ResNet arms (the second commit): a frozen ImageNet ResNet-18 on the wrist, alone or frame-averaged.
+ARMS["g-pre"] = (WRIST, {**ARMS["g-c8"][1], "equivariance.wrist_encoder": "resnet18", "agent.freeze_encoder": True})
+ARMS["g-fa"] = (WRIST, {**ARMS["g-pre"][1], "equivariance.wrist_encoder": "resnet18_fa"})
+HEADING_ARMS = ["g-cnn", "g-c8", "g-pre", "g-fa"]
 
 
 def _agent(arm: str, device="cpu"):
@@ -153,6 +157,7 @@ REFUSALS = {
     "heading with gripper xy": (WRIST, {**RESFIT_NETS, **FLAT, "equivariance.action_frame": "heading"},
                                 "gripper_xy_input=false"),
     "unknown action_frame": (WRIST, {"equivariance.action_frame": "gripper"}, "expected one of"),
+    "resnet unfrozen": (WRIST, {**RESFIT_NETS, **FLAT, "equivariance.wrist_encoder": "resnet18"}, "freeze_encoder"),
 }
 
 
@@ -171,6 +176,7 @@ UNREAD = {"enc_degree_channel": ("na-eee", 16), "encoder_norm": ("na-eee", "inne
           "encoder_orth_init": ("na-eee", True), "initialize": ("na-eee", False),
           "enc_out_channel": ("w-cnn", 64), "critic_tokens": ("na-eee", "flat"),
           "ih_out_channel": ("g-c8", 64), "ih_channels": ("g-c8", [32, 64, 128, 256])}
+UNREAD_PRETRAINED = {"ih_out_channel": 64, "ih_channels": [32, 64, 128, 256], "enc_degree_channel": 16}
 
 
 @pytest.mark.parametrize("field", list(UNREAD))
@@ -248,7 +254,7 @@ def test_the_agent_without_agentview_is_equivariant_about_the_base(k, training):
 
 @pytest.mark.parametrize("training", [False, True], ids=["eval", "train"])
 @pytest.mark.parametrize("theta", [0.3, 1.0, -2.2])
-@pytest.mark.parametrize("arm", ["g-cnn", "g-c8"])
+@pytest.mark.parametrize("arm", HEADING_ARMS)
 def test_a_turn_about_the_hand_changes_nothing_in_the_heading_frame(arm, theta, training):
     with contextlib.redirect_stdout(sys.stderr):
         agent = _agent(arm)
@@ -314,3 +320,67 @@ def test_without_gripper_xy_nothing_reads_the_gripper_position():
     with torch.no_grad():
         for f, f_moved in zip(_features(agent, obs, False), _features(agent, moved, False)):
             assert torch.equal(f, f_moved)
+
+
+@pytest.mark.parametrize("field", list(UNREAD_PRETRAINED))
+def test_a_field_the_pretrained_wrist_encoder_does_not_read_is_refused(field):
+    from tools.agent_fingerprint import build_reference_agent
+
+    cameras, overrides = ARMS["g-pre"]
+    with pytest.raises(ValueError, match=rf"reads equivariance\.\['{field}'\]"), \
+            contextlib.redirect_stdout(sys.stderr):
+        build_reference_agent("cpu", overrides={**overrides, f"equivariance.{field}": UNREAD_PRETRAINED[field]},
+                              cameras=cameras)
+
+
+@pytest.mark.parametrize("arm", ["g-pre", "g-fa"])
+def test_the_pretrained_wrist_encoder_is_imagenets_and_stays_frozen(arm):
+    """Its weights are torchvision's ImageNet ResNet-18's, its batch norms stay in eval mode in a training agent, and
+    an update leaves them as they were."""
+    import torchvision
+
+    with contextlib.redirect_stdout(sys.stderr):
+        agent = _agent(arm)
+    enc = agent.enc.enc_ih[0]
+    imagenet = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1).state_dict()
+    before = {k: v.clone() for k, v in enc.net.state_dict().items()}
+    assert all(torch.equal(before[k], imagenet[k]) for k in before)  # fc is Identity, so it has no weights
+    agent.train(True)
+    assert not enc.net.training and all(not m.training for m in enc.net.modules())
+    agent.update(_batch(arm), stddev=0.05, update_actor=True, bc_batch=None, ref_agent=agent)
+    after = enc.net.state_dict()
+    assert all(torch.equal(before[k], after[k]) for k in before)  # running statistics included
+
+
+def _turn_image(x: torch.Tensor, k: int, N: int = 8) -> torch.Tensor:
+    """x turned by 2 pi k / N in torch.rot90's direction: rot90 itself at right angles, else resampled by a grid whose
+    turn by 90 degrees is checked against rot90 below. (tests/group_action.py's rotate_image resamples its non-right
+    turns in the opposite direction to its rot90 branch; TODO H, the wrist sweep's finding.)"""
+    if ga.is_right_angle(k, N):
+        return torch.rot90(x, (k * 4 // N) % 4, dims=(-2, -1))
+    c, s = math.cos(2 * math.pi * k / N), math.sin(2 * math.pi * k / N)
+    mat = torch.tensor([[[c, -s, 0.0], [s, c, 0.0]]]).expand(x.shape[0], 2, 3)
+    grid = torch.nn.functional.affine_grid(mat, list(x.shape), align_corners=False)
+    return torch.nn.functional.grid_sample(x, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+
+
+@pytest.mark.parametrize("k", [1, 2, 3, 4, 6])
+def test_the_frame_averaged_encoder_permutes_its_fields_under_turns(k):
+    """Psi(R_k x) = rho(k) Psi(x): exactly at right angles (k = 2, 4, 6), to the bilinear resampling's error at 45
+    degrees (k = 1, 3), on a smooth image (pixel noise is resampling's worst case). First, that the resampled turn
+    by 90 degrees is torch.rot90's, so the direction is one."""
+    from resfit.rl_finetuning.equi_off_policy.networks.pretrained_wrist import PretrainedWristEncoder
+
+    g = torch.Generator().manual_seed(0)
+    x = torch.nn.functional.interpolate(torch.rand(3, 3, 12, 12, generator=g) * 2 - 1, size=(76, 76),
+                                        mode="bilinear", align_corners=False)
+    mat = torch.tensor([[[0.0, -1.0, 0.0], [1.0, 0.0, 0.0]]]).expand(3, 2, 3)  # _turn_image's grid at 90 degrees
+    grid = torch.nn.functional.affine_grid(mat, list(x.shape), align_corners=False)
+    resampled = torch.nn.functional.grid_sample(x, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+    assert (resampled - torch.rot90(x, 1, dims=(-2, -1))).abs().max() < 1e-4
+    enc = PretrainedWristEncoder(frame_average=True)
+    with torch.no_grad():
+        out = enc.forward_map(x)[0].reshape(3, -1, 8)
+        out_t = enc.forward_map(_turn_image(x, k))[0].reshape(3, -1, 8)
+    err = _rel_err(out_t, ga.act_regular(out, k, 8))
+    assert err < (1e-4 if ga.is_right_angle(k, 8) else 0.1), err

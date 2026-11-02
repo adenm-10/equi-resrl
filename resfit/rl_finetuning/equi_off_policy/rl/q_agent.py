@@ -42,7 +42,8 @@ CRITIC_FIELDS = ("critic_norm", "critic_pooled_norm", "num_critic_layers", "crit
 AGENTVIEW_FIELDS = ("enc_degree_channel", "enc_out_channel", "encoder_norm", "encoder_orth_init", "initialize",
                     "critic_window")
 CRITIC_TOKENS = ("spatial", "flat")
-WRIST_ENCODERS = ("plain", "c8")
+WRIST_ENCODERS = ("plain", "c8", "resnet18", "resnet18_fa")
+PRETRAINED_WRIST = ("resnet18", "resnet18_fa")
 ACTION_FRAMES = ("world", "heading")
 
 
@@ -90,6 +91,8 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
     if equi_cfg.wrist_encoder != "plain" and (agentview or encoder != "equivariant"):
         raise ValueError("equivariance.wrist_encoder other than plain is the residual without the agentview "
                          "camera's, behind encoder_family=equivariant")
+    if equi_cfg.wrist_encoder in PRETRAINED_WRIST and not agent_cfg.freeze_encoder:
+        raise ValueError("the pretrained wrist encoders are frozen: they need agent.freeze_encoder=true")
     if equi_cfg.action_frame not in ACTION_FRAMES:
         raise ValueError(f"equivariance.action_frame={equi_cfg.action_frame!r}: expected one of {ACTION_FRAMES}")
     if equi_cfg.action_frame == "heading":
@@ -129,6 +132,8 @@ def check_families(equi_cfg: EquivarianceConfig, agent_cfg: QAgentConfig, residu
         unread += ("critic_window", "ih_out_channel", "ih_channels")  # the C8 wrist encoder reads the rest
     elif not agentview:
         unread += AGENTVIEW_FIELDS
+    if equi_cfg.wrist_encoder in PRETRAINED_WRIST:
+        unread += ("ih_out_channel", "ih_channels")
     if actor != "resfit" and equi_cfg.actor_design == "ours":
         unread.append("actor_feature_fields")  # ResFiTShapedActor's alone
     unread = list(dict.fromkeys(unread))  # the window's fields are in two lists

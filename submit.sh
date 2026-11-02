@@ -211,6 +211,9 @@
 #                 gripper xy; actions in the table's axes.
 #   stack-g-cnn   stack-w-cnn with the residual in the hand's heading frame (action_frame=heading).
 #   stack-g-c8    stack-g-cnn with the C8 encoder on the wrist (wrist_encoder=c8, 32 fields, 256 numbers).
+#   stack-g-pre   stack-g-cnn with a frozen ImageNet ResNet-18 on the wrist (wrist_encoder=resnet18, 512 out,
+#                 agent.freeze_encoder=true).
+#   stack-g-fa    stack-g-pre with the ResNet frame-averaged over C8 (wrist_encoder=resnet18_fa).
 #
 # Every arm here runs to its full length (150k; the long group's 300k). From 2026-10-17 (DEVIATION) no
 # automatic stop of any kind applies, the divergence stop included: Aden stops a run by hand.
@@ -309,6 +312,14 @@ case "$ARM" in
         ARM_OVERRIDES=()
         for o in "${W_CNN[@]}"; do [[ "$o" == equivariance.ih_out_channel=* ]] || ARM_OVERRIDES+=("$o"); done
         ARM_OVERRIDES+=(equivariance.action_frame=heading equivariance.wrist_encoder=c8) ;;
+    stack-g-pre)
+        ARM_OVERRIDES=()
+        for o in "${W_CNN[@]}"; do [[ "$o" == equivariance.ih_out_channel=* ]] || ARM_OVERRIDES+=("$o"); done
+        ARM_OVERRIDES+=(equivariance.action_frame=heading equivariance.wrist_encoder=resnet18 agent.freeze_encoder=true) ;;
+    stack-g-fa)
+        ARM_OVERRIDES=()
+        for o in "${W_CNN[@]}"; do [[ "$o" == equivariance.ih_out_channel=* ]] || ARM_OVERRIDES+=("$o"); done
+        ARM_OVERRIDES+=(equivariance.action_frame=heading equivariance.wrist_encoder=resnet18_fa agent.freeze_encoder=true) ;;
     obj-nut-eee)
         ARM_OVERRIDES=("${OBJ_ANCHOR[@]}" "${RESFIT_LAYOUT[@]}" equivariance.actor_degree_channel=448 object_obs=nut) ;;
     obj-peg-eee)

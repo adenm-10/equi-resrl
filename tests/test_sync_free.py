@@ -291,11 +291,11 @@ def test_vanilla_update_makes_no_host_sync(device, squash):
 
 @pytest.mark.gpu
 @pytest.mark.slow
-@pytest.mark.parametrize("arm", ["na-eee", "p2", "w-cnn", "g-cnn", "g-c8"])
+@pytest.mark.parametrize("arm", ["na-eee", "p2", "w-cnn", "g-cnn", "g-c8", "g-pre", "g-fa"])
 def test_wrist_sweep_update_makes_no_host_sync(arm, device):
     """wrist-1031's agents (2026-11-01 CODE; their configs in tests/test_wrist_sweep.py): the residual without
-    the agentview camera, ResFiT's critic over one flat token, the heading frame's turns and the C8 wrist
-    encoder."""
+    the agentview camera, ResFiT's critic over one flat token, the heading frame's turns, and the C8 and the
+    pretrained wrist encoders."""
     from tests.test_wrist_sweep import ARMS
 
     cameras, overrides = ARMS[arm]

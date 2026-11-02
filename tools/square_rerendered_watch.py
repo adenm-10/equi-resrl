@@ -60,7 +60,7 @@ Nineteen seed groups (GROUPS), on the re-rendered Square demos unless said other
     are in wandb robomimic-stack-final, which run_watch.package_of reads from each trainer's argv.
   - wrist-1031 (TODO B29): the wrist sweep on Stack (stack-eee without the agentview camera, stack-rrr with a
     flat critic, and the wrist-only residuals with ResFiT's networks, in the table's axes or the hand's
-    heading frame, behind a plain or C8 wrist encoder), each to its own 150k, never stopped (watch-only),
+    heading frame, behind a plain, C8, or frozen pretrained wrist encoder), each to its own 150k, never stopped (watch-only),
     each with its early speed logged; in wandb robomimic-stack-final.
 An arm to a fixed length (FIXED_LENGTH_ARMS) is stopped only on the divergence stop, or at its
 STOP_AT step when its trainer would run on past it. A watch-only arm (WATCH_ONLY_ARMS) is never
@@ -133,7 +133,7 @@ ACTOR_DESIGN = ("actor-resfit-shape", "actor-resfit-shape-wide", "actor-eae")
 LONG_RUNS = ("long-resfit", "long-eee")
 OBJ = ("obj-nut-eee", "obj-nut-rrr", "obj-peg-eee", "obj-peg-rrr")
 STACK = ("stack-eee", "stack-rrr")
-WRIST = ("stack-na-eee", "stack-p2", "stack-w-cnn", "stack-g-cnn", "stack-g-c8")
+WRIST = ("stack-na-eee", "stack-p2", "stack-w-cnn", "stack-g-cnn", "stack-g-c8", "stack-g-pre", "stack-g-fa")
 GROUPS = {"square-rerendered-1009": (RESIDUAL, TUNED), "square-trlpd-stab-1010": STABILIZERS,
           "square-residual-start-1011": RESIDUAL_STARTS, "resfit-rx-1012": RESFIT_RX,
           "residual-tilt-1012": (NOTILT, DIAG), "resfit-equi-diff-1012": RESFIT_EQUI_DIFF,
