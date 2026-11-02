@@ -1,13 +1,10 @@
 # Status
 
-**Last updated:** 2026-10-31, 15:58 · **Last verified commit:** `adebb3c`, Stack's RL side (EXPERIMENTS.md,
-2026-10-30 CODE). Its 33 Stack tests pass, the arms' build-and-update tests on the CPU, and so do the 312 Tier 1
-tests of the arms and Stack; the full gate's GPU tier runs at Stack's first launch. `e7710f4` (O1) passed the
-full gate at O1's first launch (1,078 GPU-tier tests). Where each group launches from:
-- `obj-1027` from `e7710f4`;
-- Stack's base policy from `3c23fe9`, B_stack from `adebb3c`, and Stack's RL runs (`stack-1030`) from `9944eeb`
-  (`adebb3c` plus the watcher's Stack group; its pre-registration, 2026-10-30);
-- `long-1027` ran from `e2fdb27`, removed at 11:22 on 10-30 with the group done.
+**Last updated:** 2026-11-01, 21:35 · **Last verified commit:** `79a954e`, the wrist sweep's code (EXPERIMENTS.md,
+2026-11-01 CODE): its 56 new tests, the arm pins and the goldens with the affected suites (328 on the GPU) pass; its
+full gate runs from 21:30 in tmux `gate-79a954e`. Where each group launches from:
+- `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`; the 2026-11-01 PRE-REGISTERED entry);
+- `obj-1027` from `e7710f4`; `stack-1030` ran from `9944eeb` (all four runs done).
 
 Main is pushed to origin through `4a6ab43`; the commits since are local.
 
@@ -15,10 +12,12 @@ Main is pushed to origin through `4a6ab43`; the commits since are local.
 DECISION): launches, gross-failure checks, the readouts and the doc budget, each call recorded with its
 reason. Waiting for Aden: any change to a pre-registered design, and any deletion the DECISION does not
 cover.
-- **The wrist sweep (TODO B29) is planned, not approved.** Aden (10-31): "upend all currently queued experiments
-  to prioritize this new sweep". The plan, `docs/plans/2026-10-31-wrist-sweep.md` (local, DRAFT), waits on his
-  answers to its section 8; nothing in the queue has changed (EXPERIMENTS.md, the 10-31 DECISION). Its basis:
-  the 10-31 FINDING (Stack is extrinsic about the base too; the front camera is centred on the table middle).
+- **The wrist sweep (TODO B29) is built and pre-registered; launching tonight** (the 2026-11-01 CODE, NOTE and
+  PRE-REGISTERED entries). Aden (11-01): "build and queue one seed of each of the new arms", G-c8 against G-cnn wanted
+  by Monday morning; O1's seeds 3 after the sweep. Section 8's questions 3–7 were not answered, so Claude's
+  recommendations stand (the entry lists them). Five arms at seed 2: G-c8, G-cnn, W-cnn, NA-eee, P2, all calibrated
+  inside the speed band at their sources' rates. G-pre and G-fa (the ResNet) come in a second commit. P1: the wrist
+  loses cube B for about 40% of the approach and 27% of the carry.
 - **Stack (TODO B25) is pre-registered and queued** (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`): `eee`
   against `rrr`, seeds 2 and 3, on `stack-base`'s step 2000, **B_stack 0.602** (500 episodes, standard error
   0.022). Its base policy finished its 50k at 22:01 on 10-30 (`8g47hqyc`; 0.92 at the end, 0.99 at best; the
@@ -270,59 +269,51 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 15:58 on 2026-10-31:**
+**At 21:35 on 2026-11-01: no run trains.** Every run of `stack-1030` and O1's seed 2 is done, and `obj-nut-eee 3`
+(`rrgn653s`) finished at 19:41. The night's finishes are not yet written up (TODO B29, "also owed"): `stack-eee 3`
+(`3l3j5z3v`), `stack-rrr 2` (`fxqkfi6u`), `stack-rrr 3` (`riczucki`), `obj-nut-rrr 2` (`b4e3jqgj`), `obj-nut-eee 3`.
+Stack's S1 can be read at two seeds an arm.
 
-| GPU | Running | Ends |
-|---|---|---|
-| 0 | `stack-eee 3` (`3l3j5z3v`, 70k; 60k 0.72, 70k 0.72) and `stack-rrr 2` (`fxqkfi6u`, from 13:18; step 0 0.50, early speed 0.0302) | 11-01 about 01:30–03:00; 11-01 about 03:00–04:00 |
-| 1 | both slots free; `obj-nut-rrr 2`'s smoke waits on the memory reserve to about 16:18 | |
+**From 21:30:**
+- **The full gate:** `79a954e`'s, in tmux `gate-79a954e` on GPU 1, through `gate_python.sh`, which adds the commit to
+  `tier2_passed.txt` when it passes.
+- **The five smokes, outside the queue:** tmux `smokes-a` (G-c8, then NA-eee) and `smokes-b` (G-cnn, then P2) on
+  GPU 0, and `smokes-c` (W-cnn) on GPU 1. `smoke-sampler` records their resources to
+  `outputs/diagnostics/wrist/smokes/resources.csv`, and each writes `<arm>.verdict` there.
+- **`order-1027` is stopped** (08:25 on 11-01; its scrollback is in `outputs/cleanup-20261101/scrollback/`), so it
+  launched nothing that Aden deferred.
+- **`order-1031`** (`outputs/queue/launchers/order-1031/order_queue.sh`, with `WRIST_WORKTREE` and `OBJ_WORKTREE`)
+  starts in tmux `order-queue` once the gate passes. JOBS: G-c8, G-cnn, W-cnn, NA-eee, P2, then `obj-nut-rrr 3`,
+  `obj-peg-eee 3`, `obj-peg-rrr 3`.
 
-**Done on 10-31:** `stack-eee 2` (`tjl95db5`) at 15:55, 0.692 at 110k–150k (B_stack 0.602); `obj-peg-rrr 2` (`mflrk646`) at 13:45, **0.872** at 110k–150k against its step 0's 0.52, the
-highest of any Square run with a package; `obj-peg-eee 2` (`3vimywbf`) at 13:10, 0.648 against its step 0's 0.66
-(the 2026-10-31 NOTEs). `tjl95db5`'s and `3vimywbf`'s `metrics.jsonl` stop at the disk-full; the server's full
-histories are beside them in `wandb_logs/metrics_from_server.jsonl`. **The disk filled at 22:57 on 10-30** (the FAILURE entry): `stack-rrr 2`
-(`cs4ezjj2`) died at 30k, and `obj-nut-rrr`'s smoke failed on it. Done before: `obj-nut-eee 2` (0.720),
-`stack-base 1` (`8g47hqyc`), `long-1027`.
+**The disk: 6.8 GB free at 21:05**, against the 6 GB floor (it pauses launches under about 5.2 GB). That is after
+two reclaims within the 10-28 DECISION: `obj-nut-eee 3`'s duplicate best model, and wandb's cache trimmed once to
+300 MB. The bulk video deletion was refused by the permission classifier. Each launch writes about 0.5 GB in its first
+hour, so without Aden's two scripts the floor likely holds the fourth and fifth launches:
+`outputs/cleanup-20261101/delete_by_hand_3.sh` (stack-base's extra checkpoints and the night's eval videos, 4.8 GB)
+and `delete_by_hand_2.sh` (3.2 GB).
 
-**Queued in `order-1027`**, restarted at 13:13 on 10-31 with the 6 GB floor. Each job takes the next slot to
-free, once the disk is above the floor and the memory reserve allows (23 GB held for 3 h after each launch, so
-nothing more launches before about 16:20):
-
-| Job | Slot | Expected end |
-|---|---|---|
-| `obj-nut-rrr 2` | GPU 1, about 16:20 (smoke first, 60–90 min) | 11-01 about 07:00–09:00 |
-| `stack-rrr 3` | GPU 1, after the next reserve, about 19:30–21:00 | 11-01 about 08:00–11:00 |
-| O1's seeds 3 (nut-eee, nut-rrr, peg-eee, peg-rrr) | the next four slots, from about 01:00–03:00 on 11-01 | 11-02 |
-
-Whether O1's seeds 3 stay in the queue is Aden's question 2 in the wrist-sweep plan (section 8); JOBS is unchanged
-until it is answered. Aden's Sunday goal (one seed of O1 and of Stack on both arms): `obj-nut-eee 2` and
-`stack-eee 2` done, `stack-rrr 2` about 03:00–04:00 on 11-01, `obj-nut-rrr 2` about 07:00–09:00 on 11-01. A Stack smoke takes about 70 min (42 of them filling the
-buffer), an O1 smoke 60–90 min. An `eee` run takes 29–31 h on Square and about 21 h on Stack (`stack-eee 2`'s
-first 30k), an `rrr` run about 10 h on Square and about 11–13 h on Stack (estimated from 0–3k).
+A Stack smoke takes about 70 min (42 of them filling the buffer). An `eee` run takes about 21 h on Stack, an `rrr`
+run about 11–13 h.
 
 How the queue works now:
-- `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, and
-  finished runs' idle sessions are closed by cleanups. At 09:54 the old list would have relaunched
-  `long-resfit 4` and `actor-resfit-shape 3`; `--check` caught it.
+- `JOBS` holds only jobs not yet launched. A restart skips a job only while its `q-*` session exists, so close a
+  finished run's idle session before a restart; `--check` shows what would launch.
 - `held()` counts a `train_bc_dexmg` or `eval_base_policy` process as a slot.
-- Earlier copies of the script are kept beside it: `order_queue.sh.before-20261029`, `.before-stack`,
-  `.before-20261030`, `.before-evalbase` and `.before-stackrl`. The 09:21 restart dropped `AD_WORKTREE` and
-  `LONG_WORKTREE`, and added `STACKRL_WORKTREE`.
-- O1's smokes are in `outputs/diagnostics/obj/smokes/`, Stack's in `outputs/diagnostics/stack/smokes/`. Both
-  evaluate 8 episodes (the 2026-10-30 DEVIATION).
+- Each group's smokes are in `outputs/diagnostics/<group>/smokes/` (obj, stack, wrist), 8 eval episodes each (the
+  2026-10-30 DEVIATION). Earlier copies of each queue script are kept beside it as `order_queue.sh.before-*`.
 
 **Every run goes to its full 150k with no automatic stop of any kind** (Aden, 2026-10-17 DEVIATION,
 which extends the 2026-10-12 AMENDMENT to the divergence stop). Aden stops a run early by hand if one
 needs it. New groups go in the watcher's watch-only set.
 
 How the runs are launched and followed:
-- **The queue:** `outputs/queue/launchers/order-1027/order_queue.sh`, in tmux `order-queue`, from 10-27 with
-  `AD_WORKTREE=/home/aden/projects/equi-resrl-a5b5cc8` and `LONG_WORKTREE` the long runs' pinned worktree;
-  restarted 13:19 with the long runs first, 16:28 with O1's `eee` jobs, 09:42 on 10-28 with its `rrr` jobs (`OBJ_WORKTREE` `equi-resrl-e7710f4`), 15:28 with an 8 GB free-disk floor (`DISK_FLOOR_GB`), and 13:13 on 10-31 with that floor at 6 GB. It is `order-1026`'s queue with the long runs added, at most two at once
+- **The queue:** `outputs/queue/launchers/order-1031/order_queue.sh` from 11-01 (`order-1027`'s with its JOBS
+  replaced; `order-1027`'s restarts from 10-27 to 10-31 are in PROGRESS), in tmux `order-queue`, with
+  `WRIST_WORKTREE` and `OBJ_WORKTREE`, a 6 GB free-disk floor (`DISK_FLOOR_GB`), at most two long runs at once
   (`LONG_MAX`), and a memory floor: a job launches only while MemAvailable, less 23 GB for each launch in the
   last 3 h, is 28 GB or more. A `tools.latency_eval` process holds a slot as a trainer does. Its log is
-  `order_queue.log` beside it, also appended to `../slot_queue.log`. `--check` prints each GPU's occupants,
-  where each job would fit, the memory and the long count.
+  `order_queue.log` beside it, also appended to `../slot_queue.log`.
   - At each slot free for 300 s (two per GPU), the first job in its list that fits that GPU's memory
     launches there through `retry/run_job.sh`, in tmux `q-<arm>-<seed>`. The run's gate goes first; a
     launch its gate stops is tried again, up to 3 tries 600 s apart.

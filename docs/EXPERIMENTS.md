@@ -12432,3 +12432,215 @@ that file.
   from 6.6 to 7.1 GB.
 - **Aden's Sunday goal, two of four done:** `obj-nut-eee 2` and `stack-eee 2`. `stack-rrr 2` ends about
   03:00–04:00 on 11-01. `obj-nut-rrr 2`'s smoke launches when the queue's memory reserve clears at about 16:18.
+
+---
+
+## 2026-11-01 — CODE — the wrist sweep's agent options (`79a954e`): the residual without the agentview camera, ResFiT's critic over one flat token, the gripper's xy dropped, the hand's heading frame, and the C8 wrist encoder. Every default is every earlier run's; the goldens are unchanged
+
+Written by Claude on the evening of 11-01, for `wrist-1031` (TODO B29; `docs/plans/2026-10-31-wrist-sweep.md`, steps
+1–4, 5 and 7; the PRE-REGISTERED entry below). The ResNet wrist encoders (`resnet18`, `resnet18_fa`; the plan's
+step 4 for G-pre and G-fa) are **not** in this commit: they go in a second one (the PRE-REGISTERED entry, "What
+changed from the plan").
+
+**What is new** (`EquivarianceConfig`, each field's default every earlier run's; ARCHITECTURE.md's provenance
+table; EQUIVARIANCE.md, "The hand's frame"):
+- **The residual without the agentview camera:** `rl_camera` may name the wrist cameras alone. `split_cameras`
+  (`rl/q_agent.py`) reads the cameras by name (a wrist is `*_eye_in_hand`, after at most one other camera), where
+  the agent read them by position. `ResObsEnc` then builds no agentview encoder: the images' features are the
+  wrists', trivial fields in every family, and `forward` takes its batch size from the state. The agentview
+  encoder's fields (`enc_degree_channel`, `enc_out_channel`, `encoder_norm`, `encoder_orth_init`, `initialize`,
+  `critic_window`) are then unread and refused off their defaults. The ablated encoder is refused without the
+  agentview camera: it differs from the equivariant one there alone. The base policy is untouched and still reads
+  every camera it was trained on, online (`residual_env_wrapper.py`) and in the offline labels
+  (`train_residual_td3.py`, which labels from every camera of the sample).
+- **`critic_tokens`** (`spatial`, `flat`), read with `critic_family=resfit` alone: `flat` builds ResFiT's own
+  critic with one token of every image feature (`ResFiTCritic(1, width, ...)`), and needs
+  `agent.critic.fuse_patch=0`, so its trunk is one Linear of [image features | action | state] to 1024 with its
+  LayerNorm; it can sit behind any encoder. Behind ResFiT's ViTs (P2) that Linear reads 20,736 numbers: the
+  critic is 44.6M parameters, against `rrr`'s 23.7M.
+- **`gripper_xy_input`**: `False` drops the gripper's xy from the proprioception (11 numbers per arm to 9).
+- **`action_frame`** (`world`, `heading`; `rl/heading_frame.py`): the encoder turns the rotation and the base
+  action's xy and rx_ry pairs by R_ψᵀ (ψ the heading of the gripper's x axis) and appends (cos ψ, sin ψ);
+  `HeadingFrameActor` turns the residual back to the world after its bound and noise, which commute with the turn,
+  and `HeadingFrameCritic` turns the world action in. Every caller still passes world actions: the buffer,
+  `combine_actions`, the env and every call site are unchanged. Refused but with one arm, no agentview camera, no
+  gripper xy, no objects, a base action, and ResFiT's actor and critic.
+- **`wrist_encoder`** (`plain`, `c8`): `c8` is `EquivariantResEncoder76Cyclic`, the agentview encoder's class at
+  its sizes (32 regular fields, 256 numbers), on the raw wrist crop, its output joined as plain numbers; without
+  the agentview camera alone, in the equivariant family. 0.28M parameters, against the plain CNN's 0.60M at 256
+  out: the two are matched on width, not size.
+- `tools/agent_fingerprint.py`'s `build_reference_agent` takes `cameras`; `tests/test_sweep_arms.py`'s agent
+  builder reads the config's `rl_camera` (both cameras in every earlier arm, so nothing earlier changes).
+- `submit.sh`: the five arms (`stack-na-eee`, `stack-p2`, `stack-w-cnn`, `stack-g-cnn`, `stack-g-c8`), seed group
+  `wrist-1031`; the watcher's group of that name, watch-only, early speed logged.
+
+**Tests:**
+- `tests/test_wrist_sweep.py`, 56 on the CPU:
+  - every arm builds and updates;
+  - every refusal, and every new unread field refused off its default;
+  - the flat critic is off_policy's `Critic` with one token and `fuse_patch=0`, bit for bit;
+  - **NA-eee is equivariant without the agentview camera**, at every element of C8, in eval and train mode. This
+    is checked from the physics, not the declared types: the state's xy turned about the base, its quaternion
+    turned, the base action's pairs turned, the wrist image unchanged. The actor's residual turns with them and Q
+    is unchanged (relative error under 1e-4).
+  - **In the heading frame (G-cnn, G-c8), a turn of the scene and the hand together about the hand** at 0.3, 1.0
+    and −2.2 rad (not C8's angles) leaves every network input unchanged to 1e-5, turns the actor's world-frame
+    residual with it to 1e-6, and leaves Q unchanged to 1e-5, in eval and train mode.
+  - The C8 wrist encoder's fields permute as regular fields under the crop's 90° turns.
+  - Without gripper xy, nothing reads the gripper's position.
+- `tests/test_sync_free.py`: the five arms' updates make no host sync.
+- `tests/test_sweep_arms.py`: each arm launches and composes to its registered overrides, and each wrist arm is its
+  source arm but for its listed changes.
+- `tests/test_square_rerendered_watch.py`: the group is never stopped.
+- The goldens (`tests/test_regression_agent.py`, `test_regression_single_arm.py`) and the ResFiT, layout, config,
+  object, Stack, ablated and actor-design suites pass unchanged. The full gate at `79a954e` is in the LAUNCHED
+  entry.
+
+---
+
+## 2026-11-01 — NOTE — P1: the wrist camera sees both of Stack's cubes at the start, but loses cube B for about 40% of the approach and 27% of the carry. The front camera's renders confirm the 10-31 FINDING's pinhole numbers to 0.2 px
+
+Measured by a Claude subagent on 11-01 for the wrist sweep's P1 (the plan's section 2). The scripts and their
+output are in `outputs/diagnostics/symmetry/` (local): `wrist_view.py` and `.txt`, `agentview_turn_render.py` and
+`.txt`, and two contact sheets in `wrist_view/`. Demo trajectories only, no policy rollouts.
+
+**The wrist camera** (`robot0_eye_in_hand`, 84×84, the centre 76×76 crop). 40 demos of
+`local/mimicgen-stack-d0-rerendered` (every 25th), every step, 4,274 frames. Each cube's centre and corners were
+projected through the sim's camera.
+
+| Phase | Frames | A's centre in the crop | B's centre in the crop | B per demo, median / worst | B seen (≥ 10 own pixels) |
+|---|---|---|---|---|---|
+| t = 0 | 40 | 100% | 100% | 100% / 100% | 100% |
+| Approach (to the grasp, median step 56) | 2,282 | 99.8% | 59.7% | 54.5% / 15.3% | 67.5% |
+| Carry (grasp to the done flag) | 1,871 | 100% | 73.0% | 75.6% / 15.4% | 69.0% |
+
+- B leaves the view late in the approach (by fifths 99, 86, 57, 31, 23%), as the camera falls from 0.31 m above
+  the table at t = 0 to 0.12 m at the grasp. It returns through the carry (32, 59, 82, 96, 100%). While A is
+  lowered onto it, A covers it: 9.3% of carry frames have B's centre in the crop but under 10 pixels of it shown.
+- 32 of 40 demos lose B at some point in the carry, and 20 for over a quarter of it. Its longest unseen stretch
+  between t = 0 and success has a median of 28 steps (1.4 s), a 90th percentile of 68, and a maximum of 93.
+- The cubes are small: at t = 0, A covers about 82 pixels of the 84×84 frame and B about 126.
+- **Cross-checks:** the projection matches robosuite's `get_camera_transform_matrix` to 7e-13 px. Projected
+  centres sit a median 1.35 px from the segmentation masks' centroids (26.9 px with the rows flipped), and fresh
+  renders equal the stored frames on all 4,274.
+
+**The front camera** (`agentview_turn_render.py`, 30 layouts rendered; the 10-31 FINDING's `camera_turn.py` was a
+pinhole model): the sim's camera has that model's pose and fovy, and its optical axis meets z 0.82 at x −0.031.
+
+| 45° turn | Cubes move, render / model | Off the in-plane rotation, render / model |
+|---|---|---|
+| About the robot base | 51.0 / 50.9 px | 47.4 / 47.3 px |
+| About the table middle | 6.0 / 6.0 px | 2.3 / 2.2 px |
+
+Per cube the render and the model agree to 0.15–0.22 px on average, at most 1.9 px. **So the 10-31 FINDING's
+numbers hold.**
+
+**What it means for the sweep:** the plan's risk "P1 fails" is half met. The W and G arms see both cubes at the
+start and A throughout, but B for about two thirds of the episode. The residual corrects a base policy that still
+sees both cameras, so the arms run as planned, with this recorded on every W and G result.
+
+**Not checked:** policy rollouts; the random crop's shifts in training (the centre crop only); whether a network
+reads cubes about 9 px across; the 10-pixel threshold, which is the subagent's choice. In the front-camera renders
+the arm was swung out of the way, and turned cubes were left floating, possibly off the table.
+
+---
+
+## 2026-11-01 — PRE-REGISTERED — the wrist sweep, its first five arms on Stack at seed 2 (`wrist-1031`): `eee` without the front camera, ResFiT's critic over one flat token, and the wrist-only residual with ResFiT's networks, in the table's axes or the hand's heading frame, behind a plain or a C8 wrist encoder
+
+**Decided by Aden:**
+- **10-31** (the DECISION of that date): NA-eee in; NA-rrr and NA-resfit cut; the G family only; "upend all
+  currently queued experiments to prioritize this new sweep".
+- **11-01, morning:** O1's seeds 3 deferred to after the sweep; the backfill (`obj-nut-rrr 2`, `stack-rrr 3`)
+  kept; both were overtaken by the night's finishes.
+- **11-01, about 08:10:** "build and queue one seed of each of the new arms on different bases and encoders. I need
+  to see results of incorporating the equivariant encoder into an unconstrained system similar to the practical
+  guide approach by tomorrow morning." That is G-c8, read against G-cnn.
+
+**Not answered by Aden before launch, so Claude's recommendations stand** (the plan's section 8 and the 11-01
+morning list, put to him at about 08:10; the 2026-10-28 DECISION lets Claude act on its own recommendations):
+- the W and G arms without the gripper's xy;
+- the heading frame, not the full gripper frame;
+- the widths: plain 256, C8 32 fields (256 numbers);
+- the order: G-c8, G-cnn, W-cnn, then NA-eee, then P2;
+- the build in two commits, the ResNet arms (G-pre, G-fa) second, so the morning question is not held for them;
+- the ResNet frozen, for the second commit.
+
+**Overnight authority** (the 11-01 list, item 10) was not granted either, so the plan's rules hold. A failed
+smoke drops its arm (the queue does that already); a rate outside the band or a test that cannot pass stops for
+Aden. No rate needs changing (the calibration, below).
+
+**The launch pin is `79a954e`** (the CODE entry above), run from the worktree `equi-resrl-79a954e`. This entry's
+commit adds docs only.
+
+**Questions** (the plan's section 1; every arm on Stack D0, base `stack-base` step 2000, B_stack 0.602):
+1. **NA:** does `eee` do better without the front camera, the one input whose declared rotation is wrong (the
+   10-31 FINDING; confirmed by render in the P1 NOTE above)?
+2. **P2:** does ResFiT's critic still learn when its trunk reads one flat token in place of per-patch tokens? This
+   is the precondition for putting it behind any encoder.
+3. **G:** does a residual written in the hand's heading frame, with ordinary networks, gain from the symmetry this
+   frame gives it for free (G-cnn against W-cnn)?
+4. **The equivariant encoder in an unconstrained system** (Aden's morning question): does the C8 encoder on the
+   wrist help that residual (G-c8 against G-cnn)?
+
+**The runs** (seed 2, 150k, wandb `robomimic-stack-final` / `equi-residual-rl`, queue `order-1031`, tmux
+`order-queue`):
+
+| Order | Arm | Source | What changes from the source | Read against | Predicted 0–3k speed |
+|---|---|---|---|---|---|
+| 1 | `stack-g-c8` | `stack-g-cnn` | `wrist_encoder=c8` (and `ih_out_channel` back to its default, unread) | `stack-g-cnn` | 0.0292 |
+| 2 | `stack-g-cnn` | `stack-w-cnn` | `action_frame=heading` | `stack-w-cnn` | 0.0295 |
+| 3 | `stack-w-cnn` | `stack-rrr` | the wrist camera alone; the equivariant family's wrist encoder (plain CNN, `ih_out_channel=256`) in place of ResFiT's ViTs; `critic_tokens=flat`, `fuse_patch=0`; `gripper_xy_input=false` | B_stack; the control for G | 0.0311 |
+| 4 | `stack-na-eee` | `stack-eee` | the wrist camera alone | `stack-eee` 2 and 3 | 0.0276 |
+| 5 | `stack-p2` | `stack-rrr` | `critic_tokens=flat`, `fuse_patch=0` | `stack-rrr` 2 and 3 | 0.0332 |
+
+`tests/test_sweep_arms.py` pins every arm's overrides and that it differs from its source only as listed.
+
+**The calibration** (`outputs/diagnostics/wrist/calibrate.py` and `calibration.json`, local; stack-1030's method):
+- Each arm takes 50 actor-only steps on 32 real Stack frames at seed 2, against its source arm built the same way.
+- Its predicted 0–3k is the source's measured 0–3k on Stack (`stack-eee` 0.0319 and `stack-rrr` 0.0324, each the
+  mean of its two runs) times the ratio of their 50-step residuals.
+- **All five are inside the band (0.025–0.045) at their sources' rates** (the actor's 1e-6, the critic's and
+  encoder's 1e-4), so no rate changes.
+
+**What is held fixed:** Stack's config, demos and base. The residual's bound (disks of 0.1 on the xy and tilt
+pairs, 0.1 on the rest), which turns with the heading frame unchanged. The noise (σ 0.05 in env units, isotropic in
+each pair), the trainer, the buffer, the rates, `num_q=10`, and the per-field normalization. The base policy still
+reads both cameras.
+
+**Not held:** the inputs each arm removes, and so its early speed (calibrated above), its parameter count (the
+CODE entry), and what the residual can see. Per P1 (the NOTE above), the wrist sees cube B for about two thirds of
+an episode. The wrist-only buffer stores no front images.
+
+**Readouts** (the plan's section 6):
+- **Each arm's 110k–150k pool** (250 episodes) and its step 0, against B_stack.
+- **The contrasts, one seed each, so described and not counted at the 0.13 bar:**
+  - G-c8 − G-cnn;
+  - G-cnn − W-cnn;
+  - NA-eee − `stack-eee` (two runs);
+  - P2 − `stack-rrr` (two runs).
+- **Monday morning's partial readout, for Aden's question:** for each launched arm, its evals so far and its
+  10k–30k signals (the evals, training success per 10k, `debug/q_data_online`). The 10-28 analysis found these the
+  strongest early predictors (ρ +0.86 and +0.80). Read at matched steps. A partial readout is a description only,
+  and the 110k–150k pools stay the registered readout.
+- **The early speed:** each run's 0–3k residual (the watcher's SPEED line) against its prediction above and the
+  band.
+- **A gross failure is reported to Aden, not acted on:** every eval at 10k–50k at or below 0.10. No automatic stop
+  of any kind (2026-10-17 DEVIATION).
+
+**Predictions** (Claude's, as in the plan):
+- NA-eee within ±0.10 of `stack-eee`;
+- P2 within ±0.10 of `stack-rrr`;
+- G-cnn above W-cnn;
+- G-c8 at or above G-cnn.
+
+**Slots and resources:**
+- Two runs a GPU, four at once. Each arm's smoke runs outside the queue, beside the commit's full gate, three at a
+  time then two (about 23 GB of RAM each). Each arm's verdict is then written before the queue starts, so the queue
+  launches each arm as a slot frees, without a smoke in its slot. A failed smoke drops its arm.
+- **The disk is short:** 6.8 GB free at 21:05, against the queue's 6 GB floor. That is after reclaiming
+  `obj-nut-eee 3`'s duplicate best model (0.45 GB) and trimming wandb's artifact cache once to 300 MB (0.92 GB),
+  both within the 2026-10-28 DECISION's kinds.
+- Each launch writes about 0.5 GB in its first hour. Without Aden's deletions (`delete_by_hand_3.sh`, written on
+  11-01: stack-base's extra checkpoints and the night's eval videos, 4.8 GB; and `delete_by_hand_2.sh`, 3.2 GB),
+  the floor will likely hold the fourth and fifth launches.
+- O1's three seeds 3 not yet run follow in `order-1031`. The ResNet arms come with the second commit.

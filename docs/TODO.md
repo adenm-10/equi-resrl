@@ -15,18 +15,27 @@ Stack (B25) has three of four started (`stack-1030`), and `stack-eee 2` done (0.
 13:13 (the 10-31 DECISION after it; STATUS, the disk). The long runs
 (B24) and the actor's design (B22) are done and read. B26, B27, B28 and B30 wait on Aden.
 
-### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — PLANNED 2026-10-31, WAITING ON ADEN `[SC]`
+### B29. The wrist sweep (`wrist-1031`): `eee` without the front camera, and a residual in the gripper's frame — FIVE ARMS BUILT AND PRE-REGISTERED 2026-11-01; G-pre AND G-fa TO BUILD `[SC]`
 
-**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local, DRAFT): the seven arms, the build in eight steps
-with file and line targets, the queue, the timeline and the readouts. **Why:** the 10-31 FINDING (Stack is
-extrinsic about the base; the front camera is centred on the table middle; seen from the gripper, Stack's layout
-is nearly closed) and the two papers read on 10-31 (the 10-31 DECISION).
-- **Aden's calls so far:** NA-eee in; NA-rrr and NA-resfit cut; the G family only (the constrained,
-  de-rotated-wrist design dropped); "upend all currently queued experiments".
-- **Waiting on Aden (the plan's section 8):** the disk deletions; `stack-rrr 2` at the head and the backfill;
-  the G arms with or without gripper xy; the heading frame or the full gripper frame; the pretrained encoders
-  frozen or fine-tuned; the encoder widths; the wave order.
-- **Then:** the build (one commit, one full gate), the pre-registration, and a new queue `order-1031`.
+**The plan:** `docs/plans/2026-10-31-wrist-sweep.md` (local; status BUILDING). **Why:** the 10-31 FINDING and the two
+papers (the 10-31 DECISION). **Aden's calls:** NA-eee in; NA-rrr and NA-resfit cut; the G family only; "upend all
+currently queued experiments"; on 11-01, O1's seeds 3 deferred to after the sweep, and "build and queue one seed of
+each of the new arms", with G-c8 against G-cnn wanted by Monday morning. Section 8's questions 3–7 were not answered,
+so Claude's recommendations stand (the 2026-11-01 PRE-REGISTERED entry lists them; Aden can still change them).
+- **Done 11-01:** P1 (the NOTE: cube B is out of the wrist's view for about 40% of the approach and 27% of the carry);
+  the five arms' code (the CODE entry: `rl_camera` without the front camera, `critic_tokens`, `gripper_xy_input`,
+  `action_frame`, `wrist_encoder=c8`), its tests, the calibration (all five in the band at their sources' rates),
+  the PRE-REGISTERED entry, the queue `order-1031`.
+- **Next:**
+  1. the smokes and the full gate, then `order-1031` (G-c8, G-cnn, W-cnn, NA-eee, P2, then O1's three seeds 3);
+  2. the disk: Aden's `outputs/cleanup-20261101/delete_by_hand_3.sh` (4.8 GB) and `delete_by_hand_2.sh` (3.2 GB),
+     without which the floor likely holds the fourth and fifth launches;
+  3. Monday morning's partial readout (matched steps, the 10k–30k signals);
+  4. the second commit: `wrist_encoder=resnet18` and `resnet18_fa` (frozen; `agent.freeze_encoder=true`), G-pre and
+     G-fa, their calibration, smokes and launch.
+- **Also owed:** the NOTEs on the runs that finished on 10-31/11-01 and are not yet written up: `stack-eee 3`
+  (`3l3j5z3v`), `stack-rrr 2` (`fxqkfi6u`), `stack-rrr 3` (`riczucki`), `obj-nut-rrr 2` (`b4e3jqgj`) and
+  `obj-nut-eee 3` (`rrgn653s`). Stack's S1 can now be read at two seeds an arm, and O1 has two seeds of its nut arms.
 
 ### B30. What costs ResFiT's networks 0.19 in our agent — NOT PLANNED, WAITING ON ADEN `[SC]`
 
@@ -98,69 +107,25 @@ afternoon and 11-01; O1 about 11-02.
     2, demo fraction 0.25, n-step 5, τ 0.01, critic warm-up 20k.
   - Stage 2: the best 2–3 at 150k, seeds 2–4.
 
-### B25. Stack, `eee` against `rrr`: the new task, planned 2026-10-27, APPROVED 2026-10-29 (Aden: "asap"), PRE-REGISTERED and queued 2026-10-30 `[SC]`
+### B25. Stack, `eee` against `rrr` (`stack-1030`) — ALL FOUR RUNS DONE 2026-11-01; THE READOUT IS OWED `[SC]`
 
-**Progress (10-30, 22:05):**
-- **Steps 1–3 are done:** the demos replay (954 of 1,000 action replays succeed); `Stack` is in the env
-  (`d2d4f4c`); the dataset `local/mimicgen-stack-d0-rerendered` (`ab15ad9`). See the 2026-10-29 CODE entries.
-- **Step 4 is done:** the base (`8g47hqyc`) trained from 00:12 to 22:01 on 10-30 (data loading made it about
-  22 h, not 9–12; 0.92 at 50k, 0.99 at best; the NOTE). It reached 0.91–0.96 by 9k–16k, so the headroom rule picked its step 2000 (0.67), uploaded
-  again as `run_8g47hqyc_model_step_2000:v0` (the 2026-10-30 NOTE). **B_stack = 0.602** (500 episodes, standard
-  error 0.022, 11:18–11:33 on 10-30), inside 0.30–0.85, so step 2000 stays.
-- **Steps 6–7 are done** (`adebb3c`; the 2026-10-30 CODE entry): the config, the gate's entry, the robot-base
-  probe (Square's), the arms and their tests, the early-speed calibration (`stack-eee` 0.0381, `stack-rrr`
-  0.0310, both in the band).
-- **Step 8 is done:** the four runs pre-registered (the 2026-10-30 PRE-REGISTERED entry, `stack-1030`: S1 =
-  `stack-eee` − `stack-rrr` at 0.13; S2 against Square's −0.108, described). The queue, its smoke launcher
-  and checker, the watcher (`stack-watch`) and the digest were set up from `9944eeb`, restarted at 09:21.
-- **Step 9, the runs:** `stack-eee 2` (`tjl95db5`, 112k at 10:15 on 10-31) ends about 15:30; `stack-eee 3`
-  (`3l3j5z3v`, from 23:05) about 08:00–10:00 on 11-01. `stack-rrr 2` (`cs4ezjj2`) died at 30k when the disk
-  filled (the 10-31 FAILURE) and runs again from about 12:40, then `stack-rrr 3`. The readout about 10:00 on 11-01.
-- **Removed** at 11:40: `equi-resrl-adebb3c` (B_stack's worktree) and tmux `stack-bstack` (its scrollback in
-  `outputs/cleanup-20261030/scrollback/`). At 22:03: `equi-resrl-3c23fe9` (the base policy's) and tmux
-  `q-stack-base-1`, its run folder moved to the main checkout first (its deletion: STATUS, Aden's call).
-- **Step 5 (the symmetry record)** is not done; it needs no slot.
-- **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable`. Its `if wandb is not None` tests the
-  module, which is never None. Every real run enables wandb. And its `upload_best` keeps only the latest
-  best in wandb, so a rule that picks an earlier best reads the run's local `best_step_<step>/`.
+**Steps 1–4 and 6–9 are done** (EXPERIMENTS.md, the 2026-10-29 and 10-30 CODE, NOTE and PRE-REGISTERED entries).
+- The demos (`local/mimicgen-stack-d0-rerendered`, 954 of 1,000 action replays succeed), the env and the dataset.
+- The base `8g47hqyc`: the headroom rule picked its step 2000, and **B_stack = 0.602** (500 episodes, standard
+  error 0.022).
+- The arms, their calibration and the four runs: `stack-eee 2` (`tjl95db5`) and 3 (`3l3j5z3v`); `stack-rrr 2`
+  (`fxqkfi6u`, relaunched after the 10-30 disk-full) and 3 (`riczucki`).
+- **Next:** read S1 (`stack-eee` − `stack-rrr` at 0.13) and S2 at two seeds an arm, and write up the three runs
+  that finished overnight (TODO B29, "also owed").
+- **Step 5, the symmetry record**, is half done: the layouts are measured (the 10-31 FINDING corrects the
+  pre-registration's premise), and the turned-demo replays (`outputs/diagnostics/symmetry/turned_replay.py`) are
+  not.
+- **Found:** `train_bc_dexmg.py` crashes without `--wandb_enable` (its `if wandb is not None` tests the module),
+  and its `upload_best` keeps only the latest best in wandb, so a rule that picks an earlier best reads the run's
+  local `best_step_<step>/`.
 
-The plan of record for the new task (the 2026-10-27 evening DECISION, item 4). Stack is robosuite's own
-task, MimicGen's Stack D0: two cubes within ±8 cm of the table's middle, at any yaw. Every cube-to-cube
-direction occurs, where Square's nut-to-peg direction spans 18.5°. ResFiT reported no Stack result, so
-every arm is trained here. The arms are `eee` and `rrr`, as in O1; ResFiT's own agent is an optional
-reference.
-
-1. **Demos** (half a day, CPU):
-   - download MimicGen's `core/stack_d0.hdf5` (Hugging Face `amandlek/mimicgen_datasets`; 1,000 demos,
-     recorded under robosuite 1.4.1);
-   - check that they replay under our 1.5.1: set each state by joint name, then check the cubes' placement
-     and that each demo's last state counts as a success;
-   - if they don't replay: map qpos by name (as the turned-demo replays did), or script grasp-and-place
-     demos.
-2. **Env** (a few hours): add `Stack` to `dexmg.py` (`ENV_ROBOTS`, the horizon, the single-arm camera and
-   low-dim key sets), and confirm the success signal (sparse reward 1 at a stack) ends the episode as
-   Square's does.
-3. **Dataset** (a few hours, a little GPU for EGL): a LeRobot dataset re-rendered through our env.
-   `tools/rerender_demos.py` copies its non-image columns from a LeRobot source, which Stack lacks, so it
-   needs a path from the hdf5 alone. Add `tools/render_check.py`'s expectations for Stack.
-4. **Base policy** (about a day of GPU): the diffusion base, trained as v9 was, then 200 or more episodes
-   of the base alone. **A headroom rule, set before training:** if the base succeeds above about 0.85,
-   train it on fewer demos or move to Stack D1 (±20 cm, wider camera).
-5. **The symmetry record** (CPU): the layout test is DONE (the 10-31 FINDING: about the base no turned Stack
-   layout is real; this corrects the pre-registration's premise). Not done: the turned-demo replays
-   (`outputs/diagnostics/symmetry/turned_replay.py`).
-6. **Agent plumbing:**
-   - robot-base detection and the normalizer's statistics from the new dataset;
-   - every Square-specific spot in the trainer, preflight (its task checks and render check), the
-     watcher and the digest.
-7. **Arms:** `stack-eee` and `stack-rrr`. For each: the early-speed check, `test_sweep_arms.py`, the
-   queue's `kind()` and `smokes_of()`, and the smokes.
-8. **Pre-register:** seeds 2 and 3, 150k, pools at 110k–150k, the 0.13 bar, and the predictions (`eee`'s
-   gain over `rrr` larger than on Square).
-9. **Runs:** four, two at a time, about 3–4 days; then the readout.
-
-**In all, about 1–1.5 weeks,** mostly waiting on the GPU. Steps 1–3 and 5 need no training slot, so they
-can run while O1 trains. The detailed copy is `docs/plans/2026-10-27-long-O-L-steps.md`, section 4 (local).
+The plan of record was the 2026-10-27 evening DECISION, item 4; the detailed steps are in
+`docs/plans/2026-10-27-long-O-L-steps.md`, section 4 (local).
 
 ### B23. The observation, latency and chunk experiments — O1 BUILT 2026-10-27 (B24); L SIDELINED and C parked (Aden, 2026-10-26 and 10-27) `[SC]`
 
