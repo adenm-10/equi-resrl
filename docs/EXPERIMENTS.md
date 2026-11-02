@@ -12760,3 +12760,69 @@ Read by Claude at about 22:00 on 11-01, from the packages. Every run here ran fr
   what both encoders lose; "in `eee` only" reads that the equivariant encoder loses what ResFiT's ViTs keep.
 - **The critic's early online value with the nut's pose** is unchanged for `eee` (+0.016 and +0.019, against
   +0.005 for `eee`), while its evals rose. So the lift does not come through that early signal.
+
+---
+
+## 2026-11-01 — DEVIATION — the wrist sweep launched at once on Aden's word: the smokes stopped, and each launch's gate run without Tier 2 while its commit's full gate runs beside. G-c8, G-cnn, W-cnn and NA-eee launched at 22:17–22:18; P2, G-pre and G-fa wait for slots (Claude's calls on the rest)
+
+Aden's message at about 22:10, verbatim: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and
+G-fa. asap. go with your recommendation for the rest of the decisions. report experiment queues and results as they
+process over night." A and B are the two commits of Claude's question 4 that afternoon (`79a954e` and `776c1ee`).
+
+- **What was running.** No training run: every run of `stack-1030`, O1's seeds 2 and `obj-nut-eee 3` had
+  finished. Running were three smokes (G-c8, G-cnn, W-cnn) and the two commits' full gates.
+- **The smokes.** W-cnn's had finished at 22:15 and passed (`ce3k4r5l`):
+  - evals at 0, 500 and 1000 of 0.375, 1.0 and 0.625;
+  - 88 ms an env step in the main loop;
+  - peak GPU 2,658 MiB and peak RAM 20.34 GiB (PSS, trainer and workers);
+  - its options as registered, and its best model reloads strictly.
+
+  G-c8's and G-cnn's were stopped at 22:16, at 98% of their demo labelling, before any training step, so they have
+  no verdict. Their own runs are their integration test: Claude reads the same signals (the step-0 eval, the
+  critic warmup's losses, the first evals) from the runs and reports them. NA-eee's and P2's smokes had not begun.
+- **Tier 2 beside, not before.** Each launch's gate ran Tier 1 and Tier 3, with Tier 2 skipped
+  (`outputs/queue/launchers/wrist-now/gate_python.sh`).
+  - The GPU suites run meanwhile as each commit's own full gate: `79a954e`'s from 21:29 (tmux `gate-79a954e`) and
+    `776c1ee`'s from 21:50 (`gate-776c1ee`). Each adds its commit to `tier2_passed.txt` when it passes.
+  - **Why:** the full gates take 134–145 min, so waiting for them would have held every launch about 1.5 h.
+  - **What covered the code before launch:** before each commit, the suites for the new options passed by hand
+    (`test_wrist_sweep.py`, the arm pins, the sync-free check, and the goldens with the affected suites), and Tier
+    1's CPU tests passed at each launch.
+  - **If either full gate fails,** Claude stops the runs at that commit and reports. Any relaunch from a fixed
+    commit is a new run.
+- **Four now, not seven: the RAM.**
+  - A wrist-only run measured 20.3 GiB in its smoke; a two-camera run (P2) is about 24 GiB at its start and about
+    34 GB at 150k (STATUS).
+  - Seven at once would be about 150 GB at their start, against 125 GB.
+  - The queue's rules (two a GPU, 23 GB reserved for each launch for 3 h, a 28 GB floor) admit four.
+  - GPU memory does not bind (2.7 GB at the smoke's peak).
+  - A fifth run would also slow G-c8 or G-cnn, the arms of Aden's morning question.
+- **The order** is the one Claude recommended and the PRE-REGISTERED entry gives (G-c8, G-cnn, W-cnn, NA-eee, then
+  P2, G-pre, G-fa): "go with your recommendation".
+- **The placement:**
+  - GPU 0: G-c8 and W-cnn. G-c8, behind the C8 encoder, is likely the slower of the morning pair, so it sits
+    beside the lighter arm.
+  - GPU 1: G-cnn and NA-eee.
+- **The launches.** Through `outputs/queue/launchers/wrist-now/run_job.sh` (`../retry/run_job.sh` with that gate),
+  each in tmux `q-<arm>-2`, from `79a954e`:
+  - G-c8 at 22:16:56 (gate GO, three warnings, Tier 2 skipped the first);
+  - G-cnn at 22:17:26;
+  - W-cnn at 22:17:56;
+  - NA-eee at 22:18:26.
+
+  Their step 0s and early speeds go in the LAUNCHED entry.
+- **P2, G-pre and G-fa.**
+  - Their smokes run outside the queue tonight, one after another on GPU 1
+    (`outputs/diagnostics/wrist/smokes/run_smokes_seq.sh`). P2's comes from `79a954e`, G-pre's and G-fa's from
+    `776c1ee`.
+  - Each smoke adds about 20 GB of RAM for about an hour, while the four runs' buffers are still small.
+  - `order-1031` then finds their verdicts and launches each as a slot frees, without a smoke in the slot. Its
+    JOBS are unchanged; a restart skips the four launched by hand while their `q-*` sessions exist.
+- **The watcher:** tmux `wrist-watch`, `tools/square_rerendered_watch.py --group wrist-1031`, from `776c1ee` so that
+  it knows all seven arms. Watch-only.
+- **The disk.**
+  - 6,278 MB free at 22:30. W-cnn's smoke's duplicate best model was reclaimed (kind A, 0.2 GB;
+    `outputs/cleanup-20261028/deleted_best_models.txt`), leaving 6,470 MB.
+  - Each launch also downloads the base policy (341 MB) into wandb's cache, which `cache-trim` caps hourly.
+  - Aden's two scripts (`delete_by_hand_3.sh`, 4.8 GB; `delete_by_hand_2.sh`, 3.2 GB) have not been run. Without
+    them the 6 GB floor will likely hold P2's, G-pre's and G-fa's launches in the morning. The floor stops no run.

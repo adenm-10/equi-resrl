@@ -1,9 +1,11 @@
 # Status
 
-**Last updated:** 2026-11-01, 21:35 · **Last verified commit:** `79a954e`, the wrist sweep's code (EXPERIMENTS.md,
-2026-11-01 CODE): its 56 new tests, the arm pins and the goldens with the affected suites (328 on the GPU) pass; its
-full gate runs from 21:30 in tmux `gate-79a954e`. Where each group launches from:
-- `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`; the 2026-11-01 PRE-REGISTERED entry);
+**Last updated:** 2026-11-01, 22:45 · **Last verified commit:** `776c1ee`, the wrist sweep's ResNet encoders
+(EXPERIMENTS.md, 2026-11-01 CODE). Both commits' new tests, arm pins and goldens pass by hand; their full gates run
+from 21:29 (`79a954e`, tmux `gate-79a954e`) and 21:50 (`776c1ee`, `gate-776c1ee`), beside the runs (the 2026-11-01
+DEVIATION). Where each group launches from:
+- `wrist-1031` from `79a954e` (worktree `equi-resrl-79a954e`) and, for G-pre and G-fa, `776c1ee` (`equi-resrl-776c1ee`;
+  the two 2026-11-01 PRE-REGISTERED entries);
 - `obj-1027` from `e7710f4`; `stack-1030` ran from `9944eeb` (all four runs done).
 
 Main is pushed to origin through `4a6ab43`; the commits since are local.
@@ -269,29 +271,36 @@ For planning the architectural experiments. Every number is from EXPERIMENTS.md'
 
 ## Running now
 
-**At 21:35 on 2026-11-01: no run trains.** Every run of `stack-1030` and O1's seed 2 is done, and `obj-nut-eee 3`
-(`rrgn653s`) finished at 19:41. The night's finishes are not yet written up (TODO B29, "also owed"): `stack-eee 3`
-(`3l3j5z3v`), `stack-rrr 2` (`fxqkfi6u`), `stack-rrr 3` (`riczucki`), `obj-nut-rrr 2` (`b4e3jqgj`), `obj-nut-eee 3`.
-Stack's S1 can be read at two seeds an arm.
+**At 22:45 on 2026-11-01: the wrist sweep's first four runs, from `79a954e`** (EXPERIMENTS.md, the 2026-11-01
+DEVIATION; Aden at about 22:10: "stop all runs and start A: NA-eee, P2, W-cnn, G-cnn and G-c8. B: G-pre and G-fa.
+asap"). They were launched by hand through `outputs/queue/launchers/wrist-now/run_job.sh`, each gate run without Tier
+2 while the commit's full gate runs beside:
+- GPU 0: G-c8 (tmux `q-stack-g-c8-2`) and W-cnn (`q-stack-w-cnn-2`);
+- GPU 1: G-cnn (`q-stack-g-cnn-2`) and NA-eee (`q-stack-na-eee-2`).
+- G-cnn's first gate failed only the known render-guard flake (below, "How the queue works now"), and its
+  `run_job.sh` retried at 22:45.
+- Each fills its buffer for about 45 min, then trains: a W/G run for about 6–9 h (W-cnn's smoke), NA-eee about 21 h.
 
-**From 21:30:**
-- **The full gate:** `79a954e`'s, in tmux `gate-79a954e` on GPU 1, through `gate_python.sh`, which adds the commit to
-  `tier2_passed.txt` when it passes.
-- **The five smokes, outside the queue:** tmux `smokes-a` (G-c8, then NA-eee) and `smokes-b` (G-cnn, then P2) on
-  GPU 0, and `smokes-c` (W-cnn) on GPU 1. `smoke-sampler` records their resources to
-  `outputs/diagnostics/wrist/smokes/resources.csv`, and each writes `<arm>.verdict` there.
-- **`order-1027` is stopped** (08:25 on 11-01; its scrollback is in `outputs/cleanup-20261101/scrollback/`), so it
-  launched nothing that Aden deferred.
-- **`order-1031`** (`outputs/queue/launchers/order-1031/order_queue.sh`, with `WRIST_WORKTREE` and `OBJ_WORKTREE`)
-  starts in tmux `order-queue` once the gate passes. JOBS: G-c8, G-cnn, W-cnn, NA-eee, P2, then `obj-nut-rrr 3`,
-  `obj-peg-eee 3`, `obj-peg-rrr 3`.
+**Beside them:**
+- **The two full gates.** If either fails, the runs at its commit are stopped (the DEVIATION).
+- **P2's, G-pre's and G-fa's smokes,** one after another on GPU 1 (tmux `smokes-d`, `run_smokes_seq.sh`;
+  `smoke-sampler`), once G-cnn's gate has passed.
+  - W-cnn's smoke passed at 22:15.
+  - G-c8's and G-cnn's smokes were stopped before training, so they have no verdict; their runs are their test.
+- **`order-1031`** in tmux `order-queue` from 22:41, with `WRIST_WORKTREE`, `WRIST2_WORKTREE` and `OBJ_WORKTREE`.
+  - JOBS: P2, G-pre, G-fa, then `obj-nut-rrr 3`, `obj-peg-eee 3`, `obj-peg-rrr 3`. The four launched by hand are
+    skipped while their `q-*` sessions exist.
+  - A `'` in `WRIST2`'s message had swallowed `JOBS` and the floors; `--check` caught it before the start (fixed).
+- **tmux `wrist-watch`:** the watcher for `wrist-1031`, from `776c1ee` (all seven arms), watch-only. Its lines are
+  in `outputs/queue/watch.log`.
+- `order-1027` is stopped (08:25 on 11-01).
 
-**The disk: 6.8 GB free at 21:05**, against the 6 GB floor (it pauses launches under about 5.2 GB). That is after
-two reclaims within the 10-28 DECISION: `obj-nut-eee 3`'s duplicate best model, and wandb's cache trimmed once to
-300 MB. The bulk video deletion was refused by the permission classifier. Each launch writes about 0.5 GB in its first
-hour, so without Aden's two scripts the floor likely holds the fourth and fifth launches:
-`outputs/cleanup-20261101/delete_by_hand_3.sh` (stack-base's extra checkpoints and the night's eval videos, 4.8 GB)
-and `delete_by_hand_2.sh` (3.2 GB).
+**The disk: about 6.4 GB free at 22:40,** against the 6 GB floor, which pauses launches under about 5.2 GB.
+- Without Aden's two scripts, the floor will likely hold P2's, G-pre's and G-fa's launches in the morning (the bulk
+  video deletion was refused by the permission classifier):
+  - `outputs/cleanup-20261101/delete_by_hand_3.sh`: stack-base's extra checkpoints and the night's eval videos,
+    4.8 GB;
+  - `outputs/cleanup-20261028/delete_by_hand_2.sh`: 3.2 GB.
 
 A Stack smoke takes about 70 min (42 of them filling the buffer). An `eee` run takes about 21 h on Stack, an `rrr`
 run about 11–13 h.
